@@ -18,7 +18,7 @@ describe("currentProject store", () => {
     const mockProject = {
       id: "test-id",
       name: "Test Project",
-      source_type: "plottr" as const,
+      source_type: "Plottr" as const,
       source_path: "/path/to/file.pltr",
       created_at: new Date().toISOString(),
       modified_at: new Date().toISOString(),
@@ -34,9 +34,7 @@ describe("currentProject store", () => {
         id: "ch-1",
         project_id: "proj-1",
         title: "Chapter 1",
-        sort_order: 0,
-        created_at: new Date().toISOString(),
-        modified_at: new Date().toISOString(),
+        position: 0,
       },
     ];
 
@@ -51,11 +49,8 @@ describe("currentProject store", () => {
         chapter_id: "ch-1",
         title: "Scene 1",
         synopsis: "A scene",
-        sort_order: 0,
+        position: 0,
         prose: null,
-        word_count: 0,
-        created_at: new Date().toISOString(),
-        modified_at: new Date().toISOString(),
       },
     ];
 
@@ -68,9 +63,7 @@ describe("currentProject store", () => {
       id: "ch-1",
       project_id: "proj-1",
       title: "Chapter 1",
-      sort_order: 0,
-      created_at: new Date().toISOString(),
-      modified_at: new Date().toISOString(),
+      position: 0,
     };
 
     currentProject.setCurrentChapter(mockChapter);
@@ -83,11 +76,8 @@ describe("currentProject store", () => {
       chapter_id: "ch-1",
       title: "Scene 1",
       synopsis: "A scene",
-      sort_order: 0,
+      position: 0,
       prose: null,
-      word_count: 0,
-      created_at: new Date().toISOString(),
-      modified_at: new Date().toISOString(),
     };
 
     currentProject.setCurrentScene(mockScene);
