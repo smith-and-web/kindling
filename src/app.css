@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+/* Kindling Dark Mode Color Palette */
+@theme {
+  --color-bg-primary: #1a1a2e;
+  --color-bg-panel: #16213e;
+  --color-bg-card: #0f3460;
+  --color-text-primary: #e4e4e7;
+  --color-text-secondary: #a1a1aa;
+  --color-accent: #e94560;
+  --color-beat-header: #1e3a5f;
+  --color-beat-expanded: #0f3460;
+  --color-focus-highlight: rgba(233, 69, 96, 0.1);
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+}
+
+/* Base styles */
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scrollbar styling for dark mode */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-panel);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-bg-card);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-beat-header);
+}
+
+/* Selection styling */
+::selection {
+  background: var(--color-accent);
+  color: white;
+}
