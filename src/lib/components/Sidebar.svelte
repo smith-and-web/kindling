@@ -99,31 +99,27 @@
         <span class="text-text-secondary">Loading...</span>
       </div>
     {:else}
-      {#each currentProject.chapters as chapter}
+      {#each currentProject.chapters as chapter (chapter.id)}
         <div class="mb-2">
           <button
             onclick={() => loadScenes(chapter)}
             class="w-full text-left px-3 py-2 rounded-lg transition-colors"
             class:bg-bg-card={currentProject.currentChapter?.id === chapter.id}
-            class:hover:bg-bg-card={currentProject.currentChapter?.id !==
-              chapter.id}
+            class:hover:bg-bg-card={currentProject.currentChapter?.id !== chapter.id}
           >
             <span class="text-text-primary font-medium">{chapter.title}</span>
           </button>
 
           {#if currentProject.currentChapter?.id === chapter.id}
             <div class="ml-4 mt-1 space-y-1">
-              {#each currentProject.scenes as scene}
+              {#each currentProject.scenes as scene (scene.id)}
                 <button
                   onclick={() => selectScene(scene)}
                   class="w-full text-left px-3 py-1.5 rounded text-sm transition-colors"
                   class:bg-accent={currentProject.currentScene?.id === scene.id}
-                  class:text-white={currentProject.currentScene?.id ===
-                    scene.id}
-                  class:text-text-secondary={currentProject.currentScene?.id !==
-                    scene.id}
-                  class:hover:text-text-primary={currentProject.currentScene
-                    ?.id !== scene.id}
+                  class:text-white={currentProject.currentScene?.id === scene.id}
+                  class:text-text-secondary={currentProject.currentScene?.id !== scene.id}
+                  class:hover:text-text-primary={currentProject.currentScene?.id !== scene.id}
                 >
                   {scene.title}
                 </button>

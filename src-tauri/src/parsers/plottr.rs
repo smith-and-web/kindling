@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 use thiserror::Error;
 
-use crate::models::{Project, Chapter, Scene, Beat, Character, Location, SourceType};
+use crate::models::{Beat, Chapter, Character, Location, Project, Scene, SourceType};
 
 #[derive(Debug, Error)]
 pub enum PlottrError {
@@ -147,29 +147,26 @@ pub fn parse_plottr_file<P: AsRef<Path>>(path: P) -> Result<ParsedPlottr, Plottr
     );
 
     // Parse chapters
-    let mut chapters: Vec<Chapter> = plottr.chapters
+    let mut chapters: Vec<Chapter> = plottr
+        .chapters
         .iter()
         .enumerate()
-        .map(|(idx, ch)| {
-            Chapter::new(
-                project.id,
-                ch.title.clone(),
-                ch.position.max(idx as i32),
-            )
-        })
+        .map(|(idx, ch)| Chapter::new(project.id, ch.title.clone(), ch.position.max(idx as i32)))
         .collect();
 
     chapters.sort_by_key(|c| c.position);
 
     // Build chapter ID map (Plottr ID -> our Chapter)
-    let chapter_map: HashMap<String, &Chapter> = plottr.chapters
+    let chapter_map: HashMap<String, &Chapter> = plottr
+        .chapters
         .iter()
         .zip(chapters.iter())
         .map(|(plottr_ch, ch)| (value_to_string(&plottr_ch.id), ch))
         .collect();
 
     // Parse characters
-    let characters: Vec<Character> = plottr.characters
+    let characters: Vec<Character> = plottr
+        .characters
         .iter()
         .map(|pc| {
             let mut attrs = HashMap::new();
@@ -190,19 +187,22 @@ pub fn parse_plottr_file<P: AsRef<Path>>(path: P) -> Result<ParsedPlottr, Plottr
                 pc.name.clone(),
                 pc.description.clone(),
                 Some(value_to_string(&pc.id)),
-            ).with_attributes(attrs)
+            )
+            .with_attributes(attrs)
         })
         .collect();
 
     // Build character ID map
-    let character_map: HashMap<String, &Character> = plottr.characters
+    let character_map: HashMap<String, &Character> = plottr
+        .characters
         .iter()
         .zip(characters.iter())
         .map(|(pc, ch)| (value_to_string(&pc.id), ch))
         .collect();
 
     // Parse locations (places)
-    let locations: Vec<Location> = plottr.places
+    let locations: Vec<Location> = plottr
+        .places
         .iter()
         .map(|pp| {
             let mut attrs = HashMap::new();
@@ -222,12 +222,14 @@ pub fn parse_plottr_file<P: AsRef<Path>>(path: P) -> Result<ParsedPlottr, Plottr
                 pp.name.clone(),
                 pp.description.clone(),
                 Some(value_to_string(&pp.id)),
-            ).with_attributes(attrs)
+            )
+            .with_attributes(attrs)
         })
         .collect();
 
     // Build location ID map
-    let location_map: HashMap<String, &Location> = plottr.places
+    let location_map: HashMap<String, &Location> = plottr
+        .places
         .iter()
         .zip(locations.iter())
         .map(|(pp, loc)| (value_to_string(&pp.id), loc))
@@ -243,10 +245,7 @@ pub fn parse_plottr_file<P: AsRef<Path>>(path: P) -> Result<ParsedPlottr, Plottr
     let mut cards_by_chapter: HashMap<String, Vec<&PlottrCard>> = HashMap::new();
     for card in &plottr.cards {
         let chapter_id = value_to_string(&card.chapter_id);
-        cards_by_chapter
-            .entry(chapter_id)
-            .or_default()
-            .push(card);
+        cards_by_chapter.entry(chapter_id).or_default().push(card);
     }
 
     // Create scenes from cards

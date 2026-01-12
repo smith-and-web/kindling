@@ -13,7 +13,12 @@ pub struct Location {
 }
 
 impl Location {
-    pub fn new(project_id: Uuid, name: String, description: Option<String>, source_id: Option<String>) -> Self {
+    pub fn new(
+        project_id: Uuid,
+        name: String,
+        description: Option<String>,
+        source_id: Option<String>,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             project_id,

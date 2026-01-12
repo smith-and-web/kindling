@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 use thiserror::Error;
 
-use crate::models::{Project, Chapter, Scene, Beat, SourceType};
+use crate::models::{Beat, Chapter, Project, Scene, SourceType};
 
 #[derive(Debug, Error)]
 pub enum MarkdownError {
@@ -79,7 +79,7 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
     for line in content.lines() {
         let trimmed = line.trim();
 
-        if trimmed.starts_with("# ") {
+        if let Some(stripped) = trimmed.strip_prefix("# ") {
             // Save previous scene and chapter if they exist
             if let Some(scene) = current_scene.take() {
                 scenes.push(scene);
@@ -89,13 +89,12 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
             }
 
             // New chapter
-            let title = trimmed[2..].trim().to_string();
+            let title = stripped.trim().to_string();
             current_chapter = Some(Chapter::new(project.id, title, chapter_position));
             chapter_position += 1;
             scene_position = 0;
             beat_position = 0;
-
-        } else if trimmed.starts_with("## ") {
+        } else if let Some(stripped) = trimmed.strip_prefix("## ") {
             // Save previous scene if it exists
             if let Some(scene) = current_scene.take() {
                 scenes.push(scene);
@@ -103,12 +102,11 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
 
             // New scene under current chapter
             if let Some(ref chapter) = current_chapter {
-                let title = trimmed[3..].trim().to_string();
+                let title = stripped.trim().to_string();
                 current_scene = Some(Scene::new(chapter.id, title, None, scene_position));
                 scene_position += 1;
                 beat_position = 0;
             }
-
         } else if trimmed.starts_with("- ") || trimmed.starts_with("* ") {
             // Beat (list item)
             if let Some(ref scene) = current_scene {
@@ -119,7 +117,6 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
                     beat_position += 1;
                 }
             }
-
         } else if !trimmed.is_empty() && !trimmed.starts_with('#') {
             // Regular paragraph under a scene becomes a beat
             if let Some(ref scene) = current_scene {

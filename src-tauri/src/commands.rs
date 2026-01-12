@@ -5,8 +5,8 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::db::{self, initialize_schema};
-use crate::models::{Project, Chapter, Scene, Beat, Character, Location};
-use crate::parsers::{parse_plottr_file, parse_scrivener_project, parse_markdown_outline};
+use crate::models::{Beat, Chapter, Character, Location, Project, Scene};
+use crate::parsers::{parse_markdown_outline, parse_plottr_file, parse_scrivener_project};
 
 // ============================================================================
 // Application State
@@ -44,7 +44,8 @@ pub async fn import_plottr(path: String, state: State<'_, AppState>) -> Result<P
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
     // Use a transaction for the import
-    conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
+    conn.execute("BEGIN TRANSACTION", [])
+        .map_err(|e| e.to_string())?;
 
     // Insert project
     db::insert_project(&conn, &parsed.project).map_err(|e| {
@@ -118,7 +119,8 @@ pub async fn import_scrivener(path: String, state: State<'_, AppState>) -> Resul
 
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
-    conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
+    conn.execute("BEGIN TRANSACTION", [])
+        .map_err(|e| e.to_string())?;
 
     db::insert_project(&conn, &parsed.project).map_err(|e| {
         let _ = conn.execute("ROLLBACK", []);
@@ -171,7 +173,8 @@ pub async fn import_markdown(path: String, state: State<'_, AppState>) -> Result
 
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
-    conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
+    conn.execute("BEGIN TRANSACTION", [])
+        .map_err(|e| e.to_string())?;
 
     db::insert_project(&conn, &parsed.project).map_err(|e| {
         let _ = conn.execute("ROLLBACK", []);
@@ -229,7 +232,10 @@ pub async fn get_recent_projects(state: State<'_, AppState>) -> Result<Vec<Proje
 // ============================================================================
 
 #[tauri::command]
-pub async fn get_chapters(project_id: String, state: State<'_, AppState>) -> Result<Vec<Chapter>, String> {
+pub async fn get_chapters(
+    project_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<Chapter>, String> {
     let uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     db::get_chapters(&conn, &uuid).map_err(|e| e.to_string())
@@ -240,14 +246,21 @@ pub async fn get_chapters(project_id: String, state: State<'_, AppState>) -> Res
 // ============================================================================
 
 #[tauri::command]
-pub async fn get_scenes(chapter_id: String, state: State<'_, AppState>) -> Result<Vec<Scene>, String> {
+pub async fn get_scenes(
+    chapter_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<Scene>, String> {
     let uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     db::get_scenes(&conn, &uuid).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn save_scene_prose(scene_id: String, prose: String, state: State<'_, AppState>) -> Result<(), String> {
+pub async fn save_scene_prose(
+    scene_id: String,
+    prose: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     db::update_scene_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())
@@ -265,7 +278,11 @@ pub async fn get_beats(scene_id: String, state: State<'_, AppState>) -> Result<V
 }
 
 #[tauri::command]
-pub async fn save_beat_prose(beat_id: String, prose: String, state: State<'_, AppState>) -> Result<(), String> {
+pub async fn save_beat_prose(
+    beat_id: String,
+    prose: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     let uuid = Uuid::parse_str(&beat_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     db::update_beat_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())
@@ -276,7 +293,10 @@ pub async fn save_beat_prose(beat_id: String, prose: String, state: State<'_, Ap
 // ============================================================================
 
 #[tauri::command]
-pub async fn get_characters(project_id: String, state: State<'_, AppState>) -> Result<Vec<Character>, String> {
+pub async fn get_characters(
+    project_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<Character>, String> {
     let uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     db::get_characters(&conn, &uuid).map_err(|e| e.to_string())
@@ -287,7 +307,10 @@ pub async fn get_characters(project_id: String, state: State<'_, AppState>) -> R
 // ============================================================================
 
 #[tauri::command]
-pub async fn get_locations(project_id: String, state: State<'_, AppState>) -> Result<Vec<Location>, String> {
+pub async fn get_locations(
+    project_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<Location>, String> {
     let uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     db::get_locations(&conn, &uuid).map_err(|e| e.to_string())

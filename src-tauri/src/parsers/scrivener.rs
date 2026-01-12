@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 use walkdir::WalkDir;
 
-use crate::models::{Project, Chapter, Scene, Beat, Character, Location, SourceType};
+use crate::models::{Beat, Chapter, Character, Location, Project, Scene, SourceType};
 
 #[derive(Debug, Error)]
 pub enum ScrivenerError {
@@ -76,11 +76,9 @@ pub struct ParsedScrivener {
 // ============================================================================
 
 fn find_scrivx_file(scriv_path: &Path) -> Option<PathBuf> {
-    for entry in WalkDir::new(scriv_path).max_depth(1) {
-        if let Ok(entry) = entry {
-            if entry.path().extension().map_or(false, |ext| ext == "scrivx") {
-                return Some(entry.path().to_path_buf());
-            }
+    for entry in WalkDir::new(scriv_path).max_depth(1).into_iter().flatten() {
+        if entry.path().extension().is_some_and(|ext| ext == "scrivx") {
+            return Some(entry.path().to_path_buf());
         }
     }
     None
@@ -126,7 +124,7 @@ fn parse_binder_xml(xml_content: &str) -> Result<Vec<BinderItem>, ScrivenerError
                                 }
                                 b"Type" => {
                                     current_type = BinderItemType::from(
-                                        String::from_utf8_lossy(&attr.value).as_ref()
+                                        String::from_utf8_lossy(&attr.value).as_ref(),
                                     );
                                 }
                                 _ => {}
@@ -230,12 +228,13 @@ fn collect_items_by_type(items: &[BinderItem], item_type: BinderItemType) -> Vec
     result
 }
 
-pub fn parse_scrivener_project<P: AsRef<Path>>(scriv_path: P) -> Result<ParsedScrivener, ScrivenerError> {
+pub fn parse_scrivener_project<P: AsRef<Path>>(
+    scriv_path: P,
+) -> Result<ParsedScrivener, ScrivenerError> {
     let scriv_path = scriv_path.as_ref();
 
     // Find the .scrivx file
-    let scrivx_path = find_scrivx_file(scriv_path)
-        .ok_or(ScrivenerError::ProjectFileNotFound)?;
+    let scrivx_path = find_scrivx_file(scriv_path).ok_or(ScrivenerError::ProjectFileNotFound)?;
 
     let xml_content = fs::read_to_string(&scrivx_path)?;
     let binder_items = parse_binder_xml(&xml_content)?;
@@ -301,12 +300,7 @@ pub fn parse_scrivener_project<P: AsRef<Path>>(scriv_path: P) -> Result<ParsedSc
                     let chapter = Chapter::new(project.id, child.title.clone(), ch_idx as i32);
 
                     let synopsis = read_synopsis(scriv_path, &child.uuid);
-                    let scene = Scene::new(
-                        chapter.id,
-                        child.title.clone(),
-                        synopsis.clone(),
-                        0,
-                    );
+                    let scene = Scene::new(chapter.id, child.title.clone(), synopsis.clone(), 0);
 
                     if let Some(syn) = synopsis {
                         if !syn.trim().is_empty() {
@@ -325,7 +319,7 @@ pub fn parse_scrivener_project<P: AsRef<Path>>(scriv_path: P) -> Result<ParsedSc
 
     // Collect character sheets
     let character_sheets = collect_items_by_type(&binder_items, BinderItemType::CharacterSheet);
-    for (_, char_item) in character_sheets.iter().enumerate() {
+    for char_item in &character_sheets {
         let description = read_synopsis(scriv_path, &char_item.uuid);
         let character = Character::new(
             project.id,
@@ -338,7 +332,7 @@ pub fn parse_scrivener_project<P: AsRef<Path>>(scriv_path: P) -> Result<ParsedSc
 
     // Collect location sheets
     let location_sheets = collect_items_by_type(&binder_items, BinderItemType::LocationSheet);
-    for (_, loc_item) in location_sheets.iter().enumerate() {
+    for loc_item in &location_sheets {
         let description = read_synopsis(scriv_path, &loc_item.uuid);
         let location = Location::new(
             project.id,

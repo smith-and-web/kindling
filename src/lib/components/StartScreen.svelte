@@ -96,9 +96,7 @@
 
     <!-- Import Options -->
     <div class="bg-bg-panel rounded-lg p-6 mb-8">
-      <h2 class="text-xl font-semibold text-text-primary mb-4">
-        Import Your Outline
-      </h2>
+      <h2 class="text-xl font-semibold text-text-primary mb-4">Import Your Outline</h2>
       <div class="grid grid-cols-3 gap-4">
         <button
           onclick={importPlottr}
@@ -168,21 +166,16 @@
     <!-- Recent Projects -->
     {#if recentProjects.length > 0}
       <div class="bg-bg-panel rounded-lg p-6">
-        <h2 class="text-xl font-semibold text-text-primary mb-4">
-          Recent Projects
-        </h2>
+        <h2 class="text-xl font-semibold text-text-primary mb-4">Recent Projects</h2>
         <div class="space-y-2">
-          {#each recentProjects as project}
+          {#each recentProjects as project (project.id)}
             <button
               onclick={() => openProject(project)}
               class="w-full flex items-center justify-between p-3 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer text-left"
             >
               <div>
-                <span class="text-text-primary font-medium">{project.name}</span
-                >
-                <span class="text-text-secondary text-sm ml-2"
-                  >({project.source_type})</span
-                >
+                <span class="text-text-primary font-medium">{project.name}</span>
+                <span class="text-text-secondary text-sm ml-2">({project.source_type})</span>
               </div>
               <span class="text-text-secondary text-sm">
                 {new Date(project.modified_at).toLocaleDateString()}
@@ -195,13 +188,9 @@
 
     <!-- Import Progress -->
     {#if ui.isImporting}
-      <div
-        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      >
+      <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div class="bg-bg-panel rounded-lg p-6 max-w-md w-full mx-4">
-          <h3 class="text-lg font-semibold text-text-primary mb-4">
-            Importing...
-          </h3>
+          <h3 class="text-lg font-semibold text-text-primary mb-4">Importing...</h3>
           <div class="w-full bg-bg-card rounded-full h-2 mb-2">
             <div
               class="bg-accent h-2 rounded-full transition-all"

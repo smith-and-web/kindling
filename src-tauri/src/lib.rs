@@ -19,8 +19,8 @@ pub fn run() {
                 .expect("Failed to get app data directory");
 
             // Initialize application state with database
-            let state = AppState::new(app_data_dir)
-                .expect("Failed to initialize application state");
+            let state =
+                AppState::new(app_data_dir).expect("Failed to initialize application state");
 
             app.manage(state);
 
