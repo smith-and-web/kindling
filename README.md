@@ -1,8 +1,33 @@
-# Kindling
+<h1 align="center">🔥 Kindling</h1>
 
-**Spark your draft** — Bridge the gap between outline and prose.
+<p align="center">
+  <strong>Spark your draft</strong> — Bridge the gap between outline and prose.
+</p>
 
-Kindling is a desktop writing application that helps fiction writers overcome the blank page problem when moving from outline to first draft. Import your story structure from popular outlining tools, then write prose directly into a scaffolded view where scene beats appear as expandable prompts.
+<p align="center">
+  <a href="https://github.com/smith-and-web/kindling/actions/workflows/ci.yml">
+    <img src="https://github.com/smith-and-web/kindling/actions/workflows/ci.yml/badge.svg" alt="CI Status" />
+  </a>
+  <a href="https://github.com/smith-and-web/kindling/releases">
+    <img src="https://img.shields.io/github/v/release/smith-and-web/kindling?include_prereleases&label=version" alt="Version" />
+  </a>
+  <a href="https://github.com/smith-and-web/kindling/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/smith-and-web/kindling" alt="License" />
+  </a>
+  <a href="https://github.com/smith-and-web/kindling/stargazers">
+    <img src="https://img.shields.io/github/stars/smith-and-web/kindling?style=flat" alt="Stars" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#roadmap">Roadmap</a> •
+  <a href="#contributing">Contributing</a> •
+  <a href="#support">Support</a>
+</p>
+
+---
 
 ## The Problem
 
@@ -14,28 +39,24 @@ Kindling keeps your outline visible and actionable as you write. Each scene disp
 
 ## Features
 
-- **Import from popular tools**: Plottr (.pltr), Scrivener (.scriv), or Markdown outlines
-- **Scaffolded writing view**: Scene beats appear as expandable prompts
-- **Distraction-free dark mode**: Easy on the eyes for long writing sessions
-- **Local-first**: Your work stays on your machine in a SQLite database
-- **Cross-platform**: macOS and Windows support
+| Feature | Description |
+|---------|-------------|
+| **Import from popular tools** | Plottr (.pltr), Scrivener (.scriv), or Markdown outlines |
+| **Scaffolded writing view** | Scene beats appear as expandable prompts |
+| **Distraction-free dark mode** | Easy on the eyes for long writing sessions |
+| **Local-first** | Your work stays on your machine in a SQLite database |
+| **Cross-platform** | macOS, Windows, and Linux support |
 
-## Tech Stack
+## Installation
 
-- **Frontend**: Svelte 5 with Tailwind CSS
-- **Backend**: Rust with Tauri 2.x
-- **Database**: SQLite via rusqlite
-- **Parsers**: Native Rust parsers for Plottr, Scrivener, and Markdown
+> **Note**: Kindling is in early development. Pre-built releases are coming soon.
 
-## Development
+### From Source
 
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) 18+
-- [Rust](https://rustup.rs/) (latest stable)
-- Platform-specific dependencies for Tauri: [see Tauri prerequisites](https://tauri.app/start/prerequisites/)
-
-### Setup
+**Prerequisites:**
+- [Node.js](https://nodejs.org/) 20+
+- [Rust](https://rustup.rs/) (stable)
+- Platform dependencies: [Tauri prerequisites](https://tauri.app/start/prerequisites/)
 
 ```bash
 # Clone the repository
@@ -47,9 +68,34 @@ npm install
 
 # Run in development mode
 npm run tauri dev
+
+# Build for production
+npm run tauri build
 ```
 
-### Project Structure
+## Roadmap
+
+Track progress on the [project board](https://github.com/users/smith-and-web/projects/1).
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| **v0.1 - Foundation** | 🔄 In Progress | Plottr import, basic UI, project structure |
+| **v0.2 - Outline View** | ⏳ Planned | Drag-and-drop reordering, create/delete scenes |
+| **v0.3 - Writing** | ⏳ Planned | Prose editor with beat integration |
+| **v0.4 - Export** | ⏳ Planned | Export to Scrivener, DOCX, Markdown |
+| **v1.0 - Release** | ⏳ Planned | Polish, performance, stability |
+
+See the [milestones](https://github.com/smith-and-web/kindling/milestones) for detailed breakdowns.
+
+## Tech Stack
+
+- **Frontend**: [Svelte 5](https://svelte.dev/) + [Tailwind CSS](https://tailwindcss.com/)
+- **Backend**: [Rust](https://www.rust-lang.org/) + [Tauri 2.x](https://tauri.app/)
+- **Database**: [SQLite](https://sqlite.org/) via rusqlite
+- **Parsers**: Native Rust parsers for Plottr, Scrivener, and Markdown
+
+<details>
+<summary><strong>Project Structure</strong></summary>
 
 ```
 kindling/
@@ -70,47 +116,39 @@ kindling/
 └── package.json
 ```
 
-## Roadmap
-
-### Phase 1: Scaffold ✅
-- Project initialization with Tauri 2.x + Svelte 5
-- SQLite database schema
-- Rust data models
-- Basic UI structure
-
-### Phase 2: Import (In Progress)
-- Plottr parser implementation
-- Scrivener parser implementation
-- Markdown outline parser
-- Project selection UI
-
-### Phase 3: Editor
-- Beat-by-beat writing interface
-- Prose persistence
-- Word count tracking
-- Auto-save
-
-### Phase 4: Polish
-- Export to Markdown/DOCX
-- Character/Location reference panels
-- Keyboard shortcuts
-- Theme customization
+</details>
 
 ## Contributing
 
-Contributions are welcome! This project is in early development, so there's plenty of opportunity to shape its direction.
+Contributions are welcome! Please read the [Contributing Guide](CONTRIBUTING.md) before submitting a PR.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+- 🐛 [Report bugs](https://github.com/smith-and-web/kindling/issues/new?template=bug_report.yml)
+- 💡 [Request features](https://github.com/smith-and-web/kindling/issues/new?template=feature_request.yml)
+- 💬 [Join discussions](https://github.com/smith-and-web/kindling/discussions)
+
+Looking for a place to start? Check out issues labeled [`good first issue`](https://github.com/smith-and-web/kindling/labels/good%20first%20issue).
+
+## Support
+
+If Kindling is useful to you, consider supporting its development:
+
+<a href="https://github.com/sponsors/smith-and-web">
+  <img src="https://img.shields.io/badge/Sponsor-❤️-ea4aaa?style=for-the-badge&logo=github-sponsors" alt="Sponsor on GitHub" />
+</a>
+
+Your sponsorship helps keep Kindling free and open source. See the [sponsor tiers](https://github.com/sponsors/smith-and-web) for perks.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+[MIT](LICENSE) — free for personal and commercial use.
 
 ## Acknowledgments
 
 - Built with [Tauri](https://tauri.app/) and [Svelte](https://svelte.dev/)
-- Inspired by the writing workflows of [Plottr](https://plottr.com/) and [Scrivener](https://www.literatureandlatte.com/scrivener/)
+- Inspired by [Plottr](https://plottr.com/) and [Scrivener](https://www.literatureandlatte.com/scrivener/)
+
+---
+
+<p align="center">
+  Made with ☕ for writers who plan before they write.
+</p>
