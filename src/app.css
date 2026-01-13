@@ -1,25 +1,44 @@
 @import "tailwindcss";
 
-/* Kindling Dark Mode Color Palette */
+/* Kindling Brand Color Palette */
 @theme {
-  --color-bg-primary: #1a1a2e;
-  --color-bg-panel: #16213e;
-  --color-bg-card: #0f3460;
-  --color-text-primary: #e4e4e7;
-  --color-text-secondary: #a1a1aa;
-  --color-accent: #e94560;
-  --color-beat-header: #1e3a5f;
-  --color-beat-expanded: #0f3460;
-  --color-focus-highlight: rgba(233, 69, 96, 0.1);
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
+  /* Primary Colors */
+  --color-ember-orange: #e85a1b;
+  --color-spark-gold: #f6a623;
+  --color-flame-red: #c23a0c;
+  --color-flame-orange: #e25227;
+  --color-highlight-orange: #f0912d;
+
+  /* Background Colors */
+  --color-bg-primary: #0f0f0f;
+  --color-bg-panel: #1a1817;
+  --color-bg-card: #2a2725;
+
+  /* Book/Earth Tones */
+  --color-book-dark: #501d0f;
+  --color-book-light: #89492b;
+  --color-book-mid: #5c2e1a;
+
+  /* Text Colors */
+  --color-text-primary: #f5f2ef;
+  --color-text-secondary: #9a9490;
+
+  /* UI Colors - mapped for Tailwind compatibility */
+  --color-accent: #e85a1b;
+  --color-beat-header: #2a2725;
+  --color-beat-expanded: #1a1817;
+  --color-focus-highlight: rgba(232, 90, 27, 0.15);
+
+  /* Utility Colors */
+  --color-success: #2d9c6b;
+  --color-warning: #d9a012;
 }
 
 /* Base styles */
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: "Inter", system-ui, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;
-  line-height: 1.5;
+  line-height: 1.6;
   font-weight: 400;
 
   color: var(--color-text-primary);
@@ -29,6 +48,15 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography Classes */
+.font-heading {
+  font-family: "Space Grotesk", system-ui, sans-serif;
+}
+
+.font-prose {
+  font-family: "Lora", Georgia, serif;
 }
 
 body {
