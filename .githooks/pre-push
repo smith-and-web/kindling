@@ -1,0 +1,54 @@
+#!/bin/sh
+
+# Kindling pre-push hook
+# Runs linting, formatting, type checking, and tests before pushing
+
+echo "Running pre-push checks..."
+
+# Store the current directory
+cd "$(git rev-parse --show-toplevel)"
+
+# Run Prettier format check
+echo "\n[1/5] Checking formatting (Prettier)..."
+npm run format:check
+if [ $? -ne 0 ]; then
+  echo "\n❌ Formatting check failed. Run 'npm run format' to fix."
+  exit 1
+fi
+
+# Run ESLint
+echo "\n[2/5] Running linter (ESLint)..."
+npm run lint
+if [ $? -ne 0 ]; then
+  echo "\n❌ Linting failed. Fix the errors above before pushing."
+  exit 1
+fi
+
+# Run TypeScript/Svelte type check
+echo "\n[3/5] Running type check (svelte-check)..."
+npm run check
+if [ $? -ne 0 ]; then
+  echo "\n❌ Type check failed. Fix the errors above before pushing."
+  exit 1
+fi
+
+# Run Rust format check
+echo "\n[4/5] Checking Rust formatting (cargo fmt)..."
+cd src-tauri
+cargo fmt --all -- --check
+if [ $? -ne 0 ]; then
+  echo "\n❌ Rust formatting check failed. Run 'cargo fmt' in src-tauri/ to fix."
+  exit 1
+fi
+cd ..
+
+# Run tests
+echo "\n[5/5] Running tests (Vitest)..."
+npm test
+if [ $? -ne 0 ]; then
+  echo "\n❌ Tests failed. Fix the failing tests before pushing."
+  exit 1
+fi
+
+echo "\n✅ All pre-push checks passed!"
+exit 0
