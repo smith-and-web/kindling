@@ -478,13 +478,28 @@ mod tests {
 
     #[test]
     fn test_binder_item_type_from_str() {
-        assert_eq!(BinderItemType::from("DraftFolder"), BinderItemType::DraftFolder);
+        assert_eq!(
+            BinderItemType::from("DraftFolder"),
+            BinderItemType::DraftFolder
+        );
         assert_eq!(BinderItemType::from("Folder"), BinderItemType::Folder);
         assert_eq!(BinderItemType::from("Text"), BinderItemType::Text);
-        assert_eq!(BinderItemType::from("CharacterSheet"), BinderItemType::CharacterSheet);
-        assert_eq!(BinderItemType::from("LocationSheet"), BinderItemType::LocationSheet);
-        assert_eq!(BinderItemType::from("ResearchFolder"), BinderItemType::ResearchFolder);
-        assert_eq!(BinderItemType::from("TrashFolder"), BinderItemType::TrashFolder);
+        assert_eq!(
+            BinderItemType::from("CharacterSheet"),
+            BinderItemType::CharacterSheet
+        );
+        assert_eq!(
+            BinderItemType::from("LocationSheet"),
+            BinderItemType::LocationSheet
+        );
+        assert_eq!(
+            BinderItemType::from("ResearchFolder"),
+            BinderItemType::ResearchFolder
+        );
+        assert_eq!(
+            BinderItemType::from("TrashFolder"),
+            BinderItemType::TrashFolder
+        );
         assert_eq!(
             BinderItemType::from("CustomType"),
             BinderItemType::Other("CustomType".to_string())
@@ -626,7 +641,10 @@ mod tests {
             .scenes
             .iter()
             .find(|s| s.title.contains("To Be or Not To Be"));
-        assert!(to_be_scene.is_some(), "Should find 'To be or not to be' scene");
+        assert!(
+            to_be_scene.is_some(),
+            "Should find 'To be or not to be' scene"
+        );
     }
 
     #[test]
@@ -654,14 +672,22 @@ mod tests {
         let parsed = parse_scrivener_project(&path).expect("Failed to parse hamlet.scriv");
 
         // Should have 19 characters
-        assert_eq!(parsed.characters.len(), 19, "Hamlet should have 19 characters");
+        assert_eq!(
+            parsed.characters.len(),
+            19,
+            "Hamlet should have 19 characters"
+        );
 
         // Verify key characters exist
         let hamlet = parsed.characters.iter().find(|c| c.name == "Hamlet");
         assert!(hamlet.is_some(), "Should have Hamlet character");
         let hamlet = hamlet.unwrap();
         assert!(
-            hamlet.description.as_ref().unwrap().contains("Prince of Denmark"),
+            hamlet
+                .description
+                .as_ref()
+                .unwrap()
+                .contains("Prince of Denmark"),
             "Hamlet should be Prince of Denmark"
         );
 
