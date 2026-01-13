@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a Question
+    url: https://github.com/smith-and-web/kindling/discussions/categories/q-a
+    about: Ask questions and get help from the community
+  - name: Share an Idea
+    url: https://github.com/smith-and-web/kindling/discussions/categories/ideas
+    about: Share ideas for new features before creating a formal request
+  - name: Show and Tell
+    url: https://github.com/smith-and-web/kindling/discussions/categories/show-and-tell
+    about: Share what you're working on with the community
