@@ -1,4 +1,8 @@
-<h1 align="center">🔥 Kindling</h1>
+<p align="center">
+  <img src=".github/assets/kindling-logo.svg" alt="Kindling" width="128" height="128" />
+</p>
+
+<h1 align="center">Kindling</h1>
 
 <p align="center">
   <strong>Spark your draft</strong> — Bridge the gap between outline and prose.
