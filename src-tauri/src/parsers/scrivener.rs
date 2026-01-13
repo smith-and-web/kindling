@@ -96,15 +96,11 @@ fn read_synopsis(scriv_path: &Path, uuid: &str) -> Option<String> {
 
 fn parse_binder_xml(xml_content: &str) -> Result<Vec<BinderItem>, ScrivenerError> {
     let mut reader = Reader::from_str(xml_content);
-    reader.config_mut().trim_text(true);
 
     let mut items = Vec::new();
     let mut stack: Vec<BinderItem> = Vec::new();
-    let mut current_uuid = String::new();
-    let mut current_type = BinderItemType::Other("Unknown".to_string());
-    let mut current_title = String::new();
     let mut in_title = false;
-    let mut in_binder_item = false;
+    let mut title_buffer = String::new();
     let mut buf = Vec::new();
 
     loop {
@@ -112,72 +108,76 @@ fn parse_binder_xml(xml_content: &str) -> Result<Vec<BinderItem>, ScrivenerError
             Ok(Event::Start(e)) => {
                 match e.name().as_ref() {
                     b"BinderItem" => {
-                        in_binder_item = true;
-                        current_uuid = String::new();
-                        current_type = BinderItemType::Other("Unknown".to_string());
-                        current_title = String::new();
+                        // Parse attributes for the new item
+                        let mut uuid = String::new();
+                        let mut item_type = BinderItemType::Other("Unknown".to_string());
 
                         for attr in e.attributes().flatten() {
                             match attr.key.as_ref() {
                                 b"UUID" => {
-                                    current_uuid = String::from_utf8_lossy(&attr.value).to_string();
+                                    uuid = String::from_utf8_lossy(&attr.value).to_string();
                                 }
                                 b"Type" => {
-                                    current_type = BinderItemType::from(
+                                    item_type = BinderItemType::from(
                                         String::from_utf8_lossy(&attr.value).as_ref(),
                                     );
                                 }
                                 _ => {}
                             }
                         }
-                    }
-                    b"Title" if in_binder_item => {
-                        in_title = true;
-                    }
-                    b"Children" if in_binder_item => {
-                        // Push current item to stack, we're going into children
-                        let item = BinderItem {
-                            uuid: current_uuid.clone(),
-                            item_type: current_type.clone(),
-                            title: current_title.clone(),
+
+                        // Push a new item onto the stack
+                        stack.push(BinderItem {
+                            uuid,
+                            item_type,
+                            title: String::new(),
                             children: Vec::new(),
-                        };
-                        stack.push(item);
+                        });
+                    }
+                    b"Title" if !stack.is_empty() => {
+                        in_title = true;
+                        title_buffer.clear();
                     }
                     _ => {}
                 }
             }
             Ok(Event::Text(e)) if in_title => {
-                current_title = String::from_utf8_lossy(&e).to_string();
+                let text = String::from_utf8_lossy(&e);
+                title_buffer.push_str(&text);
+            }
+            // Handle entity references (e.g., &amp; &lt; &gt;)
+            Ok(Event::GeneralRef(e)) if in_title => {
+                let entity = String::from_utf8_lossy(&e);
+                match entity.as_ref() {
+                    "amp" => title_buffer.push('&'),
+                    "lt" => title_buffer.push('<'),
+                    "gt" => title_buffer.push('>'),
+                    "quot" => title_buffer.push('"'),
+                    "apos" => title_buffer.push('\''),
+                    _ => {
+                        // Unknown entity, preserve as-is
+                        title_buffer.push('&');
+                        title_buffer.push_str(&entity);
+                        title_buffer.push(';');
+                    }
+                }
             }
             Ok(Event::End(e)) => {
                 match e.name().as_ref() {
                     b"Title" => {
+                        if let Some(current) = stack.last_mut() {
+                            current.title = title_buffer.trim().to_string();
+                        }
                         in_title = false;
                     }
                     b"BinderItem" => {
-                        let item = BinderItem {
-                            uuid: current_uuid.clone(),
-                            item_type: current_type.clone(),
-                            title: current_title.clone(),
-                            children: Vec::new(),
-                        };
-
-                        if let Some(mut parent) = stack.pop() {
-                            parent.children.push(item);
-                            stack.push(parent);
-                        } else {
-                            items.push(item);
-                        }
-                        in_binder_item = false;
-                    }
-                    b"Children" => {
-                        // Pop from stack and finalize
+                        // Pop the completed item from the stack
                         if let Some(completed) = stack.pop() {
-                            if let Some(mut parent) = stack.pop() {
+                            if let Some(parent) = stack.last_mut() {
+                                // Add to parent's children
                                 parent.children.push(completed);
-                                stack.push(parent);
                             } else {
+                                // No parent, add to top-level items
                                 items.push(completed);
                             }
                         }
@@ -192,14 +192,9 @@ fn parse_binder_xml(xml_content: &str) -> Result<Vec<BinderItem>, ScrivenerError
         buf.clear();
     }
 
-    // Handle any remaining items on the stack
+    // Handle any remaining items on the stack (shouldn't happen with well-formed XML)
     while let Some(item) = stack.pop() {
-        if let Some(mut parent) = stack.pop() {
-            parent.children.push(item);
-            stack.push(parent);
-        } else {
-            items.push(item);
-        }
+        items.push(item);
     }
 
     Ok(items)
@@ -351,4 +346,520 @@ pub fn parse_scrivener_project<P: AsRef<Path>>(
         characters,
         locations,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn fixture_path(name: &str) -> PathBuf {
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("tests");
+        path.push("fixtures");
+        path.push(name);
+        path
+    }
+
+    // ========================================================================
+    // Helper Function Tests
+    // ========================================================================
+
+    #[test]
+    fn test_find_scrivx_file() {
+        let path = fixture_path("hamlet.scriv");
+        let scrivx = find_scrivx_file(&path);
+        assert!(scrivx.is_some(), "Should find .scrivx file");
+        assert!(
+            scrivx.unwrap().to_string_lossy().contains("hamlet.scrivx"),
+            "Should find hamlet.scrivx"
+        );
+    }
+
+    #[test]
+    fn test_find_scrivx_file_nonexistent() {
+        let path = fixture_path("nonexistent.scriv");
+        let scrivx = find_scrivx_file(&path);
+        assert!(scrivx.is_none(), "Should return None for nonexistent path");
+    }
+
+    #[test]
+    fn test_read_synopsis() {
+        let path = fixture_path("hamlet.scriv");
+        let synopsis = read_synopsis(&path, "scene-3-1-uuid");
+        assert!(synopsis.is_some(), "Should find synopsis for scene-3-1");
+        let text = synopsis.unwrap();
+        assert!(
+            text.contains("To be or not to be"),
+            "Should contain famous soliloquy reference"
+        );
+    }
+
+    #[test]
+    fn test_read_synopsis_nonexistent() {
+        let path = fixture_path("hamlet.scriv");
+        let synopsis = read_synopsis(&path, "nonexistent-uuid");
+        assert!(
+            synopsis.is_none(),
+            "Should return None for nonexistent UUID"
+        );
+    }
+
+    #[test]
+    fn test_read_synopsis_character() {
+        let path = fixture_path("hamlet.scriv");
+        let synopsis = read_synopsis(&path, "char-hamlet-uuid");
+        assert!(synopsis.is_some(), "Should find synopsis for Hamlet");
+        let text = synopsis.unwrap();
+        assert!(
+            text.contains("Prince of Denmark"),
+            "Hamlet should be Prince of Denmark"
+        );
+    }
+
+    // ========================================================================
+    // XML Parsing Tests
+    // ========================================================================
+
+    #[test]
+    fn test_parse_binder_xml_basic() {
+        let xml = r#"<?xml version="1.0"?>
+        <ScrivenerProject>
+            <Binder>
+                <BinderItem UUID="test-uuid" Type="Text">
+                    <Title>Test Document</Title>
+                </BinderItem>
+            </Binder>
+        </ScrivenerProject>"#;
+
+        let items = parse_binder_xml(xml).expect("Should parse basic XML");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].uuid, "test-uuid");
+        assert_eq!(items[0].title, "Test Document");
+        assert_eq!(items[0].item_type, BinderItemType::Text);
+    }
+
+    #[test]
+    fn test_parse_binder_xml_with_children() {
+        let xml = r#"<?xml version="1.0"?>
+        <ScrivenerProject>
+            <Binder>
+                <BinderItem UUID="folder-uuid" Type="Folder">
+                    <Title>Chapter 1</Title>
+                    <Children>
+                        <BinderItem UUID="scene-uuid" Type="Text">
+                            <Title>Scene 1</Title>
+                        </BinderItem>
+                    </Children>
+                </BinderItem>
+            </Binder>
+        </ScrivenerProject>"#;
+
+        let items = parse_binder_xml(xml).expect("Should parse XML with children");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].children.len(), 1);
+        assert_eq!(items[0].children[0].title, "Scene 1");
+    }
+
+    #[test]
+    fn test_parse_binder_xml_draft_folder() {
+        let xml = r#"<?xml version="1.0"?>
+        <ScrivenerProject>
+            <Binder>
+                <BinderItem UUID="draft-uuid" Type="DraftFolder">
+                    <Title>Manuscript</Title>
+                </BinderItem>
+            </Binder>
+        </ScrivenerProject>"#;
+
+        let items = parse_binder_xml(xml).expect("Should parse DraftFolder");
+        assert_eq!(items[0].item_type, BinderItemType::DraftFolder);
+    }
+
+    #[test]
+    fn test_binder_item_type_from_str() {
+        assert_eq!(BinderItemType::from("DraftFolder"), BinderItemType::DraftFolder);
+        assert_eq!(BinderItemType::from("Folder"), BinderItemType::Folder);
+        assert_eq!(BinderItemType::from("Text"), BinderItemType::Text);
+        assert_eq!(BinderItemType::from("CharacterSheet"), BinderItemType::CharacterSheet);
+        assert_eq!(BinderItemType::from("LocationSheet"), BinderItemType::LocationSheet);
+        assert_eq!(BinderItemType::from("ResearchFolder"), BinderItemType::ResearchFolder);
+        assert_eq!(BinderItemType::from("TrashFolder"), BinderItemType::TrashFolder);
+        assert_eq!(
+            BinderItemType::from("CustomType"),
+            BinderItemType::Other("CustomType".to_string())
+        );
+    }
+
+    // ========================================================================
+    // find_draft_folder and collect_items_by_type Tests
+    // ========================================================================
+
+    #[test]
+    fn test_find_draft_folder() {
+        let items = vec![
+            BinderItem {
+                uuid: "other-uuid".to_string(),
+                item_type: BinderItemType::Folder,
+                title: "Other".to_string(),
+                children: vec![],
+            },
+            BinderItem {
+                uuid: "draft-uuid".to_string(),
+                item_type: BinderItemType::DraftFolder,
+                title: "Manuscript".to_string(),
+                children: vec![],
+            },
+        ];
+
+        let draft = find_draft_folder(&items);
+        assert!(draft.is_some());
+        assert_eq!(draft.unwrap().uuid, "draft-uuid");
+    }
+
+    #[test]
+    fn test_find_draft_folder_nested() {
+        let items = vec![BinderItem {
+            uuid: "outer-uuid".to_string(),
+            item_type: BinderItemType::Folder,
+            title: "Outer".to_string(),
+            children: vec![BinderItem {
+                uuid: "draft-uuid".to_string(),
+                item_type: BinderItemType::DraftFolder,
+                title: "Manuscript".to_string(),
+                children: vec![],
+            }],
+        }];
+
+        let draft = find_draft_folder(&items);
+        assert!(draft.is_some());
+        assert_eq!(draft.unwrap().uuid, "draft-uuid");
+    }
+
+    #[test]
+    fn test_find_draft_folder_missing() {
+        let items = vec![BinderItem {
+            uuid: "folder-uuid".to_string(),
+            item_type: BinderItemType::Folder,
+            title: "Just a folder".to_string(),
+            children: vec![],
+        }];
+
+        let draft = find_draft_folder(&items);
+        assert!(draft.is_none());
+    }
+
+    #[test]
+    fn test_collect_items_by_type() {
+        let items = vec![
+            BinderItem {
+                uuid: "char1-uuid".to_string(),
+                item_type: BinderItemType::CharacterSheet,
+                title: "Character 1".to_string(),
+                children: vec![],
+            },
+            BinderItem {
+                uuid: "folder-uuid".to_string(),
+                item_type: BinderItemType::Folder,
+                title: "Folder".to_string(),
+                children: vec![BinderItem {
+                    uuid: "char2-uuid".to_string(),
+                    item_type: BinderItemType::CharacterSheet,
+                    title: "Character 2".to_string(),
+                    children: vec![],
+                }],
+            },
+        ];
+
+        let characters = collect_items_by_type(&items, BinderItemType::CharacterSheet);
+        assert_eq!(characters.len(), 2);
+    }
+
+    // ========================================================================
+    // Integration Tests - Full Project Parsing
+    // ========================================================================
+
+    #[test]
+    fn test_parse_hamlet_project() {
+        let path = fixture_path("hamlet.scriv");
+        let result = parse_scrivener_project(&path);
+
+        assert!(
+            result.is_ok(),
+            "Failed to parse hamlet.scriv: {:?}",
+            result.err()
+        );
+        let parsed = result.unwrap();
+
+        // Project
+        assert_eq!(parsed.project.name, "hamlet");
+        assert_eq!(parsed.project.source_type, SourceType::Scrivener);
+    }
+
+    #[test]
+    fn test_parse_hamlet_chapters() {
+        let path = fixture_path("hamlet.scriv");
+        let parsed = parse_scrivener_project(&path).expect("Failed to parse hamlet.scriv");
+
+        // Should have 5 acts (chapters)
+        assert_eq!(parsed.chapters.len(), 5, "Hamlet should have 5 acts");
+
+        // Verify act titles
+        let titles: Vec<&str> = parsed.chapters.iter().map(|c| c.title.as_str()).collect();
+        assert!(titles.contains(&"Act 1"), "Should have Act 1");
+        assert!(titles.contains(&"Act 2"), "Should have Act 2");
+        assert!(titles.contains(&"Act 3"), "Should have Act 3");
+        assert!(titles.contains(&"Act 4"), "Should have Act 4");
+        assert!(titles.contains(&"Act 5"), "Should have Act 5");
+    }
+
+    #[test]
+    fn test_parse_hamlet_scenes() {
+        let path = fixture_path("hamlet.scriv");
+        let parsed = parse_scrivener_project(&path).expect("Failed to parse hamlet.scriv");
+
+        // Should have 20 scenes total (5+2+4+7+2)
+        assert_eq!(parsed.scenes.len(), 20, "Hamlet should have 20 scenes");
+
+        // Find the famous "To be or not to be" scene
+        let to_be_scene = parsed
+            .scenes
+            .iter()
+            .find(|s| s.title.contains("To Be or Not To Be"));
+        assert!(to_be_scene.is_some(), "Should find 'To be or not to be' scene");
+    }
+
+    #[test]
+    fn test_parse_hamlet_beats() {
+        let path = fixture_path("hamlet.scriv");
+        let parsed = parse_scrivener_project(&path).expect("Failed to parse hamlet.scriv");
+
+        // Beats come from synopsis.txt files
+        assert!(
+            !parsed.beats.is_empty(),
+            "Should have beats from synopsis files"
+        );
+
+        // Check that a beat contains expected content
+        let soliloquy_beat = parsed
+            .beats
+            .iter()
+            .find(|b| b.content.contains("To be or not to be"));
+        assert!(soliloquy_beat.is_some(), "Should have beat with soliloquy");
+    }
+
+    #[test]
+    fn test_parse_hamlet_characters() {
+        let path = fixture_path("hamlet.scriv");
+        let parsed = parse_scrivener_project(&path).expect("Failed to parse hamlet.scriv");
+
+        // Should have 19 characters
+        assert_eq!(parsed.characters.len(), 19, "Hamlet should have 19 characters");
+
+        // Verify key characters exist
+        let hamlet = parsed.characters.iter().find(|c| c.name == "Hamlet");
+        assert!(hamlet.is_some(), "Should have Hamlet character");
+        let hamlet = hamlet.unwrap();
+        assert!(
+            hamlet.description.as_ref().unwrap().contains("Prince of Denmark"),
+            "Hamlet should be Prince of Denmark"
+        );
+
+        let claudius = parsed.characters.iter().find(|c| c.name == "Claudius");
+        assert!(claudius.is_some(), "Should have Claudius character");
+
+        let ophelia = parsed.characters.iter().find(|c| c.name == "Ophelia");
+        assert!(ophelia.is_some(), "Should have Ophelia character");
+
+        let ghost = parsed
+            .characters
+            .iter()
+            .find(|c| c.name == "Ghost of King Hamlet");
+        assert!(ghost.is_some(), "Should have Ghost character");
+    }
+
+    #[test]
+    fn test_parse_hamlet_locations() {
+        let path = fixture_path("hamlet.scriv");
+        let parsed = parse_scrivener_project(&path).expect("Failed to parse hamlet.scriv");
+
+        // Should have 5 locations
+        assert_eq!(parsed.locations.len(), 5, "Hamlet should have 5 locations");
+
+        // Verify key locations exist
+        let elsinore = parsed
+            .locations
+            .iter()
+            .find(|l| l.name == "Elsinore Castle");
+        assert!(elsinore.is_some(), "Should have Elsinore Castle");
+        assert!(
+            elsinore
+                .unwrap()
+                .description
+                .as_ref()
+                .unwrap()
+                .contains("royal castle"),
+            "Elsinore should be the royal castle"
+        );
+
+        let graveyard = parsed.locations.iter().find(|l| l.name == "Graveyard");
+        assert!(graveyard.is_some(), "Should have Graveyard");
+
+        let battlements = parsed
+            .locations
+            .iter()
+            .find(|l| l.name == "The Battlements");
+        assert!(battlements.is_some(), "Should have The Battlements");
+    }
+
+    #[test]
+    fn test_parse_hamlet_scene_chapter_relationships() {
+        let path = fixture_path("hamlet.scriv");
+        let parsed = parse_scrivener_project(&path).expect("Failed to parse hamlet.scriv");
+
+        // Find Act 1
+        let act1 = parsed.chapters.iter().find(|c| c.title == "Act 1");
+        assert!(act1.is_some());
+        let act1 = act1.unwrap();
+
+        // Count scenes in Act 1 (should be 5)
+        let act1_scenes: Vec<_> = parsed
+            .scenes
+            .iter()
+            .filter(|s| s.chapter_id == act1.id)
+            .collect();
+        assert_eq!(act1_scenes.len(), 5, "Act 1 should have 5 scenes");
+    }
+
+    #[test]
+    fn test_parse_hamlet_project_metadata() {
+        let path = fixture_path("hamlet.scriv");
+        let parsed = parse_scrivener_project(&path).expect("Failed to parse hamlet.scriv");
+
+        assert_eq!(parsed.project.name, "hamlet");
+        assert!(parsed.project.source_path.is_some());
+        assert!(parsed
+            .project
+            .source_path
+            .as_ref()
+            .unwrap()
+            .contains("hamlet.scriv"));
+    }
+
+    // ========================================================================
+    // Edge Case Tests
+    // ========================================================================
+
+    #[test]
+    fn test_parse_nonexistent_project() {
+        let path = fixture_path("nonexistent.scriv");
+        let result = parse_scrivener_project(&path);
+        assert!(result.is_err(), "Should fail for nonexistent project");
+    }
+
+    #[test]
+    fn test_parse_binder_xml_empty() {
+        let xml = r#"<?xml version="1.0"?>
+        <ScrivenerProject>
+            <Binder>
+            </Binder>
+        </ScrivenerProject>"#;
+
+        let items = parse_binder_xml(xml).expect("Should parse empty binder");
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn test_parse_binder_xml_truncated() {
+        // quick_xml is lenient with truncated XML - it returns what it parsed
+        // before hitting EOF. This tests that behavior.
+        let xml = r#"<?xml version="1.0"?>
+        <ScrivenerProject>
+            <Binder>
+                <BinderItem UUID="test" Type="Text">
+                    <Title>Unclosed"#;
+
+        let result = parse_binder_xml(xml);
+        // Truncated XML doesn't error - it just parses what it can
+        assert!(result.is_ok(), "Truncated XML should parse without error");
+        // The incomplete item should still be returned (from the stack cleanup)
+        let items = result.unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].uuid, "test");
+    }
+
+    #[test]
+    fn test_parse_binder_xml_invalid_encoding() {
+        // Test with invalid XML that quick_xml will reject
+        let xml = r#"<?xml version="1.0"?>
+        <ScrivenerProject>
+            <Binder>
+                <BinderItem UUID="test" Type="Text">
+                    <Title>Test</Mismatched>
+                </BinderItem>
+            </Binder>
+        </ScrivenerProject>"#;
+
+        let result = parse_binder_xml(xml);
+        assert!(result.is_err(), "Mismatched tags should fail");
+    }
+
+    #[test]
+    fn test_deeply_nested_children() {
+        let xml = r#"<?xml version="1.0"?>
+        <ScrivenerProject>
+            <Binder>
+                <BinderItem UUID="l1" Type="Folder">
+                    <Title>Level 1</Title>
+                    <Children>
+                        <BinderItem UUID="l2" Type="Folder">
+                            <Title>Level 2</Title>
+                            <Children>
+                                <BinderItem UUID="l3" Type="Text">
+                                    <Title>Level 3</Title>
+                                </BinderItem>
+                            </Children>
+                        </BinderItem>
+                    </Children>
+                </BinderItem>
+            </Binder>
+        </ScrivenerProject>"#;
+
+        let items = parse_binder_xml(xml).expect("Should parse nested structure");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].children.len(), 1);
+        assert_eq!(items[0].children[0].children.len(), 1);
+        assert_eq!(items[0].children[0].children[0].title, "Level 3");
+    }
+
+    #[test]
+    fn test_utf8_characters_in_title() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+        <ScrivenerProject>
+            <Binder>
+                <BinderItem UUID="utf8-test" Type="Text">
+                    <Title>Caf&amp;eacute; &amp; R&amp;eacute;sum&amp;eacute;</Title>
+                </BinderItem>
+            </Binder>
+        </ScrivenerProject>"#;
+
+        let items = parse_binder_xml(xml).expect("Should parse UTF-8 content");
+        assert_eq!(items.len(), 1);
+        // The XML parser will handle entity encoding
+    }
+
+    #[test]
+    fn test_special_characters_in_xml() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+        <ScrivenerProject>
+            <Binder>
+                <BinderItem UUID="special-chars" Type="Text">
+                    <Title>Chapter &amp; Scene &lt;1&gt;</Title>
+                </BinderItem>
+            </Binder>
+        </ScrivenerProject>"#;
+
+        let items = parse_binder_xml(xml).expect("Should parse special characters");
+        assert_eq!(items[0].title, "Chapter & Scene <1>");
+    }
 }
