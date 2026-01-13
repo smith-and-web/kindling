@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/assets/kindling-logo.svg" alt="Kindling" width="128" height="128" />
+  <img src=".github/assets/kindling-mark-color-512.png" alt="Kindling" width="128" height="128" />
 </p>
 
 <h1 align="center">Kindling</h1>
