@@ -15,7 +15,8 @@
     "format:check": "prettier --check \"src/**/*.{ts,svelte,css,json}\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "license": "MIT",
   "dependencies": {

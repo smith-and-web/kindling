@@ -1,0 +1,20 @@
+# macOS system files
+.DS_Store
+
+# Vim swap files
+*.swp
+*.swo
+*~
+
+# Editor backup files
+*.bak
+*.tmp
+
+# Build artifacts (already ignored but explicit)
+/target/
+
+# Git
+.git/
+
+# Node
+node_modules/
