@@ -96,7 +96,7 @@ fn read_synopsis(scriv_path: &Path, uuid: &str) -> Option<String> {
 
 fn parse_binder_xml(xml_content: &str) -> Result<Vec<BinderItem>, ScrivenerError> {
     let mut reader = Reader::from_str(xml_content);
-    reader.trim_text(true);
+    reader.config_mut().trim_text(true);
 
     let mut items = Vec::new();
     let mut stack: Vec<BinderItem> = Vec::new();
@@ -148,7 +148,7 @@ fn parse_binder_xml(xml_content: &str) -> Result<Vec<BinderItem>, ScrivenerError
                 }
             }
             Ok(Event::Text(e)) if in_title => {
-                current_title = e.unescape().unwrap_or_default().to_string();
+                current_title = String::from_utf8_lossy(&e).to_string();
             }
             Ok(Event::End(e)) => {
                 match e.name().as_ref() {

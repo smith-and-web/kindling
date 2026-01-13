@@ -54,7 +54,7 @@ pub fn get_recent_projects(conn: &Connection, limit: usize) -> Result<Vec<Projec
     )?;
 
     let projects = stmt
-        .query_map(params![limit], |row| {
+        .query_map(params![limit as i64], |row| {
             Ok(Project {
                 id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
                 name: row.get(1)?,
