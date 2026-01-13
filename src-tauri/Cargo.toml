@@ -23,7 +23,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 quick-xml = "0.39"
 walkdir = "2"
-thiserror = "1"
+thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
