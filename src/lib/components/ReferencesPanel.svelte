@@ -68,6 +68,12 @@
 
   // Drag and drop handlers
   function onDragStart(e: globalThis.DragEvent, id: string) {
+    // Only allow drag from the handle
+    const target = e.target as globalThis.HTMLElement;
+    if (!target.closest("[data-drag-handle]")) {
+      e.preventDefault();
+      return;
+    }
     draggedId = id;
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = "move";
@@ -80,7 +86,7 @@
     if (e.dataTransfer) {
       e.dataTransfer.dropEffect = "move";
     }
-    if (draggedId !== id) {
+    if (draggedId && draggedId !== id) {
       dragOverId = id;
     }
   }
@@ -124,6 +130,11 @@
   function onDragEnd() {
     draggedId = null;
     dragOverId = null;
+  }
+
+  function onHandleMouseDown(e: globalThis.MouseEvent) {
+    // Prevent the button click when starting drag from handle
+    e.stopPropagation();
   }
 
   // Resize handlers
@@ -212,25 +223,35 @@
               stroke-linecap="round"
               stroke-linejoin="round"
               stroke-width="2"
-              d="M4 8h16M4 16h16"
+              d="M5 15l7-7 7 7"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M5 9l7-7 7 7"
             />
           </svg>
         </button>
         <!-- Sort Alphabetically button -->
         <button
           onclick={sortAlphabetically}
-          class="text-text-secondary hover:text-text-primary p-1"
+          class="text-text-secondary hover:text-text-primary p-1 text-xs font-bold"
           aria-label="Sort alphabetically"
           title="Sort A-Z"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M3 4h13M3 8h9M3 12h5m4 0l4 4m0 0l4-4m-4 4V4"
-            />
-          </svg>
+          <span class="flex items-center gap-0.5">
+            A
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 14l-7 7-7-7"
+              />
+            </svg>
+            Z
+          </span>
         </button>
         <!-- Close panel button -->
         <button
@@ -305,29 +326,59 @@
               ondragend={onDragEnd}
               role="listitem"
             >
-              <button
-                onclick={() => toggleExpanded(character.id)}
-                class="w-full flex items-center gap-3 p-3 text-left hover:bg-beat-header transition-colors"
+              <div
+                class="w-full flex items-center gap-3 p-3 hover:bg-beat-header transition-colors"
               >
                 <!-- Drag handle -->
                 <div
-                  class="text-text-secondary/50 cursor-grab active:cursor-grabbing flex-shrink-0"
+                  class="text-text-secondary/50 cursor-grab active:cursor-grabbing flex-shrink-0 hover:text-text-secondary"
+                  data-drag-handle
+                  onmousedown={onHandleMouseDown}
+                  role="button"
+                  tabindex="-1"
+                  aria-label="Drag to reorder"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       stroke-linecap="round"
                       stroke-linejoin="round"
                       stroke-width="2"
-                      d="M4 8h16M4 16h16"
+                      d="M4 6h16M4 12h16M4 18h16"
                     />
                   </svg>
                 </div>
-                <!-- Character icon -->
-                <div
-                  class="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0"
+                <!-- Clickable area for expand/collapse -->
+                <button
+                  onclick={() => toggleExpanded(character.id)}
+                  class="flex-1 flex items-center gap-3 text-left"
                 >
+                  <!-- Character icon -->
+                  <div
+                    class="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0"
+                  >
+                    <svg
+                      class="w-4 h-4 text-accent"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                      />
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-text-primary font-medium text-sm truncate">{character.name}</p>
+                    {#if character.description}
+                      <p class="text-text-secondary text-xs truncate">{character.description}</p>
+                    {/if}
+                  </div>
                   <svg
-                    class="w-4 h-4 text-accent"
+                    class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0"
+                    class:rotate-180={isExpanded}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -336,31 +387,11 @@
                       stroke-linecap="round"
                       stroke-linejoin="round"
                       stroke-width="2"
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                      d="M19 9l-7 7-7-7"
                     />
                   </svg>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <p class="text-text-primary font-medium text-sm truncate">{character.name}</p>
-                  {#if character.description}
-                    <p class="text-text-secondary text-xs truncate">{character.description}</p>
-                  {/if}
-                </div>
-                <svg
-                  class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0"
-                  class:rotate-180={isExpanded}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
+                </button>
+              </div>
 
               {#if isExpanded}
                 <div class="px-3 pb-3 border-t border-bg-panel">
@@ -412,29 +443,65 @@
               ondragend={onDragEnd}
               role="listitem"
             >
-              <button
-                onclick={() => toggleExpanded(location.id)}
-                class="w-full flex items-center gap-3 p-3 text-left hover:bg-beat-header transition-colors"
+              <div
+                class="w-full flex items-center gap-3 p-3 hover:bg-beat-header transition-colors"
               >
                 <!-- Drag handle -->
                 <div
-                  class="text-text-secondary/50 cursor-grab active:cursor-grabbing flex-shrink-0"
+                  class="text-text-secondary/50 cursor-grab active:cursor-grabbing flex-shrink-0 hover:text-text-secondary"
+                  data-drag-handle
+                  onmousedown={onHandleMouseDown}
+                  role="button"
+                  tabindex="-1"
+                  aria-label="Drag to reorder"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       stroke-linecap="round"
                       stroke-linejoin="round"
                       stroke-width="2"
-                      d="M4 8h16M4 16h16"
+                      d="M4 6h16M4 12h16M4 18h16"
                     />
                   </svg>
                 </div>
-                <!-- Location icon -->
-                <div
-                  class="w-8 h-8 rounded-full bg-spark-gold/20 flex items-center justify-center flex-shrink-0"
+                <!-- Clickable area for expand/collapse -->
+                <button
+                  onclick={() => toggleExpanded(location.id)}
+                  class="flex-1 flex items-center gap-3 text-left"
                 >
+                  <!-- Location icon -->
+                  <div
+                    class="w-8 h-8 rounded-full bg-spark-gold/20 flex items-center justify-center flex-shrink-0"
+                  >
+                    <svg
+                      class="w-4 h-4 text-spark-gold"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                      />
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-text-primary font-medium text-sm truncate">{location.name}</p>
+                    {#if location.description}
+                      <p class="text-text-secondary text-xs truncate">{location.description}</p>
+                    {/if}
+                  </div>
                   <svg
-                    class="w-4 h-4 text-spark-gold"
+                    class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0"
+                    class:rotate-180={isExpanded}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -443,37 +510,11 @@
                       stroke-linecap="round"
                       stroke-linejoin="round"
                       stroke-width="2"
-                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                    />
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                      d="M19 9l-7 7-7-7"
                     />
                   </svg>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <p class="text-text-primary font-medium text-sm truncate">{location.name}</p>
-                  {#if location.description}
-                    <p class="text-text-secondary text-xs truncate">{location.description}</p>
-                  {/if}
-                </div>
-                <svg
-                  class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0"
-                  class:rotate-180={isExpanded}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
+                </button>
+              </div>
 
               {#if isExpanded}
                 <div class="px-3 pb-3 border-t border-bg-panel">
