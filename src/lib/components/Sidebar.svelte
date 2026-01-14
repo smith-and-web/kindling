@@ -1,10 +1,12 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { SvelteSet } from "svelte/reactivity";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Chapter, Scene } from "../types";
 
   let loading = $state(false);
+  let expandedChapters = new SvelteSet<string>();
 
   async function loadChapters() {
     if (!currentProject.value) return;
@@ -15,10 +17,32 @@
         projectId: currentProject.value.id,
       });
       currentProject.setChapters(chapters);
+      // Auto-expand first chapter if any exist
+      if (chapters.length > 0) {
+        expandedChapters.clear();
+        expandedChapters.add(chapters[0].id);
+        await loadScenes(chapters[0]);
+      }
     } catch (e) {
       console.error("Failed to load chapters:", e);
     } finally {
       loading = false;
+    }
+  }
+
+  async function toggleChapter(chapter: Chapter) {
+    if (expandedChapters.has(chapter.id)) {
+      expandedChapters.delete(chapter.id);
+      // If collapsing the current chapter, clear selection
+      if (currentProject.currentChapter?.id === chapter.id) {
+        currentProject.setCurrentChapter(null);
+        currentProject.setScenes([]);
+        currentProject.setCurrentScene(null);
+        currentProject.setBeats([]);
+      }
+    } else {
+      expandedChapters.add(chapter.id);
+      await loadScenes(chapter);
     }
   }
 
@@ -47,6 +71,10 @@
   function goHome() {
     currentProject.setProject(null);
     ui.setView("start");
+  }
+
+  function isChapterExpanded(chapterId: string): boolean {
+    return expandedChapters.has(chapterId);
   }
 
   $effect(() => {
@@ -128,42 +156,102 @@
     {/if}
   </div>
 
-  <!-- Chapter/Scene List -->
+  <!-- Chapter/Scene Tree -->
   <div class="flex-1 overflow-y-auto p-2">
     {#if loading}
       <div class="flex items-center justify-center p-4">
         <span class="text-text-secondary">Loading...</span>
       </div>
+    {:else if currentProject.chapters.length === 0}
+      <div class="flex items-center justify-center p-4">
+        <span class="text-text-secondary text-sm">No chapters found</span>
+      </div>
     {:else}
-      {#each currentProject.chapters as chapter (chapter.id)}
-        <div class="mb-2">
-          <button
-            onclick={() => loadScenes(chapter)}
-            class="w-full text-left px-3 py-2 rounded-lg transition-colors"
-            class:bg-bg-card={currentProject.currentChapter?.id === chapter.id}
-            class:hover:bg-bg-card={currentProject.currentChapter?.id !== chapter.id}
-          >
-            <span class="text-text-primary font-medium">{chapter.title}</span>
-          </button>
+      <nav class="space-y-1" aria-label="Project outline">
+        {#each currentProject.chapters as chapter (chapter.id)}
+          {@const isExpanded = isChapterExpanded(chapter.id)}
+          <div class="select-none">
+            <!-- Chapter row -->
+            <button
+              onclick={() => toggleChapter(chapter)}
+              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors group"
+              class:bg-bg-card={isExpanded}
+              class:hover:bg-bg-card={!isExpanded}
+              aria-expanded={isExpanded}
+            >
+              <!-- Expand/collapse chevron -->
+              <svg
+                class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0"
+                class:rotate-90={isExpanded}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+              <!-- Chapter icon -->
+              <svg
+                class="w-4 h-4 text-text-secondary flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                />
+              </svg>
+              <span class="text-text-primary font-medium text-sm truncate">{chapter.title}</span>
+            </button>
 
-          {#if currentProject.currentChapter?.id === chapter.id}
-            <div class="ml-4 mt-1 space-y-1">
-              {#each currentProject.scenes as scene (scene.id)}
-                <button
-                  onclick={() => selectScene(scene)}
-                  class="w-full text-left px-3 py-1.5 rounded text-sm transition-colors"
-                  class:bg-accent={currentProject.currentScene?.id === scene.id}
-                  class:text-white={currentProject.currentScene?.id === scene.id}
-                  class:text-text-secondary={currentProject.currentScene?.id !== scene.id}
-                  class:hover:text-text-primary={currentProject.currentScene?.id !== scene.id}
-                >
-                  {scene.title}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
-      {/each}
+            <!-- Scenes (collapsible) -->
+            {#if isExpanded && currentProject.currentChapter?.id === chapter.id}
+              <div class="ml-6 mt-1 space-y-0.5 border-l border-bg-card pl-2">
+                {#each currentProject.scenes as scene (scene.id)}
+                  {@const isSelected = currentProject.currentScene?.id === scene.id}
+                  <button
+                    onclick={() => selectScene(scene)}
+                    class="w-full flex items-center gap-2 px-2 py-1 rounded text-sm transition-colors"
+                    class:bg-accent={isSelected}
+                    class:text-white={isSelected}
+                    class:text-text-secondary={!isSelected}
+                    class:hover:bg-bg-card={!isSelected}
+                    class:hover:text-text-primary={!isSelected}
+                  >
+                    <!-- Scene icon -->
+                    <svg
+                      class="w-3.5 h-3.5 flex-shrink-0"
+                      class:text-white={isSelected}
+                      class:text-text-secondary={!isSelected}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    <span class="truncate">{scene.title}</span>
+                  </button>
+                {/each}
+                {#if currentProject.scenes.length === 0}
+                  <span class="text-text-secondary text-xs px-2 py-1 italic">No scenes</span>
+                {/if}
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </nav>
     {/if}
   </div>
 </aside>
