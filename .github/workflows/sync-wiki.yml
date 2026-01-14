@@ -1,5 +1,17 @@
 name: Sync Docs to Wiki
 
+# Automatically syncs docs/ folder to the GitHub wiki when docs change.
+#
+# SETUP REQUIRED:
+# 1. Create a Personal Access Token (PAT) at https://github.com/settings/tokens
+#    - Select "Fine-grained token"
+#    - Repository access: Only select repositories -> kindling
+#    - Permissions: Contents (read/write)
+# 2. Add the token as a repository secret named WIKI_TOKEN:
+#    Settings -> Secrets and variables -> Actions -> New repository secret
+#
+# The GITHUB_TOKEN does not have permission to push to wiki repos.
+
 on:
   push:
     branches:
@@ -11,6 +23,8 @@ on:
 jobs:
   sync-wiki:
     runs-on: ubuntu-latest
+    # Only run if WIKI_TOKEN secret exists
+    if: ${{ vars.WIKI_SYNC_ENABLED == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout main repo
         uses: actions/checkout@v4
@@ -20,7 +34,7 @@ jobs:
         with:
           repository: ${{ github.repository }}.wiki
           path: wiki
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.WIKI_TOKEN }}
 
       - name: Sync documentation files
         run: |
@@ -32,9 +46,6 @@ jobs:
               basename=$(basename "$file" .md)
 
               # Convert to Title-Case (e.g., importing-projects -> Importing-Projects)
-              wiki_name=$(echo "$basename" | sed -r 's/(^|-)([a-z])/\U\2/g' | sed 's/-/-/g')
-
-              # Handle the special case: keep hyphens as-is for wiki URLs
               wiki_name=$(echo "$basename" | awk -F'-' '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1' OFS='-')
 
               echo "Copying $file -> wiki/${wiki_name}.md"
