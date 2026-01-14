@@ -41,7 +41,7 @@
   }
 
   function toggleReferencesPanel() {
-    ui.referencesPanelCollapsed = !ui.referencesPanelCollapsed;
+    ui.toggleReferencesPanel();
   }
 
   $effect(() => {
@@ -52,9 +52,13 @@
 </script>
 
 <aside
-  class="w-72 bg-bg-panel border-l border-bg-card flex flex-col h-full transition-all"
+  class="bg-bg-panel border-l border-bg-card flex flex-col h-full transition-all duration-200"
+  class:w-72={!ui.referencesPanelCollapsed}
   class:w-0={ui.referencesPanelCollapsed}
   class:overflow-hidden={ui.referencesPanelCollapsed}
+  class:opacity-0={ui.referencesPanelCollapsed}
+  class:border-l-0={ui.referencesPanelCollapsed}
+  class:p-0={ui.referencesPanelCollapsed}
 >
   <!-- Header with tabs -->
   <div class="border-b border-bg-card">

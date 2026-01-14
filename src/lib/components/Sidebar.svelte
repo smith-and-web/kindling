@@ -76,7 +76,7 @@
   }
 
   function toggleSidebar() {
-    ui.sidebarCollapsed = !ui.sidebarCollapsed;
+    ui.toggleSidebar();
   }
 
   function isChapterExpanded(chapterId: string): boolean {
@@ -91,9 +91,13 @@
 </script>
 
 <aside
-  class="w-64 bg-bg-panel border-r border-bg-card flex flex-col h-full transition-all"
+  class="bg-bg-panel border-r border-bg-card flex flex-col h-full transition-all duration-200"
+  class:w-64={!ui.sidebarCollapsed}
   class:w-0={ui.sidebarCollapsed}
   class:overflow-hidden={ui.sidebarCollapsed}
+  class:opacity-0={ui.sidebarCollapsed}
+  class:border-r-0={ui.sidebarCollapsed}
+  class:p-0={ui.sidebarCollapsed}
 >
   <!-- Header -->
   <div class="p-4 border-b border-bg-card">
@@ -153,26 +157,24 @@
       </button>
     </div>
     {#if currentProject.value}
-      <div class="flex items-center justify-between mt-1">
-        <p class="text-text-secondary text-sm truncate flex-1">
-          {currentProject.value.name}
-        </p>
-        <button
-          onclick={goHome}
-          class="text-text-secondary hover:text-text-primary p-1 ml-2"
-          aria-label="Close project"
-          title="Close project"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
-      </div>
+      <p class="text-text-secondary text-sm mt-1 truncate">
+        {currentProject.value.name}
+      </p>
+      <button
+        onclick={goHome}
+        class="w-full mt-3 flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded-lg transition-colors"
+        aria-label="Close project"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+          />
+        </svg>
+        All Projects
+      </button>
     {/if}
   </div>
 
