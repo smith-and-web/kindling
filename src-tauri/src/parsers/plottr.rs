@@ -456,7 +456,7 @@ pub fn parse_plottr_file<P: AsRef<Path>>(path: P) -> Result<ParsedPlottr, Plottr
 
     // Parse cards as scenes (grouping by beat)
     let mut scenes: Vec<Scene> = Vec::new();
-    let mut beats: Vec<Beat> = Vec::new();
+    let beats: Vec<Beat> = Vec::new();
     let mut scene_character_refs: Vec<(uuid::Uuid, uuid::Uuid)> = Vec::new();
     let mut scene_location_refs: Vec<(uuid::Uuid, uuid::Uuid)> = Vec::new();
 
@@ -473,23 +473,29 @@ pub fn parse_plottr_file<P: AsRef<Path>>(path: P) -> Result<ParsedPlottr, Plottr
             let mut sorted_cards = cards;
             sorted_cards.sort_by_key(|c| (c.position_within_line, c.position));
 
-            for (idx, card) in sorted_cards.iter().enumerate() {
-                // Extract description text
+            // Filter out cards with no description content (these are typically summary placeholders)
+            // that appear on Plottr's "Summary" storyline with no actual scene content
+            let content_cards: Vec<_> = sorted_cards
+                .into_iter()
+                .filter(|card| {
+                    card.description
+                        .as_ref()
+                        .and_then(extract_text_from_rich_text)
+                        .is_some_and(|s| !s.trim().is_empty())
+                })
+                .collect();
+
+            for (idx, card) in content_cards.iter().enumerate() {
+                // Extract description text for the scene synopsis
                 let synopsis = card
                     .description
                     .as_ref()
                     .and_then(extract_text_from_rich_text);
 
+                // In Plottr, the card description IS the synopsis - don't duplicate it as a beat
+                // The synopsis field on Scene is for display in the UI, beats are for actual content
                 let scene =
                     Scene::new(chapter.id, card.title.clone(), synopsis.clone(), idx as i32);
-
-                // Create a beat from the card description if present
-                if let Some(desc) = &synopsis {
-                    if !desc.trim().is_empty() {
-                        let beat = Beat::new(scene.id, desc.clone(), 0);
-                        beats.push(beat);
-                    }
-                }
 
                 // Track character references
                 for char_id in &card.characters {
@@ -629,8 +635,8 @@ mod tests {
         assert!(act_titles.contains(&"Act 1"), "Should have Act 1");
         assert!(act_titles.contains(&"Act 5"), "Should have Act 5");
 
-        // Scenes (25 cards)
-        assert_eq!(parsed.scenes.len(), 25);
+        // Scenes (20 cards - 25 total minus 5 empty summary cards)
+        assert_eq!(parsed.scenes.len(), 20);
 
         // Character references in scenes
         assert!(
@@ -739,8 +745,12 @@ mod tests {
             Some("Hamlet".to_string())
         );
 
-        // Should have cards
-        assert_eq!(plottr.cards.len(), 25, "Hamlet should have 25 scene cards");
+        // Should have cards (25 total, but 5 are empty summary cards filtered during parsing)
+        assert_eq!(
+            plottr.cards.len(),
+            25,
+            "Hamlet should have 25 scene cards in raw file"
+        );
     }
 
     #[test]

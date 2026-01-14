@@ -250,7 +250,7 @@ pub fn parse_scrivener_project<P: AsRef<Path>>(
 
     let mut chapters: Vec<Chapter> = Vec::new();
     let mut scenes: Vec<Scene> = Vec::new();
-    let mut beats: Vec<Beat> = Vec::new();
+    let beats: Vec<Beat> = Vec::new(); // No beats created from Scrivener - synopsis is scene summary
     let mut characters: Vec<Character> = Vec::new();
     let mut locations: Vec<Location> = Vec::new();
 
@@ -266,23 +266,17 @@ pub fn parse_scrivener_project<P: AsRef<Path>>(
                     // Children of the folder become scenes
                     for (sc_idx, scene_item) in child.children.iter().enumerate() {
                         if scene_item.item_type == BinderItemType::Text {
-                            // Read synopsis as beat content
+                            // Read synopsis for scene display
                             let synopsis = read_synopsis(scriv_path, &scene_item.uuid);
 
+                            // In Scrivener, the synopsis IS the scene summary - don't duplicate it as a beat
+                            // The synopsis field on Scene is for display in the UI, beats are for actual content
                             let scene = Scene::new(
                                 chapter.id,
                                 scene_item.title.clone(),
-                                synopsis.clone(),
+                                synopsis,
                                 sc_idx as i32,
                             );
-
-                            // Create beat from synopsis
-                            if let Some(syn) = synopsis {
-                                if !syn.trim().is_empty() {
-                                    let beat = Beat::new(scene.id, syn, 0);
-                                    beats.push(beat);
-                                }
-                            }
 
                             scenes.push(scene);
                         }
@@ -294,15 +288,9 @@ pub fn parse_scrivener_project<P: AsRef<Path>>(
                     // Top-level text document - create a virtual chapter for it
                     let chapter = Chapter::new(project.id, child.title.clone(), ch_idx as i32);
 
+                    // In Scrivener, the synopsis IS the scene summary - don't duplicate it as a beat
                     let synopsis = read_synopsis(scriv_path, &child.uuid);
-                    let scene = Scene::new(chapter.id, child.title.clone(), synopsis.clone(), 0);
-
-                    if let Some(syn) = synopsis {
-                        if !syn.trim().is_empty() {
-                            let beat = Beat::new(scene.id, syn, 0);
-                            beats.push(beat);
-                        }
-                    }
+                    let scene = Scene::new(chapter.id, child.title.clone(), synopsis, 0);
 
                     scenes.push(scene);
                     chapters.push(chapter);
@@ -648,22 +636,27 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_hamlet_beats() {
+    fn test_parse_hamlet_synopsis_in_scenes() {
         let path = fixture_path("hamlet.scriv");
         let parsed = parse_scrivener_project(&path).expect("Failed to parse hamlet.scriv");
 
-        // Beats come from synopsis.txt files
+        // Synopsis content is stored in scenes, not duplicated as beats
+        // The synopsis is the scene's summary for display in the UI
         assert!(
-            !parsed.beats.is_empty(),
-            "Should have beats from synopsis files"
+            parsed.beats.is_empty(),
+            "Should not create duplicate beats from synopsis files"
         );
 
-        // Check that a beat contains expected content
-        let soliloquy_beat = parsed
-            .beats
-            .iter()
-            .find(|b| b.content.contains("To be or not to be"));
-        assert!(soliloquy_beat.is_some(), "Should have beat with soliloquy");
+        // Check that a scene contains expected synopsis content
+        let soliloquy_scene = parsed.scenes.iter().find(|s| {
+            s.synopsis
+                .as_ref()
+                .is_some_and(|syn| syn.contains("To be or not to be"))
+        });
+        assert!(
+            soliloquy_scene.is_some(),
+            "Should have scene with soliloquy synopsis"
+        );
     }
 
     #[test]
