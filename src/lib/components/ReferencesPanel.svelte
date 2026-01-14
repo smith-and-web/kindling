@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { SvelteSet } from "svelte/reactivity";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Character, Location } from "../types";
@@ -8,8 +9,10 @@
 
   let activeTab = $state<Tab>("characters");
   let loading = $state(false);
-  let expandedId = $state<string | null>(null);
+  let expandedIds = new SvelteSet<string>();
   let isResizing = $state(false);
+  let draggedId = $state<string | null>(null);
+  let dragOverId = $state<string | null>(null);
 
   async function loadReferences() {
     if (!currentProject.value) return;
@@ -30,7 +33,25 @@
   }
 
   function toggleExpanded(id: string) {
-    expandedId = expandedId === id ? null : id;
+    if (expandedIds.has(id)) {
+      expandedIds.delete(id);
+    } else {
+      expandedIds.add(id);
+    }
+  }
+
+  function collapseAll() {
+    expandedIds.clear();
+  }
+
+  function sortAlphabetically() {
+    if (activeTab === "characters") {
+      const sorted = [...currentProject.characters].sort((a, b) => a.name.localeCompare(b.name));
+      currentProject.setCharacters(sorted);
+    } else {
+      const sorted = [...currentProject.locations].sort((a, b) => a.name.localeCompare(b.name));
+      currentProject.setLocations(sorted);
+    }
   }
 
   function formatAttributes(attrs: Record<string, string>): [string, string][] {
@@ -45,6 +66,67 @@
     ui.toggleReferencesPanel();
   }
 
+  // Drag and drop handlers
+  function onDragStart(e: globalThis.DragEvent, id: string) {
+    draggedId = id;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", id);
+    }
+  }
+
+  function onDragOver(e: globalThis.DragEvent, id: string) {
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "move";
+    }
+    if (draggedId !== id) {
+      dragOverId = id;
+    }
+  }
+
+  function onDragLeave() {
+    dragOverId = null;
+  }
+
+  function onDrop(e: globalThis.DragEvent, targetId: string) {
+    e.preventDefault();
+    dragOverId = null;
+
+    if (!draggedId || draggedId === targetId) {
+      draggedId = null;
+      return;
+    }
+
+    if (activeTab === "characters") {
+      const items = [...currentProject.characters];
+      const fromIndex = items.findIndex((c) => c.id === draggedId);
+      const toIndex = items.findIndex((c) => c.id === targetId);
+      if (fromIndex !== -1 && toIndex !== -1) {
+        const [moved] = items.splice(fromIndex, 1);
+        items.splice(toIndex, 0, moved);
+        currentProject.setCharacters(items);
+      }
+    } else {
+      const items = [...currentProject.locations];
+      const fromIndex = items.findIndex((l) => l.id === draggedId);
+      const toIndex = items.findIndex((l) => l.id === targetId);
+      if (fromIndex !== -1 && toIndex !== -1) {
+        const [moved] = items.splice(fromIndex, 1);
+        items.splice(toIndex, 0, moved);
+        currentProject.setLocations(items);
+      }
+    }
+
+    draggedId = null;
+  }
+
+  function onDragEnd() {
+    draggedId = null;
+    dragOverId = null;
+  }
+
+  // Resize handlers
   function startResize(e: globalThis.MouseEvent) {
     e.preventDefault();
     isResizing = true;
@@ -117,20 +199,55 @@
   <div class="border-b border-bg-card">
     <div class="flex items-center justify-between px-4 py-2">
       <h2 class="text-sm font-heading font-medium text-text-primary">References</h2>
-      <button
-        onclick={toggleReferencesPanel}
-        class="text-text-secondary hover:text-text-primary p-1"
-        aria-label="Collapse references panel"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M13 5l7 7-7 7M5 5l7 7-7 7"
-          />
-        </svg>
-      </button>
+      <div class="flex items-center gap-1">
+        <!-- Collapse All button -->
+        <button
+          onclick={collapseAll}
+          class="text-text-secondary hover:text-text-primary p-1"
+          aria-label="Collapse all"
+          title="Collapse all"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 8h16M4 16h16"
+            />
+          </svg>
+        </button>
+        <!-- Sort Alphabetically button -->
+        <button
+          onclick={sortAlphabetically}
+          class="text-text-secondary hover:text-text-primary p-1"
+          aria-label="Sort alphabetically"
+          title="Sort A-Z"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M3 4h13M3 8h9M3 12h5m4 0l4 4m0 0l4-4m-4 4V4"
+            />
+          </svg>
+        </button>
+        <!-- Close panel button -->
+        <button
+          onclick={toggleReferencesPanel}
+          class="text-text-secondary hover:text-text-primary p-1"
+          aria-label="Collapse references panel"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M13 5l7 7-7 7M5 5l7 7-7 7"
+            />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- Tabs -->
@@ -172,14 +289,39 @@
       {:else}
         <div class="space-y-2">
           {#each currentProject.characters as character (character.id)}
-            {@const isExpanded = expandedId === character.id}
+            {@const isExpanded = expandedIds.has(character.id)}
             {@const attributes = formatAttributes(character.attributes)}
             {@const notes = getNotes(character.attributes)}
-            <div class="bg-bg-card rounded-lg overflow-hidden">
+            <div
+              class="bg-bg-card rounded-lg overflow-hidden transition-all"
+              class:opacity-50={draggedId === character.id}
+              class:border-t-2={dragOverId === character.id}
+              class:border-accent={dragOverId === character.id}
+              draggable="true"
+              ondragstart={(e) => onDragStart(e, character.id)}
+              ondragover={(e) => onDragOver(e, character.id)}
+              ondragleave={onDragLeave}
+              ondrop={(e) => onDrop(e, character.id)}
+              ondragend={onDragEnd}
+              role="listitem"
+            >
               <button
                 onclick={() => toggleExpanded(character.id)}
                 class="w-full flex items-center gap-3 p-3 text-left hover:bg-beat-header transition-colors"
               >
+                <!-- Drag handle -->
+                <div
+                  class="text-text-secondary/50 cursor-grab active:cursor-grabbing flex-shrink-0"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 8h16M4 16h16"
+                    />
+                  </svg>
+                </div>
                 <!-- Character icon -->
                 <div
                   class="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0"
@@ -254,14 +396,39 @@
       {:else}
         <div class="space-y-2">
           {#each currentProject.locations as location (location.id)}
-            {@const isExpanded = expandedId === location.id}
+            {@const isExpanded = expandedIds.has(location.id)}
             {@const attributes = formatAttributes(location.attributes)}
             {@const notes = getNotes(location.attributes)}
-            <div class="bg-bg-card rounded-lg overflow-hidden">
+            <div
+              class="bg-bg-card rounded-lg overflow-hidden transition-all"
+              class:opacity-50={draggedId === location.id}
+              class:border-t-2={dragOverId === location.id}
+              class:border-accent={dragOverId === location.id}
+              draggable="true"
+              ondragstart={(e) => onDragStart(e, location.id)}
+              ondragover={(e) => onDragOver(e, location.id)}
+              ondragleave={onDragLeave}
+              ondrop={(e) => onDrop(e, location.id)}
+              ondragend={onDragEnd}
+              role="listitem"
+            >
               <button
                 onclick={() => toggleExpanded(location.id)}
                 class="w-full flex items-center gap-3 p-3 text-left hover:bg-beat-header transition-colors"
               >
+                <!-- Drag handle -->
+                <div
+                  class="text-text-secondary/50 cursor-grab active:cursor-grabbing flex-shrink-0"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 8h16M4 16h16"
+                    />
+                  </svg>
+                </div>
                 <!-- Location icon -->
                 <div
                   class="w-8 h-8 rounded-full bg-spark-gold/20 flex items-center justify-center flex-shrink-0"
