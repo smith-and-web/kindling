@@ -648,6 +648,13 @@ mod tests {
         );
         assert_eq!(hamlet.attributes.get("Gender"), Some(&"Male".to_string()));
 
+        // Check that notes are extracted (rich text content)
+        assert!(
+            hamlet.attributes.contains_key("notes"),
+            "Hamlet should have notes. Got attributes: {:?}",
+            hamlet.attributes
+        );
+
         // Locations (5 in Hamlet)
         assert_eq!(parsed.locations.len(), 5);
         let elsinore = parsed
