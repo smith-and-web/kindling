@@ -4,54 +4,94 @@ export type View = "start" | "editor";
 export type Panel = "sidebar" | "editor" | "references";
 
 class UIStore {
-  currentView = $state<View>("start");
-  sidebarCollapsed = $state(false);
-  referencesPanelCollapsed = $state(false);
-  focusMode = $state(false);
-  expandedBeatId = $state<string | null>(null);
-  isImporting = $state(false);
-  importProgress = $state(0);
-  importStatus = $state("");
+  private _currentView = $state<View>("start");
+  private _sidebarCollapsed = $state(false);
+  private _referencesPanelCollapsed = $state(false);
+  private _focusMode = $state(false);
+  private _expandedBeatId = $state<string | null>(null);
+  private _isImporting = $state(false);
+  private _importProgress = $state(0);
+  private _importStatus = $state("");
+
+  get currentView() {
+    return this._currentView;
+  }
+
+  get sidebarCollapsed() {
+    return this._sidebarCollapsed;
+  }
+
+  set sidebarCollapsed(value: boolean) {
+    this._sidebarCollapsed = value;
+  }
+
+  get referencesPanelCollapsed() {
+    return this._referencesPanelCollapsed;
+  }
+
+  set referencesPanelCollapsed(value: boolean) {
+    this._referencesPanelCollapsed = value;
+  }
+
+  get focusMode() {
+    return this._focusMode;
+  }
+
+  get expandedBeatId() {
+    return this._expandedBeatId;
+  }
+
+  get isImporting() {
+    return this._isImporting;
+  }
+
+  get importProgress() {
+    return this._importProgress;
+  }
+
+  get importStatus() {
+    return this._importStatus;
+  }
 
   setView(view: View) {
-    this.currentView = view;
+    this._currentView = view;
   }
 
   toggleSidebar() {
-    this.sidebarCollapsed = !this.sidebarCollapsed;
+    this._sidebarCollapsed = !this._sidebarCollapsed;
   }
 
   toggleReferencesPanel() {
-    this.referencesPanelCollapsed = !this.referencesPanelCollapsed;
+    this._referencesPanelCollapsed = !this._referencesPanelCollapsed;
   }
 
   toggleFocusMode() {
-    this.focusMode = !this.focusMode;
-    if (this.focusMode) {
-      this.sidebarCollapsed = true;
-      this.referencesPanelCollapsed = true;
+    this._focusMode = !this._focusMode;
+    if (this._focusMode) {
+      this._sidebarCollapsed = true;
+      this._referencesPanelCollapsed = true;
     }
   }
 
   setExpandedBeat(beatId: string | null) {
-    this.expandedBeatId = beatId;
+    this._expandedBeatId = beatId;
   }
 
   startImport() {
-    this.isImporting = true;
-    this.importProgress = 0;
-    this.importStatus = "Starting import...";
+    this._isImporting = true;
+    this._importProgress = 0;
+    this._importStatus = "Starting import...";
   }
 
   updateImportProgress(progress: number, status: string) {
-    this.importProgress = progress;
-    this.importStatus = status;
+    this._importProgress = progress;
+    this._importStatus = status;
   }
 
   finishImport() {
-    this.isImporting = false;
-    this.importProgress = 100;
-    this.importStatus = "Import complete!";
+    this._isImporting = false;
+    this._importProgress = 100;
+    this._importStatus = "Import complete!";
   }
 }
 
