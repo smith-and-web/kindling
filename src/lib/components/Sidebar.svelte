@@ -41,6 +41,8 @@
         currentProject.setBeats([]);
       }
     } else {
+      // Collapse all other chapters and expand only this one
+      expandedChapters.clear();
       expandedChapters.add(chapter.id);
       await loadScenes(chapter);
     }
