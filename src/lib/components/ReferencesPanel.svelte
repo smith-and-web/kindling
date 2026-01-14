@@ -13,6 +13,7 @@
   let isResizing = $state(false);
   let draggedId = $state<string | null>(null);
   let dragOverId = $state<string | null>(null);
+  let isDragging = $state(false);
 
   async function loadReferences() {
     if (!currentProject.value) return;
@@ -66,75 +67,103 @@
     ui.toggleReferencesPanel();
   }
 
-  // Drag and drop handlers
-  function onDragStart(e: globalThis.DragEvent, id: string) {
-    // Only allow drag from the handle
-    const target = e.target as globalThis.HTMLElement;
-    if (!target.closest("[data-drag-handle]")) {
-      e.preventDefault();
-      return;
-    }
-    draggedId = id;
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", id);
-    }
-  }
+  // Pointer-based drag and drop (more reliable than HTML5 drag API in webviews)
+  let draggedElement: globalThis.HTMLElement | null = null;
+  let currentDragOverElement: globalThis.HTMLElement | null = null;
 
-  function onDragOver(e: globalThis.DragEvent, id: string) {
+  function onDragHandleMouseDown(e: globalThis.MouseEvent, id: string) {
     e.preventDefault();
-    if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = "move";
-    }
-    if (draggedId && draggedId !== id) {
-      dragOverId = id;
-    }
-  }
-
-  function onDragLeave() {
-    dragOverId = null;
-  }
-
-  function onDrop(e: globalThis.DragEvent, targetId: string) {
-    e.preventDefault();
-    dragOverId = null;
-
-    if (!draggedId || draggedId === targetId) {
-      draggedId = null;
-      return;
-    }
-
-    if (activeTab === "characters") {
-      const items = [...currentProject.characters];
-      const fromIndex = items.findIndex((c) => c.id === draggedId);
-      const toIndex = items.findIndex((c) => c.id === targetId);
-      if (fromIndex !== -1 && toIndex !== -1) {
-        const [moved] = items.splice(fromIndex, 1);
-        items.splice(toIndex, 0, moved);
-        currentProject.setCharacters(items);
-      }
-    } else {
-      const items = [...currentProject.locations];
-      const fromIndex = items.findIndex((l) => l.id === draggedId);
-      const toIndex = items.findIndex((l) => l.id === targetId);
-      if (fromIndex !== -1 && toIndex !== -1) {
-        const [moved] = items.splice(fromIndex, 1);
-        items.splice(toIndex, 0, moved);
-        currentProject.setLocations(items);
-      }
-    }
-
-    draggedId = null;
-  }
-
-  function onDragEnd() {
-    draggedId = null;
-    dragOverId = null;
-  }
-
-  function onHandleMouseDown(e: globalThis.MouseEvent) {
-    // Prevent the button click when starting drag from handle
     e.stopPropagation();
+    draggedId = id;
+    isDragging = true;
+
+    // Find the dragged element by traversing up from the handle
+    const target = e.currentTarget as globalThis.HTMLElement;
+    draggedElement = target.closest("[data-drag-item]") as globalThis.HTMLElement;
+    if (draggedElement) {
+      draggedElement.style.opacity = "0.5";
+    }
+
+    document.addEventListener("mousemove", onDragMouseMove);
+    document.addEventListener("mouseup", onDragMouseUp);
+    document.body.style.cursor = "grabbing";
+    document.body.style.userSelect = "none";
+  }
+
+  function onDragMouseMove(e: globalThis.MouseEvent) {
+    if (!isDragging || !draggedId) return;
+
+    // Clear previous hover styling
+    if (currentDragOverElement) {
+      currentDragOverElement.style.outline = "";
+    }
+
+    // Find which item we're hovering over
+    const itemElements = document.querySelectorAll("[data-drag-item]");
+    let foundElement: globalThis.HTMLElement | null = null;
+    let foundId: string | null = null;
+
+    for (const el of itemElements) {
+      const rect = el.getBoundingClientRect();
+      const itemId = el.getAttribute("data-drag-item");
+      if (itemId && itemId !== draggedId && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        foundId = itemId;
+        foundElement = el as globalThis.HTMLElement;
+        break;
+      }
+    }
+
+    dragOverId = foundId;
+    currentDragOverElement = foundElement;
+
+    // Style the hover target
+    if (foundElement) {
+      foundElement.style.outline = "2px solid var(--color-accent)";
+    }
+  }
+
+  function onDragMouseUp() {
+    document.removeEventListener("mousemove", onDragMouseMove);
+    document.removeEventListener("mouseup", onDragMouseUp);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+
+    // Clear visual styling
+    if (draggedElement) {
+      draggedElement.style.opacity = "";
+    }
+    if (currentDragOverElement) {
+      currentDragOverElement.style.outline = "";
+    }
+
+    if (draggedId && dragOverId && draggedId !== dragOverId) {
+      // Perform the reorder
+      if (activeTab === "characters") {
+        const items = [...currentProject.characters];
+        const fromIndex = items.findIndex((c) => c.id === draggedId);
+        const toIndex = items.findIndex((c) => c.id === dragOverId);
+        if (fromIndex !== -1 && toIndex !== -1) {
+          const [moved] = items.splice(fromIndex, 1);
+          items.splice(toIndex, 0, moved);
+          currentProject.setCharacters(items);
+        }
+      } else {
+        const items = [...currentProject.locations];
+        const fromIndex = items.findIndex((l) => l.id === draggedId);
+        const toIndex = items.findIndex((l) => l.id === dragOverId);
+        if (fromIndex !== -1 && toIndex !== -1) {
+          const [moved] = items.splice(fromIndex, 1);
+          items.splice(toIndex, 0, moved);
+          currentProject.setLocations(items);
+        }
+      }
+    }
+
+    isDragging = false;
+    draggedId = null;
+    dragOverId = null;
+    draggedElement = null;
+    currentDragOverElement = null;
   }
 
   // Resize handlers
@@ -314,16 +343,11 @@
             {@const attributes = formatAttributes(character.attributes)}
             {@const notes = getNotes(character.attributes)}
             <div
-              class="bg-bg-card rounded-lg overflow-hidden transition-all"
-              class:opacity-50={draggedId === character.id}
-              class:border-t-2={dragOverId === character.id}
-              class:border-accent={dragOverId === character.id}
-              draggable="true"
-              ondragstart={(e) => onDragStart(e, character.id)}
-              ondragover={(e) => onDragOver(e, character.id)}
-              ondragleave={onDragLeave}
-              ondrop={(e) => onDrop(e, character.id)}
-              ondragend={onDragEnd}
+              class="bg-bg-card rounded-lg overflow-hidden"
+              class:ring-2={dragOverId === character.id}
+              class:ring-accent={dragOverId === character.id}
+              style:opacity={draggedId === character.id ? 0.5 : 1}
+              data-drag-item={character.id}
               role="listitem"
             >
               <div
@@ -332,8 +356,7 @@
                 <!-- Drag handle -->
                 <div
                   class="text-text-secondary/50 cursor-grab active:cursor-grabbing flex-shrink-0 hover:text-text-secondary"
-                  data-drag-handle
-                  onmousedown={onHandleMouseDown}
+                  onmousedown={(e) => onDragHandleMouseDown(e, character.id)}
                   role="button"
                   tabindex="-1"
                   aria-label="Drag to reorder"
@@ -431,16 +454,11 @@
             {@const attributes = formatAttributes(location.attributes)}
             {@const notes = getNotes(location.attributes)}
             <div
-              class="bg-bg-card rounded-lg overflow-hidden transition-all"
-              class:opacity-50={draggedId === location.id}
-              class:border-t-2={dragOverId === location.id}
-              class:border-accent={dragOverId === location.id}
-              draggable="true"
-              ondragstart={(e) => onDragStart(e, location.id)}
-              ondragover={(e) => onDragOver(e, location.id)}
-              ondragleave={onDragLeave}
-              ondrop={(e) => onDrop(e, location.id)}
-              ondragend={onDragEnd}
+              class="bg-bg-card rounded-lg overflow-hidden"
+              class:ring-2={dragOverId === location.id}
+              class:ring-accent={dragOverId === location.id}
+              style:opacity={draggedId === location.id ? 0.5 : 1}
+              data-drag-item={location.id}
               role="listitem"
             >
               <div
@@ -449,8 +467,7 @@
                 <!-- Drag handle -->
                 <div
                   class="text-text-secondary/50 cursor-grab active:cursor-grabbing flex-shrink-0 hover:text-text-secondary"
-                  data-drag-handle
-                  onmousedown={onHandleMouseDown}
+                  onmousedown={(e) => onDragHandleMouseDown(e, location.id)}
                   role="button"
                   tabindex="-1"
                   aria-label="Drag to reorder"
