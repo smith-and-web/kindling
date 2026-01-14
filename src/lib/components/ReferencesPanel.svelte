@@ -40,6 +40,10 @@
     return attrs.notes || null;
   }
 
+  function toggleReferencesPanel() {
+    ui.referencesPanelCollapsed = !ui.referencesPanelCollapsed;
+  }
+
   $effect(() => {
     if (currentProject.value) {
       loadReferences();
@@ -57,7 +61,7 @@
     <div class="flex items-center justify-between px-4 py-2">
       <h2 class="text-sm font-heading font-medium text-text-primary">References</h2>
       <button
-        onclick={() => ui.toggleReferencesPanel()}
+        onclick={toggleReferencesPanel}
         class="text-text-secondary hover:text-text-primary p-1"
         aria-label="Collapse references panel"
       >
@@ -272,7 +276,7 @@
 <!-- Collapsed panel toggle -->
 {#if ui.referencesPanelCollapsed}
   <button
-    onclick={() => ui.toggleReferencesPanel()}
+    onclick={toggleReferencesPanel}
     class="fixed right-0 top-1/2 -translate-y-1/2 bg-bg-panel p-2 rounded-l-lg text-text-secondary hover:text-text-primary z-10"
     aria-label="Expand references panel"
   >

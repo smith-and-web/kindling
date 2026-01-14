@@ -75,6 +75,10 @@
     ui.setView("start");
   }
 
+  function toggleSidebar() {
+    ui.sidebarCollapsed = !ui.sidebarCollapsed;
+  }
+
   function isChapterExpanded(chapterId: string): boolean {
     return expandedChapters.has(chapterId);
   }
@@ -94,10 +98,7 @@
   <!-- Header -->
   <div class="p-4 border-b border-bg-card">
     <div class="flex items-center justify-between">
-      <button
-        onclick={goHome}
-        class="flex items-center gap-2 text-accent font-heading font-medium text-lg hover:text-text-primary transition-colors"
-      >
+      <span class="flex items-center gap-2 text-accent font-heading font-medium text-lg">
         <!-- Mini Logo Mark -->
         <svg width="24" height="24" viewBox="0 0 1024 1024" class="flex-shrink-0">
           <defs>
@@ -135,9 +136,9 @@
           />
         </svg>
         kindling
-      </button>
+      </span>
       <button
-        onclick={() => ui.toggleSidebar()}
+        onclick={toggleSidebar}
         class="text-text-secondary hover:text-text-primary p-1"
         aria-label="Collapse sidebar"
       >
@@ -152,9 +153,26 @@
       </button>
     </div>
     {#if currentProject.value}
-      <p class="text-text-secondary text-sm mt-1 truncate">
-        {currentProject.value.name}
-      </p>
+      <div class="flex items-center justify-between mt-1">
+        <p class="text-text-secondary text-sm truncate flex-1">
+          {currentProject.value.name}
+        </p>
+        <button
+          onclick={goHome}
+          class="text-text-secondary hover:text-text-primary p-1 ml-2"
+          aria-label="Close project"
+          title="Close project"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </div>
     {/if}
   </div>
 
@@ -261,7 +279,7 @@
 <!-- Collapsed sidebar toggle -->
 {#if ui.sidebarCollapsed}
   <button
-    onclick={() => ui.toggleSidebar()}
+    onclick={toggleSidebar}
     class="fixed left-0 top-1/2 -translate-y-1/2 bg-bg-panel p-2 rounded-r-lg text-text-secondary hover:text-text-primary z-10"
     aria-label="Expand sidebar"
   >
