@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import ReferencesPanel from "./lib/components/ReferencesPanel.svelte";
   import ScenePanel from "./lib/components/ScenePanel.svelte";
   import Sidebar from "./lib/components/Sidebar.svelte";
   import StartScreen from "./lib/components/StartScreen.svelte";
@@ -25,6 +26,7 @@
   {#if currentProject.value}
     <Sidebar />
     <ScenePanel />
+    <ReferencesPanel />
   {:else}
     <StartScreen {recentProjects} />
   {/if}
