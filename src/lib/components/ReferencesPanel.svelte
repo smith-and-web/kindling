@@ -169,14 +169,8 @@
 
               {#if isExpanded}
                 <div class="px-3 pb-3 border-t border-bg-panel">
-                  {#if character.description}
-                    <p class="text-text-primary text-sm mt-3 leading-relaxed">
-                      {character.description}
-                    </p>
-                  {/if}
-
                   {#if notes}
-                    <p class="text-text-secondary text-sm mt-3 leading-relaxed italic">{notes}</p>
+                    <p class="text-text-primary text-sm mt-3 leading-relaxed">{notes}</p>
                   {/if}
 
                   {#if attributes.length > 0}
@@ -188,6 +182,10 @@
                         </div>
                       {/each}
                     </div>
+                  {/if}
+
+                  {#if !notes && attributes.length === 0}
+                    <p class="text-text-secondary text-sm mt-3 italic">No additional details</p>
                   {/if}
                 </div>
               {/if}
@@ -259,14 +257,8 @@
 
               {#if isExpanded}
                 <div class="px-3 pb-3 border-t border-bg-panel">
-                  {#if location.description}
-                    <p class="text-text-primary text-sm mt-3 leading-relaxed">
-                      {location.description}
-                    </p>
-                  {/if}
-
                   {#if notes}
-                    <p class="text-text-secondary text-sm mt-3 leading-relaxed italic">{notes}</p>
+                    <p class="text-text-primary text-sm mt-3 leading-relaxed">{notes}</p>
                   {/if}
 
                   {#if attributes.length > 0}
@@ -278,6 +270,10 @@
                         </div>
                       {/each}
                     </div>
+                  {/if}
+
+                  {#if !notes && attributes.length === 0}
+                    <p class="text-text-secondary text-sm mt-3 italic">No additional details</p>
                   {/if}
                 </div>
               {/if}
