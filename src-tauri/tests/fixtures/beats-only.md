@@ -1,0 +1,12 @@
+- Wake up to an ordinary day
+- Receive mysterious letter
+- Meet the mentor figure
+- Cross the threshold into adventure
+- Face the first trial
+- Gain allies and enemies
+- Approach the innermost cave
+- Survive the supreme ordeal
+- Seize the reward
+- Begin the road back
+- Experience resurrection
+- Return with the elixir
