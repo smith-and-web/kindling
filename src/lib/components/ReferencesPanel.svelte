@@ -9,6 +9,7 @@
   let activeTab = $state<Tab>("characters");
   let loading = $state(false);
   let expandedId = $state<string | null>(null);
+  let isResizing = $state(false);
 
   async function loadReferences() {
     if (!currentProject.value) return;
@@ -44,6 +45,41 @@
     ui.toggleReferencesPanel();
   }
 
+  function startResize(e: globalThis.MouseEvent) {
+    e.preventDefault();
+    isResizing = true;
+    document.addEventListener("mousemove", onResize);
+    document.addEventListener("mouseup", stopResize);
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
+  }
+
+  function onResize(e: globalThis.MouseEvent) {
+    if (!isResizing) return;
+    // Calculate width from right edge of window
+    const newWidth = window.innerWidth - e.clientX;
+    ui.setReferencesPanelWidth(newWidth);
+  }
+
+  function stopResize() {
+    isResizing = false;
+    document.removeEventListener("mousemove", onResize);
+    document.removeEventListener("mouseup", stopResize);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  }
+
+  function onResizeKeydown(e: globalThis.KeyboardEvent) {
+    const step = 20;
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      ui.setReferencesPanelWidth(ui.referencesPanelWidth + step);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      ui.setReferencesPanelWidth(ui.referencesPanelWidth - step);
+    }
+  }
+
   $effect(() => {
     if (currentProject.value) {
       loadReferences();
@@ -52,14 +88,31 @@
 </script>
 
 <aside
-  class="bg-bg-panel border-l border-bg-card flex flex-col h-full transition-all duration-200"
-  class:w-72={!ui.referencesPanelCollapsed}
+  class="bg-bg-panel border-l border-bg-card flex flex-col h-full relative"
   class:w-0={ui.referencesPanelCollapsed}
   class:overflow-hidden={ui.referencesPanelCollapsed}
   class:opacity-0={ui.referencesPanelCollapsed}
   class:border-l-0={ui.referencesPanelCollapsed}
   class:p-0={ui.referencesPanelCollapsed}
+  class:transition-all={!isResizing}
+  class:duration-200={!isResizing}
+  style={ui.referencesPanelCollapsed ? "" : `width: ${ui.referencesPanelWidth}px`}
 >
+  <!-- Resize handle -->
+  {#if !ui.referencesPanelCollapsed}
+    <div
+      class="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-accent/50 active:bg-accent transition-colors z-10 focus:outline-none focus:bg-accent"
+      onmousedown={startResize}
+      onkeydown={onResizeKeydown}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize references panel"
+      aria-valuenow={ui.referencesPanelWidth}
+      aria-valuemin={ui.referencesPanelMinWidth}
+      aria-valuemax={ui.referencesPanelMaxWidth}
+      tabindex="0"
+    ></div>
+  {/if}
   <!-- Header with tabs -->
   <div class="border-b border-bg-card">
     <div class="flex items-center justify-between px-4 py-2">
