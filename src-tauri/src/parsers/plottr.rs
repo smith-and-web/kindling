@@ -215,6 +215,32 @@ fn extract_text_from_rich_text(value: &serde_json::Value) -> Option<String> {
         // Plain string
         serde_json::Value::String(s) => Some(s.clone()),
         // Rich text array
+        serde_json::Value::Array(_) => {
+            let para_texts = extract_paragraphs_from_rich_text(value);
+            if para_texts.is_empty() {
+                None
+            } else {
+                // Join paragraphs with newlines
+                Some(para_texts.join("\n"))
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Extract paragraphs as separate strings from Plottr's rich text format
+/// Returns a Vec of paragraph texts, useful for creating beats from each paragraph
+fn extract_paragraphs_from_rich_text(value: &serde_json::Value) -> Vec<String> {
+    match value {
+        // Plain string - treat as single paragraph
+        serde_json::Value::String(s) => {
+            if s.trim().is_empty() {
+                vec![]
+            } else {
+                vec![s.clone()]
+            }
+        }
+        // Rich text array
         serde_json::Value::Array(paragraphs) => {
             let mut para_texts = Vec::new();
             for para in paragraphs {
@@ -225,20 +251,15 @@ fn extract_text_from_rich_text(value: &serde_json::Value) -> Option<String> {
                             .iter()
                             .filter_map(|child| child.get("text").and_then(|t| t.as_str()))
                             .collect();
-                        if !para_text.is_empty() {
+                        if !para_text.trim().is_empty() {
                             para_texts.push(para_text);
                         }
                     }
                 }
             }
-            if para_texts.is_empty() {
-                None
-            } else {
-                // Join paragraphs with newlines
-                Some(para_texts.join("\n"))
-            }
+            para_texts
         }
-        _ => None,
+        _ => vec![],
     }
 }
 
@@ -473,22 +494,36 @@ pub fn parse_plottr_file<P: AsRef<Path>>(path: P) -> Result<ParsedPlottr, Plottr
             let mut sorted_cards = cards;
             sorted_cards.sort_by_key(|c| (c.position_within_line, c.position));
 
-            for (idx, card) in sorted_cards.iter().enumerate() {
-                // Extract description text
-                let synopsis = card
+            // Filter out cards with no description content (these are typically summary placeholders)
+            // that appear on Plottr's "Summary" storyline with no actual scene content
+            let content_cards: Vec<_> = sorted_cards
+                .into_iter()
+                .filter(|card| {
+                    card.description
+                        .as_ref()
+                        .and_then(extract_text_from_rich_text)
+                        .is_some_and(|s| !s.trim().is_empty())
+                })
+                .collect();
+
+            for (idx, card) in content_cards.iter().enumerate() {
+                // Extract paragraphs from description
+                let paragraphs = card
                     .description
                     .as_ref()
-                    .and_then(extract_text_from_rich_text);
+                    .map(extract_paragraphs_from_rich_text)
+                    .unwrap_or_default();
 
-                let scene =
-                    Scene::new(chapter.id, card.title.clone(), synopsis.clone(), idx as i32);
+                // First paragraph becomes the synopsis (brief summary)
+                // All paragraphs become beats (story moments within the scene)
+                let synopsis = paragraphs.first().cloned();
 
-                // Create a beat from the card description if present
-                if let Some(desc) = &synopsis {
-                    if !desc.trim().is_empty() {
-                        let beat = Beat::new(scene.id, desc.clone(), 0);
-                        beats.push(beat);
-                    }
+                let scene = Scene::new(chapter.id, card.title.clone(), synopsis, idx as i32);
+
+                // Create a beat for each paragraph in the description
+                for (beat_idx, para) in paragraphs.iter().enumerate() {
+                    let beat = Beat::new(scene.id, para.clone(), beat_idx as i32);
+                    beats.push(beat);
                 }
 
                 // Track character references
@@ -613,6 +648,13 @@ mod tests {
         );
         assert_eq!(hamlet.attributes.get("Gender"), Some(&"Male".to_string()));
 
+        // Check that notes are extracted (rich text content)
+        assert!(
+            hamlet.attributes.contains_key("notes"),
+            "Hamlet should have notes. Got attributes: {:?}",
+            hamlet.attributes
+        );
+
         // Locations (5 in Hamlet)
         assert_eq!(parsed.locations.len(), 5);
         let elsinore = parsed
@@ -629,8 +671,21 @@ mod tests {
         assert!(act_titles.contains(&"Act 1"), "Should have Act 1");
         assert!(act_titles.contains(&"Act 5"), "Should have Act 5");
 
-        // Scenes (25 cards)
-        assert_eq!(parsed.scenes.len(), 25);
+        // Scenes (20 cards - 25 total minus 5 empty summary cards)
+        assert_eq!(parsed.scenes.len(), 20);
+
+        // Beats - each paragraph in card descriptions becomes a beat
+        // Most scenes have multiple paragraphs, so we should have more beats than scenes
+        assert!(
+            !parsed.beats.is_empty(),
+            "Should have beats from card paragraphs"
+        );
+        assert!(
+            parsed.beats.len() >= parsed.scenes.len(),
+            "Should have at least as many beats as scenes (beats: {}, scenes: {})",
+            parsed.beats.len(),
+            parsed.scenes.len()
+        );
 
         // Character references in scenes
         assert!(
@@ -739,8 +794,12 @@ mod tests {
             Some("Hamlet".to_string())
         );
 
-        // Should have cards
-        assert_eq!(plottr.cards.len(), 25, "Hamlet should have 25 scene cards");
+        // Should have cards (25 total, but 5 are empty summary cards filtered during parsing)
+        assert_eq!(
+            plottr.cards.len(),
+            25,
+            "Hamlet should have 25 scene cards in raw file"
+        );
     }
 
     #[test]

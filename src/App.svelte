@@ -17,8 +17,12 @@
     }
   }
 
+  // Reload projects when returning to start screen (currentProject becomes null)
+  // or on initial load
   $effect(() => {
-    loadRecentProjects();
+    if (!currentProject.value) {
+      loadRecentProjects();
+    }
   });
 </script>
 
