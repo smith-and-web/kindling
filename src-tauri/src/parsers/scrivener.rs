@@ -298,24 +298,30 @@ pub fn parse_scrivener_project<P: AsRef<Path>>(
                             // Read synopsis for scene display
                             let synopsis = read_synopsis(scriv_path, &scene_item.uuid);
 
-                            // First sentence is the synopsis (brief summary)
-                            // All sentences become beats (story moments within the scene)
+                            // Split into sentences
                             let sentences = synopsis
                                 .as_ref()
                                 .map(|s| split_into_sentences(s))
                                 .unwrap_or_default();
 
+                            // If only one sentence, use it as synopsis only (no beats)
+                            // If multiple sentences, first is synopsis, all become beats
+                            let scene_synopsis = sentences.first().cloned();
                             let scene = Scene::new(
                                 chapter.id,
                                 scene_item.title.clone(),
-                                sentences.first().cloned(),
+                                scene_synopsis,
                                 sc_idx as i32,
                             );
 
-                            // Create a beat for each sentence
-                            for (beat_idx, sentence) in sentences.iter().enumerate() {
-                                let beat = Beat::new(scene.id, sentence.clone(), beat_idx as i32);
-                                beats.push(beat);
+                            // Only create beats if there are multiple sentences
+                            // (avoids duplicating single-sentence synopsis as a beat)
+                            if sentences.len() > 1 {
+                                for (beat_idx, sentence) in sentences.iter().enumerate() {
+                                    let beat =
+                                        Beat::new(scene.id, sentence.clone(), beat_idx as i32);
+                                    beats.push(beat);
+                                }
                             }
 
                             scenes.push(scene);
@@ -341,10 +347,12 @@ pub fn parse_scrivener_project<P: AsRef<Path>>(
                         0,
                     );
 
-                    // Create a beat for each sentence
-                    for (beat_idx, sentence) in sentences.iter().enumerate() {
-                        let beat = Beat::new(scene.id, sentence.clone(), beat_idx as i32);
-                        beats.push(beat);
+                    // Only create beats if there are multiple sentences
+                    if sentences.len() > 1 {
+                        for (beat_idx, sentence) in sentences.iter().enumerate() {
+                            let beat = Beat::new(scene.id, sentence.clone(), beat_idx as i32);
+                            beats.push(beat);
+                        }
                     }
 
                     scenes.push(scene);
@@ -695,30 +703,34 @@ mod tests {
         let path = fixture_path("hamlet.scriv");
         let parsed = parse_scrivener_project(&path).expect("Failed to parse hamlet.scriv");
 
-        // Each sentence in synopsis becomes a beat
-        // Multi-sentence synopses should create multiple beats
+        // Beats are only created when synopsis has multiple sentences
+        // Single-sentence synopses only set the synopsis field (no duplicate beat)
+        // This avoids the synopsis being duplicated as a beat
+
+        // Find scenes with multi-sentence synopses - these should have beats
+        let scene_with_beats = parsed.scenes.iter().find(|s| {
+            s.synopsis
+                .as_ref()
+                .is_some_and(|syn| syn.contains("To be or not to be"))
+        });
         assert!(
-            !parsed.beats.is_empty(),
-            "Should create beats from synopsis sentences"
+            scene_with_beats.is_some(),
+            "Should find scene with soliloquy"
         );
 
-        // Should have at least as many beats as scenes (some scenes have multi-sentence synopses)
-        assert!(
-            parsed.beats.len() >= parsed.scenes.len(),
-            "Should have at least as many beats as scenes (beats: {}, scenes: {})",
-            parsed.beats.len(),
-            parsed.scenes.len()
-        );
-
-        // Check that a beat contains expected content
-        let soliloquy_beat = parsed
-            .beats
-            .iter()
-            .find(|b| b.content.contains("To be or not to be"));
-        assert!(
-            soliloquy_beat.is_some(),
-            "Should have beat with soliloquy reference"
-        );
+        // The "To be or not to be" scene has 2 sentences, so it should have beats
+        if let Some(scene) = scene_with_beats {
+            let scene_beats: Vec<_> = parsed
+                .beats
+                .iter()
+                .filter(|b| b.scene_id == scene.id)
+                .collect();
+            assert_eq!(
+                scene_beats.len(),
+                2,
+                "Scene with 2-sentence synopsis should have 2 beats"
+            );
+        }
     }
 
     #[test]
