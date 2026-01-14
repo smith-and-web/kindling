@@ -94,6 +94,35 @@ fn read_synopsis(scriv_path: &Path, uuid: &str) -> Option<String> {
     fs::read_to_string(synopsis_path).ok()
 }
 
+/// Split synopsis text into sentences for beat creation
+/// Returns a Vec of sentences, each becoming a separate beat
+fn split_into_sentences(text: &str) -> Vec<String> {
+    // Split on sentence-ending punctuation followed by whitespace
+    // This is a simple heuristic - handles ". ", "! ", "? "
+    let mut sentences = Vec::new();
+    let mut current = String::new();
+
+    for ch in text.chars() {
+        current.push(ch);
+        if (ch == '.' || ch == '!' || ch == '?') && !current.trim().is_empty() {
+            // Check if next char would be whitespace or end of string
+            let trimmed = current.trim().to_string();
+            if !trimmed.is_empty() {
+                sentences.push(trimmed);
+            }
+            current.clear();
+        }
+    }
+
+    // Don't forget any trailing text without ending punctuation
+    let trimmed = current.trim().to_string();
+    if !trimmed.is_empty() {
+        sentences.push(trimmed);
+    }
+
+    sentences
+}
+
 fn parse_binder_xml(xml_content: &str) -> Result<Vec<BinderItem>, ScrivenerError> {
     let mut reader = Reader::from_str(xml_content);
 
@@ -250,7 +279,7 @@ pub fn parse_scrivener_project<P: AsRef<Path>>(
 
     let mut chapters: Vec<Chapter> = Vec::new();
     let mut scenes: Vec<Scene> = Vec::new();
-    let beats: Vec<Beat> = Vec::new(); // No beats created from Scrivener - synopsis is scene summary
+    let mut beats: Vec<Beat> = Vec::new();
     let mut characters: Vec<Character> = Vec::new();
     let mut locations: Vec<Location> = Vec::new();
 
@@ -269,14 +298,25 @@ pub fn parse_scrivener_project<P: AsRef<Path>>(
                             // Read synopsis for scene display
                             let synopsis = read_synopsis(scriv_path, &scene_item.uuid);
 
-                            // In Scrivener, the synopsis IS the scene summary - don't duplicate it as a beat
-                            // The synopsis field on Scene is for display in the UI, beats are for actual content
+                            // First sentence is the synopsis (brief summary)
+                            // All sentences become beats (story moments within the scene)
+                            let sentences = synopsis
+                                .as_ref()
+                                .map(|s| split_into_sentences(s))
+                                .unwrap_or_default();
+
                             let scene = Scene::new(
                                 chapter.id,
                                 scene_item.title.clone(),
-                                synopsis,
+                                sentences.first().cloned(),
                                 sc_idx as i32,
                             );
+
+                            // Create a beat for each sentence
+                            for (beat_idx, sentence) in sentences.iter().enumerate() {
+                                let beat = Beat::new(scene.id, sentence.clone(), beat_idx as i32);
+                                beats.push(beat);
+                            }
 
                             scenes.push(scene);
                         }
@@ -288,9 +328,24 @@ pub fn parse_scrivener_project<P: AsRef<Path>>(
                     // Top-level text document - create a virtual chapter for it
                     let chapter = Chapter::new(project.id, child.title.clone(), ch_idx as i32);
 
-                    // In Scrivener, the synopsis IS the scene summary - don't duplicate it as a beat
                     let synopsis = read_synopsis(scriv_path, &child.uuid);
-                    let scene = Scene::new(chapter.id, child.title.clone(), synopsis, 0);
+                    let sentences = synopsis
+                        .as_ref()
+                        .map(|s| split_into_sentences(s))
+                        .unwrap_or_default();
+
+                    let scene = Scene::new(
+                        chapter.id,
+                        child.title.clone(),
+                        sentences.first().cloned(),
+                        0,
+                    );
+
+                    // Create a beat for each sentence
+                    for (beat_idx, sentence) in sentences.iter().enumerate() {
+                        let beat = Beat::new(scene.id, sentence.clone(), beat_idx as i32);
+                        beats.push(beat);
+                    }
 
                     scenes.push(scene);
                     chapters.push(chapter);
@@ -636,26 +691,33 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_hamlet_synopsis_in_scenes() {
+    fn test_parse_hamlet_beats_from_sentences() {
         let path = fixture_path("hamlet.scriv");
         let parsed = parse_scrivener_project(&path).expect("Failed to parse hamlet.scriv");
 
-        // Synopsis content is stored in scenes, not duplicated as beats
-        // The synopsis is the scene's summary for display in the UI
+        // Each sentence in synopsis becomes a beat
+        // Multi-sentence synopses should create multiple beats
         assert!(
-            parsed.beats.is_empty(),
-            "Should not create duplicate beats from synopsis files"
+            !parsed.beats.is_empty(),
+            "Should create beats from synopsis sentences"
         );
 
-        // Check that a scene contains expected synopsis content
-        let soliloquy_scene = parsed.scenes.iter().find(|s| {
-            s.synopsis
-                .as_ref()
-                .is_some_and(|syn| syn.contains("To be or not to be"))
-        });
+        // Should have at least as many beats as scenes (some scenes have multi-sentence synopses)
         assert!(
-            soliloquy_scene.is_some(),
-            "Should have scene with soliloquy synopsis"
+            parsed.beats.len() >= parsed.scenes.len(),
+            "Should have at least as many beats as scenes (beats: {}, scenes: {})",
+            parsed.beats.len(),
+            parsed.scenes.len()
+        );
+
+        // Check that a beat contains expected content
+        let soliloquy_beat = parsed
+            .beats
+            .iter()
+            .find(|b| b.content.contains("To be or not to be"));
+        assert!(
+            soliloquy_beat.is_some(),
+            "Should have beat with soliloquy reference"
         );
     }
 

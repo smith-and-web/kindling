@@ -215,6 +215,32 @@ fn extract_text_from_rich_text(value: &serde_json::Value) -> Option<String> {
         // Plain string
         serde_json::Value::String(s) => Some(s.clone()),
         // Rich text array
+        serde_json::Value::Array(_) => {
+            let para_texts = extract_paragraphs_from_rich_text(value);
+            if para_texts.is_empty() {
+                None
+            } else {
+                // Join paragraphs with newlines
+                Some(para_texts.join("\n"))
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Extract paragraphs as separate strings from Plottr's rich text format
+/// Returns a Vec of paragraph texts, useful for creating beats from each paragraph
+fn extract_paragraphs_from_rich_text(value: &serde_json::Value) -> Vec<String> {
+    match value {
+        // Plain string - treat as single paragraph
+        serde_json::Value::String(s) => {
+            if s.trim().is_empty() {
+                vec![]
+            } else {
+                vec![s.clone()]
+            }
+        }
+        // Rich text array
         serde_json::Value::Array(paragraphs) => {
             let mut para_texts = Vec::new();
             for para in paragraphs {
@@ -225,20 +251,15 @@ fn extract_text_from_rich_text(value: &serde_json::Value) -> Option<String> {
                             .iter()
                             .filter_map(|child| child.get("text").and_then(|t| t.as_str()))
                             .collect();
-                        if !para_text.is_empty() {
+                        if !para_text.trim().is_empty() {
                             para_texts.push(para_text);
                         }
                     }
                 }
             }
-            if para_texts.is_empty() {
-                None
-            } else {
-                // Join paragraphs with newlines
-                Some(para_texts.join("\n"))
-            }
+            para_texts
         }
-        _ => None,
+        _ => vec![],
     }
 }
 
@@ -456,7 +477,7 @@ pub fn parse_plottr_file<P: AsRef<Path>>(path: P) -> Result<ParsedPlottr, Plottr
 
     // Parse cards as scenes (grouping by beat)
     let mut scenes: Vec<Scene> = Vec::new();
-    let beats: Vec<Beat> = Vec::new();
+    let mut beats: Vec<Beat> = Vec::new();
     let mut scene_character_refs: Vec<(uuid::Uuid, uuid::Uuid)> = Vec::new();
     let mut scene_location_refs: Vec<(uuid::Uuid, uuid::Uuid)> = Vec::new();
 
@@ -486,16 +507,24 @@ pub fn parse_plottr_file<P: AsRef<Path>>(path: P) -> Result<ParsedPlottr, Plottr
                 .collect();
 
             for (idx, card) in content_cards.iter().enumerate() {
-                // Extract description text for the scene synopsis
-                let synopsis = card
+                // Extract paragraphs from description
+                let paragraphs = card
                     .description
                     .as_ref()
-                    .and_then(extract_text_from_rich_text);
+                    .map(extract_paragraphs_from_rich_text)
+                    .unwrap_or_default();
 
-                // In Plottr, the card description IS the synopsis - don't duplicate it as a beat
-                // The synopsis field on Scene is for display in the UI, beats are for actual content
-                let scene =
-                    Scene::new(chapter.id, card.title.clone(), synopsis.clone(), idx as i32);
+                // First paragraph becomes the synopsis (brief summary)
+                // All paragraphs become beats (story moments within the scene)
+                let synopsis = paragraphs.first().cloned();
+
+                let scene = Scene::new(chapter.id, card.title.clone(), synopsis, idx as i32);
+
+                // Create a beat for each paragraph in the description
+                for (beat_idx, para) in paragraphs.iter().enumerate() {
+                    let beat = Beat::new(scene.id, para.clone(), beat_idx as i32);
+                    beats.push(beat);
+                }
 
                 // Track character references
                 for char_id in &card.characters {
@@ -637,6 +666,19 @@ mod tests {
 
         // Scenes (20 cards - 25 total minus 5 empty summary cards)
         assert_eq!(parsed.scenes.len(), 20);
+
+        // Beats - each paragraph in card descriptions becomes a beat
+        // Most scenes have multiple paragraphs, so we should have more beats than scenes
+        assert!(
+            !parsed.beats.is_empty(),
+            "Should have beats from card paragraphs"
+        );
+        assert!(
+            parsed.beats.len() >= parsed.scenes.len(),
+            "Should have at least as many beats as scenes (beats: {}, scenes: {})",
+            parsed.beats.len(),
+            parsed.scenes.len()
+        );
 
         // Character references in scenes
         assert!(
