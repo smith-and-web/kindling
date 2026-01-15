@@ -340,9 +340,9 @@
 
   $effect(() => {
     if (currentProject.value) {
-      // Only load chapters if not already loaded
-      // This prevents a race condition when importProject pre-loads chapters
-      if (currentProject.chapters.length === 0) {
+      // Skip loading if import is in progress (importProject will load chapters)
+      // or if chapters are already loaded
+      if (!ui.isImporting && currentProject.chapters.length === 0) {
         loadChapters();
       }
     }
