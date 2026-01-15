@@ -2,6 +2,7 @@ import "./app.css";
 import App from "./App.svelte";
 import { mount } from "svelte";
 import { invoke } from "@tauri-apps/api/core";
+import { tick } from "svelte";
 import { currentProject } from "./lib/stores/project.svelte";
 import { ui } from "./lib/stores/ui.svelte";
 import type { Project, Chapter } from "./lib/types";
@@ -37,6 +38,11 @@ async function importProject(path: string): Promise<Project> {
     currentProject.setChapters(chapters);
 
     ui.setView("editor");
+
+    // Wait for Svelte to update the DOM before returning
+    // This ensures E2E tests can find the rendered chapter elements
+    await tick();
+
     return project;
   } finally {
     ui.finishImport();
