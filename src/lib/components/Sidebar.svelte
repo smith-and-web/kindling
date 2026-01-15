@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { SvelteSet } from "svelte/reactivity";
+  import { ChevronRight, ChevronsLeft, ChevronsRight, FileText, Folder, Home } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Chapter, Scene } from "../types";
@@ -146,14 +147,7 @@
         class="text-text-secondary hover:text-text-primary p-1"
         aria-label="Collapse sidebar"
       >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
-          />
-        </svg>
+        <ChevronsLeft class="w-5 h-5" />
       </button>
     </div>
     {#if currentProject.value}
@@ -165,14 +159,7 @@
         class="w-full mt-3 flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded-lg transition-colors"
         aria-label="Close project"
       >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-          />
-        </svg>
+        <Home class="w-3.5 h-3.5" />
         All Projects
       </button>
     {/if}
@@ -202,34 +189,13 @@
               aria-expanded={isExpanded}
             >
               <!-- Expand/collapse chevron -->
-              <svg
-                class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0"
-                class:rotate-90={isExpanded}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
+              <ChevronRight
+                class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0 {isExpanded
+                  ? 'rotate-90'
+                  : ''}"
+              />
               <!-- Chapter icon -->
-              <svg
-                class="w-4 h-4 text-text-secondary flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                />
-              </svg>
+              <Folder class="w-4 h-4 text-text-secondary flex-shrink-0" />
               <span class="text-text-primary font-medium text-sm truncate">{chapter.title}</span>
             </button>
 
@@ -248,21 +214,11 @@
                     class:hover:text-text-primary={!isSelected}
                   >
                     <!-- Scene icon -->
-                    <svg
-                      class="w-3.5 h-3.5 flex-shrink-0"
-                      class:text-white={isSelected}
-                      class:text-text-secondary={!isSelected}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
+                    <FileText
+                      class="w-3.5 h-3.5 flex-shrink-0 {isSelected
+                        ? 'text-white'
+                        : 'text-text-secondary'}"
+                    />
                     <span class="truncate">{scene.title}</span>
                   </button>
                 {/each}
@@ -285,13 +241,6 @@
     class="fixed left-0 top-1/2 -translate-y-1/2 bg-bg-panel p-2 rounded-r-lg text-text-secondary hover:text-text-primary z-10"
     aria-label="Expand sidebar"
   >
-    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        stroke-width="2"
-        d="M13 5l7 7-7 7M5 5l7 7-7 7"
-      />
-    </svg>
+    <ChevronsRight class="w-5 h-5" />
   </button>
 {/if}

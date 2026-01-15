@@ -2,12 +2,29 @@
 
 export type View = "start" | "editor";
 export type Panel = "sidebar" | "editor" | "references";
+export type OnboardingStep =
+  | "welcome"
+  | "tour-sidebar"
+  | "tour-editor"
+  | "tour-references"
+  | "import";
 
 // Panel width constraints
 const REFERENCES_PANEL_MIN_WIDTH = 200;
 const REFERENCES_PANEL_DEFAULT_WIDTH = 288; // w-72
 const REFERENCES_PANEL_STORAGE_KEY = "kindling:referencesPanelWidth";
 const SIDEBAR_WIDTH = 256; // w-64
+
+// Onboarding storage
+const ONBOARDING_COMPLETED_KEY = "kindling:onboardingCompleted";
+
+const ONBOARDING_STEPS: OnboardingStep[] = [
+  "welcome",
+  "tour-sidebar",
+  "tour-editor",
+  "tour-references",
+  "import",
+];
 
 class UIStore {
   private _currentView = $state<View>("start");
@@ -20,6 +37,11 @@ class UIStore {
   private _importProgress = $state(0);
   private _importStatus = $state("");
 
+  // Onboarding state
+  private _showOnboarding = $state(false);
+  private _onboardingStep = $state<OnboardingStep>("welcome");
+  private _onboardingCompleted = $state(false);
+
   constructor() {
     // Load saved panel width from localStorage
     if (typeof window !== "undefined") {
@@ -30,6 +52,12 @@ class UIStore {
           this._referencesPanelWidth = width;
         }
       }
+
+      // Load onboarding completion status
+      const onboardingCompleted = localStorage.getItem(ONBOARDING_COMPLETED_KEY);
+      this._onboardingCompleted = onboardingCompleted === "true";
+      // Show onboarding if not completed
+      this._showOnboarding = !this._onboardingCompleted;
 
       // Clamp width on window resize
       window.addEventListener("resize", () => {
@@ -146,6 +174,73 @@ class UIStore {
     this._isImporting = false;
     this._importProgress = 100;
     this._importStatus = "Import complete!";
+  }
+
+  // Onboarding getters
+  get showOnboarding() {
+    return this._showOnboarding;
+  }
+
+  get onboardingStep() {
+    return this._onboardingStep;
+  }
+
+  get onboardingCompleted() {
+    return this._onboardingCompleted;
+  }
+
+  get currentStepIndex() {
+    return ONBOARDING_STEPS.indexOf(this._onboardingStep);
+  }
+
+  get totalSteps() {
+    return ONBOARDING_STEPS.length;
+  }
+
+  // Onboarding methods
+  startOnboarding() {
+    this._showOnboarding = true;
+    this._onboardingStep = "welcome";
+  }
+
+  nextStep() {
+    const currentIndex = ONBOARDING_STEPS.indexOf(this._onboardingStep);
+    if (currentIndex < ONBOARDING_STEPS.length - 1) {
+      this._onboardingStep = ONBOARDING_STEPS[currentIndex + 1];
+    }
+  }
+
+  previousStep() {
+    const currentIndex = ONBOARDING_STEPS.indexOf(this._onboardingStep);
+    if (currentIndex > 0) {
+      this._onboardingStep = ONBOARDING_STEPS[currentIndex - 1];
+    }
+  }
+
+  goToStep(step: OnboardingStep) {
+    this._onboardingStep = step;
+  }
+
+  completeOnboarding() {
+    this._showOnboarding = false;
+    this._onboardingCompleted = true;
+    if (typeof window !== "undefined") {
+      localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
+    }
+  }
+
+  skipOnboarding() {
+    this.completeOnboarding();
+  }
+
+  // For testing/development: reset onboarding
+  resetOnboarding() {
+    this._showOnboarding = true;
+    this._onboardingStep = "welcome";
+    this._onboardingCompleted = false;
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(ONBOARDING_COMPLETED_KEY);
+    }
   }
 }
 
