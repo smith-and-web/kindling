@@ -13,15 +13,48 @@ export const testDataDir = resolve(projectRoot, "test-data");
 
 /**
  * Wait for the app to be ready (main content loaded)
+ * On initial launch, the app shows StartScreen (import-section)
+ * After loading a project, it shows the editor (sidebar)
  */
 export async function waitForAppReady() {
-  // Wait for the sidebar to appear
+  // Wait for the main element and either the start screen or editor to appear
+  await browser.waitUntil(
+    async () => {
+      const main = await $("main");
+      if (!(await main.isExisting())) return false;
+
+      // Check if we're on the start screen (import-section) or editor (sidebar)
+      const importSection = await $('[data-testid="import-section"]');
+      const sidebar = await $('[data-testid="sidebar"]');
+      return (await importSection.isExisting()) || (await sidebar.isExisting());
+    },
+    { timeout: 15000, timeoutMsg: "App did not load within 15 seconds" }
+  );
+}
+
+/**
+ * Wait for the start screen to be visible (before loading a project)
+ */
+export async function waitForStartScreen() {
+  await browser.waitUntil(
+    async () => {
+      const importSection = await $('[data-testid="import-section"]');
+      return importSection.isExisting();
+    },
+    { timeout: 15000, timeoutMsg: "Start screen did not load within 15 seconds" }
+  );
+}
+
+/**
+ * Wait for the editor to be visible (after loading a project)
+ */
+export async function waitForEditor() {
   await browser.waitUntil(
     async () => {
       const sidebar = await $('[data-testid="sidebar"]');
       return sidebar.isExisting();
     },
-    { timeout: 15000, timeoutMsg: "App did not load within 15 seconds" }
+    { timeout: 15000, timeoutMsg: "Editor did not load within 15 seconds" }
   );
 }
 
