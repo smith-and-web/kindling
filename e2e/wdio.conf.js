@@ -43,7 +43,26 @@ function findTauriBinary() {
 
 let tauriDriver;
 
+// Cleanup function for graceful shutdown
+function cleanup() {
+  if (tauriDriver) {
+    console.log("Stopping tauri-driver...");
+    tauriDriver.kill();
+    tauriDriver = null;
+  }
+}
+
+// Handle various termination signals
+process.on("SIGINT", cleanup);
+process.on("SIGTERM", cleanup);
+process.on("SIGHUP", cleanup);
+process.on("exit", cleanup);
+
 export const config = {
+  // WebDriver server configuration
+  hostname: "127.0.0.1",
+  port: 4444,
+
   // Runner configuration
   runner: "local",
 
@@ -57,10 +76,8 @@ export const config = {
   maxInstances: 1,
 
   // Capabilities for Tauri WebDriver
-  // Note: Do NOT include browserName - tauri:options is sufficient
   capabilities: [
     {
-      maxInstances: 1,
       "tauri:options": {
         application: findTauriBinary(),
       },
@@ -93,16 +110,22 @@ export const config = {
 
     if (platform === "darwin") {
       console.warn(
-        "⚠️  macOS does not support WebDriver testing (no WKWebView driver)."
+        "macOS does not support WebDriver testing (no WKWebView driver)."
       );
       console.warn("   E2E tests will run in CI on Linux instead.");
       process.exit(0);
     }
+  },
 
+  // Start tauri-driver before each session
+  beforeSession: async function () {
     console.log("Starting tauri-driver...");
 
-    // Start tauri-driver before tests
-    tauriDriver = spawn("tauri-driver", [], {
+    // Get the cargo bin directory
+    const cargoHome = process.env.CARGO_HOME || `${process.env.HOME}/.cargo`;
+    const tauriDriverPath = `${cargoHome}/bin/tauri-driver`;
+
+    tauriDriver = spawn(tauriDriverPath, [], {
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env },
     });
@@ -124,15 +147,16 @@ export const config = {
     });
 
     // Give tauri-driver time to start and bind to port
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    console.log("tauri-driver should be ready");
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    console.log("tauri-driver should be ready on 127.0.0.1:4444");
+  },
+
+  // Stop tauri-driver after each session
+  afterSession: function () {
+    cleanup();
   },
 
   onComplete: function () {
-    // Kill tauri-driver after tests
-    if (tauriDriver) {
-      console.log("Stopping tauri-driver...");
-      tauriDriver.kill();
-    }
+    cleanup();
   },
 };
