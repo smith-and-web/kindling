@@ -347,6 +347,7 @@ pub fn parse_plottr_file<P: AsRef<Path>>(path: P) -> Result<ParsedPlottr, Plottr
                 beat.title.clone()
             };
             Chapter::new(project.id, title, beat.position.max(idx as i32))
+                .with_source_id(Some(value_to_string(&beat.id)))
         })
         .collect();
 
@@ -518,11 +519,16 @@ pub fn parse_plottr_file<P: AsRef<Path>>(path: P) -> Result<ParsedPlottr, Plottr
                 // All paragraphs become beats (story moments within the scene)
                 let synopsis = paragraphs.first().cloned();
 
-                let scene = Scene::new(chapter.id, card.title.clone(), synopsis, idx as i32);
+                let card_source_id = value_to_string(&card.id);
+                let scene = Scene::new(chapter.id, card.title.clone(), synopsis, idx as i32)
+                    .with_source_id(Some(card_source_id.clone()));
 
                 // Create a beat for each paragraph in the description
+                // Use card_id + beat position as source_id since paragraphs don't have IDs
                 for (beat_idx, para) in paragraphs.iter().enumerate() {
-                    let beat = Beat::new(scene.id, para.clone(), beat_idx as i32);
+                    let beat_source_id = format!("{}:{}", card_source_id, beat_idx);
+                    let beat = Beat::new(scene.id, para.clone(), beat_idx as i32)
+                        .with_source_id(Some(beat_source_id));
                     beats.push(beat);
                 }
 

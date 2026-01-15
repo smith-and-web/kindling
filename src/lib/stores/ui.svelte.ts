@@ -33,6 +33,7 @@ class UIStore {
   private _referencesPanelWidth = $state(REFERENCES_PANEL_DEFAULT_WIDTH);
   private _focusMode = $state(false);
   private _expandedBeatId = $state<string | null>(null);
+  private _beatSaveStatus = $state<"idle" | "saving" | "saved" | "error">("idle");
   private _isImporting = $state(false);
   private _importProgress = $state(0);
   private _importStatus = $state("");
@@ -123,6 +124,10 @@ class UIStore {
     return this._expandedBeatId;
   }
 
+  get beatSaveStatus() {
+    return this._beatSaveStatus;
+  }
+
   get isImporting() {
     return this._isImporting;
   }
@@ -157,6 +162,10 @@ class UIStore {
 
   setExpandedBeat(beatId: string | null) {
     this._expandedBeatId = beatId;
+  }
+
+  setBeatSaveStatus(status: "idle" | "saving" | "saved" | "error") {
+    this._beatSaveStatus = status;
   }
 
   startImport() {

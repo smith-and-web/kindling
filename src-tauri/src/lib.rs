@@ -33,12 +33,22 @@ pub fn run() {
             commands::get_project,
             commands::get_recent_projects,
             commands::get_chapters,
+            commands::create_chapter,
             commands::get_scenes,
+            commands::create_scene,
             commands::get_beats,
             commands::get_characters,
             commands::get_locations,
             commands::save_beat_prose,
             commands::save_scene_prose,
+            commands::reorder_chapters,
+            commands::reorder_scenes,
+            commands::move_scene_to_chapter,
+            commands::get_chapter_content_counts,
+            commands::get_scene_beat_count,
+            commands::delete_chapter,
+            commands::delete_scene,
+            commands::reimport_project,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

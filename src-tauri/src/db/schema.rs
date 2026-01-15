@@ -1,7 +1,8 @@
 use rusqlite::{Connection, Result};
 
-/// Initialize the database with the full schema
+/// Initialize the database with the full schema and apply migrations
 pub fn initialize_schema(conn: &Connection) -> Result<()> {
+    // First create all tables
     conn.execute_batch(
         r#"
         CREATE TABLE IF NOT EXISTS projects (
@@ -17,7 +18,8 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
             title TEXT NOT NULL,
-            position INTEGER NOT NULL
+            position INTEGER NOT NULL,
+            source_id TEXT
         );
 
         CREATE TABLE IF NOT EXISTS scenes (
@@ -26,7 +28,8 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             title TEXT NOT NULL,
             synopsis TEXT,
             prose TEXT,
-            position INTEGER NOT NULL
+            position INTEGER NOT NULL,
+            source_id TEXT
         );
 
         CREATE TABLE IF NOT EXISTS beats (
@@ -34,7 +37,8 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             scene_id TEXT NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
             content TEXT NOT NULL,
             prose TEXT,
-            position INTEGER NOT NULL
+            position INTEGER NOT NULL,
+            source_id TEXT
         );
 
         CREATE TABLE IF NOT EXISTS characters (
@@ -97,7 +101,48 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
         -- Enable foreign key support
         PRAGMA foreign_keys = ON;
         "#,
-    )
+    )?;
+
+    // Apply migrations for existing databases
+    apply_migrations(conn)
+}
+
+/// Apply schema migrations for existing databases
+fn apply_migrations(conn: &Connection) -> Result<()> {
+    // Migration: Add source_id column to chapters if missing
+    let columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(chapters)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if !columns.contains(&"source_id".to_string()) {
+        conn.execute("ALTER TABLE chapters ADD COLUMN source_id TEXT", [])?;
+    }
+
+    // Migration: Add source_id column to scenes if missing
+    let columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(scenes)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if !columns.contains(&"source_id".to_string()) {
+        conn.execute("ALTER TABLE scenes ADD COLUMN source_id TEXT", [])?;
+    }
+
+    // Migration: Add source_id column to beats if missing
+    let columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(beats)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if !columns.contains(&"source_id".to_string()) {
+        conn.execute("ALTER TABLE beats ADD COLUMN source_id TEXT", [])?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
