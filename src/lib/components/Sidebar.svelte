@@ -340,7 +340,11 @@
 
   $effect(() => {
     if (currentProject.value) {
-      loadChapters();
+      // Only load chapters if not already loaded
+      // This prevents a race condition when importProject pre-loads chapters
+      if (currentProject.chapters.length === 0) {
+        loadChapters();
+      }
     }
   });
 </script>
