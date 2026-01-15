@@ -10,7 +10,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  CARGO_INCREMENTAL: 0
+  CARGO_INCREMENTAL: 1
   RUST_BACKTRACE: short
 
 jobs:
@@ -29,7 +29,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo
+      - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: |
@@ -37,9 +37,17 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            src-tauri/target/
-          key: ${{ runner.os }}-e2e-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-e2e-cargo-
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-registry-
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/target/
+          key: ${{ runner.os }}-e2e-cargo-build-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('src-tauri/src/**') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-cargo-build-${{ hashFiles('**/Cargo.lock') }}-
+            ${{ runner.os }}-e2e-cargo-build-
 
       - name: Install system dependencies
         run: |
@@ -53,7 +61,12 @@ jobs:
             xvfb
 
       - name: Install tauri-driver
-        run: cargo install tauri-driver || true
+        run: |
+          if ! command -v tauri-driver &> /dev/null; then
+            cargo install tauri-driver
+          else
+            echo "tauri-driver already installed"
+          fi
 
       - name: Install npm dependencies
         run: npm ci
@@ -68,9 +81,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ""
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
 
-      - name: Setup test data for reimport tests
+      - name: Verify build output
         run: |
-          # Ensure test files are in place
+          ls -la src-tauri/target/release/kindling || echo "Binary not found!"
           ls -la test-data/
 
       - name: Run E2E tests
@@ -81,11 +94,14 @@ jobs:
           Xvfb :99 -screen 0 1920x1080x24 &
           sleep 2
 
+          # Verify tauri-driver is available
+          which tauri-driver
+          tauri-driver --version || echo "tauri-driver version check failed"
+
           # Run tests
           npm run test:ci
         env:
-          # Point to the built binary
-          TAURI_BINARY: ../src-tauri/target/release/kindling
+          DISPLAY: ":99"
 
       - name: Upload test results
         if: always()
@@ -96,6 +112,7 @@ jobs:
             e2e/logs/
             e2e/screenshots/
           retention-days: 7
+          if-no-files-found: ignore
 
       - name: Upload test screenshots on failure
         if: failure()
@@ -104,3 +121,4 @@ jobs:
           name: e2e-failure-screenshots
           path: e2e/screenshots/
           retention-days: 14
+          if-no-files-found: ignore

@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "child_process";
+import { spawn } from "child_process";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
@@ -9,7 +9,6 @@ const projectRoot = resolve(__dirname, "..");
 // Find the built Tauri binary
 function findTauriBinary() {
   const platform = process.platform;
-  const arch = process.arch;
 
   // Binary locations for different platforms
   const binaryPaths = {
@@ -31,6 +30,7 @@ function findTauriBinary() {
   for (const p of paths) {
     const fullPath = resolve(projectRoot, p);
     if (existsSync(fullPath)) {
+      console.log(`Found Tauri binary: ${fullPath}`);
       return fullPath;
     }
   }
@@ -41,35 +41,22 @@ function findTauriBinary() {
   );
 }
 
-// Find WebKitWebDriver for Linux
-function findWebKitWebDriver() {
-  const result = spawnSync("which", ["WebKitWebDriver"]);
-  if (result.status === 0) {
-    return result.stdout.toString().trim();
-  }
-  // Common locations
-  const paths = [
-    "/usr/bin/WebKitWebDriver",
-    "/usr/lib/WebKitWebDriver",
-    "/usr/local/bin/WebKitWebDriver",
-  ];
-  for (const p of paths) {
-    if (existsSync(p)) return p;
-  }
-  return "WebKitWebDriver"; // Hope it's in PATH
-}
-
 let tauriDriver;
 
 export const config = {
   // Runner configuration
   runner: "local",
-  port: 4444,
 
-  // Test specs
+  // Test specs - run sequentially
   specs: ["./specs/**/*.spec.js"],
 
-  // Capabilities
+  // Exclude helpers from being run as specs
+  exclude: ["./specs/helpers.js"],
+
+  // Run tests sequentially (tauri-driver only supports one session)
+  maxInstances: 1,
+
+  // Capabilities for Tauri WebDriver
   capabilities: [
     {
       maxInstances: 1,
@@ -101,22 +88,10 @@ export const config = {
   reporters: ["spec"],
 
   // Hooks
-  onPrepare: function () {
-    // Start tauri-driver before tests
+  onPrepare: async function () {
     const platform = process.platform;
 
-    if (platform === "linux") {
-      // Linux uses WebKitWebDriver
-      tauriDriver = spawn("tauri-driver", [], {
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-    } else if (platform === "win32") {
-      // Windows uses msedgedriver via tauri-driver
-      tauriDriver = spawn("tauri-driver", [], {
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-    } else {
-      // macOS is not supported for WebDriver testing
+    if (platform === "darwin") {
       console.warn(
         "⚠️  macOS does not support WebDriver testing (no WKWebView driver)."
       );
@@ -124,21 +99,39 @@ export const config = {
       process.exit(0);
     }
 
-    // Log tauri-driver output
-    tauriDriver.stdout.on("data", (data) => {
-      console.log(`[tauri-driver] ${data}`);
-    });
-    tauriDriver.stderr.on("data", (data) => {
-      console.error(`[tauri-driver] ${data}`);
+    console.log("Starting tauri-driver...");
+
+    // Start tauri-driver before tests
+    tauriDriver = spawn("tauri-driver", [], {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env },
     });
 
-    // Give tauri-driver time to start
-    return new Promise((resolve) => setTimeout(resolve, 2000));
+    // Log tauri-driver output
+    tauriDriver.stdout.on("data", (data) => {
+      console.log(`[tauri-driver stdout] ${data.toString().trim()}`);
+    });
+    tauriDriver.stderr.on("data", (data) => {
+      console.log(`[tauri-driver stderr] ${data.toString().trim()}`);
+    });
+
+    tauriDriver.on("error", (err) => {
+      console.error(`[tauri-driver error] ${err.message}`);
+    });
+
+    tauriDriver.on("exit", (code) => {
+      console.log(`[tauri-driver] exited with code ${code}`);
+    });
+
+    // Give tauri-driver time to start and bind to port
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    console.log("tauri-driver should be ready");
   },
 
   onComplete: function () {
     // Kill tauri-driver after tests
     if (tauriDriver) {
+      console.log("Stopping tauri-driver...");
       tauriDriver.kill();
     }
   },
