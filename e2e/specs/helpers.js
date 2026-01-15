@@ -12,30 +12,57 @@ export const projectRoot = resolve(__dirname, "../..");
 export const testDataDir = resolve(projectRoot, "test-data");
 
 /**
- * Wait for the app to be ready (main content loaded)
- * On initial launch, the app shows StartScreen (import-section)
- * After loading a project, it shows the editor (sidebar)
+ * Wait for the app to be ready (any content loaded)
+ * This waits for either:
+ * - Onboarding modal (first launch)
+ * - Start screen (after onboarding, no project)
+ * - Editor (project loaded)
  */
 export async function waitForAppReady() {
-  // Wait for the main element and either the start screen or editor to appear
   await browser.waitUntil(
     async () => {
       const main = await $("main");
       if (!(await main.isExisting())) return false;
 
-      // Check if we're on the start screen (import-section) or editor (sidebar)
+      // Check for onboarding (first launch), start screen, or editor
+      const onboarding = await $('[data-testid="onboarding"]');
       const importSection = await $('[data-testid="import-section"]');
       const sidebar = await $('[data-testid="sidebar"]');
-      return (await importSection.isExisting()) || (await sidebar.isExisting());
+      return (
+        (await onboarding.isExisting()) ||
+        (await importSection.isExisting()) ||
+        (await sidebar.isExisting())
+      );
     },
     { timeout: 15000, timeoutMsg: "App did not load within 15 seconds" }
   );
 }
 
 /**
+ * Skip onboarding if it's showing
+ */
+export async function skipOnboardingIfPresent() {
+  const skipButton = await $('[data-testid="skip-onboarding"]');
+  if (await skipButton.isExisting()) {
+    await skipButton.click();
+    // Wait for onboarding to disappear and start screen to appear
+    await browser.waitUntil(
+      async () => {
+        const onboarding = await $('[data-testid="onboarding"]');
+        return !(await onboarding.isExisting());
+      },
+      { timeout: 5000, timeoutMsg: "Onboarding did not close" }
+    );
+  }
+}
+
+/**
  * Wait for the start screen to be visible (before loading a project)
+ * Will skip onboarding first if needed
  */
 export async function waitForStartScreen() {
+  await waitForAppReady();
+  await skipOnboardingIfPresent();
   await browser.waitUntil(
     async () => {
       const importSection = await $('[data-testid="import-section"]');
