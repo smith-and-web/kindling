@@ -92,6 +92,7 @@
 </script>
 
 <aside
+  data-testid="sidebar"
   class="bg-bg-panel border-r border-bg-card flex flex-col h-full transition-all duration-200"
   class:w-64={!ui.sidebarCollapsed}
   class:w-0={ui.sidebarCollapsed}
@@ -179,7 +180,7 @@
       <nav class="space-y-1" aria-label="Project outline">
         {#each currentProject.chapters as chapter (chapter.id)}
           {@const isExpanded = isChapterExpanded(chapter.id)}
-          <div class="select-none">
+          <div data-testid="chapter-item" class="select-none">
             <!-- Chapter row -->
             <button
               onclick={() => toggleChapter(chapter)}
@@ -196,7 +197,10 @@
               />
               <!-- Chapter icon -->
               <Folder class="w-4 h-4 text-text-secondary flex-shrink-0" />
-              <span class="text-text-primary font-medium text-sm truncate">{chapter.title}</span>
+              <span
+                data-testid="chapter-title"
+                class="text-text-primary font-medium text-sm truncate">{chapter.title}</span
+              >
             </button>
 
             <!-- Scenes (collapsible) -->
@@ -205,6 +209,7 @@
                 {#each currentProject.scenes as scene (scene.id)}
                   {@const isSelected = currentProject.currentScene?.id === scene.id}
                   <button
+                    data-testid="scene-item"
                     onclick={() => selectScene(scene)}
                     class="w-full flex items-center gap-2 px-2 py-1 rounded text-sm transition-colors"
                     class:bg-accent={isSelected}
@@ -219,7 +224,7 @@
                         ? 'text-white'
                         : 'text-text-secondary'}"
                     />
-                    <span class="truncate">{scene.title}</span>
+                    <span data-testid="scene-title" class="truncate">{scene.title}</span>
                   </button>
                 {/each}
                 {#if currentProject.scenes.length === 0}

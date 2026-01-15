@@ -134,7 +134,7 @@
     </div>
 
     <!-- Import Options -->
-    <div class="bg-bg-panel rounded-lg p-6 mb-8">
+    <div data-testid="import-section" class="bg-bg-panel rounded-lg p-6 mb-8">
       <h2 class="text-xl font-heading font-medium text-text-primary mb-4">Import Your Outline</h2>
       <div class="grid grid-cols-3 gap-4">
         <button
@@ -168,7 +168,7 @@
 
     <!-- Recent Projects -->
     {#if recentProjects.length > 0}
-      <div class="bg-bg-panel rounded-lg p-6">
+      <div data-testid="recent-projects" class="bg-bg-panel rounded-lg p-6">
         <h2 class="text-xl font-heading font-medium text-text-primary mb-4">Recent Projects</h2>
         <div class="space-y-2">
           {#each recentProjects as project (project.id)}
