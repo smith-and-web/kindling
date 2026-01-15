@@ -1,13 +1,60 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { SvelteSet } from "svelte/reactivity";
-  import { ChevronRight, ChevronsLeft, ChevronsRight, FileText, Folder, Home } from "lucide-svelte";
+  import {
+    ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
+    FileText,
+    Folder,
+    Home,
+    Plus,
+    Trash2,
+    GripVertical,
+    RefreshCw,
+    Loader2,
+  } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Chapter, Scene } from "../types";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
 
   let loading = $state(false);
   let expandedChapters = new SvelteSet<string>();
+
+  // Create new content state
+  let creatingChapter = $state(false);
+  let creatingScene = $state(false);
+  let newTitle = $state("");
+
+  // Delete confirmation state
+  let deleteDialog: {
+    type: "chapter" | "scene";
+    id: string;
+    title: string;
+    message: string;
+  } | null = $state(null);
+
+  // Drag-and-drop state
+  let draggedItem: { type: "chapter" | "scene"; id: string } | null = $state(null);
+  let dropTarget: { type: "chapter" | "scene"; id: string; position: "before" | "after" } | null =
+    $state(null);
+
+  // Hover state for showing action buttons
+  let hoveredChapterId: string | null = $state(null);
+  let hoveredSceneId: string | null = $state(null);
+
+  // Reimport state
+  let reimporting = $state(false);
+  let reimportSummary: {
+    chapters_added: number;
+    chapters_updated: number;
+    scenes_added: number;
+    scenes_updated: number;
+    beats_added: number;
+    beats_updated: number;
+    prose_preserved: number;
+  } | null = $state(null);
 
   async function loadChapters() {
     if (!currentProject.value) return;
@@ -84,6 +131,213 @@
     return expandedChapters.has(chapterId);
   }
 
+  // === Create Chapter/Scene ===
+  function startCreatingChapter() {
+    creatingChapter = true;
+    creatingScene = false;
+    newTitle = "";
+  }
+
+  function startCreatingScene() {
+    creatingScene = true;
+    creatingChapter = false;
+    newTitle = "";
+  }
+
+  function cancelCreate() {
+    creatingChapter = false;
+    creatingScene = false;
+    newTitle = "";
+  }
+
+  async function createChapter() {
+    if (!newTitle.trim() || !currentProject.value) return;
+    try {
+      const chapter = await invoke<Chapter>("create_chapter", {
+        projectId: currentProject.value.id,
+        title: newTitle.trim(),
+      });
+      currentProject.addChapter(chapter);
+      expandedChapters.clear();
+      expandedChapters.add(chapter.id);
+      await loadScenes(chapter);
+      cancelCreate();
+    } catch (e) {
+      console.error("Failed to create chapter:", e);
+    }
+  }
+
+  async function createScene() {
+    if (!newTitle.trim() || !currentProject.currentChapter) return;
+    try {
+      const scene = await invoke<Scene>("create_scene", {
+        chapterId: currentProject.currentChapter.id,
+        title: newTitle.trim(),
+      });
+      currentProject.addScene(scene);
+      await selectScene(scene);
+      cancelCreate();
+    } catch (e) {
+      console.error("Failed to create scene:", e);
+    }
+  }
+
+  function handleCreateKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter") {
+      if (creatingChapter) createChapter();
+      else if (creatingScene) createScene();
+    } else if (e.key === "Escape") {
+      cancelCreate();
+    }
+  }
+
+  // === Delete Chapter/Scene ===
+  async function confirmDeleteChapter(chapter: Chapter) {
+    try {
+      const counts = await invoke<{ scene_count: number; beat_count: number }>(
+        "get_chapter_content_counts",
+        { chapterId: chapter.id }
+      );
+      deleteDialog = {
+        type: "chapter",
+        id: chapter.id,
+        title: chapter.title,
+        message: `This will delete "${chapter.title}" with ${counts.scene_count} scene${counts.scene_count !== 1 ? "s" : ""} and ${counts.beat_count} beat${counts.beat_count !== 1 ? "s" : ""}.`,
+      };
+    } catch (e) {
+      console.error("Failed to get content counts:", e);
+    }
+  }
+
+  async function confirmDeleteScene(scene: Scene) {
+    try {
+      const beatCount = await invoke<number>("get_scene_beat_count", { sceneId: scene.id });
+      deleteDialog = {
+        type: "scene",
+        id: scene.id,
+        title: scene.title,
+        message: `This will delete "${scene.title}" with ${beatCount} beat${beatCount !== 1 ? "s" : ""}.`,
+      };
+    } catch (e) {
+      console.error("Failed to get beat count:", e);
+    }
+  }
+
+  async function executeDelete() {
+    if (!deleteDialog) return;
+    try {
+      if (deleteDialog.type === "chapter") {
+        await invoke("delete_chapter", { chapterId: deleteDialog.id });
+        currentProject.removeChapter(deleteDialog.id);
+        if (currentProject.currentChapter?.id === deleteDialog.id) {
+          currentProject.setCurrentChapter(null);
+          currentProject.setScenes([]);
+          currentProject.setCurrentScene(null);
+          currentProject.setBeats([]);
+        }
+      } else {
+        await invoke("delete_scene", { sceneId: deleteDialog.id });
+        currentProject.removeScene(deleteDialog.id);
+        if (currentProject.currentScene?.id === deleteDialog.id) {
+          currentProject.setCurrentScene(null);
+          currentProject.setBeats([]);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to delete:", e);
+    } finally {
+      deleteDialog = null;
+    }
+  }
+
+  // === Drag and Drop ===
+  function handleDragStart(type: "chapter" | "scene", id: string) {
+    draggedItem = { type, id };
+  }
+
+  function handleDragOver(e: DragEvent, type: "chapter" | "scene", id: string) {
+    e.preventDefault();
+    if (!draggedItem || draggedItem.type !== type || draggedItem.id === id) return;
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const position = e.clientY < midY ? "before" : "after";
+    dropTarget = { type, id, position };
+  }
+
+  function handleDragLeave() {
+    dropTarget = null;
+  }
+
+  async function handleDrop() {
+    if (!draggedItem || !dropTarget || draggedItem.type !== dropTarget.type) {
+      draggedItem = null;
+      dropTarget = null;
+      return;
+    }
+
+    const items = draggedItem.type === "chapter" ? currentProject.chapters : currentProject.scenes;
+    const draggedIndex = items.findIndex((item) => item.id === draggedItem!.id);
+    let targetIndex = items.findIndex((item) => item.id === dropTarget!.id);
+
+    if (dropTarget.position === "after") targetIndex++;
+    if (draggedIndex < targetIndex) targetIndex--;
+
+    const newOrder = [...items];
+    const [removed] = newOrder.splice(draggedIndex, 1);
+    newOrder.splice(targetIndex, 0, removed);
+
+    const newIds = newOrder.map((item) => item.id);
+
+    try {
+      if (draggedItem.type === "chapter" && currentProject.value) {
+        await invoke("reorder_chapters", {
+          projectId: currentProject.value.id,
+          chapterIds: newIds,
+        });
+        currentProject.reorderChapters(newIds);
+      } else if (draggedItem.type === "scene" && currentProject.currentChapter) {
+        await invoke("reorder_scenes", {
+          chapterId: currentProject.currentChapter.id,
+          sceneIds: newIds,
+        });
+        currentProject.reorderScenes(newIds);
+      }
+    } catch (e) {
+      console.error("Failed to reorder:", e);
+    } finally {
+      draggedItem = null;
+      dropTarget = null;
+    }
+  }
+
+  function handleDragEnd() {
+    draggedItem = null;
+    dropTarget = null;
+  }
+
+  // === Reimport ===
+  async function handleReimport() {
+    if (!currentProject.value) return;
+    reimporting = true;
+    try {
+      const summary = await invoke<typeof reimportSummary>("reimport_project", {
+        projectId: currentProject.value.id,
+      });
+      reimportSummary = summary;
+      // Reload content
+      await loadChapters();
+    } catch (e) {
+      console.error("Failed to reimport:", e);
+    } finally {
+      reimporting = false;
+    }
+  }
+
+  function closeReimportSummary() {
+    reimportSummary = null;
+  }
+
   $effect(() => {
     if (currentProject.value) {
       loadChapters();
@@ -155,14 +409,32 @@
       <p class="text-text-secondary text-sm mt-1 truncate">
         {currentProject.value.name}
       </p>
-      <button
-        onclick={goHome}
-        class="w-full mt-3 flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded-lg transition-colors"
-        aria-label="Close project"
-      >
-        <Home class="w-3.5 h-3.5" />
-        All Projects
-      </button>
+      <div class="flex gap-2 mt-3">
+        <button
+          onclick={goHome}
+          class="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded-lg transition-colors"
+          aria-label="Close project"
+        >
+          <Home class="w-3.5 h-3.5" />
+          All Projects
+        </button>
+        {#if currentProject.value.source_path}
+          <button
+            data-testid="reimport-button"
+            onclick={handleReimport}
+            disabled={reimporting}
+            class="flex items-center justify-center px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded-lg transition-colors disabled:opacity-50"
+            aria-label="Re-import from source"
+            title="Re-import from source file"
+          >
+            {#if reimporting}
+              <Loader2 data-testid="reimport-spinner" class="w-3.5 h-3.5 animate-spin" />
+            {:else}
+              <RefreshCw class="w-3.5 h-3.5" />
+            {/if}
+          </button>
+        {/if}
+      </div>
     {/if}
   </div>
 
@@ -180,60 +452,228 @@
       <nav class="space-y-1" aria-label="Project outline">
         {#each currentProject.chapters as chapter (chapter.id)}
           {@const isExpanded = isChapterExpanded(chapter.id)}
-          <div data-testid="chapter-item" class="select-none">
+          {@const isDragging = draggedItem?.type === "chapter" && draggedItem?.id === chapter.id}
+          {@const isDropTarget = dropTarget?.type === "chapter" && dropTarget?.id === chapter.id}
+          <div
+            data-testid="chapter-item"
+            class="select-none relative"
+            class:opacity-50={isDragging}
+            onmouseenter={() => (hoveredChapterId = chapter.id)}
+            onmouseleave={() => (hoveredChapterId = null)}
+            ondragover={(e) => handleDragOver(e, "chapter", chapter.id)}
+            ondragleave={handleDragLeave}
+            ondrop={handleDrop}
+          >
+            <!-- Drop indicator -->
+            {#if isDropTarget && dropTarget?.position === "before"}
+              <div class="absolute -top-0.5 left-0 right-0 h-0.5 bg-accent rounded"></div>
+            {/if}
+
             <!-- Chapter row -->
-            <button
-              onclick={() => toggleChapter(chapter)}
-              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors group"
+            <div
+              class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group"
               class:bg-bg-card={isExpanded}
               class:hover:bg-bg-card={!isExpanded}
-              aria-expanded={isExpanded}
             >
-              <!-- Expand/collapse chevron -->
-              <ChevronRight
-                class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0 {isExpanded
-                  ? 'rotate-90'
-                  : ''}"
-              />
-              <!-- Chapter icon -->
-              <Folder class="w-4 h-4 text-text-secondary flex-shrink-0" />
-              <span
-                data-testid="chapter-title"
-                class="text-text-primary font-medium text-sm truncate">{chapter.title}</span
+              <!-- Drag handle -->
+              <div
+                data-testid="drag-handle"
+                draggable="true"
+                ondragstart={() => handleDragStart("chapter", chapter.id)}
+                ondragend={handleDragEnd}
+                class="cursor-grab p-0.5 text-text-secondary hover:text-text-primary transition-opacity"
+                class:opacity-0={hoveredChapterId !== chapter.id}
+                class:opacity-100={hoveredChapterId === chapter.id}
               >
-            </button>
+                <GripVertical class="w-3.5 h-3.5" />
+              </div>
+
+              <button
+                onclick={() => toggleChapter(chapter)}
+                class="flex-1 flex items-center gap-2 text-left"
+                aria-expanded={isExpanded}
+              >
+                <!-- Expand/collapse chevron -->
+                <ChevronRight
+                  class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0 {isExpanded
+                    ? 'rotate-90'
+                    : ''}"
+                />
+                <!-- Chapter icon -->
+                <Folder class="w-4 h-4 text-text-secondary flex-shrink-0" />
+                <span
+                  data-testid="chapter-title"
+                  class="text-text-primary font-medium text-sm truncate">{chapter.title}</span
+                >
+              </button>
+
+              <!-- Delete button -->
+              <button
+                data-testid="delete-button"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  confirmDeleteChapter(chapter);
+                }}
+                class="p-1 text-text-secondary hover:text-red-500 transition-opacity"
+                class:opacity-0={hoveredChapterId !== chapter.id}
+                class:opacity-100={hoveredChapterId === chapter.id}
+                aria-label="Delete chapter"
+              >
+                <Trash2 class="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <!-- Drop indicator after -->
+            {#if isDropTarget && dropTarget?.position === "after"}
+              <div class="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-accent rounded"></div>
+            {/if}
 
             <!-- Scenes (collapsible) -->
             {#if isExpanded && currentProject.currentChapter?.id === chapter.id}
               <div class="ml-6 mt-1 space-y-0.5 border-l border-bg-card pl-2">
                 {#each currentProject.scenes as scene (scene.id)}
                   {@const isSelected = currentProject.currentScene?.id === scene.id}
-                  <button
-                    data-testid="scene-item"
-                    onclick={() => selectScene(scene)}
-                    class="w-full flex items-center gap-2 px-2 py-1 rounded text-sm transition-colors"
-                    class:bg-accent={isSelected}
-                    class:text-white={isSelected}
-                    class:text-text-secondary={!isSelected}
-                    class:hover:bg-bg-card={!isSelected}
-                    class:hover:text-text-primary={!isSelected}
+                  {@const isSceneDragging =
+                    draggedItem?.type === "scene" && draggedItem?.id === scene.id}
+                  {@const isSceneDropTarget =
+                    dropTarget?.type === "scene" && dropTarget?.id === scene.id}
+                  <div
+                    class="relative"
+                    class:opacity-50={isSceneDragging}
+                    onmouseenter={() => (hoveredSceneId = scene.id)}
+                    onmouseleave={() => (hoveredSceneId = null)}
+                    ondragover={(e) => handleDragOver(e, "scene", scene.id)}
+                    ondragleave={handleDragLeave}
+                    ondrop={handleDrop}
                   >
-                    <!-- Scene icon -->
-                    <FileText
-                      class="w-3.5 h-3.5 flex-shrink-0 {isSelected
-                        ? 'text-white'
-                        : 'text-text-secondary'}"
-                    />
-                    <span data-testid="scene-title" class="truncate">{scene.title}</span>
-                  </button>
+                    <!-- Scene drop indicator before -->
+                    {#if isSceneDropTarget && dropTarget?.position === "before"}
+                      <div class="absolute -top-0.5 left-0 right-0 h-0.5 bg-accent rounded"></div>
+                    {/if}
+
+                    <div
+                      data-testid="scene-item"
+                      class="w-full flex items-center gap-1 px-1 py-1 rounded text-sm transition-colors"
+                      class:bg-accent={isSelected}
+                      class:text-white={isSelected}
+                      class:text-text-secondary={!isSelected}
+                      class:hover:bg-bg-card={!isSelected}
+                      class:hover:text-text-primary={!isSelected}
+                    >
+                      <!-- Scene drag handle -->
+                      <div
+                        data-testid="drag-handle"
+                        draggable="true"
+                        ondragstart={() => handleDragStart("scene", scene.id)}
+                        ondragend={handleDragEnd}
+                        class="cursor-grab p-0.5 transition-opacity"
+                        class:text-white={isSelected}
+                        class:text-text-secondary={!isSelected}
+                        class:opacity-0={hoveredSceneId !== scene.id}
+                        class:opacity-100={hoveredSceneId === scene.id}
+                      >
+                        <GripVertical class="w-3 h-3" />
+                      </div>
+
+                      <button
+                        onclick={() => selectScene(scene)}
+                        class="flex-1 flex items-center gap-2 text-left"
+                      >
+                        <!-- Scene icon -->
+                        <FileText
+                          class="w-3.5 h-3.5 flex-shrink-0 {isSelected
+                            ? 'text-white'
+                            : 'text-text-secondary'}"
+                        />
+                        <span data-testid="scene-title" class="truncate">{scene.title}</span>
+                      </button>
+
+                      <!-- Scene delete button -->
+                      <button
+                        data-testid="delete-button"
+                        onclick={(e) => {
+                          e.stopPropagation();
+                          confirmDeleteScene(scene);
+                        }}
+                        class="p-0.5 transition-opacity"
+                        class:text-white={isSelected}
+                        class:hover:text-red-300={isSelected}
+                        class:text-text-secondary={!isSelected}
+                        class:hover:text-red-500={!isSelected}
+                        class:opacity-0={hoveredSceneId !== scene.id}
+                        class:opacity-100={hoveredSceneId === scene.id}
+                        aria-label="Delete scene"
+                      >
+                        <Trash2 class="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    <!-- Scene drop indicator after -->
+                    {#if isSceneDropTarget && dropTarget?.position === "after"}
+                      <div
+                        class="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-accent rounded"
+                      ></div>
+                    {/if}
+                  </div>
                 {/each}
-                {#if currentProject.scenes.length === 0}
-                  <span class="text-text-secondary text-xs px-2 py-1 italic">No scenes</span>
+
+                <!-- New Scene Button or Input -->
+                {#if creatingScene}
+                  <div class="px-2 py-1">
+                    <input
+                      data-testid="title-input"
+                      type="text"
+                      bind:value={newTitle}
+                      onkeydown={handleCreateKeydown}
+                      onblur={cancelCreate}
+                      placeholder="Scene title..."
+                      class="w-full px-2 py-1 text-sm bg-bg-card border border-accent rounded focus:outline-none text-text-primary"
+                      autofocus
+                    />
+                  </div>
+                {:else}
+                  <button
+                    data-testid="new-scene-button"
+                    onclick={startCreatingScene}
+                    class="w-full flex items-center gap-2 px-2 py-1 rounded text-xs text-text-secondary hover:text-text-primary hover:bg-bg-card transition-colors"
+                  >
+                    <Plus class="w-3 h-3" />
+                    New Scene
+                  </button>
+                {/if}
+
+                {#if currentProject.scenes.length === 0 && !creatingScene}
+                  <span class="text-text-secondary text-xs px-2 py-1 italic">No scenes yet</span>
                 {/if}
               </div>
             {/if}
           </div>
         {/each}
+
+        <!-- New Chapter Button or Input -->
+        {#if creatingChapter}
+          <div class="px-2 py-1">
+            <input
+              data-testid="title-input"
+              type="text"
+              bind:value={newTitle}
+              onkeydown={handleCreateKeydown}
+              onblur={cancelCreate}
+              placeholder="Chapter title..."
+              class="w-full px-2 py-1 text-sm bg-bg-card border border-accent rounded focus:outline-none text-text-primary"
+              autofocus
+            />
+          </div>
+        {:else}
+          <button
+            data-testid="new-chapter-button"
+            onclick={startCreatingChapter}
+            class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-bg-card transition-colors"
+          >
+            <Plus class="w-4 h-4" />
+            New Chapter
+          </button>
+        {/if}
       </nav>
     {/if}
   </div>
@@ -248,4 +688,63 @@
   >
     <ChevronsRight class="w-5 h-5" />
   </button>
+{/if}
+
+<!-- Delete Confirmation Dialog -->
+{#if deleteDialog}
+  <ConfirmDialog
+    title="Delete {deleteDialog.type === 'chapter' ? 'Chapter' : 'Scene'}"
+    message={deleteDialog.message}
+    onConfirm={executeDelete}
+    onCancel={() => (deleteDialog = null)}
+  />
+{/if}
+
+<!-- Reimport Summary Dialog -->
+{#if reimportSummary}
+  <div
+    data-testid="reimport-summary-dialog"
+    class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+    role="dialog"
+    aria-modal="true"
+  >
+    <div class="bg-bg-panel rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+      <h3 class="text-lg font-heading font-medium text-text-primary mb-4">Re-import Complete</h3>
+      <div data-testid="reimport-summary" class="text-text-secondary text-sm space-y-2 mb-6">
+        {#if reimportSummary.chapters_added === 0 && reimportSummary.chapters_updated === 0 && reimportSummary.scenes_added === 0 && reimportSummary.scenes_updated === 0 && reimportSummary.beats_added === 0 && reimportSummary.beats_updated === 0}
+          <p>No changes detected.</p>
+        {:else}
+          {#if reimportSummary.chapters_added > 0 || reimportSummary.chapters_updated > 0}
+            <p>
+              Chapters: {reimportSummary.chapters_added} added, {reimportSummary.chapters_updated} updated
+            </p>
+          {/if}
+          {#if reimportSummary.scenes_added > 0 || reimportSummary.scenes_updated > 0}
+            <p>
+              Scenes: {reimportSummary.scenes_added} added, {reimportSummary.scenes_updated} updated
+            </p>
+          {/if}
+          {#if reimportSummary.beats_added > 0 || reimportSummary.beats_updated > 0}
+            <p>
+              Beats: {reimportSummary.beats_added} added, {reimportSummary.beats_updated} updated
+            </p>
+          {/if}
+          {#if reimportSummary.prose_preserved > 0}
+            <p class="text-green-500">
+              {reimportSummary.prose_preserved} prose item{reimportSummary.prose_preserved !== 1
+                ? "s"
+                : ""} preserved
+            </p>
+          {/if}
+        {/if}
+      </div>
+      <button
+        data-testid="dialog-close"
+        onclick={closeReimportSummary}
+        class="w-full px-4 py-2 bg-accent text-white rounded hover:bg-accent/80 transition-colors"
+      >
+        Close
+      </button>
+    </div>
+  </div>
 {/if}

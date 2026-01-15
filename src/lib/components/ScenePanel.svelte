@@ -1,7 +1,55 @@
 <script lang="ts">
-  import { FileText } from "lucide-svelte";
+  import { FileText, ChevronRight, ChevronDown } from "lucide-svelte";
+  import { invoke } from "@tauri-apps/api/core";
   import { currentProject } from "../stores/project.svelte";
+  import { ui } from "../stores/ui.svelte";
+
+  let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  function toggleBeat(beatId: string) {
+    if (ui.expandedBeatId === beatId) {
+      ui.setExpandedBeat(null);
+    } else {
+      ui.setExpandedBeat(beatId);
+    }
+  }
+
+  async function saveBeatProse(beatId: string, prose: string) {
+    ui.setBeatSaveStatus("saving");
+    try {
+      await invoke("save_beat_prose", { beatId, prose });
+      currentProject.updateBeatProse(beatId, prose);
+      ui.setBeatSaveStatus("saved");
+      // Reset to idle after 2 seconds
+      setTimeout(() => {
+        if (ui.beatSaveStatus === "saved") {
+          ui.setBeatSaveStatus("idle");
+        }
+      }, 2000);
+    } catch (e) {
+      console.error("Failed to save beat prose:", e);
+      ui.setBeatSaveStatus("error");
+    }
+  }
+
+  function handleProseInput(beatId: string, value: string) {
+    // Debounce save by 500ms
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+    }
+    saveTimeout = setTimeout(() => {
+      saveBeatProse(beatId, value);
+    }, 500);
+  }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === "Escape" && ui.expandedBeatId) {
+      ui.setExpandedBeat(null);
+    }
+  }
 </script>
+
+<svelte:window on:keydown={handleKeydown} />
 
 <div data-testid="scene-panel" class="flex-1 flex flex-col h-full overflow-hidden">
   {#if currentProject.currentScene}
@@ -45,23 +93,69 @@
             </h2>
             <div class="space-y-4">
               {#each currentProject.beats as beat, index (beat.id)}
+                {@const isExpanded = ui.expandedBeatId === beat.id}
                 <article class="bg-bg-panel rounded-lg overflow-hidden">
-                  <!-- Beat Header -->
-                  <div class="bg-beat-header px-4 py-2 flex items-center gap-3">
+                  <!-- Beat Header (clickable to expand) -->
+                  <button
+                    data-testid="beat-header"
+                    onclick={() => toggleBeat(beat.id)}
+                    class="w-full bg-beat-header px-4 py-2 flex items-center gap-3 hover:bg-beat-header/80 transition-colors cursor-pointer text-left"
+                  >
+                    <span class="text-text-secondary flex-shrink-0">
+                      {#if isExpanded}
+                        <ChevronDown class="w-4 h-4" />
+                      {:else}
+                        <ChevronRight class="w-4 h-4" />
+                      {/if}
+                    </span>
                     <span
                       class="w-6 h-6 rounded-full bg-accent text-white text-xs font-medium flex items-center justify-center flex-shrink-0"
                     >
                       {index + 1}
                     </span>
-                    <p class="text-text-primary text-sm font-medium">
+                    <p class="text-text-primary text-sm font-medium flex-1">
                       {beat.content}
                     </p>
-                  </div>
+                    <!-- Save Indicator -->
+                    {#if isExpanded && ui.beatSaveStatus !== "idle"}
+                      <span
+                        data-testid="save-indicator"
+                        class="text-xs px-2 py-0.5 rounded"
+                        class:text-text-secondary={ui.beatSaveStatus === "saving"}
+                        class:text-green-500={ui.beatSaveStatus === "saved"}
+                        class:text-red-500={ui.beatSaveStatus === "error"}
+                      >
+                        {#if ui.beatSaveStatus === "saving"}
+                          Saving...
+                        {:else if ui.beatSaveStatus === "saved"}
+                          Saved
+                        {:else if ui.beatSaveStatus === "error"}
+                          Error saving
+                        {/if}
+                      </span>
+                    {/if}
+                  </button>
 
-                  <!-- Beat Prose (if exists) -->
-                  {#if beat.prose}
+                  <!-- Expanded Beat Content -->
+                  {#if isExpanded}
                     <div class="px-4 py-4 border-t border-bg-card">
-                      <p class="text-text-primary font-prose leading-relaxed whitespace-pre-wrap">
+                      <textarea
+                        data-testid="beat-prose-textarea"
+                        class="w-full min-h-[200px] bg-bg-card rounded-lg p-4 text-text-primary font-prose leading-relaxed resize-y border border-bg-card focus:border-accent focus:outline-none"
+                        placeholder="Write your prose for this beat..."
+                        value={beat.prose || ""}
+                        oninput={(e) => handleProseInput(beat.id, e.currentTarget.value)}
+                      ></textarea>
+                      <p class="text-text-secondary text-xs mt-2">
+                        Press Escape to collapse. Changes are saved automatically.
+                      </p>
+                    </div>
+                  {:else if beat.prose}
+                    <!-- Show preview of prose when collapsed -->
+                    <div class="px-4 py-3 border-t border-bg-card">
+                      <p
+                        class="text-text-primary font-prose leading-relaxed whitespace-pre-wrap line-clamp-3"
+                      >
                         {beat.prose}
                       </p>
                     </div>
