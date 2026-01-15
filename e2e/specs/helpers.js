@@ -95,10 +95,14 @@ export async function importPlottrFile(filename) {
 
   // Invoke Tauri command directly via browser executeAsync
   // Using executeAsync because Tauri invoke returns a Promise
+  // The app exposes window.__KINDLING_TEST__.invoke for E2E testing
   const result = await browser.executeAsync(async (path, done) => {
     try {
-      // The app has __TAURI__ available globally
-      const project = await window.__TAURI__.core.invoke("import_plottr", {
+      // The app exposes invoke via __KINDLING_TEST__ for E2E testing
+      if (!window.__KINDLING_TEST__?.invoke) {
+        throw new Error("__KINDLING_TEST__.invoke not available");
+      }
+      const project = await window.__KINDLING_TEST__.invoke("import_plottr", {
         path,
       });
       done({ success: true, project });
