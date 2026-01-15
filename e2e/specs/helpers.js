@@ -93,18 +93,17 @@ export async function waitForEditor() {
 export async function importPlottrFile(filename) {
   const filePath = resolve(testDataDir, filename);
 
-  // Invoke Tauri command directly via browser executeAsync
-  // Using executeAsync because Tauri invoke returns a Promise
-  // The app exposes window.__KINDLING_TEST__.invoke for E2E testing
+  // Use the app's importProject helper which handles:
+  // 1. Calling invoke("import_plottr")
+  // 2. Updating currentProject store
+  // 3. Setting ui view to "editor"
   const result = await browser.executeAsync(async (path, done) => {
     try {
-      // The app exposes invoke via __KINDLING_TEST__ for E2E testing
-      if (!window.__KINDLING_TEST__?.invoke) {
-        throw new Error("__KINDLING_TEST__.invoke not available");
+      // The app exposes importProject via __KINDLING_TEST__ for E2E testing
+      if (!window.__KINDLING_TEST__?.importProject) {
+        throw new Error("__KINDLING_TEST__.importProject not available");
       }
-      const project = await window.__KINDLING_TEST__.invoke("import_plottr", {
-        path,
-      });
+      const project = await window.__KINDLING_TEST__.importProject(path);
       done({ success: true, project });
     } catch (error) {
       done({ success: false, error: error.message || String(error) });
