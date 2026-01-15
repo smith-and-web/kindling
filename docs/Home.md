@@ -8,6 +8,7 @@
 
 ### Getting Started
 
+- [Installation](Installation) - Download and install Kindling
 - [Importing Projects](Importing-Projects) - How to import from Plottr, Scrivener, and Markdown
 
 ### Reference

@@ -53,7 +53,18 @@ Kindling keeps your outline visible and actionable as you write. Each scene disp
 
 ## Installation
 
-> **Note**: Kindling is in early development. Pre-built releases are coming soon.
+### Download
+
+Download the latest release for your platform from the [Releases page](https://github.com/smith-and-web/kindling/releases):
+
+| Platform | Download |
+|----------|----------|
+| macOS (Apple Silicon) | `Kindling_*_aarch64.dmg` |
+| macOS (Intel) | `Kindling_*_x64.dmg` |
+| Windows | `Kindling_*_x64-setup.msi` |
+| Linux | `Kindling_*_amd64.AppImage` or `.deb` |
+
+> **Note**: Kindling is not code-signed. You may see security warnings on first launch. See the [Installation Guide](https://github.com/smith-and-web/kindling/wiki/Installation) for instructions on bypassing these warnings.
 
 ### From Source
 
