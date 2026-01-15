@@ -24,7 +24,9 @@ declare global {
 
 // Helper to import a project and update the frontend state
 // For E2E testing, this also loads chapters directly rather than relying on $effect
-async function importProject(path: string): Promise<Project> {
+async function importProject(
+  path: string
+): Promise<Project & { _debug?: { chapterCount: number } }> {
   ui.startImport();
   try {
     const project = await invoke<Project>("import_plottr", { path });
@@ -43,7 +45,8 @@ async function importProject(path: string): Promise<Project> {
     // This ensures E2E tests can find the rendered chapter elements
     await tick();
 
-    return project;
+    // Add debug info to understand if chapters were loaded
+    return { ...project, _debug: { chapterCount: chapters.length } };
   } finally {
     ui.finishImport();
   }
