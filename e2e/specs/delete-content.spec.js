@@ -6,6 +6,8 @@
 
 import {
   waitForAppReady,
+  skipOnboardingIfPresent,
+  importPlottrFile,
   selectChapter,
   selectScene,
   getChapterTitles,
@@ -13,8 +15,10 @@ import {
 } from "./helpers.js";
 
 describe("Delete Chapters and Scenes (#16)", () => {
-  beforeEach(async () => {
+  before(async () => {
     await waitForAppReady();
+    await skipOnboardingIfPresent();
+    await importPlottrFile("simple-story.pltr");
   });
 
   describe("Delete Confirmation Dialog", () => {

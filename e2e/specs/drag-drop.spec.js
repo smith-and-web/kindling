@@ -6,14 +6,18 @@
 
 import {
   waitForAppReady,
+  skipOnboardingIfPresent,
+  importPlottrFile,
   selectChapter,
   getChapterTitles,
   getSceneTitles,
 } from "./helpers.js";
 
 describe("Drag and Drop Reordering (#14)", () => {
-  beforeEach(async () => {
+  before(async () => {
     await waitForAppReady();
+    await skipOnboardingIfPresent();
+    await importPlottrFile("simple-story.pltr");
   });
 
   describe("Chapter Reordering", () => {

@@ -4,11 +4,22 @@
  * Tests for re-importing to update a project while preserving prose
  */
 
-import { waitForAppReady, expandBeat, typeProse, waitForSaved } from "./helpers.js";
+import {
+  waitForAppReady,
+  skipOnboardingIfPresent,
+  importPlottrFile,
+  selectChapter,
+  selectScene,
+  expandBeat,
+  typeProse,
+  waitForSaved,
+} from "./helpers.js";
 
 describe("Re-import to Update Project (#40)", () => {
-  beforeEach(async () => {
+  before(async () => {
     await waitForAppReady();
+    await skipOnboardingIfPresent();
+    await importPlottrFile("simple-story.pltr");
   });
 
   describe("Reimport Button Visibility", () => {

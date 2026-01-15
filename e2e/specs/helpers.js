@@ -6,6 +6,7 @@
 
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const projectRoot = resolve(__dirname, "../..");
@@ -86,14 +87,84 @@ export async function waitForEditor() {
 }
 
 /**
- * Import a Plottr file via the file dialog
- * Note: This is tricky in e2e tests since native dialogs can't be controlled
- * We may need to use a test-specific import route
+ * Import a Plottr file by invoking Tauri command directly
+ * This bypasses the native file dialog which can't be controlled in E2E tests
  */
 export async function importPlottrFile(filename) {
-  // For CI, we'll need to set up a test-specific import method
-  // or use clipboard/drag-drop if supported
-  console.log(`Would import: ${resolve(testDataDir, filename)}`);
+  const filePath = resolve(testDataDir, filename);
+
+  // Invoke Tauri command directly via browser executeAsync
+  // Using executeAsync because Tauri invoke returns a Promise
+  const result = await browser.executeAsync(async (path, done) => {
+    try {
+      // The app has __TAURI__ available globally
+      const project = await window.__TAURI__.core.invoke("import_plottr", {
+        path,
+      });
+      done({ success: true, project });
+    } catch (error) {
+      done({ success: false, error: error.message || String(error) });
+    }
+  }, filePath);
+
+  if (!result.success) {
+    throw new Error(`Failed to import Plottr file: ${result.error}`);
+  }
+
+  // Wait for UI to update after import
+  await browser.pause(500);
+  await waitForEditor();
+
+  return result.project;
+}
+
+/**
+ * Wait for project chapters to be loaded in the UI
+ */
+export async function waitForProjectLoaded() {
+  await browser.waitUntil(
+    async () => {
+      const chapters = await $$('[data-testid="chapter-item"]');
+      return chapters.length > 0;
+    },
+    {
+      timeout: 10000,
+      timeoutMsg: "Expected project chapters to load",
+    }
+  );
+}
+
+/**
+ * Replace a test file with another (for reimport testing)
+ * Returns the backup path
+ */
+export async function replaceTestFile(originalName, replacementName) {
+  const originalPath = resolve(testDataDir, originalName);
+  const replacementPath = resolve(testDataDir, replacementName);
+  const backupPath = resolve(testDataDir, `${originalName}.backup`);
+
+  // Backup original
+  await fs.promises.copyFile(originalPath, backupPath);
+  // Replace with updated version
+  await fs.promises.copyFile(replacementPath, originalPath);
+
+  return backupPath;
+}
+
+/**
+ * Restore a test file from backup
+ */
+export async function restoreTestFile(originalName) {
+  const originalPath = resolve(testDataDir, originalName);
+  const backupPath = resolve(testDataDir, `${originalName}.backup`);
+
+  try {
+    await fs.promises.access(backupPath);
+    await fs.promises.copyFile(backupPath, originalPath);
+    await fs.promises.unlink(backupPath);
+  } catch {
+    // Backup doesn't exist, nothing to restore
+  }
 }
 
 /**

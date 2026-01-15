@@ -6,6 +6,8 @@
 
 import {
   waitForAppReady,
+  skipOnboardingIfPresent,
+  importPlottrFile,
   selectChapter,
   selectScene,
   expandBeat,
@@ -14,17 +16,16 @@ import {
 } from "./helpers.js";
 
 describe("Beat-Level Prose Editing (#38)", () => {
-  beforeEach(async () => {
+  before(async () => {
     await waitForAppReady();
-    // Tests assume a project is already imported
-    // In CI, we'd set up test data beforehand
+    await skipOnboardingIfPresent();
+    await importPlottrFile("simple-story.pltr");
+    // Navigate to first chapter and scene for all tests
+    await selectChapter("Act 1");
+    await selectScene("The Beginning");
   });
 
   it("should expand a beat when clicking the header", async () => {
-    // Select a chapter and scene first
-    await selectChapter("Act 1");
-    await selectScene("The Beginning");
-
     // Click on the first beat header
     await expandBeat(0);
 
@@ -34,9 +35,6 @@ describe("Beat-Level Prose Editing (#38)", () => {
   });
 
   it("should collapse a beat when pressing Escape", async () => {
-    await selectChapter("Act 1");
-    await selectScene("The Beginning");
-
     // Expand a beat
     await expandBeat(0);
     const textarea = await $('[data-testid="beat-prose-textarea"]');
@@ -56,9 +54,6 @@ describe("Beat-Level Prose Editing (#38)", () => {
   });
 
   it("should collapse a beat when clicking header again", async () => {
-    await selectChapter("Act 1");
-    await selectScene("The Beginning");
-
     // Expand and collapse by clicking
     await expandBeat(0);
     await expandBeat(0); // Click again
@@ -74,9 +69,6 @@ describe("Beat-Level Prose Editing (#38)", () => {
   });
 
   it("should auto-save prose after typing", async () => {
-    await selectChapter("Act 1");
-    await selectScene("The Beginning");
-
     await expandBeat(0);
     await typeProse("The morning light filtered through the dusty window.");
 
@@ -89,9 +81,6 @@ describe("Beat-Level Prose Editing (#38)", () => {
   });
 
   it("should show saving indicator while saving", async () => {
-    await selectChapter("Act 1");
-    await selectScene("The Beginning");
-
     await expandBeat(0);
 
     // Start typing - should show "Saving..."
@@ -106,9 +95,6 @@ describe("Beat-Level Prose Editing (#38)", () => {
 
   it("should preserve prose when navigating away and back", async () => {
     const testProse = "This is my test prose content.";
-
-    await selectChapter("Act 1");
-    await selectScene("The Beginning");
 
     // Write prose
     await expandBeat(0);
@@ -129,9 +115,6 @@ describe("Beat-Level Prose Editing (#38)", () => {
   });
 
   it("should collapse current beat when expanding another", async () => {
-    await selectChapter("Act 1");
-    await selectScene("The Beginning");
-
     // Expand first beat
     await expandBeat(0);
     let textareas = await $$('[data-testid="beat-prose-textarea"]');
