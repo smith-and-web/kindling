@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import Onboarding from "./lib/components/Onboarding.svelte";
   import ReferencesPanel from "./lib/components/ReferencesPanel.svelte";
   import ScenePanel from "./lib/components/ScenePanel.svelte";
   import Sidebar from "./lib/components/Sidebar.svelte";
@@ -35,3 +36,6 @@
     <StartScreen {recentProjects} />
   {/if}
 </main>
+
+<!-- Onboarding overlay (shown on first launch) -->
+<Onboarding />

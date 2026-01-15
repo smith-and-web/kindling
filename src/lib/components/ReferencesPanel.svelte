@@ -1,6 +1,16 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { SvelteSet } from "svelte/reactivity";
+  import {
+    ArrowDownAZ,
+    ChevronDown,
+    ChevronsLeft,
+    ChevronsRight,
+    GripVertical,
+    ListChevronsDownUp,
+    MapPin,
+    User,
+  } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Character, Location } from "../types";
@@ -247,40 +257,16 @@
           aria-label="Collapse all"
           title="Collapse all"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M5 15l7-7 7 7"
-            />
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M5 9l7-7 7 7"
-            />
-          </svg>
+          <ListChevronsDownUp class="w-4 h-4" />
         </button>
         <!-- Sort Alphabetically button -->
         <button
           onclick={sortAlphabetically}
-          class="text-text-secondary hover:text-text-primary p-1 text-xs font-bold"
+          class="text-text-secondary hover:text-text-primary p-1"
           aria-label="Sort alphabetically"
           title="Sort A-Z"
         >
-          <span class="flex items-center gap-0.5">
-            A
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 14l-7 7-7-7"
-              />
-            </svg>
-            Z
-          </span>
+          <ArrowDownAZ class="w-4 h-4" />
         </button>
         <!-- Close panel button -->
         <button
@@ -288,14 +274,7 @@
           class="text-text-secondary hover:text-text-primary p-1"
           aria-label="Collapse references panel"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M13 5l7 7-7 7M5 5l7 7-7 7"
-            />
-          </svg>
+          <ChevronsRight class="w-4 h-4" />
         </button>
       </div>
     </div>
@@ -361,14 +340,7 @@
                   tabindex="-1"
                   aria-label="Drag to reorder"
                 >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 6h16M4 12h16M4 18h16"
-                    />
-                  </svg>
+                  <GripVertical class="w-4 h-4" />
                 </div>
                 <!-- Clickable area for expand/collapse -->
                 <button
@@ -379,19 +351,7 @@
                   <div
                     class="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0"
                   >
-                    <svg
-                      class="w-4 h-4 text-accent"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                      />
-                    </svg>
+                    <User class="w-4 h-4 text-accent" />
                   </div>
                   <div class="flex-1 min-w-0">
                     <p class="text-text-primary font-medium text-sm truncate">{character.name}</p>
@@ -399,20 +359,11 @@
                       <p class="text-text-secondary text-xs truncate">{character.description}</p>
                     {/if}
                   </div>
-                  <svg
-                    class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0"
-                    class:rotate-180={isExpanded}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
+                  <ChevronDown
+                    class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0 {isExpanded
+                      ? 'rotate-180'
+                      : ''}"
+                  />
                 </button>
               </div>
 
@@ -472,14 +423,7 @@
                   tabindex="-1"
                   aria-label="Drag to reorder"
                 >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 6h16M4 12h16M4 18h16"
-                    />
-                  </svg>
+                  <GripVertical class="w-4 h-4" />
                 </div>
                 <!-- Clickable area for expand/collapse -->
                 <button
@@ -490,25 +434,7 @@
                   <div
                     class="w-8 h-8 rounded-full bg-spark-gold/20 flex items-center justify-center flex-shrink-0"
                   >
-                    <svg
-                      class="w-4 h-4 text-spark-gold"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                      />
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                    </svg>
+                    <MapPin class="w-4 h-4 text-spark-gold" />
                   </div>
                   <div class="flex-1 min-w-0">
                     <p class="text-text-primary font-medium text-sm truncate">{location.name}</p>
@@ -516,20 +442,11 @@
                       <p class="text-text-secondary text-xs truncate">{location.description}</p>
                     {/if}
                   </div>
-                  <svg
-                    class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0"
-                    class:rotate-180={isExpanded}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
+                  <ChevronDown
+                    class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0 {isExpanded
+                      ? 'rotate-180'
+                      : ''}"
+                  />
                 </button>
               </div>
 
@@ -570,13 +487,6 @@
     class="fixed right-0 top-1/2 -translate-y-1/2 bg-bg-panel p-2 rounded-l-lg text-text-secondary hover:text-text-primary z-10"
     aria-label="Expand references panel"
   >
-    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        stroke-width="2"
-        d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
-      />
-    </svg>
+    <ChevronsLeft class="w-5 h-5" />
   </button>
 {/if}
