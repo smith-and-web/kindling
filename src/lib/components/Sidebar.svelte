@@ -338,13 +338,17 @@
     reimportSummary = null;
   }
 
+  // Track isImporting state to properly handle chapter loading
+  const isImporting = $derived(ui.isImporting);
+
   $effect(() => {
-    if (currentProject.value) {
-      // Skip loading if import is in progress (importProject will load chapters)
-      // or if chapters are already loaded
-      if (!ui.isImporting && currentProject.chapters.length === 0) {
-        loadChapters();
-      }
+    // These reads establish dependencies
+    const project = currentProject.value;
+    const chaptersLoaded = currentProject.chapters.length > 0;
+    const importing = isImporting;
+
+    if (project && !importing && !chaptersLoaded) {
+      loadChapters();
     }
   });
 </script>
