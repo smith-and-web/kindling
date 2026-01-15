@@ -57,10 +57,10 @@ export const config = {
   maxInstances: 1,
 
   // Capabilities for Tauri WebDriver
+  // Note: Do NOT include browserName - tauri:options is sufficient
   capabilities: [
     {
       maxInstances: 1,
-      browserName: "wry",
       "tauri:options": {
         application: findTauriBinary(),
       },
