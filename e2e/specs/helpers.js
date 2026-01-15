@@ -118,6 +118,9 @@ export async function importPlottrFile(filename) {
   await browser.pause(500);
   await waitForEditor();
 
+  // Wait for chapters to be visible in the sidebar
+  await waitForProjectLoaded();
+
   return result.project;
 }
 
@@ -171,23 +174,41 @@ export async function restoreTestFile(originalName) {
 }
 
 /**
- * Select a chapter in the sidebar
+ * Select a chapter in the sidebar by title
+ * WebDriverIO doesn't support :has-text(), so we find all chapters and filter
  */
 export async function selectChapter(chapterTitle) {
-  const chapter = await $(
-    `[data-testid="chapter-item"]:has-text("${chapterTitle}")`
-  );
-  await chapter.click();
+  const chapters = await $$('[data-testid="chapter-item"]');
+  for (const chapter of chapters) {
+    const titleEl = await chapter.$('[data-testid="chapter-title"]');
+    if (await titleEl.isExisting()) {
+      const text = await titleEl.getText();
+      if (text === chapterTitle) {
+        await chapter.click();
+        return;
+      }
+    }
+  }
+  throw new Error(`Chapter "${chapterTitle}" not found`);
 }
 
 /**
- * Select a scene in the sidebar
+ * Select a scene in the sidebar by title
+ * WebDriverIO doesn't support :has-text(), so we find all scenes and filter
  */
 export async function selectScene(sceneTitle) {
-  const scene = await $(
-    `[data-testid="scene-item"]:has-text("${sceneTitle}")`
-  );
-  await scene.click();
+  const scenes = await $$('[data-testid="scene-item"]');
+  for (const scene of scenes) {
+    const titleEl = await scene.$('[data-testid="scene-title"]');
+    if (await titleEl.isExisting()) {
+      const text = await titleEl.getText();
+      if (text === sceneTitle) {
+        await scene.click();
+        return;
+      }
+    }
+  }
+  throw new Error(`Scene "${sceneTitle}" not found`);
 }
 
 /**
