@@ -1,0 +1,136 @@
+{
+  "file": {
+    "version": "2024.10.1"
+  },
+  "beats": [
+    {
+      "id": 1,
+      "title": "Act 1",
+      "position": 0
+    },
+    {
+      "id": 2,
+      "title": "Act 2",
+      "position": 1
+    },
+    {
+      "id": 3,
+      "title": "Act 3",
+      "position": 2
+    }
+  ],
+  "lines": [
+    {
+      "id": 1,
+      "title": "Main Plot",
+      "color": "#ff0000",
+      "position": 0
+    }
+  ],
+  "cards": [
+    {
+      "id": 101,
+      "title": "The Beginning",
+      "description": [
+        {
+          "type": "paragraph",
+          "children": [{"text": "Our hero wakes up in a strange place."}]
+        },
+        {
+          "type": "paragraph",
+          "children": [{"text": "They notice something is wrong."}]
+        }
+      ],
+      "lineId": 1,
+      "beatId": 1,
+      "characters": [],
+      "places": [],
+      "positionWithinLine": 0
+    },
+    {
+      "id": 102,
+      "title": "Discovery",
+      "description": [
+        {
+          "type": "paragraph",
+          "children": [{"text": "A mysterious stranger appears."}]
+        },
+        {
+          "type": "paragraph",
+          "children": [{"text": "They reveal a shocking truth."}]
+        }
+      ],
+      "lineId": 1,
+      "beatId": 1,
+      "characters": [],
+      "places": [],
+      "positionWithinLine": 1
+    },
+    {
+      "id": 103,
+      "title": "The Journey Begins",
+      "description": [
+        {
+          "type": "paragraph",
+          "children": [{"text": "Our hero sets out on their quest."}]
+        }
+      ],
+      "lineId": 1,
+      "beatId": 2,
+      "characters": [],
+      "places": [],
+      "positionWithinLine": 0
+    },
+    {
+      "id": 104,
+      "title": "Challenges",
+      "description": [
+        {
+          "type": "paragraph",
+          "children": [{"text": "Multiple obstacles stand in the way."}]
+        },
+        {
+          "type": "paragraph",
+          "children": [{"text": "The hero must overcome their fears."}]
+        }
+      ],
+      "lineId": 1,
+      "beatId": 2,
+      "characters": [],
+      "places": [],
+      "positionWithinLine": 1
+    },
+    {
+      "id": 105,
+      "title": "The Final Battle",
+      "description": [
+        {
+          "type": "paragraph",
+          "children": [{"text": "Everything comes to a head."}]
+        }
+      ],
+      "lineId": 1,
+      "beatId": 3,
+      "characters": [],
+      "places": [],
+      "positionWithinLine": 0
+    },
+    {
+      "id": 106,
+      "title": "Resolution",
+      "description": [
+        {
+          "type": "paragraph",
+          "children": [{"text": "The hero succeeds and returns home changed."}]
+        }
+      ],
+      "lineId": 1,
+      "beatId": 3,
+      "characters": [],
+      "places": [],
+      "positionWithinLine": 1
+    }
+  ],
+  "characters": [],
+  "places": []
+}

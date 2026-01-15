@@ -3,14 +3,17 @@
   import { currentProject } from "../stores/project.svelte";
 </script>
 
-<div class="flex-1 flex flex-col h-full overflow-hidden">
+<div data-testid="scene-panel" class="flex-1 flex flex-col h-full overflow-hidden">
   {#if currentProject.currentScene}
     {@const scene = currentProject.currentScene}
     <div class="flex-1 overflow-y-auto">
       <div class="max-w-3xl mx-auto p-8">
         <!-- Scene Title -->
         <header class="mb-8">
-          <h1 class="text-3xl font-heading font-semibold text-text-primary">
+          <h1
+            data-testid="scene-title"
+            class="text-3xl font-heading font-semibold text-text-primary"
+          >
             {scene.title}
           </h1>
           {#if currentProject.currentChapter}
@@ -90,7 +93,10 @@
     </div>
   {:else}
     <!-- Empty State -->
-    <div class="flex-1 flex flex-col items-center justify-center text-text-secondary">
+    <div
+      data-testid="empty-state"
+      class="flex-1 flex flex-col items-center justify-center text-text-secondary"
+    >
       <FileText class="w-16 h-16 mb-4 opacity-50" strokeWidth={1.5} />
       <p class="text-lg">Select a scene to start writing</p>
       <p class="text-sm mt-1">Choose a scene from the sidebar to view its content</p>

@@ -19,6 +19,12 @@ export default ts.config(
         clearTimeout: "readonly",
         setInterval: "readonly",
         clearInterval: "readonly",
+        // DOM types
+        Event: "readonly",
+        KeyboardEvent: "readonly",
+        DragEvent: "readonly",
+        HTMLElement: "readonly",
+        MouseEvent: "readonly",
       },
       parserOptions: {
         extraFileExtensions: [".svelte"],

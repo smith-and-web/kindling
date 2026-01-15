@@ -102,7 +102,10 @@
 </script>
 
 {#if ui.showOnboarding}
-  <div class="fixed inset-0 bg-bg-primary/95 flex items-center justify-center z-50 p-4">
+  <div
+    data-testid="onboarding"
+    class="fixed inset-0 bg-bg-primary/95 flex items-center justify-center z-50 p-4"
+  >
     <div class="max-w-2xl w-full">
       <!-- Progress indicator -->
       <div class="flex justify-center gap-2 mb-8">
@@ -656,6 +659,7 @@
       {#if ui.onboardingStep !== "import"}
         <div class="text-center mt-4">
           <button
+            data-testid="skip-onboarding"
             onclick={skipOnboarding}
             class="text-text-secondary hover:text-text-primary text-sm transition-colors"
           >
