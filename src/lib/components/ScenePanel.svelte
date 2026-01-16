@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { FileText, ChevronRight, ChevronDown } from "lucide-svelte";
+  import { FileText, ChevronRight, ChevronDown, Loader2 } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
@@ -116,36 +116,36 @@
                     <p class="text-text-primary text-sm font-medium flex-1">
                       {beat.content}
                     </p>
-                    <!-- Save Indicator -->
-                    {#if isExpanded && ui.beatSaveStatus !== "idle"}
-                      <span
-                        data-testid="save-indicator"
-                        class="text-xs px-2 py-0.5 rounded"
-                        class:text-text-secondary={ui.beatSaveStatus === "saving"}
-                        class:text-green-500={ui.beatSaveStatus === "saved"}
-                        class:text-red-500={ui.beatSaveStatus === "error"}
-                      >
-                        {#if ui.beatSaveStatus === "saving"}
-                          Saving...
-                        {:else if ui.beatSaveStatus === "saved"}
-                          Saved
-                        {:else if ui.beatSaveStatus === "error"}
-                          Error saving
-                        {/if}
-                      </span>
-                    {/if}
                   </button>
 
                   <!-- Expanded Beat Content -->
                   {#if isExpanded}
                     <div class="px-4 py-4 border-t border-bg-card">
-                      <textarea
-                        data-testid="beat-prose-textarea"
-                        class="w-full min-h-[200px] bg-bg-card rounded-lg p-4 text-text-primary font-prose leading-relaxed resize-y border border-bg-card focus:border-accent focus:outline-none"
-                        placeholder="Write your prose for this beat..."
-                        value={beat.prose || ""}
-                        oninput={(e) => handleProseInput(beat.id, e.currentTarget.value)}
-                      ></textarea>
+                      <div class="relative">
+                        <textarea
+                          data-testid="beat-prose-textarea"
+                          class="w-full min-h-[200px] bg-bg-card rounded-lg p-4 text-text-primary font-prose leading-relaxed resize-y border border-bg-card focus:border-accent focus:outline-none"
+                          placeholder="Write your prose for this beat..."
+                          value={beat.prose || ""}
+                          oninput={(e) => handleProseInput(beat.id, e.currentTarget.value)}
+                        ></textarea>
+                        <!-- Subtle save indicator in bottom right -->
+                        {#if ui.beatSaveStatus === "saving"}
+                          <div
+                            data-testid="save-indicator"
+                            class="absolute bottom-3 right-3 text-text-secondary/50"
+                          >
+                            <Loader2 class="w-4 h-4 animate-spin" />
+                          </div>
+                        {:else if ui.beatSaveStatus === "error"}
+                          <div
+                            data-testid="save-indicator"
+                            class="absolute bottom-3 right-3 text-red-500/70 text-xs"
+                          >
+                            Error saving
+                          </div>
+                        {/if}
+                      </div>
                       <p class="text-text-secondary text-xs mt-2">
                         Press Escape to collapse. Changes are saved automatically.
                       </p>

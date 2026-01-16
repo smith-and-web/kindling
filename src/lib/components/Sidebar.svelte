@@ -410,7 +410,7 @@
 <aside
   data-testid="sidebar"
   class="bg-bg-panel border-r border-bg-card flex flex-col h-full transition-all duration-200"
-  class:w-64={!ui.sidebarCollapsed}
+  class:w-80={!ui.sidebarCollapsed}
   class:w-0={ui.sidebarCollapsed}
   class:overflow-hidden={ui.sidebarCollapsed}
   class:opacity-0={ui.sidebarCollapsed}
