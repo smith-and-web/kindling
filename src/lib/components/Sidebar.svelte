@@ -764,7 +764,7 @@
             </p>
           {/if}
           {#if reimportSummary.prose_preserved > 0}
-            <p class="text-green-500">
+            <p class="text-text-secondary/80 italic">
               {reimportSummary.prose_preserved} prose item{reimportSummary.prose_preserved !== 1
                 ? "s"
                 : ""} preserved
