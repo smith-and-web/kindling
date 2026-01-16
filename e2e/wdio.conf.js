@@ -27,7 +27,7 @@ function validatePrerequisites() {
   } else {
     // Verify tauri-driver is executable
     try {
-      execSync(`"${tauriDriverPath}" --version`, { stdio: "pipe" });
+      execSync(`"${tauriDriverPath}" --help`, { stdio: "pipe" });
     } catch {
       errors.push(
         `tauri-driver exists but failed to execute.\n` +

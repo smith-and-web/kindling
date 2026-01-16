@@ -274,12 +274,22 @@ fn extract_attribute_value(value: &serde_json::Value) -> Option<String> {
     }
 }
 
-/// Parse beats from the nested structure
-/// Beats structure: {"1": {"children": {...}, "heap": {...}, "index": {beat_id: beat_data}}, "series": {...}}
+/// Parse beats from either a simple array or nested structure
+/// Simple format (older Plottr): [{"id": 1, "title": "Act 1", "position": 0}, ...]
+/// Nested format (newer Plottr): {"1": {"children": {...}, "heap": {...}, "index": {beat_id: beat_data}}, "series": {...}}
 fn parse_beats_from_structure(beats_value: &serde_json::Value) -> Vec<PlottrBeat> {
     let mut beats = Vec::new();
 
-    if let Some(beats_obj) = beats_value.as_object() {
+    // Try simple array format first
+    if let Some(beats_arr) = beats_value.as_array() {
+        for beat_data in beats_arr {
+            if let Ok(beat) = serde_json::from_value::<PlottrBeat>(beat_data.clone()) {
+                beats.push(beat);
+            }
+        }
+    }
+    // Try nested object format
+    else if let Some(beats_obj) = beats_value.as_object() {
         for (book_id, book_beats) in beats_obj {
             // Skip non-numeric book IDs like "series" for now
             if book_id == "series" {

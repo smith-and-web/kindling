@@ -26,7 +26,9 @@ declare global {
 // For E2E testing, this also loads chapters directly rather than relying on $effect
 async function importProject(
   path: string
-): Promise<Project & { _debug?: { chapterCount: number } }> {
+): Promise<
+  Project & { _debug?: { chapterCount: number; storeChapterCount: number; hasProject: boolean } }
+> {
   ui.startImport();
   try {
     const project = await invoke<Project>("import_plottr", { path });
@@ -43,10 +45,20 @@ async function importProject(
 
     // Wait for Svelte to update the DOM before returning
     // This ensures E2E tests can find the rendered chapter elements
+    // Multiple ticks and RAF needed for Svelte 5 reactivity to fully propagate
+    await tick();
+    await new Promise((r) => requestAnimationFrame(r));
     await tick();
 
-    // Add debug info to understand if chapters were loaded
-    return { ...project, _debug: { chapterCount: chapters.length } };
+    // Add debug info - verify chapters are in the store, not just the local variable
+    return {
+      ...project,
+      _debug: {
+        chapterCount: chapters.length,
+        storeChapterCount: currentProject.chapters.length,
+        hasProject: !!currentProject.value,
+      },
+    };
   } finally {
     ui.finishImport();
   }

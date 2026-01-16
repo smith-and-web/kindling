@@ -176,15 +176,26 @@ export async function restoreTestFile(originalName) {
 /**
  * Select a chapter in the sidebar by title
  * WebDriverIO doesn't support :has-text(), so we find all chapters and filter
+ * Note: WebKit getText() can return empty, so we use textContent property instead
  */
 export async function selectChapter(chapterTitle) {
   const chapters = await $$('[data-testid="chapter-item"]');
   for (const chapter of chapters) {
     const titleEl = await chapter.$('[data-testid="chapter-title"]');
     if (await titleEl.isExisting()) {
-      const text = await titleEl.getText();
-      if (text === chapterTitle) {
+      // Use textContent property instead of getText() for WebKit compatibility
+      const text = await browser.execute((el) => el.textContent, titleEl);
+      if (text && text.trim() === chapterTitle) {
         await chapter.click();
+        // Wait for scenes to load after clicking a chapter
+        // The loadScenes function is async and fetches from backend
+        await browser.waitUntil(
+          async () => {
+            const scenes = await $$('[data-testid="scene-item"]');
+            return scenes.length > 0;
+          },
+          { timeout: 5000, timeoutMsg: "Scenes did not load after selecting chapter" }
+        );
         return;
       }
     }
@@ -195,14 +206,16 @@ export async function selectChapter(chapterTitle) {
 /**
  * Select a scene in the sidebar by title
  * WebDriverIO doesn't support :has-text(), so we find all scenes and filter
+ * Note: WebKit getText() can return empty, so we use textContent property instead
  */
 export async function selectScene(sceneTitle) {
   const scenes = await $$('[data-testid="scene-item"]');
   for (const scene of scenes) {
     const titleEl = await scene.$('[data-testid="scene-title"]');
     if (await titleEl.isExisting()) {
-      const text = await titleEl.getText();
-      if (text === sceneTitle) {
+      // Use textContent property instead of getText() for WebKit compatibility
+      const text = await browser.execute((el) => el.textContent, titleEl);
+      if (text && text.trim() === sceneTitle) {
         await scene.click();
         return;
       }
@@ -236,8 +249,9 @@ export async function waitForSaved() {
   await browser.waitUntil(
     async () => {
       const indicator = await $('[data-testid="save-indicator"]');
-      const text = await indicator.getText();
-      return text.includes("Saved");
+      // Use textContent property instead of getText() for WebKit compatibility
+      const text = await browser.execute((el) => el.textContent, indicator);
+      return text && text.includes("Saved");
     },
     { timeout: 5000, timeoutMsg: "Save did not complete" }
   );
@@ -280,7 +294,10 @@ export async function cancelTitleInput() {
  */
 export async function getChapterTitles() {
   const chapters = await $$('[data-testid="chapter-title"]');
-  return Promise.all(chapters.map((c) => c.getText()));
+  // Use textContent property instead of getText() for WebKit compatibility
+  return Promise.all(
+    chapters.map((c) => browser.execute((el) => el.textContent?.trim() || "", c))
+  );
 }
 
 /**
@@ -288,5 +305,8 @@ export async function getChapterTitles() {
  */
 export async function getSceneTitles() {
   const scenes = await $$('[data-testid="scene-title"]');
-  return Promise.all(scenes.map((s) => s.getText()));
+  // Use textContent property instead of getText() for WebKit compatibility
+  return Promise.all(
+    scenes.map((s) => browser.execute((el) => el.textContent?.trim() || "", s))
+  );
 }
