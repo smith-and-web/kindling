@@ -35,10 +35,12 @@
     message: string;
   } | null = $state(null);
 
-  // Drag-and-drop state
+  // Drag-and-drop state (using pointer events, more reliable than HTML5 drag API in webviews)
   let draggedItem: { type: "chapter" | "scene"; id: string } | null = $state(null);
-  let dropTarget: { type: "chapter" | "scene"; id: string; position: "before" | "after" } | null =
-    $state(null);
+  let dragOverId: string | null = $state(null);
+  let isDragging = $state(false);
+  let draggedElement: globalThis.HTMLElement | null = null;
+  let currentDragOverElement: globalThis.HTMLElement | null = null;
 
   // Hover state for showing action buttons
   let hoveredChapterId: string | null = $state(null);
@@ -236,7 +238,10 @@
           currentProject.setBeats([]);
         }
       } else {
-        await invoke("delete_scene", { sceneId: deleteDialog.id });
+        await invoke("delete_scene", {
+          chapterId: currentProject.currentChapter!.id,
+          sceneId: deleteDialog.id,
+        });
         currentProject.removeScene(deleteDialog.id);
         if (currentProject.currentScene?.id === deleteDialog.id) {
           currentProject.setCurrentScene(null);
@@ -250,70 +255,119 @@
     }
   }
 
-  // === Drag and Drop ===
-  function handleDragStart(type: "chapter" | "scene", id: string) {
-    draggedItem = { type, id };
-  }
-
-  function handleDragOver(e: DragEvent, type: "chapter" | "scene", id: string) {
+  // === Drag and Drop (pointer-based, more reliable than HTML5 drag API in webviews) ===
+  function onDragHandleMouseDown(e: globalThis.MouseEvent, type: "chapter" | "scene", id: string) {
     e.preventDefault();
-    if (!draggedItem || draggedItem.type !== type || draggedItem.id === id) return;
+    e.stopPropagation();
+    draggedItem = { type, id };
+    isDragging = true;
 
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const midY = rect.top + rect.height / 2;
-    const position = e.clientY < midY ? "before" : "after";
-    dropTarget = { type, id, position };
-  }
-
-  function handleDragLeave() {
-    dropTarget = null;
-  }
-
-  async function handleDrop() {
-    if (!draggedItem || !dropTarget || draggedItem.type !== dropTarget.type) {
-      draggedItem = null;
-      dropTarget = null;
-      return;
+    // Find the dragged element by traversing up from the handle
+    const target = e.currentTarget as globalThis.HTMLElement;
+    const dataAttr = type === "chapter" ? "[data-drag-chapter]" : "[data-drag-scene]";
+    draggedElement = target.closest(dataAttr) as globalThis.HTMLElement;
+    if (draggedElement) {
+      draggedElement.style.opacity = "0.5";
     }
 
-    const items = draggedItem.type === "chapter" ? currentProject.chapters : currentProject.scenes;
-    const draggedIndex = items.findIndex((item) => item.id === draggedItem!.id);
-    let targetIndex = items.findIndex((item) => item.id === dropTarget!.id);
+    document.addEventListener("mousemove", onDragMouseMove);
+    document.addEventListener("mouseup", onDragMouseUp);
+    document.body.style.cursor = "grabbing";
+    document.body.style.userSelect = "none";
+  }
 
-    if (dropTarget.position === "after") targetIndex++;
-    if (draggedIndex < targetIndex) targetIndex--;
+  function onDragMouseMove(e: globalThis.MouseEvent) {
+    if (!isDragging || !draggedItem) return;
 
-    const newOrder = [...items];
-    const [removed] = newOrder.splice(draggedIndex, 1);
-    newOrder.splice(targetIndex, 0, removed);
+    // Clear previous hover styling
+    if (currentDragOverElement) {
+      currentDragOverElement.style.outline = "";
+    }
 
-    const newIds = newOrder.map((item) => item.id);
+    // Find which item we're hovering over (same type only)
+    const dataAttr = draggedItem.type === "chapter" ? "[data-drag-chapter]" : "[data-drag-scene]";
+    const itemElements = document.querySelectorAll(dataAttr);
+    let foundElement: globalThis.HTMLElement | null = null;
+    let foundId: string | null = null;
 
-    try {
-      if (draggedItem.type === "chapter" && currentProject.value) {
-        await invoke("reorder_chapters", {
-          projectId: currentProject.value.id,
-          chapterIds: newIds,
-        });
-        currentProject.reorderChapters(newIds);
-      } else if (draggedItem.type === "scene" && currentProject.currentChapter) {
-        await invoke("reorder_scenes", {
-          chapterId: currentProject.currentChapter.id,
-          sceneIds: newIds,
-        });
-        currentProject.reorderScenes(newIds);
+    for (const el of itemElements) {
+      const rect = el.getBoundingClientRect();
+      const itemId = el.getAttribute(
+        draggedItem.type === "chapter" ? "data-drag-chapter" : "data-drag-scene"
+      );
+      if (
+        itemId &&
+        itemId !== draggedItem.id &&
+        e.clientY >= rect.top &&
+        e.clientY <= rect.bottom
+      ) {
+        foundId = itemId;
+        foundElement = el as globalThis.HTMLElement;
+        break;
       }
-    } catch (e) {
-      console.error("Failed to reorder:", e);
-    } finally {
-      draggedItem = null;
-      dropTarget = null;
+    }
+
+    dragOverId = foundId;
+    currentDragOverElement = foundElement;
+
+    // Style the hover target
+    if (foundElement) {
+      foundElement.style.outline = "2px solid var(--color-accent)";
     }
   }
 
-  function handleDragEnd() {
+  async function onDragMouseUp() {
+    document.removeEventListener("mousemove", onDragMouseMove);
+    document.removeEventListener("mouseup", onDragMouseUp);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+
+    // Clear visual styling
+    if (draggedElement) {
+      draggedElement.style.opacity = "";
+    }
+    if (currentDragOverElement) {
+      currentDragOverElement.style.outline = "";
+    }
+
+    if (draggedItem && dragOverId && draggedItem.id !== dragOverId) {
+      // Perform the reorder
+      const items =
+        draggedItem.type === "chapter" ? currentProject.chapters : currentProject.scenes;
+      const fromIndex = items.findIndex((item) => item.id === draggedItem!.id);
+      const toIndex = items.findIndex((item) => item.id === dragOverId);
+
+      if (fromIndex !== -1 && toIndex !== -1) {
+        const newOrder = [...items];
+        const [moved] = newOrder.splice(fromIndex, 1);
+        newOrder.splice(toIndex, 0, moved);
+        const newIds = newOrder.map((item) => item.id);
+
+        try {
+          if (draggedItem.type === "chapter" && currentProject.value) {
+            await invoke("reorder_chapters", {
+              projectId: currentProject.value.id,
+              chapterIds: newIds,
+            });
+            currentProject.reorderChapters(newIds);
+          } else if (draggedItem.type === "scene" && currentProject.currentChapter) {
+            await invoke("reorder_scenes", {
+              chapterId: currentProject.currentChapter.id,
+              sceneIds: newIds,
+            });
+            currentProject.reorderScenes(newIds);
+          }
+        } catch (e) {
+          console.error("Failed to reorder:", e);
+        }
+      }
+    }
+
+    isDragging = false;
     draggedItem = null;
-    dropTarget = null;
+    dragOverId = null;
+    draggedElement = null;
+    currentDragOverElement = null;
   }
 
   // === Reimport ===
@@ -460,23 +514,15 @@
       <nav class="space-y-1" aria-label="Project outline">
         {#each currentProject.chapters as chapter (chapter.id)}
           {@const isExpanded = isChapterExpanded(chapter.id)}
-          {@const isDragging = draggedItem?.type === "chapter" && draggedItem?.id === chapter.id}
-          {@const isDropTarget = dropTarget?.type === "chapter" && dropTarget?.id === chapter.id}
           <div
             data-testid="chapter-item"
-            class="select-none relative"
-            class:opacity-50={isDragging}
+            data-drag-chapter={chapter.id}
+            class="select-none relative rounded-lg overflow-hidden"
+            class:ring-2={dragOverId === chapter.id}
+            class:ring-accent={dragOverId === chapter.id}
             onmouseenter={() => (hoveredChapterId = chapter.id)}
             onmouseleave={() => (hoveredChapterId = null)}
-            ondragover={(e) => handleDragOver(e, "chapter", chapter.id)}
-            ondragleave={handleDragLeave}
-            ondrop={handleDrop}
           >
-            <!-- Drop indicator -->
-            {#if isDropTarget && dropTarget?.position === "before"}
-              <div class="absolute -top-0.5 left-0 right-0 h-0.5 bg-accent rounded"></div>
-            {/if}
-
             <!-- Chapter row -->
             <div
               class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group"
@@ -486,12 +532,13 @@
               <!-- Drag handle -->
               <div
                 data-testid="drag-handle"
-                draggable="true"
-                ondragstart={() => handleDragStart("chapter", chapter.id)}
-                ondragend={handleDragEnd}
-                class="cursor-grab p-0.5 text-text-secondary hover:text-text-primary transition-opacity"
+                onmousedown={(e) => onDragHandleMouseDown(e, "chapter", chapter.id)}
+                class="cursor-grab active:cursor-grabbing p-0.5 text-text-secondary hover:text-text-primary transition-opacity"
                 class:opacity-0={hoveredChapterId !== chapter.id}
                 class:opacity-100={hoveredChapterId === chapter.id}
+                role="button"
+                tabindex="-1"
+                aria-label="Drag to reorder"
               >
                 <GripVertical class="w-3.5 h-3.5" />
               </div>
@@ -531,37 +578,22 @@
               </button>
             </div>
 
-            <!-- Drop indicator after -->
-            {#if isDropTarget && dropTarget?.position === "after"}
-              <div class="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-accent rounded"></div>
-            {/if}
-
             <!-- Scenes (collapsible) -->
             {#if isExpanded && currentProject.currentChapter?.id === chapter.id}
               <div class="ml-6 mt-1 space-y-0.5 border-l border-bg-card pl-2">
                 {#each currentProject.scenes as scene (scene.id)}
                   {@const isSelected = currentProject.currentScene?.id === scene.id}
-                  {@const isSceneDragging =
-                    draggedItem?.type === "scene" && draggedItem?.id === scene.id}
-                  {@const isSceneDropTarget =
-                    dropTarget?.type === "scene" && dropTarget?.id === scene.id}
                   <div
-                    class="relative"
-                    class:opacity-50={isSceneDragging}
+                    data-drag-scene={scene.id}
+                    class="relative rounded-r overflow-hidden"
+                    class:ring-2={dragOverId === scene.id}
+                    class:ring-accent={dragOverId === scene.id}
                     onmouseenter={() => (hoveredSceneId = scene.id)}
                     onmouseleave={() => (hoveredSceneId = null)}
-                    ondragover={(e) => handleDragOver(e, "scene", scene.id)}
-                    ondragleave={handleDragLeave}
-                    ondrop={handleDrop}
                   >
-                    <!-- Scene drop indicator before -->
-                    {#if isSceneDropTarget && dropTarget?.position === "before"}
-                      <div class="absolute -top-0.5 left-0 right-0 h-0.5 bg-accent rounded"></div>
-                    {/if}
-
                     <div
                       data-testid="scene-item"
-                      class="w-full flex items-center gap-1 px-1 py-1 rounded text-sm transition-colors"
+                      class="-ml-8 pl-8 mr-[-0.5rem] pr-1 flex items-center gap-1 py-1 rounded-r text-sm transition-colors"
                       class:bg-accent={isSelected}
                       class:text-white={isSelected}
                       class:text-text-secondary={!isSelected}
@@ -571,14 +603,15 @@
                       <!-- Scene drag handle -->
                       <div
                         data-testid="drag-handle"
-                        draggable="true"
-                        ondragstart={() => handleDragStart("scene", scene.id)}
-                        ondragend={handleDragEnd}
-                        class="cursor-grab p-0.5 transition-opacity"
+                        onmousedown={(e) => onDragHandleMouseDown(e, "scene", scene.id)}
+                        class="cursor-grab active:cursor-grabbing p-0.5 transition-opacity"
                         class:text-white={isSelected}
                         class:text-text-secondary={!isSelected}
                         class:opacity-0={hoveredSceneId !== scene.id}
                         class:opacity-100={hoveredSceneId === scene.id}
+                        role="button"
+                        tabindex="-1"
+                        aria-label="Drag to reorder"
                       >
                         <GripVertical class="w-3 h-3" />
                       </div>
@@ -615,13 +648,6 @@
                         <Trash2 class="w-3 h-3" />
                       </button>
                     </div>
-
-                    <!-- Scene drop indicator after -->
-                    {#if isSceneDropTarget && dropTarget?.position === "after"}
-                      <div
-                        class="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-accent rounded"
-                      ></div>
-                    {/if}
                   </div>
                 {/each}
 
