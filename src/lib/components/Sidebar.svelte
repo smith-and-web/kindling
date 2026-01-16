@@ -1028,6 +1028,7 @@
           <p class="text-text-secondary text-sm mt-1">Review and select items to import</p>
         </div>
         <button
+          data-testid="sync-dialog-close"
           onclick={cancelSync}
           class="p-2 text-text-secondary hover:text-text-primary rounded-lg hover:bg-bg-card transition-colors"
         >

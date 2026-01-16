@@ -126,10 +126,11 @@ describe("Create Chapters and Scenes (#15)", () => {
       await clickNewScene();
       await submitTitleInput(sceneTitle);
 
-      // Check that the scene panel shows this scene
+      // Check that the scene panel shows this scene (use textContent for WebKit)
       const scenePanel = await $('[data-testid="scene-panel"]');
       const panelTitle = await scenePanel.$('[data-testid="scene-title"]');
-      expect(await panelTitle.getText()).toBe(sceneTitle);
+      const text = await browser.execute((el) => el.textContent?.trim() || "", panelTitle);
+      expect(text).toBe(sceneTitle);
     });
   });
 });

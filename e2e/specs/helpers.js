@@ -334,3 +334,99 @@ export async function getSceneTitles() {
   }
   return titles;
 }
+
+/**
+ * Open context menu for an element (chapter or scene item)
+ * Uses the 3-dot menu button which appears on hover
+ */
+export async function openContextMenuFor(element) {
+  // Scroll element into view
+  await element.scrollIntoView();
+
+  // Hover to make menu button visible
+  await element.moveTo();
+  await browser.pause(300); // Wait for hover state to register
+
+  // Find and click the menu button inside this element
+  const menuButton = await element.$('[data-testid="menu-button"]');
+  if (!(await menuButton.isExisting())) {
+    throw new Error("Menu button not found in element");
+  }
+
+  // Force click even if not visually displayed (opacity:0 is still clickable)
+  await menuButton.click();
+
+  // Wait for context menu to appear
+  await browser.waitUntil(
+    async () => {
+      const menu = await $('[data-testid="context-menu"]');
+      return await menu.isExisting();
+    },
+    { timeout: 3000, timeoutMsg: "Context menu did not appear" }
+  );
+}
+
+/**
+ * Click a context menu item by label
+ */
+export async function clickContextMenuItem(label) {
+  const menuItems = await $$('[data-testid="context-menu-item"]');
+  for (const item of menuItems) {
+    const itemLabel = await item.getAttribute("data-label");
+    if (itemLabel === label) {
+      await item.click();
+      // Wait for menu to close
+      await browser.waitUntil(
+        async () => {
+          const menu = await $('[data-testid="context-menu"]');
+          return !(await menu.isExisting());
+        },
+        { timeout: 2000 }
+      );
+      return;
+    }
+  }
+  throw new Error(`Context menu item "${label}" not found`);
+}
+
+/**
+ * Perform drag-drop using mouse events (not WebDriver's dragAndDrop)
+ * This works with custom mouse-event-based drag implementations
+ */
+export async function dragWithMouseEvents(fromElement, toElement) {
+  // Get the drag handle from the element
+  const handle = await fromElement.$('[data-testid="drag-handle"]');
+
+  // Get element positions
+  const handleLocation = await handle.getLocation();
+  const handleSize = await handle.getSize();
+  const toLocation = await toElement.getLocation();
+  const toSize = await toElement.getSize();
+
+  // Calculate center points
+  const fromX = Math.floor(handleLocation.x + handleSize.width / 2);
+  const fromY = Math.floor(handleLocation.y + handleSize.height / 2);
+  const toX = Math.floor(toLocation.x + toSize.width / 2);
+  const toY = Math.floor(toLocation.y + toSize.height / 2);
+
+  // Perform the drag using Actions API
+  await browser.performActions([
+    {
+      type: "pointer",
+      id: "mouse",
+      parameters: { pointerType: "mouse" },
+      actions: [
+        { type: "pointerMove", duration: 0, x: fromX, y: fromY },
+        { type: "pointerDown", button: 0 },
+        { type: "pause", duration: 100 },
+        { type: "pointerMove", duration: 200, x: toX, y: toY },
+        { type: "pause", duration: 100 },
+        { type: "pointerUp", button: 0 },
+      ],
+    },
+  ]);
+
+  // Clean up actions
+  await browser.releaseActions();
+  await browser.pause(300); // Wait for UI to update
+}

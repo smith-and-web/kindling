@@ -77,13 +77,16 @@ describe("Beat-Level Prose Editing (#38)", () => {
 
   it("should auto-save prose after typing", async () => {
     await expandBeat(0);
+
+    // Clear existing content first
+    const textarea = await $('[data-testid="beat-prose-textarea"]');
+    await textarea.clearValue();
     await typeProse("The morning light filtered through the dusty window.");
 
     // Wait for the save to complete (indicator disappears when save is done)
     await waitForSaved();
 
     // Verify the textarea still has our content (save didn't clear it)
-    const textarea = await $('[data-testid="beat-prose-textarea"]');
     const value = await textarea.getValue();
     expect(value).toContain("morning light");
   });
@@ -110,12 +113,18 @@ describe("Beat-Level Prose Editing (#38)", () => {
   });
 
   it("should preserve prose when navigating away and back", async () => {
-    const testProse = "This is my test prose content.";
+    const testProse = "Unique prose for navigation test - " + Date.now();
 
-    // Write prose
+    // Write prose (clear first to avoid accumulation from previous tests)
     await expandBeat(0);
+    const textarea = await $('[data-testid="beat-prose-textarea"]');
+    await textarea.clearValue();
     await typeProse(testProse);
     await waitForSaved();
+
+    // Collapse beat before navigating
+    await browser.keys("Escape");
+    await browser.pause(200);
 
     // Navigate to different scene
     await selectScene("Discovery");
@@ -134,8 +143,8 @@ describe("Beat-Level Prose Editing (#38)", () => {
     );
 
     // Check prose is still there
-    const textarea = await $('[data-testid="beat-prose-textarea"]');
-    const value = await textarea.getValue();
+    const resultTextarea = await $('[data-testid="beat-prose-textarea"]');
+    const value = await resultTextarea.getValue();
     expect(value).toBe(testProse);
   });
 

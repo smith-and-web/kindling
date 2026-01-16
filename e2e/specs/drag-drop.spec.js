@@ -2,6 +2,8 @@
  * Drag and Drop Reordering E2E Tests (Feature #14)
  *
  * Tests for reordering chapters and scenes via drag and drop
+ * Note: The app uses custom mouse-event-based drag (not HTML5 drag API),
+ * so we use performActions to simulate actual mouse events.
  */
 
 import {
@@ -11,6 +13,7 @@ import {
   selectChapter,
   getChapterTitles,
   getSceneTitles,
+  dragWithMouseEvents,
 } from "./helpers.js";
 
 describe("Drag and Drop Reordering (#14)", () => {
@@ -33,15 +36,12 @@ describe("Drag and Drop Reordering (#14)", () => {
       const beforeTitles = await getChapterTitles();
       expect(beforeTitles.length).toBeGreaterThanOrEqual(2);
 
-      const firstChapter = (await $$('[data-testid="chapter-item"]'))[0];
-      const secondChapter = (await $$('[data-testid="chapter-item"]'))[1];
+      const chapters = await $$('[data-testid="chapter-item"]');
+      const firstChapter = chapters[0];
+      const secondChapter = chapters[1];
 
-      // Get the drag handle
-      await firstChapter.moveTo();
-      const handle = await firstChapter.$('[data-testid="drag-handle"]');
-
-      // Perform drag and drop
-      await handle.dragAndDrop(secondChapter);
+      // Perform drag using mouse events
+      await dragWithMouseEvents(firstChapter, secondChapter);
 
       // Verify order changed
       const afterTitles = await getChapterTitles();
@@ -57,22 +57,21 @@ describe("Drag and Drop Reordering (#14)", () => {
       await firstChapter.moveTo();
       const handle = await firstChapter.$('[data-testid="drag-handle"]');
 
-      // Start dragging (we can't easily test the mid-drag state in WebDriver)
       // This test validates the drag handle is interactive
       expect(await handle.isClickable()).toBe(true);
     });
 
     it("should persist chapter order after page refresh", async () => {
-      // First reorder
+      // Get current order
       const beforeTitles = await getChapterTitles();
       if (beforeTitles.length < 2) return;
 
-      const firstChapter = (await $$('[data-testid="chapter-item"]'))[0];
-      const secondChapter = (await $$('[data-testid="chapter-item"]'))[1];
+      const chapters = await $$('[data-testid="chapter-item"]');
+      const firstChapter = chapters[0];
+      const secondChapter = chapters[1];
 
-      await firstChapter.moveTo();
-      const handle = await firstChapter.$('[data-testid="drag-handle"]');
-      await handle.dragAndDrop(secondChapter);
+      // Perform drag using mouse events
+      await dragWithMouseEvents(firstChapter, secondChapter);
 
       const afterReorder = await getChapterTitles();
 
@@ -103,12 +102,12 @@ describe("Drag and Drop Reordering (#14)", () => {
       const beforeTitles = await getSceneTitles();
       if (beforeTitles.length < 2) return;
 
-      const firstScene = (await $$('[data-testid="scene-item"]'))[0];
-      const secondScene = (await $$('[data-testid="scene-item"]'))[1];
+      const scenes = await $$('[data-testid="scene-item"]');
+      const firstScene = scenes[0];
+      const secondScene = scenes[1];
 
-      await firstScene.moveTo();
-      const handle = await firstScene.$('[data-testid="drag-handle"]');
-      await handle.dragAndDrop(secondScene);
+      // Perform drag using mouse events
+      await dragWithMouseEvents(firstScene, secondScene);
 
       const afterTitles = await getSceneTitles();
       expect(afterTitles[0]).toBe(beforeTitles[1]);
@@ -119,12 +118,12 @@ describe("Drag and Drop Reordering (#14)", () => {
       const beforeTitles = await getSceneTitles();
       if (beforeTitles.length < 2) return;
 
-      const firstScene = (await $$('[data-testid="scene-item"]'))[0];
-      const secondScene = (await $$('[data-testid="scene-item"]'))[1];
+      const scenes = await $$('[data-testid="scene-item"]');
+      const firstScene = scenes[0];
+      const secondScene = scenes[1];
 
-      await firstScene.moveTo();
-      const handle = await firstScene.$('[data-testid="drag-handle"]');
-      await handle.dragAndDrop(secondScene);
+      // Perform drag using mouse events
+      await dragWithMouseEvents(firstScene, secondScene);
 
       const afterReorder = await getSceneTitles();
 
