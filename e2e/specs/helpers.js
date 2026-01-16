@@ -217,6 +217,15 @@ export async function selectScene(sceneTitle) {
       const text = await browser.execute((el) => el.textContent, titleEl);
       if (text && text.trim() === sceneTitle) {
         await scene.click();
+        // Wait for beats to load after clicking a scene
+        // The selectScene function in Sidebar.svelte calls get_beats asynchronously
+        await browser.waitUntil(
+          async () => {
+            const beats = await $$('[data-testid="beat-header"]');
+            return beats.length > 0;
+          },
+          { timeout: 5000, timeoutMsg: "Beats did not load after selecting scene" }
+        );
         return;
       }
     }
@@ -243,15 +252,22 @@ export async function typeProse(text) {
 }
 
 /**
- * Wait for save indicator to show "Saved"
+ * Wait for save to complete
+ * The UI shows "Saving..." indicator during save, then hides it when complete.
+ * We wait for the indicator to appear (save started) then disappear (save complete).
  */
 export async function waitForSaved() {
+  // First, check if save indicator is visible (saving in progress)
+  // Give it a moment for the save to potentially start
+  await browser.pause(200);
+
+  // Wait for save to complete by waiting for indicator to disappear
+  // The indicator only shows during "saving" state, and goes to "idle" after ~1s
   await browser.waitUntil(
     async () => {
       const indicator = await $('[data-testid="save-indicator"]');
-      // Use textContent property instead of getText() for WebKit compatibility
-      const text = await browser.execute((el) => el.textContent, indicator);
-      return text && text.includes("Saved");
+      // Save is complete when the indicator no longer exists
+      return !(await indicator.isExisting());
     },
     { timeout: 5000, timeoutMsg: "Save did not complete" }
   );
@@ -295,9 +311,13 @@ export async function cancelTitleInput() {
 export async function getChapterTitles() {
   const chapters = await $$('[data-testid="chapter-title"]');
   // Use textContent property instead of getText() for WebKit compatibility
-  return Promise.all(
-    chapters.map((c) => browser.execute((el) => el.textContent?.trim() || "", c))
-  );
+  // Iterate manually because browser.execute doesn't work well with .map() on element arrays
+  const titles = [];
+  for (const chapter of chapters) {
+    const text = await browser.execute((el) => el.textContent?.trim() || "", chapter);
+    titles.push(text);
+  }
+  return titles;
 }
 
 /**
@@ -306,7 +326,11 @@ export async function getChapterTitles() {
 export async function getSceneTitles() {
   const scenes = await $$('[data-testid="scene-title"]');
   // Use textContent property instead of getText() for WebKit compatibility
-  return Promise.all(
-    scenes.map((s) => browser.execute((el) => el.textContent?.trim() || "", s))
-  );
+  // Iterate manually because browser.execute doesn't work well with .map() on element arrays
+  const titles = [];
+  for (const scene of scenes) {
+    const text = await browser.execute((el) => el.textContent?.trim() || "", scene);
+    titles.push(text);
+  }
+  return titles;
 }

@@ -22,6 +22,23 @@ describe("Re-import to Update Project (#40)", () => {
     await importPlottrFile("simple-story.pltr");
   });
 
+  // Close any open dialogs after each test to prevent "element click intercepted" errors
+  afterEach(async () => {
+    // Try to close reimport summary dialog if it exists
+    const dialog = await $('[data-testid="reimport-summary-dialog"]');
+    if (await dialog.isExisting()) {
+      const closeButton = await $('[data-testid="dialog-close"]');
+      if (await closeButton.isExisting()) {
+        await closeButton.click();
+        // Wait for dialog to close
+        await browser.waitUntil(
+          async () => !(await dialog.isExisting()),
+          { timeout: 3000, timeoutMsg: "Dialog did not close" }
+        ).catch(() => {}); // Ignore timeout errors
+      }
+    }
+  });
+
   describe("Reimport Button Visibility", () => {
     it("should show reimport button for imported projects", async () => {
       // Assumes we're on an imported project
