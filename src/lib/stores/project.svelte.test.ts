@@ -34,9 +34,20 @@ describe("currentProject store", () => {
 
   it("should clear all state when setting project to null", () => {
     // Set up some state
-    currentProject.setChapters([{ id: "ch-1", project_id: "p1", title: "Ch", position: 0 }]);
+    currentProject.setChapters([
+      { id: "ch-1", project_id: "p1", title: "Ch", position: 0, archived: false, locked: false },
+    ]);
     currentProject.setScenes([
-      { id: "sc-1", chapter_id: "ch-1", title: "Sc", synopsis: "", position: 0, prose: null },
+      {
+        id: "sc-1",
+        chapter_id: "ch-1",
+        title: "Sc",
+        synopsis: "",
+        position: 0,
+        prose: null,
+        archived: false,
+        locked: false,
+      },
     ]);
     currentProject.setBeats([
       { id: "b-1", scene_id: "sc-1", content: "Beat", position: 0, prose: null },
@@ -82,6 +93,8 @@ describe("currentProject store", () => {
         project_id: "proj-1",
         title: "Chapter 1",
         position: 0,
+        archived: false,
+        locked: false,
       },
     ];
 
@@ -90,8 +103,22 @@ describe("currentProject store", () => {
   });
 
   it("should add a chapter", () => {
-    const chapter1 = { id: "ch-1", project_id: "p1", title: "Chapter 1", position: 0 };
-    const chapter2 = { id: "ch-2", project_id: "p1", title: "Chapter 2", position: 1 };
+    const chapter1 = {
+      id: "ch-1",
+      project_id: "p1",
+      title: "Chapter 1",
+      position: 0,
+      archived: false,
+      locked: false,
+    };
+    const chapter2 = {
+      id: "ch-2",
+      project_id: "p1",
+      title: "Chapter 2",
+      position: 1,
+      archived: false,
+      locked: false,
+    };
 
     currentProject.setChapters([chapter1]);
     currentProject.addChapter(chapter2);
@@ -109,6 +136,8 @@ describe("currentProject store", () => {
         synopsis: "A scene",
         position: 0,
         prose: null,
+        archived: false,
+        locked: false,
       },
     ];
 
@@ -124,6 +153,8 @@ describe("currentProject store", () => {
       synopsis: "",
       position: 0,
       prose: null,
+      archived: false,
+      locked: false,
     };
     const scene2 = {
       id: "sc-2",
@@ -132,6 +163,8 @@ describe("currentProject store", () => {
       synopsis: "",
       position: 1,
       prose: null,
+      archived: false,
+      locked: false,
     };
 
     currentProject.setScenes([scene1]);
@@ -147,6 +180,8 @@ describe("currentProject store", () => {
       project_id: "proj-1",
       title: "Chapter 1",
       position: 0,
+      archived: false,
+      locked: false,
     };
 
     currentProject.setCurrentChapter(mockChapter);
@@ -161,6 +196,8 @@ describe("currentProject store", () => {
       synopsis: "",
       position: 0,
       prose: null,
+      archived: false,
+      locked: false,
     };
     currentProject.setScenes([scene]);
     currentProject.setCurrentScene(scene);
@@ -180,6 +217,8 @@ describe("currentProject store", () => {
       synopsis: "A scene",
       position: 0,
       prose: null,
+      archived: false,
+      locked: false,
     };
 
     currentProject.setCurrentScene(mockScene);
@@ -198,9 +237,30 @@ describe("currentProject store", () => {
 
   it("should reorder chapters", () => {
     const chapters = [
-      { id: "ch-1", project_id: "p1", title: "Chapter 1", position: 0 },
-      { id: "ch-2", project_id: "p1", title: "Chapter 2", position: 1 },
-      { id: "ch-3", project_id: "p1", title: "Chapter 3", position: 2 },
+      {
+        id: "ch-1",
+        project_id: "p1",
+        title: "Chapter 1",
+        position: 0,
+        archived: false,
+        locked: false,
+      },
+      {
+        id: "ch-2",
+        project_id: "p1",
+        title: "Chapter 2",
+        position: 1,
+        archived: false,
+        locked: false,
+      },
+      {
+        id: "ch-3",
+        project_id: "p1",
+        title: "Chapter 3",
+        position: 2,
+        archived: false,
+        locked: false,
+      },
     ];
     currentProject.setChapters(chapters);
 
@@ -217,8 +277,22 @@ describe("currentProject store", () => {
 
   it("should handle reorder with invalid chapter ids", () => {
     const chapters = [
-      { id: "ch-1", project_id: "p1", title: "Chapter 1", position: 0 },
-      { id: "ch-2", project_id: "p1", title: "Chapter 2", position: 1 },
+      {
+        id: "ch-1",
+        project_id: "p1",
+        title: "Chapter 1",
+        position: 0,
+        archived: false,
+        locked: false,
+      },
+      {
+        id: "ch-2",
+        project_id: "p1",
+        title: "Chapter 2",
+        position: 1,
+        archived: false,
+        locked: false,
+      },
     ];
     currentProject.setChapters(chapters);
 
@@ -232,9 +306,36 @@ describe("currentProject store", () => {
 
   it("should reorder scenes", () => {
     const scenes = [
-      { id: "sc-1", chapter_id: "ch-1", title: "Scene 1", synopsis: "", position: 0, prose: null },
-      { id: "sc-2", chapter_id: "ch-1", title: "Scene 2", synopsis: "", position: 1, prose: null },
-      { id: "sc-3", chapter_id: "ch-1", title: "Scene 3", synopsis: "", position: 2, prose: null },
+      {
+        id: "sc-1",
+        chapter_id: "ch-1",
+        title: "Scene 1",
+        synopsis: "",
+        position: 0,
+        prose: null,
+        archived: false,
+        locked: false,
+      },
+      {
+        id: "sc-2",
+        chapter_id: "ch-1",
+        title: "Scene 2",
+        synopsis: "",
+        position: 1,
+        prose: null,
+        archived: false,
+        locked: false,
+      },
+      {
+        id: "sc-3",
+        chapter_id: "ch-1",
+        title: "Scene 3",
+        synopsis: "",
+        position: 2,
+        prose: null,
+        archived: false,
+        locked: false,
+      },
     ];
     currentProject.setScenes(scenes);
 
@@ -251,8 +352,22 @@ describe("currentProject store", () => {
 
   it("should remove a chapter", () => {
     const chapters = [
-      { id: "ch-1", project_id: "p1", title: "Chapter 1", position: 0 },
-      { id: "ch-2", project_id: "p1", title: "Chapter 2", position: 1 },
+      {
+        id: "ch-1",
+        project_id: "p1",
+        title: "Chapter 1",
+        position: 0,
+        archived: false,
+        locked: false,
+      },
+      {
+        id: "ch-2",
+        project_id: "p1",
+        title: "Chapter 2",
+        position: 1,
+        archived: false,
+        locked: false,
+      },
     ];
     currentProject.setChapters(chapters);
 
@@ -263,7 +378,14 @@ describe("currentProject store", () => {
   });
 
   it("should clear related state when removing the current chapter", () => {
-    const chapter = { id: "ch-1", project_id: "p1", title: "Chapter 1", position: 0 };
+    const chapter = {
+      id: "ch-1",
+      project_id: "p1",
+      title: "Chapter 1",
+      position: 0,
+      archived: false,
+      locked: false,
+    };
     const scene = {
       id: "sc-1",
       chapter_id: "ch-1",
@@ -271,6 +393,8 @@ describe("currentProject store", () => {
       synopsis: "",
       position: 0,
       prose: null,
+      archived: false,
+      locked: false,
     };
     const beat = { id: "b-1", scene_id: "sc-1", content: "Beat", position: 0, prose: null };
 
@@ -290,8 +414,22 @@ describe("currentProject store", () => {
   });
 
   it("should not clear state when removing a different chapter", () => {
-    const chapter1 = { id: "ch-1", project_id: "p1", title: "Chapter 1", position: 0 };
-    const chapter2 = { id: "ch-2", project_id: "p1", title: "Chapter 2", position: 1 };
+    const chapter1 = {
+      id: "ch-1",
+      project_id: "p1",
+      title: "Chapter 1",
+      position: 0,
+      archived: false,
+      locked: false,
+    };
+    const chapter2 = {
+      id: "ch-2",
+      project_id: "p1",
+      title: "Chapter 2",
+      position: 1,
+      archived: false,
+      locked: false,
+    };
 
     currentProject.setChapters([chapter1, chapter2]);
     currentProject.setCurrentChapter(chapter1);
@@ -303,8 +441,26 @@ describe("currentProject store", () => {
 
   it("should remove a scene", () => {
     const scenes = [
-      { id: "sc-1", chapter_id: "ch-1", title: "Scene 1", synopsis: "", position: 0, prose: null },
-      { id: "sc-2", chapter_id: "ch-1", title: "Scene 2", synopsis: "", position: 1, prose: null },
+      {
+        id: "sc-1",
+        chapter_id: "ch-1",
+        title: "Scene 1",
+        synopsis: "",
+        position: 0,
+        prose: null,
+        archived: false,
+        locked: false,
+      },
+      {
+        id: "sc-2",
+        chapter_id: "ch-1",
+        title: "Scene 2",
+        synopsis: "",
+        position: 1,
+        prose: null,
+        archived: false,
+        locked: false,
+      },
     ];
     currentProject.setScenes(scenes);
 
@@ -322,6 +478,8 @@ describe("currentProject store", () => {
       synopsis: "",
       position: 0,
       prose: null,
+      archived: false,
+      locked: false,
     };
     const beat = { id: "b-1", scene_id: "sc-1", content: "Beat", position: 0, prose: null };
 

@@ -117,6 +117,30 @@ class ProjectStore {
   setLocations(locations: Location[]) {
     this.locations = locations;
   }
+
+  updateChapter(chapterId: string, updates: Partial<Chapter>) {
+    this.chapters = this.chapters.map((chapter) =>
+      chapter.id === chapterId ? { ...chapter, ...updates } : chapter
+    );
+    if (this.currentChapter?.id === chapterId) {
+      this.currentChapter = { ...this.currentChapter, ...updates };
+    }
+  }
+
+  updateScene(sceneId: string, updates: Partial<Scene>) {
+    this.scenes = this.scenes.map((scene) =>
+      scene.id === sceneId ? { ...scene, ...updates } : scene
+    );
+    if (this.currentScene?.id === sceneId) {
+      this.currentScene = { ...this.currentScene, ...updates };
+    }
+  }
+
+  refreshCurrentScene(scene: Scene) {
+    this.currentScene = scene;
+    // Also update the scene in the scenes array
+    this.scenes = this.scenes.map((s) => (s.id === scene.id ? scene : s));
+  }
 }
 
 export const currentProject = new ProjectStore();

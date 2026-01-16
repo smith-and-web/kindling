@@ -13,11 +13,33 @@
     GripVertical,
     RefreshCw,
     Loader2,
+    X,
+    Pencil,
+    MoreVertical,
+    Copy,
+    Archive,
+    Lock,
+    Unlock,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Chapter, Scene, SyncPreview, ReimportSummary } from "../types";
   import ConfirmDialog from "./ConfirmDialog.svelte";
+  import ContextMenu from "./ContextMenu.svelte";
+  import RenameDialog from "./RenameDialog.svelte";
+  import ArchivePanel from "./ArchivePanel.svelte";
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type IconComponent = any;
+
+  interface MenuItem {
+    label: string;
+    icon?: IconComponent;
+    action: () => void | Promise<void>;
+    disabled?: boolean;
+    danger?: boolean;
+    divider?: boolean;
+  }
 
   let loading = $state(false);
   let expandedChapters = new SvelteSet<string>();
@@ -52,7 +74,27 @@
   let showSyncDialog = $state(false);
   let syncPreview: SyncPreview | null = $state(null);
   let selectedChanges = new SvelteSet<string>();
+  let selectedAdditions = new SvelteSet<string>();
   let syncSummary: ReimportSummary | null = $state(null);
+
+  // Context menu state
+  let contextMenu: {
+    type: "chapter" | "scene";
+    id: string;
+    x: number;
+    y: number;
+    item: Chapter | Scene;
+  } | null = $state(null);
+
+  // Rename dialog state
+  let renameDialog: {
+    type: "chapter" | "scene";
+    id: string;
+    title: string;
+  } | null = $state(null);
+
+  // Archive panel state
+  let showArchivePanel = $state(false);
 
   async function loadChapters() {
     if (!currentProject.value) return;
@@ -375,8 +417,12 @@
         projectId: currentProject.value.id,
       });
       syncPreview = preview;
-      // Default: no changes selected (user must opt-in to changes)
+      // Default: all additions selected, no changes selected
       selectedChanges.clear();
+      selectedAdditions.clear();
+      for (const addition of preview.additions) {
+        selectedAdditions.add(addition.id);
+      }
       showSyncDialog = true;
     } catch (e) {
       console.error("Failed to get sync preview:", e);
@@ -389,6 +435,7 @@
     showSyncDialog = false;
     syncPreview = null;
     selectedChanges.clear();
+    selectedAdditions.clear();
   }
 
   function toggleChange(changeId: string) {
@@ -411,6 +458,26 @@
     selectedChanges.clear();
   }
 
+  function toggleAddition(additionId: string) {
+    if (selectedAdditions.has(additionId)) {
+      selectedAdditions.delete(additionId);
+    } else {
+      selectedAdditions.add(additionId);
+    }
+  }
+
+  function selectAllAdditions() {
+    if (!syncPreview) return;
+    selectedAdditions.clear();
+    for (const addition of syncPreview.additions) {
+      selectedAdditions.add(addition.id);
+    }
+  }
+
+  function deselectAllAdditions() {
+    selectedAdditions.clear();
+  }
+
   async function applySync() {
     if (!currentProject.value) return;
     syncing = true;
@@ -418,13 +485,37 @@
       const summary = await invoke<ReimportSummary>("apply_sync", {
         projectId: currentProject.value.id,
         acceptedChangeIds: Array.from(selectedChanges),
+        acceptedAdditionIds: Array.from(selectedAdditions),
       });
       syncSummary = summary;
       showSyncDialog = false;
       syncPreview = null;
       selectedChanges.clear();
-      // Reload content
+      selectedAdditions.clear();
+
+      // Remember current selection to restore after reload
+      const currentChapterId = currentProject.currentChapter?.id;
+      const currentSceneId = currentProject.currentScene?.id;
+
+      // Reload chapters
       await loadChapters();
+
+      // Restore chapter and scene selection, reloading their data from DB
+      if (currentChapterId) {
+        const chapter = currentProject.chapters.find((c) => c.id === currentChapterId);
+        if (chapter) {
+          await loadScenes(chapter);
+          expandedChapters.add(chapter.id);
+
+          if (currentSceneId) {
+            // Re-fetch the scene from the updated scenes list
+            const scene = currentProject.scenes.find((s) => s.id === currentSceneId);
+            if (scene) {
+              await selectScene(scene);
+            }
+          }
+        }
+      }
     } catch (e) {
       console.error("Failed to apply sync:", e);
     } finally {
@@ -434,6 +525,141 @@
 
   function closeSyncSummary() {
     syncSummary = null;
+  }
+
+  // === Context Menu ===
+  function openContextMenu(e: MouseEvent, type: "chapter" | "scene", item: Chapter | Scene) {
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenu = {
+      type,
+      id: item.id,
+      x: e.clientX,
+      y: e.clientY,
+      item,
+    };
+  }
+
+  function closeContextMenu() {
+    contextMenu = null;
+  }
+
+  function getContextMenuItems(type: "chapter" | "scene", item: Chapter | Scene): MenuItem[] {
+    const isLocked = "locked" in item && item.locked;
+
+    return [
+      {
+        label: "Rename",
+        icon: Pencil,
+        action: () => {
+          renameDialog = {
+            type,
+            id: item.id,
+            title: item.title,
+          };
+        },
+        disabled: isLocked,
+      },
+      {
+        label: "Duplicate",
+        icon: Copy,
+        action: () => handleDuplicate(type, item.id),
+      },
+      { divider: true, label: "", action: () => {} },
+      {
+        label: isLocked ? "Unlock" : "Lock",
+        icon: isLocked ? Unlock : Lock,
+        action: () => handleToggleLock(type, item.id, isLocked),
+      },
+      {
+        label: "Archive",
+        icon: Archive,
+        action: () => handleArchive(type, item.id),
+        disabled: isLocked,
+      },
+      { divider: true, label: "", action: () => {} },
+      {
+        label: "Delete",
+        icon: Trash2,
+        action: () => {
+          if (type === "chapter") {
+            confirmDeleteChapter(item as Chapter);
+          } else {
+            confirmDeleteScene(item as Scene);
+          }
+        },
+        danger: true,
+        disabled: isLocked,
+      },
+    ];
+  }
+
+  // === Context Menu Actions ===
+  async function handleRename(type: "chapter" | "scene", id: string, newTitle: string) {
+    try {
+      if (type === "chapter") {
+        await invoke("rename_chapter", { chapterId: id, title: newTitle });
+        currentProject.updateChapter(id, { title: newTitle });
+      } else {
+        await invoke("rename_scene", { sceneId: id, title: newTitle });
+        currentProject.updateScene(id, { title: newTitle });
+      }
+    } catch (e) {
+      console.error("Failed to rename:", e);
+      throw e;
+    }
+  }
+
+  async function handleDuplicate(type: "chapter" | "scene", id: string) {
+    try {
+      if (type === "chapter") {
+        const newChapter = await invoke<Chapter>("duplicate_chapter", { chapterId: id });
+        currentProject.addChapter(newChapter);
+      } else {
+        const newScene = await invoke<Scene>("duplicate_scene", { sceneId: id });
+        currentProject.addScene(newScene);
+      }
+    } catch (e) {
+      console.error("Failed to duplicate:", e);
+    }
+  }
+
+  async function handleArchive(type: "chapter" | "scene", id: string) {
+    try {
+      if (type === "chapter") {
+        await invoke("archive_chapter", { chapterId: id });
+        currentProject.removeChapter(id);
+      } else {
+        await invoke("archive_scene", { sceneId: id });
+        currentProject.removeScene(id);
+      }
+    } catch (e) {
+      console.error("Failed to archive:", e);
+    }
+  }
+
+  async function handleToggleLock(type: "chapter" | "scene", id: string, currentlyLocked: boolean) {
+    try {
+      if (type === "chapter") {
+        if (currentlyLocked) {
+          await invoke("unlock_chapter", { chapterId: id });
+          currentProject.updateChapter(id, { locked: false });
+        } else {
+          await invoke("lock_chapter", { chapterId: id });
+          currentProject.updateChapter(id, { locked: true });
+        }
+      } else {
+        if (currentlyLocked) {
+          await invoke("unlock_scene", { sceneId: id });
+          currentProject.updateScene(id, { locked: false });
+        } else {
+          await invoke("lock_scene", { sceneId: id });
+          currentProject.updateScene(id, { locked: true });
+        }
+      }
+    } catch (e) {
+      console.error("Failed to toggle lock:", e);
+    }
   }
 
   // Track isImporting state to properly handle chapter loading
@@ -524,6 +750,15 @@
           <Home class="w-3.5 h-3.5" />
           All Projects
         </button>
+        <button
+          data-testid="archive-button"
+          onclick={() => (showArchivePanel = true)}
+          class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded-lg transition-colors"
+          aria-label="View archive"
+          title="View archived items"
+        >
+          <Archive class="w-3.5 h-3.5" />
+        </button>
         {#if currentProject.value.source_path}
           <button
             data-testid="reimport-button"
@@ -562,7 +797,7 @@
           <div
             data-testid="chapter-item"
             data-drag-chapter={chapter.id}
-            class="select-none relative rounded-lg overflow-hidden"
+            class="select-none relative rounded-lg"
             class:ring-2={dragOverId === chapter.id}
             class:ring-accent={dragOverId === chapter.id}
             onmouseenter={() => (hoveredChapterId = chapter.id)}
@@ -573,6 +808,7 @@
               class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group"
               class:bg-bg-card={isExpanded}
               class:hover:bg-bg-card={!isExpanded}
+              oncontextmenu={(e) => openContextMenu(e, "chapter", chapter)}
             >
               <!-- Drag handle -->
               <div
@@ -590,7 +826,7 @@
 
               <button
                 onclick={() => toggleChapter(chapter)}
-                class="flex-1 flex items-center gap-2 text-left"
+                class="flex-1 flex items-center gap-2 text-left min-w-0"
                 aria-expanded={isExpanded}
               >
                 <!-- Expand/collapse chevron -->
@@ -601,25 +837,27 @@
                 />
                 <!-- Chapter icon -->
                 <Folder class="w-4 h-4 text-text-secondary flex-shrink-0" />
+                <!-- Lock indicator -->
+                {#if chapter.locked}
+                  <Lock class="w-3 h-3 text-amber-500 flex-shrink-0" />
+                {/if}
                 <span
                   data-testid="chapter-title"
-                  class="text-text-primary font-medium text-sm truncate">{chapter.title}</span
+                  class="text-text-primary font-medium text-sm truncate"
+                  class:opacity-60={chapter.locked}>{chapter.title}</span
                 >
               </button>
 
-              <!-- Delete button -->
+              <!-- Three-dot menu button -->
               <button
-                data-testid="delete-button"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  confirmDeleteChapter(chapter);
-                }}
-                class="p-1 text-text-secondary hover:text-red-500 transition-opacity"
+                data-testid="menu-button"
+                onclick={(e) => openContextMenu(e, "chapter", chapter)}
+                class="p-1 text-text-secondary hover:text-text-primary transition-opacity flex-shrink-0"
                 class:opacity-0={hoveredChapterId !== chapter.id}
                 class:opacity-100={hoveredChapterId === chapter.id}
-                aria-label="Delete chapter"
+                aria-label="Chapter menu"
               >
-                <Trash2 class="w-3.5 h-3.5" />
+                <MoreVertical class="w-3.5 h-3.5" />
               </button>
             </div>
 
@@ -628,71 +866,74 @@
               <div class="ml-6 mt-1 space-y-0.5 border-l border-bg-card pl-2">
                 {#each currentProject.scenes as scene (scene.id)}
                   {@const isSelected = currentProject.currentScene?.id === scene.id}
+                  {@const isLocked = scene.locked || chapter.locked}
                   <div
                     data-drag-scene={scene.id}
-                    class="relative rounded-r overflow-hidden"
+                    data-testid="scene-item"
+                    class="relative flex items-center gap-1 py-0.5"
                     class:ring-2={dragOverId === scene.id}
                     class:ring-accent={dragOverId === scene.id}
                     onmouseenter={() => (hoveredSceneId = scene.id)}
                     onmouseleave={() => (hoveredSceneId = null)}
+                    oncontextmenu={(e) => openContextMenu(e, "scene", scene)}
                   >
+                    <!-- Scene drag handle -->
                     <div
-                      data-testid="scene-item"
-                      class="-ml-8 pl-8 mr-[-0.5rem] pr-1 flex items-center gap-1 py-1 rounded-r text-sm transition-colors"
+                      data-testid="drag-handle"
+                      onmousedown={(e) => onDragHandleMouseDown(e, "scene", scene.id)}
+                      class="cursor-grab active:cursor-grabbing p-0.5 transition-opacity flex-shrink-0"
+                      class:text-white={isSelected}
+                      class:text-text-secondary={!isSelected}
+                      class:opacity-0={hoveredSceneId !== scene.id}
+                      class:opacity-100={hoveredSceneId === scene.id}
+                      role="button"
+                      tabindex="-1"
+                      aria-label="Drag to reorder"
+                    >
+                      <GripVertical class="w-3 h-3" />
+                    </div>
+
+                    <button
+                      onclick={() => selectScene(scene)}
+                      class="flex-1 flex items-center gap-2 text-left px-2 py-1 rounded text-sm transition-colors min-w-0"
                       class:bg-accent={isSelected}
                       class:text-white={isSelected}
                       class:text-text-secondary={!isSelected}
                       class:hover:bg-bg-card={!isSelected}
                       class:hover:text-text-primary={!isSelected}
                     >
-                      <!-- Scene drag handle -->
-                      <div
-                        data-testid="drag-handle"
-                        onmousedown={(e) => onDragHandleMouseDown(e, "scene", scene.id)}
-                        class="cursor-grab active:cursor-grabbing p-0.5 transition-opacity"
-                        class:text-white={isSelected}
-                        class:text-text-secondary={!isSelected}
-                        class:opacity-0={hoveredSceneId !== scene.id}
-                        class:opacity-100={hoveredSceneId === scene.id}
-                        role="button"
-                        tabindex="-1"
-                        aria-label="Drag to reorder"
-                      >
-                        <GripVertical class="w-3 h-3" />
-                      </div>
-
-                      <button
-                        onclick={() => selectScene(scene)}
-                        class="flex-1 flex items-center gap-2 text-left"
-                      >
-                        <!-- Scene icon -->
-                        <FileText
-                          class="w-3.5 h-3.5 flex-shrink-0 {isSelected
+                      <!-- Scene icon -->
+                      <FileText
+                        class="w-3.5 h-3.5 flex-shrink-0 {isSelected
+                          ? 'text-white'
+                          : 'text-text-secondary'}"
+                      />
+                      <!-- Lock indicator -->
+                      {#if isLocked}
+                        <Lock
+                          class="w-3 h-3 flex-shrink-0 {isSelected
                             ? 'text-white'
-                            : 'text-text-secondary'}"
+                            : 'text-amber-500'}"
                         />
-                        <span data-testid="scene-title" class="truncate">{scene.title}</span>
-                      </button>
-
-                      <!-- Scene delete button -->
-                      <button
-                        data-testid="delete-button"
-                        onclick={(e) => {
-                          e.stopPropagation();
-                          confirmDeleteScene(scene);
-                        }}
-                        class="p-0.5 transition-opacity"
-                        class:text-white={isSelected}
-                        class:hover:text-red-300={isSelected}
-                        class:text-text-secondary={!isSelected}
-                        class:hover:text-red-500={!isSelected}
-                        class:opacity-0={hoveredSceneId !== scene.id}
-                        class:opacity-100={hoveredSceneId === scene.id}
-                        aria-label="Delete scene"
+                      {/if}
+                      <span data-testid="scene-title" class="truncate" class:opacity-60={isLocked}
+                        >{scene.title}</span
                       >
-                        <Trash2 class="w-3 h-3" />
-                      </button>
-                    </div>
+                    </button>
+
+                    <!-- Scene menu button -->
+                    <button
+                      data-testid="menu-button"
+                      onclick={(e) => openContextMenu(e, "scene", scene)}
+                      class="p-0.5 transition-opacity flex-shrink-0"
+                      class:text-white={isSelected}
+                      class:text-text-secondary={!isSelected}
+                      class:opacity-0={hoveredSceneId !== scene.id}
+                      class:opacity-100={hoveredSceneId === scene.id}
+                      aria-label="Scene menu"
+                    >
+                      <MoreVertical class="w-3 h-3" />
+                    </button>
                   </div>
                 {/each}
 
@@ -769,139 +1010,225 @@
   </button>
 {/if}
 
-<!-- Sync Preview Dialog -->
+<!-- Sync Preview Dialog - Full Window -->
 {#if showSyncDialog && syncPreview}
   <div
     data-testid="sync-preview-dialog"
-    class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+    class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-6 md:p-10"
     role="dialog"
     aria-modal="true"
   >
     <div
-      class="bg-bg-panel rounded-lg p-6 max-w-2xl w-full mx-4 shadow-xl max-h-[80vh] flex flex-col"
+      class="bg-bg-panel rounded-2xl w-full h-full max-w-7xl flex flex-col shadow-2xl border border-white/5 overflow-hidden"
     >
-      <h3 class="text-lg font-heading font-medium text-text-primary mb-4">Sync from Source</h3>
-
-      <div class="flex-1 overflow-y-auto space-y-6 mb-6">
-        <!-- No changes message -->
-        {#if syncPreview.additions.length === 0 && syncPreview.changes.length === 0}
-          <div class="text-text-secondary text-sm py-4 text-center">
-            <p>No changes detected. Your project is up to date with the source file.</p>
-          </div>
-        {/if}
-
-        <!-- Additions Section (informational, auto-applied) -->
-        {#if syncPreview.additions.length > 0}
-          <div>
-            <h4 class="text-sm font-medium text-text-primary mb-2">
-              New Items ({syncPreview.additions.length})
-            </h4>
-            <p class="text-text-secondary/80 text-xs mb-3">These will be added automatically:</p>
-            <div class="space-y-2">
-              {#each syncPreview.additions as addition (addition.id)}
-                <div class="flex items-center gap-2 px-3 py-2 bg-bg-card rounded text-sm">
-                  <span class="text-green-500 text-xs font-medium uppercase w-16 flex-shrink-0">
-                    + {addition.item_type}
-                  </span>
-                  <span class="text-text-primary">{addition.title}</span>
-                  {#if addition.parent_title}
-                    <span class="text-text-secondary/60 text-xs">in {addition.parent_title}</span>
-                  {/if}
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
-
-        <!-- Changes Section (require approval) -->
-        {#if syncPreview.changes.length > 0}
-          <div>
-            <div class="flex items-center justify-between mb-2">
-              <h4 class="text-sm font-medium text-text-primary">
-                Changes ({syncPreview.changes.length})
-              </h4>
-              <div class="flex gap-2">
-                <button
-                  onclick={selectAllChanges}
-                  class="text-xs text-text-secondary hover:text-text-primary"
-                >
-                  Select All
-                </button>
-                <span class="text-text-secondary/50">|</span>
-                <button
-                  onclick={deselectAllChanges}
-                  class="text-xs text-text-secondary hover:text-text-primary"
-                >
-                  Deselect All
-                </button>
-              </div>
-            </div>
-            <p class="text-text-secondary/80 text-xs mb-3">
-              Check the changes you want to accept. Unchecked changes will keep your current values.
-            </p>
-            <div class="space-y-2">
-              {#each syncPreview.changes as change (change.id)}
-                <label
-                  class="flex items-start gap-3 px-3 py-2 bg-bg-card rounded cursor-pointer hover:bg-beat-header transition-colors"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedChanges.has(change.id)}
-                    onchange={() => toggleChange(change.id)}
-                    class="mt-0.5 w-4 h-4 rounded border-bg-card bg-bg-card text-accent focus:ring-accent focus:ring-offset-0"
-                  />
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-1">
-                      <span class="text-amber-500 text-xs font-medium uppercase">
-                        {change.item_type}
-                      </span>
-                      <span class="text-text-primary text-sm font-medium truncate">
-                        {change.item_title}
-                      </span>
-                      <span class="text-text-secondary/60 text-xs">({change.field})</span>
-                    </div>
-                    <div class="text-xs space-y-1">
-                      <div class="flex gap-2">
-                        <span class="text-red-400/80 flex-shrink-0">−</span>
-                        <span class="text-text-secondary/80 line-through truncate">
-                          {change.current_value || "(empty)"}
-                        </span>
-                      </div>
-                      <div class="flex gap-2">
-                        <span class="text-green-400/80 flex-shrink-0">+</span>
-                        <span class="text-text-secondary truncate">
-                          {change.new_value || "(empty)"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </label>
-              {/each}
-            </div>
-          </div>
-        {/if}
-      </div>
-
-      <div class="flex gap-3 pt-4 border-t border-bg-card">
+      <!-- Header -->
+      <div class="flex items-center justify-between px-8 py-6 border-b border-bg-card/50">
+        <div>
+          <h2 class="text-2xl font-heading font-semibold text-text-primary">Sync from Source</h2>
+          <p class="text-text-secondary text-sm mt-1">Review and select items to import</p>
+        </div>
         <button
           onclick={cancelSync}
-          class="flex-1 px-4 py-2 text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded transition-colors"
+          class="p-2 text-text-secondary hover:text-text-primary rounded-lg hover:bg-bg-card transition-colors"
         >
-          Cancel
+          <X class="w-6 h-6" />
         </button>
-        <button
-          data-testid="sync-confirm"
-          onclick={applySync}
-          disabled={syncing}
-          class="flex-1 px-4 py-2 bg-accent text-white rounded hover:bg-accent/80 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+      </div>
+
+      <!-- Content - Two Column Layout -->
+      {#if syncPreview.additions.length === 0 && syncPreview.changes.length === 0}
+        <!-- No changes message -->
+        <div class="flex-1 flex items-center justify-center">
+          <div class="text-center py-12">
+            <div
+              class="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4"
+            >
+              <RefreshCw class="w-8 h-8 text-green-500" />
+            </div>
+            <p class="text-text-primary text-lg font-medium">All synced!</p>
+            <p class="text-text-secondary text-sm mt-1">
+              Your project is up to date with the source file.
+            </p>
+          </div>
+        </div>
+      {:else}
+        <div
+          class="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-bg-card/50"
         >
-          {#if syncing}
-            <Loader2 class="w-4 h-4 animate-spin" />
-            Syncing...
-          {:else}
-            Apply Sync
-          {/if}
-        </button>
+          <!-- Left Column: Additions -->
+          <div class="flex flex-col min-h-0">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-bg-card/30">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+                  <Plus class="w-4 h-4 text-green-500" />
+                </div>
+                <div>
+                  <h3 class="text-sm font-medium text-text-primary">New Items</h3>
+                  <p class="text-xs text-text-secondary">
+                    {selectedAdditions.size} of {syncPreview.additions.length} selected
+                  </p>
+                </div>
+              </div>
+              {#if syncPreview.additions.length > 0}
+                <div class="flex gap-2 text-xs">
+                  <button
+                    onclick={selectAllAdditions}
+                    class="text-text-secondary hover:text-accent transition-colors">All</button
+                  >
+                  <span class="text-text-secondary/30">|</span>
+                  <button
+                    onclick={deselectAllAdditions}
+                    class="text-text-secondary hover:text-accent transition-colors">None</button
+                  >
+                </div>
+              {/if}
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 space-y-2">
+              {#if syncPreview.additions.length === 0}
+                <div class="text-center py-12 text-text-secondary">
+                  <p>No new items to import</p>
+                </div>
+              {:else}
+                {#each syncPreview.additions as addition (addition.id)}
+                  <label
+                    class="flex items-center gap-4 p-4 bg-bg-card/50 rounded-xl cursor-pointer hover:bg-bg-card transition-colors group"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedAdditions.has(addition.id)}
+                      onchange={() => toggleAddition(addition.id)}
+                      class="w-5 h-5 rounded border-2 border-bg-card bg-transparent text-accent focus:ring-accent focus:ring-offset-0 cursor-pointer"
+                    />
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span
+                          class="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/10 text-green-500 uppercase"
+                        >
+                          {addition.item_type}
+                        </span>
+                        <span class="text-text-primary font-medium truncate">{addition.title}</span>
+                      </div>
+                      {#if addition.parent_title}
+                        <p class="text-xs text-text-secondary mt-1">in {addition.parent_title}</p>
+                      {/if}
+                    </div>
+                  </label>
+                {/each}
+              {/if}
+            </div>
+          </div>
+
+          <!-- Right Column: Changes -->
+          <div class="flex flex-col min-h-0">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-bg-card/30">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                  <Pencil class="w-4 h-4 text-amber-500" />
+                </div>
+                <div>
+                  <h3 class="text-sm font-medium text-text-primary">Changes</h3>
+                  <p class="text-xs text-text-secondary">
+                    {selectedChanges.size} of {syncPreview.changes.length} selected
+                  </p>
+                </div>
+              </div>
+              {#if syncPreview.changes.length > 0}
+                <div class="flex gap-2 text-xs">
+                  <button
+                    onclick={selectAllChanges}
+                    class="text-text-secondary hover:text-accent transition-colors">All</button
+                  >
+                  <span class="text-text-secondary/30">|</span>
+                  <button
+                    onclick={deselectAllChanges}
+                    class="text-text-secondary hover:text-accent transition-colors">None</button
+                  >
+                </div>
+              {/if}
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 space-y-2">
+              {#if syncPreview.changes.length === 0}
+                <div class="text-center py-12 text-text-secondary">
+                  <p>No changes detected</p>
+                </div>
+              {:else}
+                {#each syncPreview.changes as change (change.id)}
+                  <label
+                    class="flex items-start gap-4 p-4 bg-bg-card/50 rounded-xl cursor-pointer hover:bg-bg-card transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedChanges.has(change.id)}
+                      onchange={() => toggleChange(change.id)}
+                      class="mt-0.5 w-5 h-5 rounded border-2 border-bg-card bg-transparent text-accent focus:ring-accent focus:ring-offset-0 cursor-pointer"
+                    />
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 mb-2">
+                        <span
+                          class="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-500/10 text-amber-500 uppercase"
+                        >
+                          {change.item_type}
+                        </span>
+                        <span class="text-text-primary font-medium truncate"
+                          >{change.item_title}</span
+                        >
+                        <span class="text-text-secondary/60 text-xs">({change.field})</span>
+                      </div>
+                      <div class="text-sm space-y-1 font-mono">
+                        <div class="flex gap-2 text-red-400/80">
+                          <span class="flex-shrink-0">−</span>
+                          <span class="line-through opacity-60 truncate"
+                            >{change.current_value || "(empty)"}</span
+                          >
+                        </div>
+                        <div class="flex gap-2 text-green-400/80">
+                          <span class="flex-shrink-0">+</span>
+                          <span class="truncate">{change.new_value || "(empty)"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+                {/each}
+              {/if}
+            </div>
+          </div>
+        </div>
+      {/if}
+
+      <!-- Footer -->
+      <div
+        class="flex items-center justify-between px-8 py-5 border-t border-bg-card/50 bg-bg-card/20"
+      >
+        <p class="text-text-secondary text-sm">
+          {selectedAdditions.size + selectedChanges.size} item{selectedAdditions.size +
+            selectedChanges.size !==
+          1
+            ? "s"
+            : ""} selected
+        </p>
+        <div class="flex gap-4">
+          <button
+            onclick={cancelSync}
+            class="px-6 py-2.5 text-text-secondary hover:text-text-primary rounded-lg hover:bg-bg-card transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            data-testid="sync-confirm"
+            onclick={applySync}
+            disabled={syncing || (selectedAdditions.size === 0 && selectedChanges.size === 0)}
+            class="px-6 py-2.5 bg-accent text-white rounded-lg hover:bg-accent/80 transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {#if syncing}
+              <Loader2 class="w-4 h-4 animate-spin" />
+              Syncing...
+            {:else}
+              Apply Sync
+            {/if}
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -962,4 +1289,29 @@
       </button>
     </div>
   </div>
+{/if}
+
+<!-- Context Menu -->
+{#if contextMenu}
+  <ContextMenu
+    items={getContextMenuItems(contextMenu.type, contextMenu.item)}
+    x={contextMenu.x}
+    y={contextMenu.y}
+    onClose={closeContextMenu}
+  />
+{/if}
+
+<!-- Rename Dialog -->
+{#if renameDialog}
+  <RenameDialog
+    title="Rename {renameDialog.type === 'chapter' ? 'Chapter' : 'Scene'}"
+    currentName={renameDialog.title}
+    onSave={(newName) => handleRename(renameDialog!.type, renameDialog!.id, newName)}
+    onClose={() => (renameDialog = null)}
+  />
+{/if}
+
+<!-- Archive Panel -->
+{#if showArchivePanel}
+  <ArchivePanel onClose={() => (showArchivePanel = false)} />
 {/if}

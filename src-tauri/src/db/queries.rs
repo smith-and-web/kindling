@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection, OptionalExtension, Result};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -86,14 +86,16 @@ pub fn update_project_modified(conn: &Connection, id: &Uuid) -> Result<()> {
 
 pub fn insert_chapter(conn: &Connection, chapter: &Chapter) -> Result<()> {
     conn.execute(
-        "INSERT INTO chapters (id, project_id, title, position, source_id)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO chapters (id, project_id, title, position, source_id, archived, locked)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![
             chapter.id.to_string(),
             chapter.project_id.to_string(),
             chapter.title,
             chapter.position,
             chapter.source_id,
+            chapter.archived as i32,
+            chapter.locked as i32,
         ],
     )?;
     Ok(())
@@ -120,8 +122,8 @@ pub fn reorder_chapters(conn: &Connection, project_id: &Uuid, chapter_ids: &[Uui
 
 pub fn get_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chapter>> {
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, title, position, source_id
-         FROM chapters WHERE project_id = ?1 ORDER BY position",
+        "SELECT id, project_id, title, position, source_id, archived, locked
+         FROM chapters WHERE project_id = ?1 AND archived = 0 ORDER BY position",
     )?;
 
     let chapters = stmt
@@ -132,6 +134,8 @@ pub fn get_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chapter>
                 title: row.get(2)?,
                 position: row.get(3)?,
                 source_id: row.get(4)?,
+                archived: row.get::<_, i32>(5)? != 0,
+                locked: row.get::<_, i32>(6)? != 0,
             })
         })?
         .filter_map(|r| r.ok())
@@ -146,8 +150,8 @@ pub fn get_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chapter>
 
 pub fn insert_scene(conn: &Connection, scene: &Scene) -> Result<()> {
     conn.execute(
-        "INSERT INTO scenes (id, chapter_id, title, synopsis, prose, position, source_id)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO scenes (id, chapter_id, title, synopsis, prose, position, source_id, archived, locked)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             scene.id.to_string(),
             scene.chapter_id.to_string(),
@@ -156,6 +160,8 @@ pub fn insert_scene(conn: &Connection, scene: &Scene) -> Result<()> {
             scene.prose,
             scene.position,
             scene.source_id,
+            scene.archived as i32,
+            scene.locked as i32,
         ],
     )?;
     Ok(())
@@ -225,8 +231,8 @@ pub fn move_scene_to_chapter(
 
 pub fn get_scenes(conn: &Connection, chapter_id: &Uuid) -> Result<Vec<Scene>> {
     let mut stmt = conn.prepare(
-        "SELECT id, chapter_id, title, synopsis, prose, position, source_id
-         FROM scenes WHERE chapter_id = ?1 ORDER BY position",
+        "SELECT id, chapter_id, title, synopsis, prose, position, source_id, archived, locked
+         FROM scenes WHERE chapter_id = ?1 AND archived = 0 ORDER BY position",
     )?;
 
     let scenes = stmt
@@ -239,6 +245,8 @@ pub fn get_scenes(conn: &Connection, chapter_id: &Uuid) -> Result<Vec<Scene>> {
                 prose: row.get(4)?,
                 position: row.get(5)?,
                 source_id: row.get(6)?,
+                archived: row.get::<_, i32>(7)? != 0,
+                locked: row.get::<_, i32>(8)? != 0,
             })
         })?
         .filter_map(|r| r.ok())
@@ -631,7 +639,7 @@ pub fn find_chapter_by_source_id(
     source_id: &str,
 ) -> Result<Option<Chapter>> {
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, title, position, source_id
+        "SELECT id, project_id, title, position, source_id, archived, locked
          FROM chapters WHERE project_id = ?1 AND source_id = ?2",
     )?;
 
@@ -644,6 +652,8 @@ pub fn find_chapter_by_source_id(
             title: row.get(2)?,
             position: row.get(3)?,
             source_id: row.get(4)?,
+            archived: row.get::<_, i32>(5)? != 0,
+            locked: row.get::<_, i32>(6)? != 0,
         }))
     } else {
         Ok(None)
@@ -657,7 +667,7 @@ pub fn find_scene_by_source_id(
     source_id: &str,
 ) -> Result<Option<Scene>> {
     let mut stmt = conn.prepare(
-        "SELECT id, chapter_id, title, synopsis, prose, position, source_id
+        "SELECT id, chapter_id, title, synopsis, prose, position, source_id, archived, locked
          FROM scenes WHERE chapter_id = ?1 AND source_id = ?2",
     )?;
 
@@ -672,6 +682,8 @@ pub fn find_scene_by_source_id(
             prose: row.get(4)?,
             position: row.get(5)?,
             source_id: row.get(6)?,
+            archived: row.get::<_, i32>(7)? != 0,
+            locked: row.get::<_, i32>(8)? != 0,
         }))
     } else {
         Ok(None)
@@ -751,7 +763,7 @@ pub fn get_all_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chap
 /// Get all scenes for a project across all chapters (for reimport stats)
 pub fn get_all_project_scenes(conn: &Connection, project_id: &Uuid) -> Result<Vec<Scene>> {
     let mut stmt = conn.prepare(
-        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id
+        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id, s.archived, s.locked
          FROM scenes s
          JOIN chapters c ON s.chapter_id = c.id
          WHERE c.project_id = ?1
@@ -768,6 +780,8 @@ pub fn get_all_project_scenes(conn: &Connection, project_id: &Uuid) -> Result<Ve
                 prose: row.get(4)?,
                 position: row.get(5)?,
                 source_id: row.get(6)?,
+                archived: row.get::<_, i32>(7)? != 0,
+                locked: row.get::<_, i32>(8)? != 0,
             })
         })?
         .filter_map(|r| r.ok())
@@ -802,4 +816,220 @@ pub fn get_all_project_beats(conn: &Connection, project_id: &Uuid) -> Result<Vec
         .collect();
 
     Ok(beats)
+}
+
+// ============================================================================
+// Archive Operations
+// ============================================================================
+
+pub fn archive_chapter(conn: &Connection, chapter_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "UPDATE chapters SET archived = 1 WHERE id = ?1",
+        params![chapter_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn restore_chapter(conn: &Connection, chapter_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "UPDATE chapters SET archived = 0 WHERE id = ?1",
+        params![chapter_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn archive_scene(conn: &Connection, scene_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "UPDATE scenes SET archived = 1 WHERE id = ?1",
+        params![scene_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn restore_scene(conn: &Connection, scene_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "UPDATE scenes SET archived = 0 WHERE id = ?1",
+        params![scene_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn get_archived_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chapter>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, project_id, title, position, source_id, archived, locked
+         FROM chapters WHERE project_id = ?1 AND archived = 1 ORDER BY position",
+    )?;
+
+    let chapters = stmt
+        .query_map(params![project_id.to_string()], |row| {
+            Ok(Chapter {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                title: row.get(2)?,
+                position: row.get(3)?,
+                source_id: row.get(4)?,
+                archived: row.get::<_, i32>(5)? != 0,
+                locked: row.get::<_, i32>(6)? != 0,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(chapters)
+}
+
+pub fn get_archived_scenes(conn: &Connection, project_id: &Uuid) -> Result<Vec<Scene>> {
+    let mut stmt = conn.prepare(
+        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id, s.archived, s.locked
+         FROM scenes s
+         JOIN chapters c ON s.chapter_id = c.id
+         WHERE c.project_id = ?1 AND s.archived = 1
+         ORDER BY c.position, s.position",
+    )?;
+
+    let scenes = stmt
+        .query_map(params![project_id.to_string()], |row| {
+            Ok(Scene {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                chapter_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                title: row.get(2)?,
+                synopsis: row.get(3)?,
+                prose: row.get(4)?,
+                position: row.get(5)?,
+                source_id: row.get(6)?,
+                archived: row.get::<_, i32>(7)? != 0,
+                locked: row.get::<_, i32>(8)? != 0,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(scenes)
+}
+
+// ============================================================================
+// Lock Operations
+// ============================================================================
+
+pub fn lock_chapter(conn: &Connection, chapter_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "UPDATE chapters SET locked = 1 WHERE id = ?1",
+        params![chapter_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn unlock_chapter(conn: &Connection, chapter_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "UPDATE chapters SET locked = 0 WHERE id = ?1",
+        params![chapter_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn lock_scene(conn: &Connection, scene_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "UPDATE scenes SET locked = 1 WHERE id = ?1",
+        params![scene_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn unlock_scene(conn: &Connection, scene_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "UPDATE scenes SET locked = 0 WHERE id = ?1",
+        params![scene_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn is_scene_locked(conn: &Connection, scene_id: &Uuid) -> Result<bool> {
+    let mut stmt = conn.prepare(
+        "SELECT s.locked, c.locked FROM scenes s
+         JOIN chapters c ON s.chapter_id = c.id
+         WHERE s.id = ?1",
+    )?;
+    let (scene_locked, chapter_locked): (i32, i32) = stmt
+        .query_row(params![scene_id.to_string()], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })?;
+    Ok(scene_locked != 0 || chapter_locked != 0)
+}
+
+pub fn is_chapter_locked(conn: &Connection, chapter_id: &Uuid) -> Result<bool> {
+    let mut stmt = conn.prepare("SELECT locked FROM chapters WHERE id = ?1")?;
+    let locked: i32 = stmt.query_row(params![chapter_id.to_string()], |row| row.get(0))?;
+    Ok(locked != 0)
+}
+
+// ============================================================================
+// Rename Operations
+// ============================================================================
+
+pub fn rename_chapter(conn: &Connection, chapter_id: &Uuid, title: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE chapters SET title = ?1 WHERE id = ?2",
+        params![title, chapter_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn rename_scene(conn: &Connection, scene_id: &Uuid, title: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE scenes SET title = ?1 WHERE id = ?2",
+        params![title, scene_id.to_string()],
+    )?;
+    Ok(())
+}
+
+// ============================================================================
+// Get by ID Operations
+// ============================================================================
+
+pub fn get_chapter_by_id(conn: &Connection, chapter_id: &Uuid) -> Result<Option<Chapter>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, project_id, title, position, source_id, archived, locked
+         FROM chapters WHERE id = ?1",
+    )?;
+
+    let chapter = stmt
+        .query_row(params![chapter_id.to_string()], |row| {
+            Ok(Chapter {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                title: row.get(2)?,
+                position: row.get(3)?,
+                source_id: row.get(4)?,
+                archived: row.get::<_, i32>(5)? != 0,
+                locked: row.get::<_, i32>(6)? != 0,
+            })
+        })
+        .optional()?;
+
+    Ok(chapter)
+}
+
+pub fn get_scene_by_id(conn: &Connection, scene_id: &Uuid) -> Result<Option<Scene>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, chapter_id, title, synopsis, prose, position, source_id, archived, locked
+         FROM scenes WHERE id = ?1",
+    )?;
+
+    let scene = stmt
+        .query_row(params![scene_id.to_string()], |row| {
+            Ok(Scene {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                chapter_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                title: row.get(2)?,
+                synopsis: row.get(3)?,
+                prose: row.get(4)?,
+                position: row.get(5)?,
+                source_id: row.get(6)?,
+                archived: row.get::<_, i32>(7)? != 0,
+                locked: row.get::<_, i32>(8)? != 0,
+            })
+        })
+        .optional()?;
+
+    Ok(scene)
 }

@@ -260,6 +260,8 @@ pub async fn create_chapter(
         title,
         position,
         source_id: None,
+        archived: false,
+        locked: false,
     };
 
     db::insert_chapter(&conn, &chapter).map_err(|e| e.to_string())?;
@@ -302,6 +304,8 @@ pub async fn create_scene(
         prose: None,
         position,
         source_id: None,
+        archived: false,
+        locked: false,
     };
 
     db::insert_scene(&conn, &scene).map_err(|e| e.to_string())?;
@@ -324,6 +328,12 @@ pub async fn save_scene_prose(
 ) -> Result<(), String> {
     let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Check if scene is locked
+    if db::is_scene_locked(&conn, &uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot edit a locked scene".to_string());
+    }
+
     db::update_scene_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())
 }
 
@@ -346,6 +356,26 @@ pub async fn save_beat_prose(
 ) -> Result<(), String> {
     let uuid = Uuid::parse_str(&beat_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Get the scene_id from the beat and check if it's locked
+    let scene_id: Option<Uuid> = conn
+        .query_row(
+            "SELECT scene_id FROM beats WHERE id = ?1",
+            rusqlite::params![uuid.to_string()],
+            |row| {
+                let id_str: String = row.get(0)?;
+                Ok(Uuid::parse_str(&id_str).ok())
+            },
+        )
+        .ok()
+        .flatten();
+
+    if let Some(scene_id) = scene_id {
+        if db::is_scene_locked(&conn, &scene_id).map_err(|e| e.to_string())? {
+            return Err("Cannot edit beats in a locked scene".to_string());
+        }
+    }
+
     db::update_beat_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())
 }
 
@@ -357,6 +387,11 @@ pub async fn create_beat(
 ) -> Result<Beat, String> {
     let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Check if scene is locked
+    if db::is_scene_locked(&conn, &scene_uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot add beats to a locked scene".to_string());
+    }
 
     // Get next position
     let max_pos = db::get_max_beat_position(&conn, &scene_uuid).map_err(|e| e.to_string())?;
@@ -383,6 +418,12 @@ pub async fn save_scene_synopsis(
 ) -> Result<(), String> {
     let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Check if scene is locked
+    if db::is_scene_locked(&conn, &uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot edit a locked scene".to_string());
+    }
+
     db::update_scene_synopsis(&conn, &uuid, synopsis.as_deref()).map_err(|e| e.to_string())?;
 
     // Update project modified time
@@ -533,6 +574,11 @@ pub async fn delete_chapter(chapter_id: String, state: State<'_, AppState>) -> R
     let uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
+    // Check if chapter is locked
+    if db::is_chapter_locked(&conn, &uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot delete a locked chapter".to_string());
+    }
+
     // Get project ID before deleting for updating modified time
     let project_id = db::get_chapter_project_id(&conn, &uuid).map_err(|e| e.to_string())?;
 
@@ -555,6 +601,11 @@ pub async fn delete_scene(
     let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
     let chapter_uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Check if scene is locked
+    if db::is_scene_locked(&conn, &scene_uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot delete a locked scene".to_string());
+    }
 
     db::delete_scene(&conn, &scene_uuid).map_err(|e| e.to_string())?;
 
@@ -690,6 +741,8 @@ pub async fn reimport_project(
                     title: new_chapter.title.clone(),
                     position: new_chapter.position,
                     source_id: new_chapter.source_id.clone(),
+                    archived: false,
+                    locked: false,
                 };
                 db::insert_chapter(&conn, &chapter_to_insert).map_err(|e| {
                     let _ = conn.execute("ROLLBACK", []);
@@ -767,6 +820,8 @@ pub async fn reimport_project(
                     prose: None,
                     position: new_scene.position,
                     source_id: new_scene.source_id.clone(),
+                    archived: false,
+                    locked: false,
                 };
                 db::insert_scene(&conn, &scene_to_insert).map_err(|e| {
                     let _ = conn.execute("ROLLBACK", []);
@@ -904,6 +959,10 @@ pub async fn get_sync_preview(
     for new_chapter in &parsed.chapters {
         if let Some(source_id) = &new_chapter.source_id {
             if let Some(existing) = chapter_source_to_db.get(source_id) {
+                // Skip locked chapters
+                if existing.locked {
+                    continue;
+                }
                 // Check for changes
                 if existing.title != new_chapter.title {
                     preview.changes.push(SyncChange {
@@ -961,6 +1020,18 @@ pub async fn get_sync_preview(
                 });
 
             if let Some(existing) = scene_source_to_db.get(source_id) {
+                // Skip locked scenes (or scenes in locked chapters)
+                if existing.locked {
+                    continue;
+                }
+                // Check if parent chapter is locked
+                if let Some(ch_source_id) = parsed_chapter_id_to_source.get(&new_scene.chapter_id) {
+                    if let Some(ch) = chapter_source_to_db.get(ch_source_id) {
+                        if ch.locked {
+                            continue;
+                        }
+                    }
+                }
                 // Check for title changes
                 if existing.title != new_scene.title {
                     preview.changes.push(SyncChange {
@@ -1027,6 +1098,15 @@ pub async fn get_sync_preview(
                         .map(|sc| sc.title.clone())
                 });
 
+            // Check if parent scene is locked
+            if let Some(sc_source_id) = parsed_scene_id_to_source.get(&new_beat.scene_id) {
+                if let Some(sc) = scene_source_to_db.get(sc_source_id) {
+                    if sc.locked {
+                        continue;
+                    }
+                }
+            }
+
             if let Some(existing) = beat_source_to_db.get(source_id) {
                 // Check for content changes
                 if existing.content != new_beat.content {
@@ -1067,6 +1147,7 @@ fn truncate_string(s: &str, max_len: usize) -> String {
 pub async fn apply_sync(
     project_id: String,
     accepted_change_ids: Vec<String>,
+    accepted_addition_ids: Vec<String>,
     state: State<'_, AppState>,
 ) -> Result<ReimportSummary, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
@@ -1096,6 +1177,8 @@ pub async fn apply_sync(
     };
 
     let accepted_set: std::collections::HashSet<String> = accepted_change_ids.into_iter().collect();
+    let accepted_additions_set: std::collections::HashSet<String> =
+        accepted_addition_ids.into_iter().collect();
 
     let mut summary = ReimportSummary {
         chapters_added: 0,
@@ -1140,19 +1223,24 @@ pub async fn apply_sync(
                     summary.chapters_updated += 1;
                 }
             } else {
-                // Insert new chapter (always)
-                let chapter_to_insert = Chapter {
-                    id: new_chapter.id,
-                    project_id: project_uuid,
-                    title: new_chapter.title.clone(),
-                    position: new_chapter.position,
-                    source_id: new_chapter.source_id.clone(),
-                };
-                db::insert_chapter(&conn, &chapter_to_insert).map_err(|e| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    e.to_string()
-                })?;
-                summary.chapters_added += 1;
+                // Check if user accepted this addition
+                let addition_id = format!("chapter-{}", source_id);
+                if accepted_additions_set.contains(&addition_id) {
+                    let chapter_to_insert = Chapter {
+                        id: new_chapter.id,
+                        project_id: project_uuid,
+                        title: new_chapter.title.clone(),
+                        position: new_chapter.position,
+                        source_id: new_chapter.source_id.clone(),
+                        archived: false,
+                        locked: false,
+                    };
+                    db::insert_chapter(&conn, &chapter_to_insert).map_err(|e| {
+                        let _ = conn.execute("ROLLBACK", []);
+                        e.to_string()
+                    })?;
+                    summary.chapters_added += 1;
+                }
             }
         }
     }
@@ -1239,21 +1327,26 @@ pub async fn apply_sync(
                     summary.prose_preserved += 1;
                 }
             } else {
-                // Insert new scene (always)
-                let scene_to_insert = Scene {
-                    id: new_scene.id,
-                    chapter_id: db_chapter.id,
-                    title: new_scene.title.clone(),
-                    synopsis: new_scene.synopsis.clone(),
-                    prose: None,
-                    position: new_scene.position,
-                    source_id: new_scene.source_id.clone(),
-                };
-                db::insert_scene(&conn, &scene_to_insert).map_err(|e| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    e.to_string()
-                })?;
-                summary.scenes_added += 1;
+                // Check if user accepted this addition
+                let addition_id = format!("scene-{}", source_id);
+                if accepted_additions_set.contains(&addition_id) {
+                    let scene_to_insert = Scene {
+                        id: new_scene.id,
+                        chapter_id: db_chapter.id,
+                        title: new_scene.title.clone(),
+                        synopsis: new_scene.synopsis.clone(),
+                        prose: None,
+                        position: new_scene.position,
+                        source_id: new_scene.source_id.clone(),
+                        archived: false,
+                        locked: false,
+                    };
+                    db::insert_scene(&conn, &scene_to_insert).map_err(|e| {
+                        let _ = conn.execute("ROLLBACK", []);
+                        e.to_string()
+                    })?;
+                    summary.scenes_added += 1;
+                }
             }
         }
     }
@@ -1317,20 +1410,23 @@ pub async fn apply_sync(
                     summary.prose_preserved += 1;
                 }
             } else {
-                // Insert new beat (always)
-                let beat_to_insert = Beat {
-                    id: new_beat.id,
-                    scene_id: db_scene.id,
-                    content: new_beat.content.clone(),
-                    prose: None,
-                    position: new_beat.position,
-                    source_id: new_beat.source_id.clone(),
-                };
-                db::insert_beat(&conn, &beat_to_insert).map_err(|e| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    e.to_string()
-                })?;
-                summary.beats_added += 1;
+                // Check if user accepted this addition
+                let addition_id = format!("beat-{}", source_id);
+                if accepted_additions_set.contains(&addition_id) {
+                    let beat_to_insert = Beat {
+                        id: new_beat.id,
+                        scene_id: db_scene.id,
+                        content: new_beat.content.clone(),
+                        prose: None,
+                        position: new_beat.position,
+                        source_id: new_beat.source_id.clone(),
+                    };
+                    db::insert_beat(&conn, &beat_to_insert).map_err(|e| {
+                        let _ = conn.execute("ROLLBACK", []);
+                        e.to_string()
+                    })?;
+                    summary.beats_added += 1;
+                }
             }
         }
     }
@@ -1339,4 +1435,340 @@ pub async fn apply_sync(
     db::update_project_modified(&conn, &project_uuid).map_err(|e| e.to_string())?;
 
     Ok(summary)
+}
+
+// ============================================================================
+// Rename Commands
+// ============================================================================
+
+#[tauri::command]
+pub async fn rename_chapter(
+    chapter_id: String,
+    title: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Check if chapter is locked
+    if db::is_chapter_locked(&conn, &uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot rename a locked chapter".to_string());
+    }
+
+    db::rename_chapter(&conn, &uuid, &title).map_err(|e| e.to_string())?;
+
+    // Update project modified time
+    if let Some(project_id) = db::get_chapter_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn rename_scene(
+    scene_id: String,
+    title: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Check if scene is locked
+    if db::is_scene_locked(&conn, &uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot rename a locked scene".to_string());
+    }
+
+    db::rename_scene(&conn, &uuid, &title).map_err(|e| e.to_string())?;
+
+    // Update project modified time
+    if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+// ============================================================================
+// Duplicate Commands
+// ============================================================================
+
+#[tauri::command]
+pub async fn duplicate_chapter(
+    chapter_id: String,
+    state: State<'_, AppState>,
+) -> Result<Chapter, String> {
+    let uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Get the original chapter
+    let original = db::get_chapter_by_id(&conn, &uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Chapter not found".to_string())?;
+
+    // Get the next position
+    let max_pos =
+        db::get_max_chapter_position(&conn, &original.project_id).map_err(|e| e.to_string())?;
+
+    // Create new chapter with copy title
+    let new_chapter = Chapter {
+        id: Uuid::new_v4(),
+        project_id: original.project_id,
+        title: format!("{} (copy)", original.title),
+        position: max_pos + 1,
+        source_id: None, // Don't copy source_id
+        archived: false,
+        locked: false,
+    };
+
+    db::insert_chapter(&conn, &new_chapter).map_err(|e| e.to_string())?;
+
+    // Copy all scenes from the original chapter
+    let scenes = db::get_scenes(&conn, &uuid).map_err(|e| e.to_string())?;
+    for scene in scenes {
+        let new_scene = Scene {
+            id: Uuid::new_v4(),
+            chapter_id: new_chapter.id,
+            title: scene.title,
+            synopsis: scene.synopsis,
+            prose: scene.prose,
+            position: scene.position,
+            source_id: None,
+            archived: false,
+            locked: false,
+        };
+        db::insert_scene(&conn, &new_scene).map_err(|e| e.to_string())?;
+
+        // Copy beats for this scene
+        let beats = db::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
+        for beat in beats {
+            let new_beat = Beat {
+                id: Uuid::new_v4(),
+                scene_id: new_scene.id,
+                content: beat.content,
+                prose: beat.prose,
+                position: beat.position,
+                source_id: None,
+            };
+            db::insert_beat(&conn, &new_beat).map_err(|e| e.to_string())?;
+        }
+    }
+
+    db::update_project_modified(&conn, &original.project_id).map_err(|e| e.to_string())?;
+
+    Ok(new_chapter)
+}
+
+#[tauri::command]
+pub async fn duplicate_scene(
+    scene_id: String,
+    state: State<'_, AppState>,
+) -> Result<Scene, String> {
+    let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Get the original scene
+    let original = db::get_scene_by_id(&conn, &uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Scene not found".to_string())?;
+
+    // Get the next position
+    let max_pos =
+        db::get_max_scene_position(&conn, &original.chapter_id).map_err(|e| e.to_string())?;
+
+    // Create new scene with copy title
+    let new_scene = Scene {
+        id: Uuid::new_v4(),
+        chapter_id: original.chapter_id,
+        title: format!("{} (copy)", original.title),
+        synopsis: original.synopsis,
+        prose: original.prose,
+        position: max_pos + 1,
+        source_id: None, // Don't copy source_id
+        archived: false,
+        locked: false,
+    };
+
+    db::insert_scene(&conn, &new_scene).map_err(|e| e.to_string())?;
+
+    // Copy beats from the original scene
+    let beats = db::get_beats(&conn, &uuid).map_err(|e| e.to_string())?;
+    for beat in beats {
+        let new_beat = Beat {
+            id: Uuid::new_v4(),
+            scene_id: new_scene.id,
+            content: beat.content,
+            prose: beat.prose,
+            position: beat.position,
+            source_id: None,
+        };
+        db::insert_beat(&conn, &new_beat).map_err(|e| e.to_string())?;
+    }
+
+    // Update project modified time
+    if let Some(project_id) =
+        db::get_chapter_project_id(&conn, &original.chapter_id).map_err(|e| e.to_string())?
+    {
+        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+    }
+
+    Ok(new_scene)
+}
+
+// ============================================================================
+// Archive Commands
+// ============================================================================
+
+#[tauri::command]
+pub async fn archive_chapter(chapter_id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    db::archive_chapter(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    // Update project modified time
+    if let Some(project_id) = db::get_chapter_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn archive_scene(scene_id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    db::archive_scene(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    // Update project modified time
+    if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn restore_chapter(
+    chapter_id: String,
+    state: State<'_, AppState>,
+) -> Result<Chapter, String> {
+    let uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    db::restore_chapter(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    let chapter = db::get_chapter_by_id(&conn, &uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Chapter not found".to_string())?;
+
+    db::update_project_modified(&conn, &chapter.project_id).map_err(|e| e.to_string())?;
+
+    Ok(chapter)
+}
+
+#[tauri::command]
+pub async fn restore_scene(scene_id: String, state: State<'_, AppState>) -> Result<Scene, String> {
+    let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    db::restore_scene(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    let scene = db::get_scene_by_id(&conn, &uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Scene not found".to_string())?;
+
+    // Update project modified time
+    if let Some(project_id) =
+        db::get_chapter_project_id(&conn, &scene.chapter_id).map_err(|e| e.to_string())?
+    {
+        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+    }
+
+    Ok(scene)
+}
+
+#[derive(serde::Serialize)]
+pub struct ArchivedItems {
+    pub chapters: Vec<Chapter>,
+    pub scenes: Vec<Scene>,
+}
+
+#[tauri::command]
+pub async fn get_archived_items(
+    project_id: String,
+    state: State<'_, AppState>,
+) -> Result<ArchivedItems, String> {
+    let uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let chapters = db::get_archived_chapters(&conn, &uuid).map_err(|e| e.to_string())?;
+    let scenes = db::get_archived_scenes(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    Ok(ArchivedItems { chapters, scenes })
+}
+
+// ============================================================================
+// Lock Commands
+// ============================================================================
+
+#[tauri::command]
+pub async fn lock_chapter(chapter_id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    db::lock_chapter(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    // Update project modified time
+    if let Some(project_id) = db::get_chapter_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn unlock_chapter(chapter_id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    db::unlock_chapter(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    // Update project modified time
+    if let Some(project_id) = db::get_chapter_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn lock_scene(scene_id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    db::lock_scene(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    // Update project modified time
+    if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn unlock_scene(scene_id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    db::unlock_scene(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    // Update project modified time
+    if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
 }

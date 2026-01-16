@@ -1,9 +1,14 @@
 <script lang="ts">
-  import { FileText, ChevronRight, ChevronDown, Loader2, Plus, Pencil } from "lucide-svelte";
+  import { FileText, ChevronRight, ChevronDown, Loader2, Plus, Pencil, Lock } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Beat } from "../types";
+
+  // Check if scene is locked (either directly or via parent chapter)
+  const isLocked = $derived(
+    currentProject.currentScene?.locked || currentProject.currentChapter?.locked || false
+  );
 
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   let synopsisSaveTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -144,12 +149,22 @@
       <div class="max-w-3xl mx-auto p-8">
         <!-- Scene Title -->
         <header class="mb-8">
-          <h1
-            data-testid="scene-title"
-            class="text-3xl font-heading font-semibold text-text-primary"
-          >
-            {scene.title}
-          </h1>
+          <div class="flex items-center gap-3">
+            <h1
+              data-testid="scene-title"
+              class="text-3xl font-heading font-semibold text-text-primary"
+            >
+              {scene.title}
+            </h1>
+            {#if isLocked}
+              <span
+                class="flex items-center gap-1 px-2 py-1 bg-amber-500/10 text-amber-500 rounded-lg text-sm"
+              >
+                <Lock class="w-4 h-4" />
+                Locked
+              </span>
+            {/if}
+          </div>
           {#if currentProject.currentChapter}
             <p class="text-text-secondary text-sm mt-1">
               {currentProject.currentChapter.title}
@@ -157,13 +172,30 @@
           {/if}
         </header>
 
+        <!-- Locked Banner -->
+        {#if isLocked}
+          <div class="mb-8 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+            <div class="flex items-center gap-2 text-amber-500">
+              <Lock class="w-4 h-4" />
+              <span class="font-medium">This scene is locked</span>
+            </div>
+            <p class="text-text-secondary text-sm mt-1">
+              {#if currentProject.currentChapter?.locked}
+                The parent chapter is locked. Unlock the chapter to edit this scene.
+              {:else}
+                Unlock this scene from the sidebar to make changes.
+              {/if}
+            </p>
+          </div>
+        {/if}
+
         <!-- Synopsis -->
         <section class="mb-8">
           <div class="flex items-center justify-between mb-2">
             <h2 class="text-sm font-medium text-text-secondary uppercase tracking-wide">
               Synopsis
             </h2>
-            {#if scene.synopsis && !editingSynopsis}
+            {#if scene.synopsis && !editingSynopsis && !isLocked}
               <button
                 onclick={startEditingSynopsis}
                 class="text-text-secondary hover:text-text-primary transition-colors p-1"
@@ -173,7 +205,7 @@
               </button>
             {/if}
           </div>
-          {#if editingSynopsis}
+          {#if editingSynopsis && !isLocked}
             <div class="relative">
               <textarea
                 class="w-full min-h-[100px] bg-bg-card rounded-lg p-4 text-text-primary font-prose italic leading-relaxed resize-y border border-accent focus:outline-none"
@@ -199,7 +231,7 @@
                 {scene.synopsis}
               </p>
             </div>
-          {:else}
+          {:else if !isLocked}
             <button
               onclick={startEditingSynopsis}
               class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-bg-card text-text-secondary hover:text-text-primary hover:border-accent transition-colors"
@@ -207,6 +239,13 @@
               <Plus class="w-4 h-4" />
               <span class="text-sm">Add Synopsis</span>
             </button>
+          {:else}
+            <div
+              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-bg-card text-text-secondary/50"
+            >
+              <Lock class="w-4 h-4" />
+              <span class="text-sm">Scene is locked</span>
+            </div>
           {/if}
         </section>
 
@@ -214,7 +253,7 @@
         <section>
           <div class="flex items-center justify-between mb-4">
             <h2 class="text-sm font-medium text-text-secondary uppercase tracking-wide">Beats</h2>
-            {#if currentProject.beats.length > 0 && !addingBeat}
+            {#if currentProject.beats.length > 0 && !addingBeat && !isLocked}
               <button
                 onclick={startAddingBeat}
                 class="flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors text-sm"
@@ -259,9 +298,15 @@
                         <textarea
                           data-testid="beat-prose-textarea"
                           class="w-full min-h-[200px] bg-bg-card rounded-lg p-4 text-text-primary font-prose leading-relaxed resize-y border border-bg-card focus:border-accent focus:outline-none"
-                          placeholder="Write your prose for this beat..."
+                          class:opacity-60={isLocked}
+                          class:cursor-not-allowed={isLocked}
+                          placeholder={isLocked
+                            ? "Scene is locked"
+                            : "Write your prose for this beat..."}
                           value={beat.prose || ""}
-                          oninput={(e) => handleProseInput(beat.id, e.currentTarget.value)}
+                          oninput={(e) =>
+                            !isLocked && handleProseInput(beat.id, e.currentTarget.value)}
+                          readonly={isLocked}
                         ></textarea>
                         <!-- Subtle save indicator in bottom right -->
                         {#if ui.beatSaveStatus === "saving"}
@@ -298,7 +343,7 @@
                 </article>
               {/each}
             </div>
-          {:else if !addingBeat}
+          {:else if !addingBeat && !isLocked}
             <button
               onclick={startAddingBeat}
               class="w-full flex items-center justify-center gap-2 px-4 py-8 rounded-lg border border-dashed border-bg-card text-text-secondary hover:text-text-primary hover:border-accent transition-colors"
@@ -306,10 +351,17 @@
               <Plus class="w-4 h-4" />
               <span class="text-sm">Add Your First Beat</span>
             </button>
+          {:else if !addingBeat && isLocked}
+            <div
+              class="w-full flex items-center justify-center gap-2 px-4 py-8 rounded-lg border border-dashed border-bg-card text-text-secondary/50"
+            >
+              <Lock class="w-4 h-4" />
+              <span class="text-sm">Scene is locked</span>
+            </div>
           {/if}
 
           <!-- Add Beat Input -->
-          {#if addingBeat}
+          {#if addingBeat && !isLocked}
             <div class="mt-4 bg-bg-panel rounded-lg p-4">
               <input
                 type="text"

@@ -53,6 +53,23 @@ pub fn run() {
             commands::reimport_project,
             commands::get_sync_preview,
             commands::apply_sync,
+            // Rename commands
+            commands::rename_chapter,
+            commands::rename_scene,
+            // Duplicate commands
+            commands::duplicate_chapter,
+            commands::duplicate_scene,
+            // Archive commands
+            commands::archive_chapter,
+            commands::archive_scene,
+            commands::restore_chapter,
+            commands::restore_scene,
+            commands::get_archived_items,
+            // Lock commands
+            commands::lock_chapter,
+            commands::unlock_chapter,
+            commands::lock_scene,
+            commands::unlock_scene,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

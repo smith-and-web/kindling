@@ -11,6 +11,10 @@ pub struct Scene {
     pub position: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_id: Option<String>,
+    #[serde(default)]
+    pub archived: bool,
+    #[serde(default)]
+    pub locked: bool,
 }
 
 impl Scene {
@@ -23,6 +27,8 @@ impl Scene {
             prose: None,
             position,
             source_id: None,
+            archived: false,
+            locked: false,
         }
     }
 

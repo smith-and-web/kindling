@@ -142,6 +142,46 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
         conn.execute("ALTER TABLE beats ADD COLUMN source_id TEXT", [])?;
     }
 
+    // Migration: Add archived and locked columns to chapters
+    let columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(chapters)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if !columns.contains(&"archived".to_string()) {
+        conn.execute(
+            "ALTER TABLE chapters ADD COLUMN archived INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
+    if !columns.contains(&"locked".to_string()) {
+        conn.execute(
+            "ALTER TABLE chapters ADD COLUMN locked INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
+
+    // Migration: Add archived and locked columns to scenes
+    let columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(scenes)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if !columns.contains(&"archived".to_string()) {
+        conn.execute(
+            "ALTER TABLE scenes ADD COLUMN archived INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
+    if !columns.contains(&"locked".to_string()) {
+        conn.execute(
+            "ALTER TABLE scenes ADD COLUMN locked INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
+
     Ok(())
 }
 

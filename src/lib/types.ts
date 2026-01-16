@@ -16,6 +16,9 @@ export interface Chapter {
   project_id: string;
   title: string;
   position: number;
+  source_id?: string | null;
+  archived: boolean;
+  locked: boolean;
 }
 
 export interface Scene {
@@ -25,6 +28,14 @@ export interface Scene {
   synopsis: string | null;
   prose: string | null;
   position: number;
+  source_id?: string | null;
+  archived: boolean;
+  locked: boolean;
+}
+
+export interface ArchivedItems {
+  chapters: Chapter[];
+  scenes: Scene[];
 }
 
 export interface Beat {
