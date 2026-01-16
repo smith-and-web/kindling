@@ -1028,6 +1028,7 @@
           <p class="text-text-secondary text-sm mt-1">Review and select items to import</p>
         </div>
         <button
+          data-testid="sync-dialog-close"
           onclick={cancelSync}
           class="p-2 text-text-secondary hover:text-text-primary rounded-lg hover:bg-bg-card transition-colors"
         >
@@ -1247,14 +1248,14 @@
 <!-- Sync Summary Dialog -->
 {#if syncSummary}
   <div
-    data-testid="sync-summary-dialog"
+    data-testid="reimport-summary-dialog"
     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
     role="dialog"
     aria-modal="true"
   >
     <div class="bg-bg-panel rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
       <h3 class="text-lg font-heading font-medium text-text-primary mb-4">Sync Complete</h3>
-      <div data-testid="sync-summary" class="text-text-secondary text-sm space-y-2 mb-6">
+      <div data-testid="reimport-summary" class="text-text-secondary text-sm space-y-2 mb-6">
         {#if syncSummary.chapters_added === 0 && syncSummary.chapters_updated === 0 && syncSummary.scenes_added === 0 && syncSummary.scenes_updated === 0 && syncSummary.beats_added === 0 && syncSummary.beats_updated === 0}
           <p>No changes were applied.</p>
         {:else}

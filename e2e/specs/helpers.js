@@ -176,15 +176,26 @@ export async function restoreTestFile(originalName) {
 /**
  * Select a chapter in the sidebar by title
  * WebDriverIO doesn't support :has-text(), so we find all chapters and filter
+ * Note: WebKit getText() can return empty, so we use textContent property instead
  */
 export async function selectChapter(chapterTitle) {
   const chapters = await $$('[data-testid="chapter-item"]');
   for (const chapter of chapters) {
     const titleEl = await chapter.$('[data-testid="chapter-title"]');
     if (await titleEl.isExisting()) {
-      const text = await titleEl.getText();
-      if (text === chapterTitle) {
+      // Use textContent property instead of getText() for WebKit compatibility
+      const text = await browser.execute((el) => el.textContent, titleEl);
+      if (text && text.trim() === chapterTitle) {
         await chapter.click();
+        // Wait for scenes to load after clicking a chapter
+        // The loadScenes function is async and fetches from backend
+        await browser.waitUntil(
+          async () => {
+            const scenes = await $$('[data-testid="scene-item"]');
+            return scenes.length > 0;
+          },
+          { timeout: 5000, timeoutMsg: "Scenes did not load after selecting chapter" }
+        );
         return;
       }
     }
@@ -195,15 +206,26 @@ export async function selectChapter(chapterTitle) {
 /**
  * Select a scene in the sidebar by title
  * WebDriverIO doesn't support :has-text(), so we find all scenes and filter
+ * Note: WebKit getText() can return empty, so we use textContent property instead
  */
 export async function selectScene(sceneTitle) {
   const scenes = await $$('[data-testid="scene-item"]');
   for (const scene of scenes) {
     const titleEl = await scene.$('[data-testid="scene-title"]');
     if (await titleEl.isExisting()) {
-      const text = await titleEl.getText();
-      if (text === sceneTitle) {
+      // Use textContent property instead of getText() for WebKit compatibility
+      const text = await browser.execute((el) => el.textContent, titleEl);
+      if (text && text.trim() === sceneTitle) {
         await scene.click();
+        // Wait for beats to load after clicking a scene
+        // The selectScene function in Sidebar.svelte calls get_beats asynchronously
+        await browser.waitUntil(
+          async () => {
+            const beats = await $$('[data-testid="beat-header"]');
+            return beats.length > 0;
+          },
+          { timeout: 5000, timeoutMsg: "Beats did not load after selecting scene" }
+        );
         return;
       }
     }
@@ -230,14 +252,22 @@ export async function typeProse(text) {
 }
 
 /**
- * Wait for save indicator to show "Saved"
+ * Wait for save to complete
+ * The UI shows "Saving..." indicator during save, then hides it when complete.
+ * We wait for the indicator to appear (save started) then disappear (save complete).
  */
 export async function waitForSaved() {
+  // First, check if save indicator is visible (saving in progress)
+  // Give it a moment for the save to potentially start
+  await browser.pause(200);
+
+  // Wait for save to complete by waiting for indicator to disappear
+  // The indicator only shows during "saving" state, and goes to "idle" after ~1s
   await browser.waitUntil(
     async () => {
       const indicator = await $('[data-testid="save-indicator"]');
-      const text = await indicator.getText();
-      return text.includes("Saved");
+      // Save is complete when the indicator no longer exists
+      return !(await indicator.isExisting());
     },
     { timeout: 5000, timeoutMsg: "Save did not complete" }
   );
@@ -266,6 +296,16 @@ export async function submitTitleInput(title) {
   const input = await $('[data-testid="title-input"]');
   await input.setValue(title);
   await browser.keys("Enter");
+  // Wait for input to disappear (item created)
+  await browser.waitUntil(
+    async () => {
+      const inp = await $('[data-testid="title-input"]');
+      return !(await inp.isExisting());
+    },
+    { timeout: 3000, timeoutMsg: "Title input did not close after Enter" }
+  );
+  // Small delay for UI to update
+  await browser.pause(200);
 }
 
 /**
@@ -280,7 +320,14 @@ export async function cancelTitleInput() {
  */
 export async function getChapterTitles() {
   const chapters = await $$('[data-testid="chapter-title"]');
-  return Promise.all(chapters.map((c) => c.getText()));
+  // Use textContent property instead of getText() for WebKit compatibility
+  // Iterate manually because browser.execute doesn't work well with .map() on element arrays
+  const titles = [];
+  for (const chapter of chapters) {
+    const text = await browser.execute((el) => el.textContent?.trim() || "", chapter);
+    titles.push(text);
+  }
+  return titles;
 }
 
 /**
@@ -288,5 +335,108 @@ export async function getChapterTitles() {
  */
 export async function getSceneTitles() {
   const scenes = await $$('[data-testid="scene-title"]');
-  return Promise.all(scenes.map((s) => s.getText()));
+  // Use textContent property instead of getText() for WebKit compatibility
+  // Iterate manually because browser.execute doesn't work well with .map() on element arrays
+  const titles = [];
+  for (const scene of scenes) {
+    const text = await browser.execute((el) => el.textContent?.trim() || "", scene);
+    titles.push(text);
+  }
+  return titles;
+}
+
+/**
+ * Open context menu for an element (chapter or scene item)
+ * Uses the 3-dot menu button which appears on hover
+ */
+export async function openContextMenuFor(element) {
+  // Scroll element into view
+  await element.scrollIntoView();
+
+  // Hover to make menu button visible
+  await element.moveTo();
+  await browser.pause(300); // Wait for hover state to register
+
+  // Find and click the menu button inside this element
+  const menuButton = await element.$('[data-testid="menu-button"]');
+  if (!(await menuButton.isExisting())) {
+    throw new Error("Menu button not found in element");
+  }
+
+  // Force click even if not visually displayed (opacity:0 is still clickable)
+  await menuButton.click();
+
+  // Wait for context menu to appear
+  await browser.waitUntil(
+    async () => {
+      const menu = await $('[data-testid="context-menu"]');
+      return await menu.isExisting();
+    },
+    { timeout: 3000, timeoutMsg: "Context menu did not appear" }
+  );
+}
+
+/**
+ * Click a context menu item by label
+ */
+export async function clickContextMenuItem(label) {
+  const menuItems = await $$('[data-testid="context-menu-item"]');
+  for (const item of menuItems) {
+    const itemLabel = await item.getAttribute("data-label");
+    if (itemLabel === label) {
+      await item.click();
+      // Wait for menu to close
+      await browser.waitUntil(
+        async () => {
+          const menu = await $('[data-testid="context-menu"]');
+          return !(await menu.isExisting());
+        },
+        { timeout: 2000 }
+      );
+      return;
+    }
+  }
+  throw new Error(`Context menu item "${label}" not found`);
+}
+
+/**
+ * Perform drag-drop using mouse events (not WebDriver's dragAndDrop)
+ * This works with custom mouse-event-based drag implementations
+ */
+export async function dragWithMouseEvents(fromElement, toElement) {
+  // Get the drag handle from the element
+  const handle = await fromElement.$('[data-testid="drag-handle"]');
+
+  // Get element positions
+  const handleLocation = await handle.getLocation();
+  const handleSize = await handle.getSize();
+  const toLocation = await toElement.getLocation();
+  const toSize = await toElement.getSize();
+
+  // Calculate center points
+  const fromX = Math.floor(handleLocation.x + handleSize.width / 2);
+  const fromY = Math.floor(handleLocation.y + handleSize.height / 2);
+  const toX = Math.floor(toLocation.x + toSize.width / 2);
+  const toY = Math.floor(toLocation.y + toSize.height / 2);
+
+  // Perform the drag using Actions API
+  await browser.performActions([
+    {
+      type: "pointer",
+      id: "mouse",
+      parameters: { pointerType: "mouse" },
+      actions: [
+        { type: "pointerMove", duration: 0, x: fromX, y: fromY },
+        { type: "pointerDown", button: 0 },
+        { type: "pause", duration: 100 },
+        { type: "pointerMove", duration: 200, x: toX, y: toY },
+        { type: "pause", duration: 100 },
+        { type: "pointerUp", button: 0 },
+      ],
+    },
+  ]);
+
+  // Clean up actions
+  await browser.releaseActions();
+  await browser.pause(300); // Wait for UI to update
 }

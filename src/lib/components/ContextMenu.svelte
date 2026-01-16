@@ -78,6 +78,7 @@
 
 <div
   bind:this={menuRef}
+  data-testid="context-menu"
   class="fixed z-50 min-w-[160px] bg-bg-panel border border-bg-card rounded-lg shadow-lg py-1 overflow-hidden"
   style="left: {adjustedX}px; top: {adjustedY}px;"
   role="menu"
@@ -90,6 +91,8 @@
       <button
         type="button"
         role="menuitem"
+        data-testid="context-menu-item"
+        data-label={item.label}
         class="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors"
         class:text-text-primary={!item.disabled && !item.danger}
         class:text-red-400={item.danger && !item.disabled}
