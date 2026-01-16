@@ -9,6 +9,12 @@ pub struct Scene {
     pub synopsis: Option<String>,
     pub prose: Option<String>,
     pub position: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_id: Option<String>,
+    #[serde(default)]
+    pub archived: bool,
+    #[serde(default)]
+    pub locked: bool,
 }
 
 impl Scene {
@@ -20,6 +26,14 @@ impl Scene {
             synopsis,
             prose: None,
             position,
+            source_id: None,
+            archived: false,
+            locked: false,
         }
+    }
+
+    pub fn with_source_id(mut self, source_id: Option<String>) -> Self {
+        self.source_id = source_id;
+        self
     }
 }

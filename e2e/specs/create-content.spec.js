@@ -6,6 +6,8 @@
 
 import {
   waitForAppReady,
+  skipOnboardingIfPresent,
+  importPlottrFile,
   selectChapter,
   clickNewChapter,
   clickNewScene,
@@ -16,8 +18,10 @@ import {
 } from "./helpers.js";
 
 describe("Create Chapters and Scenes (#15)", () => {
-  beforeEach(async () => {
+  before(async () => {
     await waitForAppReady();
+    await skipOnboardingIfPresent();
+    await importPlottrFile("simple-story.pltr");
   });
 
   describe("Creating Chapters", () => {
