@@ -296,6 +296,16 @@ export async function submitTitleInput(title) {
   const input = await $('[data-testid="title-input"]');
   await input.setValue(title);
   await browser.keys("Enter");
+  // Wait for input to disappear (item created)
+  await browser.waitUntil(
+    async () => {
+      const inp = await $('[data-testid="title-input"]');
+      return !(await inp.isExisting());
+    },
+    { timeout: 3000, timeoutMsg: "Title input did not close after Enter" }
+  );
+  // Small delay for UI to update
+  await browser.pause(200);
 }
 
 /**

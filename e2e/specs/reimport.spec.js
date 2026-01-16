@@ -172,9 +172,18 @@ describe("Re-import to Update Project (#40)", () => {
         { timeout: 10000 }
       );
 
-      // Close the preview dialog (don't apply anything)
-      await browser.keys("Escape");
-      await browser.pause(300);
+      // Close the preview dialog by clicking X button (Escape doesn't work)
+      const closeBtn = await $('[data-testid="sync-dialog-close"]');
+      await closeBtn.click();
+
+      // Wait for dialog to close
+      await browser.waitUntil(
+        async () => {
+          const d = await $('[data-testid="sync-preview-dialog"]');
+          return !(await d.isExisting());
+        },
+        { timeout: 3000 }
+      );
 
       // Go back to the same scene and beat
       await selectChapter("Act 1");
