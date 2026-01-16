@@ -18,6 +18,9 @@ const SIDEBAR_WIDTH = 256; // w-64
 // Onboarding storage
 const ONBOARDING_COMPLETED_KEY = "kindling:onboardingCompleted";
 
+// Sync confirmation preference
+const SKIP_SYNC_CONFIRMATION_KEY = "kindling:skipSyncConfirmation";
+
 const ONBOARDING_STEPS: OnboardingStep[] = [
   "welcome",
   "tour-sidebar",
@@ -43,6 +46,9 @@ class UIStore {
   private _onboardingStep = $state<OnboardingStep>("welcome");
   private _onboardingCompleted = $state(false);
 
+  // Sync confirmation preference
+  private _skipSyncConfirmation = $state(false);
+
   constructor() {
     // Load saved panel width from localStorage
     if (typeof window !== "undefined") {
@@ -59,6 +65,10 @@ class UIStore {
       this._onboardingCompleted = onboardingCompleted === "true";
       // Show onboarding if not completed
       this._showOnboarding = !this._onboardingCompleted;
+
+      // Load sync confirmation preference
+      const skipSync = localStorage.getItem(SKIP_SYNC_CONFIRMATION_KEY);
+      this._skipSyncConfirmation = skipSync === "true";
 
       // Clamp width on window resize
       window.addEventListener("resize", () => {
@@ -249,6 +259,18 @@ class UIStore {
     this._onboardingCompleted = false;
     if (typeof window !== "undefined") {
       localStorage.removeItem(ONBOARDING_COMPLETED_KEY);
+    }
+  }
+
+  // Sync confirmation preference
+  get skipSyncConfirmation() {
+    return this._skipSyncConfirmation;
+  }
+
+  setSkipSyncConfirmation(skip: boolean) {
+    this._skipSyncConfirmation = skip;
+    if (typeof window !== "undefined") {
+      localStorage.setItem(SKIP_SYNC_CONFIRMATION_KEY, String(skip));
     }
   }
 }

@@ -48,6 +48,8 @@
 
   // Reimport state
   let reimporting = $state(false);
+  let showSyncConfirmation = $state(false);
+  let dontShowSyncAgain = $state(false);
   let reimportSummary: {
     chapters_added: number;
     chapters_updated: number;
@@ -370,8 +372,33 @@
     currentDragOverElement = null;
   }
 
-  // === Reimport ===
-  async function handleReimport() {
+  // === Reimport/Sync ===
+  function handleSyncClick() {
+    if (!currentProject.value) return;
+    // Skip confirmation if user has opted out
+    if (ui.skipSyncConfirmation) {
+      performSync();
+    } else {
+      showSyncConfirmation = true;
+    }
+  }
+
+  function cancelSync() {
+    showSyncConfirmation = false;
+    dontShowSyncAgain = false;
+  }
+
+  async function confirmSync() {
+    // Save preference if checkbox was checked
+    if (dontShowSyncAgain) {
+      ui.setSkipSyncConfirmation(true);
+    }
+    showSyncConfirmation = false;
+    dontShowSyncAgain = false;
+    await performSync();
+  }
+
+  async function performSync() {
     if (!currentProject.value) return;
     reimporting = true;
     try {
@@ -382,7 +409,7 @@
       // Reload content
       await loadChapters();
     } catch (e) {
-      console.error("Failed to reimport:", e);
+      console.error("Failed to sync:", e);
     } finally {
       reimporting = false;
     }
@@ -483,17 +510,18 @@
         {#if currentProject.value.source_path}
           <button
             data-testid="reimport-button"
-            onclick={handleReimport}
+            onclick={handleSyncClick}
             disabled={reimporting}
-            class="flex items-center justify-center px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded-lg transition-colors disabled:opacity-50"
-            aria-label="Re-import from source"
-            title="Re-import from source file"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded-lg transition-colors disabled:opacity-50"
+            aria-label="Sync from source"
+            title="Sync from source file"
           >
             {#if reimporting}
               <Loader2 data-testid="reimport-spinner" class="w-3.5 h-3.5 animate-spin" />
             {:else}
               <RefreshCw class="w-3.5 h-3.5" />
             {/if}
+            <span>Sync</span>
           </button>
         {/if}
       </div>
@@ -722,6 +750,50 @@
   >
     <ChevronsRight class="w-5 h-5" />
   </button>
+{/if}
+
+<!-- Sync Confirmation Dialog -->
+{#if showSyncConfirmation}
+  <div
+    data-testid="sync-confirmation-dialog"
+    class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+    role="dialog"
+    aria-modal="true"
+  >
+    <div class="bg-bg-panel rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+      <h3 class="text-lg font-heading font-medium text-text-primary mb-4">Sync from Source</h3>
+      <div class="text-text-secondary text-sm space-y-3 mb-6">
+        <p>This will update your project with any changes from the source file.</p>
+        <p class="text-text-secondary/80">
+          Your prose edits will be preserved. New chapters, scenes, and beats from the source will
+          be added.
+        </p>
+      </div>
+      <label class="flex items-center gap-2 text-sm text-text-secondary mb-6 cursor-pointer">
+        <input
+          type="checkbox"
+          bind:checked={dontShowSyncAgain}
+          class="w-4 h-4 rounded border-bg-card bg-bg-card text-accent focus:ring-accent focus:ring-offset-0"
+        />
+        <span>Don't show this again</span>
+      </label>
+      <div class="flex gap-3">
+        <button
+          onclick={cancelSync}
+          class="flex-1 px-4 py-2 text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          data-testid="sync-confirm"
+          onclick={confirmSync}
+          class="flex-1 px-4 py-2 bg-accent text-white rounded hover:bg-accent/80 transition-colors"
+        >
+          Sync
+        </button>
+      </div>
+    </div>
+  </div>
 {/if}
 
 <!-- Delete Confirmation Dialog -->

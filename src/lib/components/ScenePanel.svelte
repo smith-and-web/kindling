@@ -19,13 +19,10 @@
     try {
       await invoke("save_beat_prose", { beatId, prose });
       currentProject.updateBeatProse(beatId, prose);
-      ui.setBeatSaveStatus("saved");
-      // Reset to idle after 2 seconds
+      // Keep showing "saving" for 1 more second so user sees the indicator
       setTimeout(() => {
-        if (ui.beatSaveStatus === "saved") {
-          ui.setBeatSaveStatus("idle");
-        }
-      }, 2000);
+        ui.setBeatSaveStatus("idle");
+      }, 1000);
     } catch (e) {
       console.error("Failed to save beat prose:", e);
       ui.setBeatSaveStatus("error");
@@ -133,9 +130,10 @@
                         {#if ui.beatSaveStatus === "saving"}
                           <div
                             data-testid="save-indicator"
-                            class="absolute bottom-3 right-3 text-text-secondary/50"
+                            class="absolute bottom-3 right-3 flex items-center gap-1.5 text-text-secondary/50"
                           >
-                            <Loader2 class="w-4 h-4 animate-spin" />
+                            <Loader2 class="w-3.5 h-3.5 animate-spin" />
+                            <span class="text-xs">Saving...</span>
                           </div>
                         {:else if ui.beatSaveStatus === "error"}
                           <div
