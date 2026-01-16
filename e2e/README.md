@@ -149,6 +149,84 @@ Screenshots are automatically saved to `e2e/screenshots/` when tests fail.
 npm test -- --watch
 ```
 
+## Prerequisites
+
+Before running E2E tests locally, ensure you have:
+
+### Linux
+
+```bash
+# Install WebKit driver and display dependencies
+sudo apt-get install -y webkit2gtk-driver xvfb
+
+# Install tauri-driver (Rust WebDriver server for Tauri)
+cargo install tauri-driver
+```
+
+### Windows
+
+```powershell
+# Install msedgedriver (must match your Edge version)
+# Download from: https://developer.microsoft.com/microsoft-edge/tools/webdriver/
+
+# Install tauri-driver
+cargo install tauri-driver
+```
+
+## Troubleshooting
+
+### "Could not find Tauri binary"
+
+You need to build the Tauri app before running E2E tests:
+
+```bash
+npm run tauri build
+```
+
+For faster iteration during development, you can use debug builds:
+
+```bash
+npm run tauri build -- --debug
+```
+
+### "tauri-driver not found"
+
+Install the tauri-driver:
+
+```bash
+cargo install tauri-driver
+```
+
+Make sure `~/.cargo/bin` is in your PATH.
+
+### Tests hang or timeout
+
+1. **On Linux without a display**: Use Xvfb for a virtual display:
+   ```bash
+   Xvfb :99 -screen 0 1920x1080x24 &
+   export DISPLAY=:99
+   npm test
+   ```
+
+2. **Connection refused errors**: Ensure no other tauri-driver instance is running on port 4444:
+   ```bash
+   lsof -i :4444  # Check what's using the port
+   ```
+
+### "macOS does not support WebDriver testing"
+
+This is expected. macOS lacks a WebDriver for WKWebView. Run E2E tests:
+- In CI (automatically runs on Linux)
+- On a Linux machine or VM
+- Using Docker (experimental)
+
+### Test flakiness
+
+If tests are flaky, try:
+1. Increase timeouts in `wdio.conf.js`
+2. Add explicit waits using `browser.waitUntil()`
+3. Ensure unique `data-testid` attributes
+
 ## CI Configuration
 
 The E2E workflow (`.github/workflows/e2e.yml`) does:
@@ -160,3 +238,15 @@ The E2E workflow (`.github/workflows/e2e.yml`) does:
 5. Uploads screenshots and logs as artifacts
 
 Tests run on every push to `main` and on pull requests.
+
+## Running from Project Root
+
+You can also run E2E tests from the project root using convenience scripts:
+
+```bash
+# From project root (after building)
+npm run test:e2e
+
+# For CI/headless mode
+npm run test:e2e:ci
+```

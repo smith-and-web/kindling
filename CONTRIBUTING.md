@@ -103,14 +103,51 @@ npm run tauri dev
 ### Running Tests
 
 ```bash
-# Frontend tests
+# Frontend unit tests
 npm test
 
-# Frontend linting
-npm run lint
+# Frontend unit tests in watch mode
+npm run test:watch
+
+# Frontend test coverage
+npm run test:coverage
 
 # Rust tests
 cd src-tauri && cargo test
+
+# E2E tests (Linux/Windows only - requires built app)
+npm run tauri build
+npm run test:e2e
+
+# Run all tests (unit + e2e)
+npm run test:all
+```
+
+### E2E Testing
+
+E2E tests use WebdriverIO with Tauri's WebDriver support. See [`e2e/README.md`](./e2e/README.md) for detailed documentation.
+
+**Important notes:**
+- E2E tests require a built Tauri binary (`npm run tauri build`)
+- macOS does not support local E2E testing (no WKWebView WebDriver)
+- E2E tests run automatically in CI on Linux
+
+```bash
+# Quick E2E setup on Linux
+sudo apt-get install -y webkit2gtk-driver xvfb
+cargo install tauri-driver
+npm run tauri build
+npm run test:e2e
+```
+
+### Linting
+
+```bash
+# Frontend linting
+npm run lint
+
+# Auto-fix lint issues
+npm run lint:fix
 
 # Rust linting
 cd src-tauri && cargo clippy

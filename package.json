@@ -16,6 +16,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "npm test --prefix e2e",
+    "test:e2e:ci": "npm run test:ci --prefix e2e",
+    "test:all": "npm test && npm run test:e2e",
     "prepare": "git config core.hooksPath .githooks"
   },
   "license": "MIT",

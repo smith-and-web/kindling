@@ -111,6 +111,7 @@ jobs:
           path: |
             e2e/logs/
             e2e/screenshots/
+            e2e/results/
           retention-days: 7
           if-no-files-found: ignore
 
@@ -122,3 +123,12 @@ jobs:
           path: e2e/screenshots/
           retention-days: 14
           if-no-files-found: ignore
+
+      - name: Publish JUnit Test Results
+        if: always()
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: "e2e/results/*.xml"
+          fail_on_failure: false
+          include_passed: true
+          detailed_summary: true

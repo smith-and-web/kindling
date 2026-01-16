@@ -1,10 +1,52 @@
-import { spawn } from "child_process";
+import { spawn, execSync } from "child_process";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
+
+// Get the cargo bin directory
+const cargoHome = process.env.CARGO_HOME || `${process.env.HOME}/.cargo`;
+const tauriDriverPath = `${cargoHome}/bin/tauri-driver`;
+
+/**
+ * Validate that all E2E test prerequisites are met
+ * Provides helpful error messages for common issues
+ */
+function validatePrerequisites() {
+  const errors = [];
+
+  // Check if tauri-driver is installed
+  if (!existsSync(tauriDriverPath)) {
+    errors.push(
+      `tauri-driver not found at ${tauriDriverPath}\n` +
+        `  Install it with: cargo install tauri-driver\n` +
+        `  Ensure ~/.cargo/bin is in your PATH`
+    );
+  } else {
+    // Verify tauri-driver is executable
+    try {
+      execSync(`"${tauriDriverPath}" --version`, { stdio: "pipe" });
+    } catch {
+      errors.push(
+        `tauri-driver exists but failed to execute.\n` +
+          `  Try reinstalling: cargo install tauri-driver --force`
+      );
+    }
+  }
+
+  // Check if test-data directory exists
+  const testDataDir = resolve(projectRoot, "test-data");
+  if (!existsSync(testDataDir)) {
+    errors.push(
+      `test-data directory not found at ${testDataDir}\n` +
+        `  This directory contains test fixtures needed for E2E tests`
+    );
+  }
+
+  return errors;
+}
 
 // Find the built Tauri binary
 function findTauriBinary() {
@@ -35,9 +77,14 @@ function findTauriBinary() {
     }
   }
 
+  const searchedPaths = paths.map((p) => resolve(projectRoot, p));
   throw new Error(
-    `Could not find Tauri binary. Run 'npm run tauri build' first.\n` +
-      `Searched: ${paths.map((p) => resolve(projectRoot, p)).join(", ")}`
+    `Could not find Tauri binary.\n\n` +
+      `To fix this, build the app first:\n` +
+      `  npm run tauri build\n\n` +
+      `For faster development builds:\n` +
+      `  npm run tauri build -- --debug\n\n` +
+      `Searched locations:\n${searchedPaths.map((p) => `  - ${p}`).join("\n")}`
   );
 }
 
@@ -101,29 +148,58 @@ export const config = {
     timeout: 60000,
   },
 
-  // Reporters
-  reporters: ["spec"],
+  // Reporters - spec for console, junit for CI integration
+  reporters: [
+    "spec",
+    [
+      "junit",
+      {
+        outputDir: "./results",
+        outputFileFormat: function (options) {
+          return `e2e-results-${options.cid}.xml`;
+        },
+      },
+    ],
+  ],
+
+  // Screenshots directory
+  screenshotPath: "./screenshots",
 
   // Hooks
   onPrepare: async function () {
     const platform = process.platform;
 
+    // macOS doesn't support WebDriver for WKWebView
     if (platform === "darwin") {
-      console.warn(
-        "macOS does not support WebDriver testing (no WKWebView driver)."
-      );
-      console.warn("   E2E tests will run in CI on Linux instead.");
+      console.warn("\n╔════════════════════════════════════════════════════════╗");
+      console.warn("║  macOS does not support WebDriver testing              ║");
+      console.warn("║  (no WKWebView driver available)                       ║");
+      console.warn("║                                                        ║");
+      console.warn("║  E2E tests run automatically in CI on Linux.           ║");
+      console.warn("║  For local testing, use a Linux VM or container.       ║");
+      console.warn("╚════════════════════════════════════════════════════════╝\n");
       process.exit(0);
     }
+
+    // Validate prerequisites
+    const errors = validatePrerequisites();
+    if (errors.length > 0) {
+      console.error("\n╔════════════════════════════════════════════════════════╗");
+      console.error("║  E2E Test Prerequisites Not Met                        ║");
+      console.error("╚════════════════════════════════════════════════════════╝\n");
+      errors.forEach((error) => {
+        console.error(`❌ ${error}\n`);
+      });
+      console.error("See e2e/README.md for setup instructions.\n");
+      process.exit(1);
+    }
+
+    console.log("\n✅ All E2E prerequisites validated\n");
   },
 
   // Start tauri-driver before each session
   beforeSession: async function () {
     console.log("Starting tauri-driver...");
-
-    // Get the cargo bin directory
-    const cargoHome = process.env.CARGO_HOME || `${process.env.HOME}/.cargo`;
-    const tauriDriverPath = `${cargoHome}/bin/tauri-driver`;
 
     tauriDriver = spawn(tauriDriverPath, [], {
       stdio: ["ignore", "pipe", "pipe"],
@@ -149,6 +225,22 @@ export const config = {
     // Give tauri-driver time to start and bind to port
     await new Promise((resolve) => setTimeout(resolve, 2000));
     console.log("tauri-driver should be ready on 127.0.0.1:4444");
+  },
+
+  // Capture screenshot on test failure
+  afterTest: async function (test, context, { error, passed }) {
+    if (!passed && error) {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const testName = test.title.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 50);
+      const filename = `${testName}-${timestamp}.png`;
+
+      try {
+        await browser.saveScreenshot(`./screenshots/${filename}`);
+        console.log(`📸 Screenshot saved: screenshots/${filename}`);
+      } catch (screenshotError) {
+        console.warn(`Failed to save screenshot: ${screenshotError.message}`);
+      }
+    }
   },
 
   // Stop tauri-driver after each session
