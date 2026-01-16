@@ -1,10 +1,22 @@
 <script lang="ts">
-  import { FileText, ChevronRight, ChevronDown, Loader2 } from "lucide-svelte";
+  import { FileText, ChevronRight, ChevronDown, Loader2, Plus, Pencil } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
+  import type { Beat } from "../types";
 
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  let synopsisSaveTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // Synopsis editing state
+  let editingSynopsis = $state(false);
+  let synopsisText = $state("");
+  let synopsisSaving = $state(false);
+
+  // New beat state
+  let addingBeat = $state(false);
+  let newBeatContent = $state("");
+  let creatingBeat = $state(false);
 
   function toggleBeat(beatId: string) {
     if (ui.expandedBeatId === beatId) {
@@ -40,8 +52,85 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === "Escape" && ui.expandedBeatId) {
-      ui.setExpandedBeat(null);
+    if (e.key === "Escape") {
+      if (ui.expandedBeatId) {
+        ui.setExpandedBeat(null);
+      }
+      if (editingSynopsis) {
+        editingSynopsis = false;
+      }
+      if (addingBeat) {
+        addingBeat = false;
+        newBeatContent = "";
+      }
+    }
+  }
+
+  // Synopsis functions
+  function startEditingSynopsis() {
+    synopsisText = currentProject.currentScene?.synopsis || "";
+    editingSynopsis = true;
+  }
+
+  async function saveSynopsis() {
+    if (!currentProject.currentScene) return;
+    synopsisSaving = true;
+    try {
+      const synopsis = synopsisText.trim() || null;
+      await invoke("save_scene_synopsis", {
+        sceneId: currentProject.currentScene.id,
+        synopsis,
+      });
+      currentProject.updateSceneSynopsis(currentProject.currentScene.id, synopsis);
+      editingSynopsis = false;
+    } catch (e) {
+      console.error("Failed to save synopsis:", e);
+    } finally {
+      synopsisSaving = false;
+    }
+  }
+
+  function handleSynopsisInput(value: string) {
+    synopsisText = value;
+    // Debounce auto-save
+    if (synopsisSaveTimeout) {
+      clearTimeout(synopsisSaveTimeout);
+    }
+    synopsisSaveTimeout = setTimeout(() => {
+      saveSynopsis();
+    }, 1000);
+  }
+
+  // Beat functions
+  function startAddingBeat() {
+    addingBeat = true;
+    newBeatContent = "";
+  }
+
+  async function createBeat() {
+    if (!currentProject.currentScene || !newBeatContent.trim()) return;
+    creatingBeat = true;
+    try {
+      const beat = await invoke<Beat>("create_beat", {
+        sceneId: currentProject.currentScene.id,
+        content: newBeatContent.trim(),
+      });
+      currentProject.addBeat(beat);
+      addingBeat = false;
+      newBeatContent = "";
+      // Auto-expand the new beat for immediate editing
+      ui.setExpandedBeat(beat.id);
+    } catch (e) {
+      console.error("Failed to create beat:", e);
+    } finally {
+      creatingBeat = false;
+    }
+  }
+
+  function handleNewBeatKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      createBeat();
     }
   }
 </script>
@@ -69,25 +158,73 @@
         </header>
 
         <!-- Synopsis -->
-        {#if scene.synopsis}
-          <section class="mb-8">
-            <h2 class="text-sm font-medium text-text-secondary uppercase tracking-wide mb-2">
+        <section class="mb-8">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-sm font-medium text-text-secondary uppercase tracking-wide">
               Synopsis
             </h2>
+            {#if scene.synopsis && !editingSynopsis}
+              <button
+                onclick={startEditingSynopsis}
+                class="text-text-secondary hover:text-text-primary transition-colors p-1"
+                aria-label="Edit synopsis"
+              >
+                <Pencil class="w-3.5 h-3.5" />
+              </button>
+            {/if}
+          </div>
+          {#if editingSynopsis}
+            <div class="relative">
+              <textarea
+                class="w-full min-h-[100px] bg-bg-card rounded-lg p-4 text-text-primary font-prose italic leading-relaxed resize-y border border-accent focus:outline-none"
+                placeholder="Write a brief synopsis for this scene..."
+                bind:value={synopsisText}
+                oninput={(e) => handleSynopsisInput(e.currentTarget.value)}
+              ></textarea>
+              {#if synopsisSaving}
+                <div
+                  class="absolute bottom-3 right-3 flex items-center gap-1.5 text-text-secondary/50"
+                >
+                  <Loader2 class="w-3.5 h-3.5 animate-spin" />
+                  <span class="text-xs">Saving...</span>
+                </div>
+              {/if}
+            </div>
+            <p class="text-text-secondary text-xs mt-2">
+              Press Escape to close. Changes are saved automatically.
+            </p>
+          {:else if scene.synopsis}
             <div class="bg-bg-panel rounded-lg p-4 border-l-2 border-accent">
               <p class="text-text-primary font-prose italic">
                 {scene.synopsis}
               </p>
             </div>
-          </section>
-        {/if}
+          {:else}
+            <button
+              onclick={startEditingSynopsis}
+              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-bg-card text-text-secondary hover:text-text-primary hover:border-accent transition-colors"
+            >
+              <Plus class="w-4 h-4" />
+              <span class="text-sm">Add Synopsis</span>
+            </button>
+          {/if}
+        </section>
 
         <!-- Beats -->
-        {#if currentProject.beats.length > 0}
-          <section>
-            <h2 class="text-sm font-medium text-text-secondary uppercase tracking-wide mb-4">
-              Beats
-            </h2>
+        <section>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-medium text-text-secondary uppercase tracking-wide">Beats</h2>
+            {#if currentProject.beats.length > 0 && !addingBeat}
+              <button
+                onclick={startAddingBeat}
+                class="flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors text-sm"
+              >
+                <Plus class="w-3.5 h-3.5" />
+                <span>Add Beat</span>
+              </button>
+            {/if}
+          </div>
+          {#if currentProject.beats.length > 0}
             <div class="space-y-4">
               {#each currentProject.beats as beat, index (beat.id)}
                 {@const isExpanded = ui.expandedBeatId === beat.id}
@@ -161,12 +298,56 @@
                 </article>
               {/each}
             </div>
-          </section>
-        {:else}
-          <section class="text-center py-8">
-            <p class="text-text-secondary">No beats in this scene</p>
-          </section>
-        {/if}
+          {:else if !addingBeat}
+            <button
+              onclick={startAddingBeat}
+              class="w-full flex items-center justify-center gap-2 px-4 py-8 rounded-lg border border-dashed border-bg-card text-text-secondary hover:text-text-primary hover:border-accent transition-colors"
+            >
+              <Plus class="w-4 h-4" />
+              <span class="text-sm">Add Your First Beat</span>
+            </button>
+          {/if}
+
+          <!-- Add Beat Input -->
+          {#if addingBeat}
+            <div class="mt-4 bg-bg-panel rounded-lg p-4">
+              <input
+                type="text"
+                class="w-full bg-bg-card rounded-lg px-4 py-3 text-text-primary text-sm border border-accent focus:outline-none"
+                placeholder="Describe what happens in this beat..."
+                bind:value={newBeatContent}
+                onkeydown={handleNewBeatKeydown}
+                disabled={creatingBeat}
+              />
+              <div class="flex items-center justify-between mt-3">
+                <p class="text-text-secondary text-xs">Press Enter to create, Escape to cancel</p>
+                <div class="flex gap-2">
+                  <button
+                    onclick={() => {
+                      addingBeat = false;
+                      newBeatContent = "";
+                    }}
+                    class="px-3 py-1.5 text-text-secondary hover:text-text-primary text-sm transition-colors"
+                    disabled={creatingBeat}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onclick={createBeat}
+                    disabled={creatingBeat || !newBeatContent.trim()}
+                    class="px-3 py-1.5 bg-accent text-white text-sm rounded hover:bg-accent/80 transition-colors disabled:opacity-50"
+                  >
+                    {#if creatingBeat}
+                      <Loader2 class="w-4 h-4 animate-spin" />
+                    {:else}
+                      Create Beat
+                    {/if}
+                  </button>
+                </div>
+              </div>
+            </div>
+          {/if}
+        </section>
 
         <!-- Scene Prose (if exists and no beats) -->
         {#if scene.prose && currentProject.beats.length === 0}

@@ -97,6 +97,19 @@ class ProjectStore {
     this.beats = this.beats.map((beat) => (beat.id === beatId ? { ...beat, prose } : beat));
   }
 
+  addBeat(beat: Beat) {
+    this.beats = [...this.beats, beat];
+  }
+
+  updateSceneSynopsis(sceneId: string, synopsis: string | null) {
+    this.scenes = this.scenes.map((scene) =>
+      scene.id === sceneId ? { ...scene, synopsis } : scene
+    );
+    if (this.currentScene?.id === sceneId) {
+      this.currentScene = { ...this.currentScene, synopsis };
+    }
+  }
+
   setCharacters(characters: Character[]) {
     this.characters = characters;
   }

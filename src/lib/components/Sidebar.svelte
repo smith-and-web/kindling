@@ -16,7 +16,7 @@
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
-  import type { Chapter, Scene } from "../types";
+  import type { Chapter, Scene, SyncPreview, ReimportSummary } from "../types";
   import ConfirmDialog from "./ConfirmDialog.svelte";
 
   let loading = $state(false);
@@ -46,19 +46,13 @@
   let hoveredChapterId: string | null = $state(null);
   let hoveredSceneId: string | null = $state(null);
 
-  // Reimport state
-  let reimporting = $state(false);
-  let showSyncConfirmation = $state(false);
-  let dontShowSyncAgain = $state(false);
-  let reimportSummary: {
-    chapters_added: number;
-    chapters_updated: number;
-    scenes_added: number;
-    scenes_updated: number;
-    beats_added: number;
-    beats_updated: number;
-    prose_preserved: number;
-  } | null = $state(null);
+  // Sync state
+  let syncing = $state(false);
+  let loadingSyncPreview = $state(false);
+  let showSyncDialog = $state(false);
+  let syncPreview: SyncPreview | null = $state(null);
+  let selectedChanges = new SvelteSet<string>();
+  let syncSummary: ReimportSummary | null = $state(null);
 
   async function loadChapters() {
     if (!currentProject.value) return;
@@ -372,51 +366,74 @@
     currentDragOverElement = null;
   }
 
-  // === Reimport/Sync ===
-  function handleSyncClick() {
+  // === Sync ===
+  async function handleSyncClick() {
     if (!currentProject.value) return;
-    // Skip confirmation if user has opted out
-    if (ui.skipSyncConfirmation) {
-      performSync();
-    } else {
-      showSyncConfirmation = true;
+    loadingSyncPreview = true;
+    try {
+      const preview = await invoke<SyncPreview>("get_sync_preview", {
+        projectId: currentProject.value.id,
+      });
+      syncPreview = preview;
+      // Default: no changes selected (user must opt-in to changes)
+      selectedChanges.clear();
+      showSyncDialog = true;
+    } catch (e) {
+      console.error("Failed to get sync preview:", e);
+    } finally {
+      loadingSyncPreview = false;
     }
   }
 
   function cancelSync() {
-    showSyncConfirmation = false;
-    dontShowSyncAgain = false;
+    showSyncDialog = false;
+    syncPreview = null;
+    selectedChanges.clear();
   }
 
-  async function confirmSync() {
-    // Save preference if checkbox was checked
-    if (dontShowSyncAgain) {
-      ui.setSkipSyncConfirmation(true);
+  function toggleChange(changeId: string) {
+    if (selectedChanges.has(changeId)) {
+      selectedChanges.delete(changeId);
+    } else {
+      selectedChanges.add(changeId);
     }
-    showSyncConfirmation = false;
-    dontShowSyncAgain = false;
-    await performSync();
   }
 
-  async function performSync() {
+  function selectAllChanges() {
+    if (!syncPreview) return;
+    selectedChanges.clear();
+    for (const change of syncPreview.changes) {
+      selectedChanges.add(change.id);
+    }
+  }
+
+  function deselectAllChanges() {
+    selectedChanges.clear();
+  }
+
+  async function applySync() {
     if (!currentProject.value) return;
-    reimporting = true;
+    syncing = true;
     try {
-      const summary = await invoke<typeof reimportSummary>("reimport_project", {
+      const summary = await invoke<ReimportSummary>("apply_sync", {
         projectId: currentProject.value.id,
+        acceptedChangeIds: Array.from(selectedChanges),
       });
-      reimportSummary = summary;
+      syncSummary = summary;
+      showSyncDialog = false;
+      syncPreview = null;
+      selectedChanges.clear();
       // Reload content
       await loadChapters();
     } catch (e) {
-      console.error("Failed to sync:", e);
+      console.error("Failed to apply sync:", e);
     } finally {
-      reimporting = false;
+      syncing = false;
     }
   }
 
-  function closeReimportSummary() {
-    reimportSummary = null;
+  function closeSyncSummary() {
+    syncSummary = null;
   }
 
   // Track isImporting state to properly handle chapter loading
@@ -511,12 +528,12 @@
           <button
             data-testid="reimport-button"
             onclick={handleSyncClick}
-            disabled={reimporting}
+            disabled={loadingSyncPreview || syncing}
             class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded-lg transition-colors disabled:opacity-50"
             aria-label="Sync from source"
             title="Sync from source file"
           >
-            {#if reimporting}
+            {#if loadingSyncPreview || syncing}
               <Loader2 data-testid="reimport-spinner" class="w-3.5 h-3.5 animate-spin" />
             {:else}
               <RefreshCw class="w-3.5 h-3.5" />
@@ -752,32 +769,120 @@
   </button>
 {/if}
 
-<!-- Sync Confirmation Dialog -->
-{#if showSyncConfirmation}
+<!-- Sync Preview Dialog -->
+{#if showSyncDialog && syncPreview}
   <div
-    data-testid="sync-confirmation-dialog"
+    data-testid="sync-preview-dialog"
     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
     role="dialog"
     aria-modal="true"
   >
-    <div class="bg-bg-panel rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+    <div
+      class="bg-bg-panel rounded-lg p-6 max-w-2xl w-full mx-4 shadow-xl max-h-[80vh] flex flex-col"
+    >
       <h3 class="text-lg font-heading font-medium text-text-primary mb-4">Sync from Source</h3>
-      <div class="text-text-secondary text-sm space-y-3 mb-6">
-        <p>This will update your project with any changes from the source file.</p>
-        <p class="text-text-secondary/80">
-          Your prose edits will be preserved. New chapters, scenes, and beats from the source will
-          be added.
-        </p>
+
+      <div class="flex-1 overflow-y-auto space-y-6 mb-6">
+        <!-- No changes message -->
+        {#if syncPreview.additions.length === 0 && syncPreview.changes.length === 0}
+          <div class="text-text-secondary text-sm py-4 text-center">
+            <p>No changes detected. Your project is up to date with the source file.</p>
+          </div>
+        {/if}
+
+        <!-- Additions Section (informational, auto-applied) -->
+        {#if syncPreview.additions.length > 0}
+          <div>
+            <h4 class="text-sm font-medium text-text-primary mb-2">
+              New Items ({syncPreview.additions.length})
+            </h4>
+            <p class="text-text-secondary/80 text-xs mb-3">These will be added automatically:</p>
+            <div class="space-y-2">
+              {#each syncPreview.additions as addition (addition.id)}
+                <div class="flex items-center gap-2 px-3 py-2 bg-bg-card rounded text-sm">
+                  <span class="text-green-500 text-xs font-medium uppercase w-16 flex-shrink-0">
+                    + {addition.item_type}
+                  </span>
+                  <span class="text-text-primary">{addition.title}</span>
+                  {#if addition.parent_title}
+                    <span class="text-text-secondary/60 text-xs">in {addition.parent_title}</span>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
+        <!-- Changes Section (require approval) -->
+        {#if syncPreview.changes.length > 0}
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-sm font-medium text-text-primary">
+                Changes ({syncPreview.changes.length})
+              </h4>
+              <div class="flex gap-2">
+                <button
+                  onclick={selectAllChanges}
+                  class="text-xs text-text-secondary hover:text-text-primary"
+                >
+                  Select All
+                </button>
+                <span class="text-text-secondary/50">|</span>
+                <button
+                  onclick={deselectAllChanges}
+                  class="text-xs text-text-secondary hover:text-text-primary"
+                >
+                  Deselect All
+                </button>
+              </div>
+            </div>
+            <p class="text-text-secondary/80 text-xs mb-3">
+              Check the changes you want to accept. Unchecked changes will keep your current values.
+            </p>
+            <div class="space-y-2">
+              {#each syncPreview.changes as change (change.id)}
+                <label
+                  class="flex items-start gap-3 px-3 py-2 bg-bg-card rounded cursor-pointer hover:bg-beat-header transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedChanges.has(change.id)}
+                    onchange={() => toggleChange(change.id)}
+                    class="mt-0.5 w-4 h-4 rounded border-bg-card bg-bg-card text-accent focus:ring-accent focus:ring-offset-0"
+                  />
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="text-amber-500 text-xs font-medium uppercase">
+                        {change.item_type}
+                      </span>
+                      <span class="text-text-primary text-sm font-medium truncate">
+                        {change.item_title}
+                      </span>
+                      <span class="text-text-secondary/60 text-xs">({change.field})</span>
+                    </div>
+                    <div class="text-xs space-y-1">
+                      <div class="flex gap-2">
+                        <span class="text-red-400/80 flex-shrink-0">−</span>
+                        <span class="text-text-secondary/80 line-through truncate">
+                          {change.current_value || "(empty)"}
+                        </span>
+                      </div>
+                      <div class="flex gap-2">
+                        <span class="text-green-400/80 flex-shrink-0">+</span>
+                        <span class="text-text-secondary truncate">
+                          {change.new_value || "(empty)"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </label>
+              {/each}
+            </div>
+          </div>
+        {/if}
       </div>
-      <label class="flex items-center gap-2 text-sm text-text-secondary mb-6 cursor-pointer">
-        <input
-          type="checkbox"
-          bind:checked={dontShowSyncAgain}
-          class="w-4 h-4 rounded border-bg-card bg-bg-card text-accent focus:ring-accent focus:ring-offset-0"
-        />
-        <span>Don't show this again</span>
-      </label>
-      <div class="flex gap-3">
+
+      <div class="flex gap-3 pt-4 border-t border-bg-card">
         <button
           onclick={cancelSync}
           class="flex-1 px-4 py-2 text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded transition-colors"
@@ -786,10 +891,16 @@
         </button>
         <button
           data-testid="sync-confirm"
-          onclick={confirmSync}
-          class="flex-1 px-4 py-2 bg-accent text-white rounded hover:bg-accent/80 transition-colors"
+          onclick={applySync}
+          disabled={syncing}
+          class="flex-1 px-4 py-2 bg-accent text-white rounded hover:bg-accent/80 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          Sync
+          {#if syncing}
+            <Loader2 class="w-4 h-4 animate-spin" />
+            Syncing...
+          {:else}
+            Apply Sync
+          {/if}
         </button>
       </div>
     </div>
@@ -806,47 +917,45 @@
   />
 {/if}
 
-<!-- Reimport Summary Dialog -->
-{#if reimportSummary}
+<!-- Sync Summary Dialog -->
+{#if syncSummary}
   <div
-    data-testid="reimport-summary-dialog"
+    data-testid="sync-summary-dialog"
     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
     role="dialog"
     aria-modal="true"
   >
     <div class="bg-bg-panel rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-      <h3 class="text-lg font-heading font-medium text-text-primary mb-4">Re-import Complete</h3>
-      <div data-testid="reimport-summary" class="text-text-secondary text-sm space-y-2 mb-6">
-        {#if reimportSummary.chapters_added === 0 && reimportSummary.chapters_updated === 0 && reimportSummary.scenes_added === 0 && reimportSummary.scenes_updated === 0 && reimportSummary.beats_added === 0 && reimportSummary.beats_updated === 0}
-          <p>No changes detected.</p>
+      <h3 class="text-lg font-heading font-medium text-text-primary mb-4">Sync Complete</h3>
+      <div data-testid="sync-summary" class="text-text-secondary text-sm space-y-2 mb-6">
+        {#if syncSummary.chapters_added === 0 && syncSummary.chapters_updated === 0 && syncSummary.scenes_added === 0 && syncSummary.scenes_updated === 0 && syncSummary.beats_added === 0 && syncSummary.beats_updated === 0}
+          <p>No changes were applied.</p>
         {:else}
-          {#if reimportSummary.chapters_added > 0 || reimportSummary.chapters_updated > 0}
+          {#if syncSummary.chapters_added > 0 || syncSummary.chapters_updated > 0}
             <p>
-              Chapters: {reimportSummary.chapters_added} added, {reimportSummary.chapters_updated} updated
+              Chapters: {syncSummary.chapters_added} added, {syncSummary.chapters_updated} updated
             </p>
           {/if}
-          {#if reimportSummary.scenes_added > 0 || reimportSummary.scenes_updated > 0}
+          {#if syncSummary.scenes_added > 0 || syncSummary.scenes_updated > 0}
             <p>
-              Scenes: {reimportSummary.scenes_added} added, {reimportSummary.scenes_updated} updated
+              Scenes: {syncSummary.scenes_added} added, {syncSummary.scenes_updated} updated
             </p>
           {/if}
-          {#if reimportSummary.beats_added > 0 || reimportSummary.beats_updated > 0}
+          {#if syncSummary.beats_added > 0 || syncSummary.beats_updated > 0}
             <p>
-              Beats: {reimportSummary.beats_added} added, {reimportSummary.beats_updated} updated
+              Beats: {syncSummary.beats_added} added, {syncSummary.beats_updated} updated
             </p>
           {/if}
-          {#if reimportSummary.prose_preserved > 0}
+          {#if syncSummary.prose_preserved > 0}
             <p class="text-text-secondary/80 italic">
-              {reimportSummary.prose_preserved} prose item{reimportSummary.prose_preserved !== 1
-                ? "s"
-                : ""} preserved
+              {syncSummary.prose_preserved} prose item{syncSummary.prose_preserved !== 1 ? "s" : ""} preserved
             </p>
           {/if}
         {/if}
       </div>
       <button
         data-testid="dialog-close"
-        onclick={closeReimportSummary}
+        onclick={closeSyncSummary}
         class="w-full px-4 py-2 bg-accent text-white rounded hover:bg-accent/80 transition-colors"
       >
         Close

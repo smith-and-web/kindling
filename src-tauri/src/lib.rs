@@ -37,9 +37,11 @@ pub fn run() {
             commands::get_scenes,
             commands::create_scene,
             commands::get_beats,
+            commands::create_beat,
             commands::get_characters,
             commands::get_locations,
             commands::save_beat_prose,
+            commands::save_scene_synopsis,
             commands::save_scene_prose,
             commands::reorder_chapters,
             commands::reorder_scenes,
@@ -49,6 +51,8 @@ pub fn run() {
             commands::delete_chapter,
             commands::delete_scene,
             commands::reimport_project,
+            commands::get_sync_preview,
+            commands::apply_sync,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

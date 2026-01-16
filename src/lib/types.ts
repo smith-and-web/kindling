@@ -60,3 +60,36 @@ export interface SessionState {
   scroll_position: number | null;
   last_opened_at: string | null;
 }
+
+// Sync preview types
+export interface SyncAddition {
+  id: string;
+  item_type: "chapter" | "scene" | "beat";
+  title: string;
+  parent_title: string | null;
+}
+
+export interface SyncChange {
+  id: string;
+  item_type: "chapter" | "scene" | "beat";
+  field: "title" | "synopsis" | "content";
+  item_title: string;
+  current_value: string;
+  new_value: string;
+  db_id: string;
+}
+
+export interface SyncPreview {
+  additions: SyncAddition[];
+  changes: SyncChange[];
+}
+
+export interface ReimportSummary {
+  chapters_added: number;
+  chapters_updated: number;
+  scenes_added: number;
+  scenes_updated: number;
+  beats_added: number;
+  beats_updated: number;
+  prose_preserved: number;
+}

@@ -179,6 +179,21 @@ pub fn get_chapter_project_id(conn: &Connection, chapter_id: &Uuid) -> Result<Op
     }
 }
 
+pub fn get_scene_project_id(conn: &Connection, scene_id: &Uuid) -> Result<Option<Uuid>> {
+    let mut stmt = conn.prepare(
+        "SELECT c.project_id FROM chapters c
+         JOIN scenes s ON s.chapter_id = c.id
+         WHERE s.id = ?1",
+    )?;
+    let mut rows = stmt.query(params![scene_id.to_string()])?;
+
+    if let Some(row) = rows.next()? {
+        Ok(Some(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap()))
+    } else {
+        Ok(None)
+    }
+}
+
 pub fn reorder_scenes(conn: &Connection, chapter_id: &Uuid, scene_ids: &[Uuid]) -> Result<()> {
     conn.execute("BEGIN TRANSACTION", [])?;
     for (idx, id) in scene_ids.iter().enumerate() {
@@ -287,6 +302,25 @@ pub fn update_beat_prose(conn: &Connection, beat_id: &Uuid, prose: &str) -> Resu
     conn.execute(
         "UPDATE beats SET prose = ?1 WHERE id = ?2",
         params![prose, beat_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn get_max_beat_position(conn: &Connection, scene_id: &Uuid) -> Result<i32> {
+    let mut stmt =
+        conn.prepare("SELECT COALESCE(MAX(position), -1) FROM beats WHERE scene_id = ?1")?;
+    let max: i32 = stmt.query_row(params![scene_id.to_string()], |row| row.get(0))?;
+    Ok(max)
+}
+
+pub fn update_scene_synopsis(
+    conn: &Connection,
+    scene_id: &Uuid,
+    synopsis: Option<&str>,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE scenes SET synopsis = ?1 WHERE id = ?2",
+        params![synopsis, scene_id.to_string()],
     )?;
     Ok(())
 }
