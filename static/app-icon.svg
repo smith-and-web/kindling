@@ -7,8 +7,8 @@
   </defs>
   <!-- Background with rounded corners -->
   <rect x="0" y="0" width="1024" height="1024" rx="180" ry="180" fill="#0F0F0F"/>
-  <!-- Flame and book icon, centered and scaled -->
-  <g transform="translate(180, 120) scale(0.65)">
+  <!-- Flame and book icon, centered and scaled larger -->
+  <g transform="translate(40, 20) scale(0.92)">
     <!-- Main flame (left) -->
     <path fill="#E25227" d="M495.154 288.138C498.378 289.608 505.914 297.445 508.313 300.3C526.269 321.669 539.502 342.79 542.378 370.879C549.115 436.662 490.007 467.903 476.848 526.209C472.415 545.849 474.731 568.443 482.366 587.122C483.763 590.541 490.702 602.324 490.569 604.62L489.492 604.081C466.698 587.526 440.031 561.25 430.639 534.248C403.556 456.377 485.481 402.143 496.346 330.247C498.679 314.804 498.133 303.222 495.154 288.138Z"/>
     <!-- Book base -->
