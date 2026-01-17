@@ -1,0 +1,67 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    // Full Application Debug
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Tauri Development",
+      "cargo": {
+        "args": [
+          "build",
+          "--manifest-path=./src-tauri/Cargo.toml",
+          "--no-default-features"
+        ]
+      },
+      "preLaunchTask": "Dev: Frontend Only (Vite)"
+    },
+
+    // Rust Backend Only (for debugging backend logic)
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Rust Backend Debug",
+      "cargo": {
+        "args": [
+          "build",
+          "--manifest-path=./src-tauri/Cargo.toml",
+          "--lib"
+        ]
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}/src-tauri"
+    },
+
+    // Rust Tests Debug
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug Rust Tests",
+      "cargo": {
+        "args": [
+          "test",
+          "--manifest-path=./src-tauri/Cargo.toml",
+          "--no-run"
+        ]
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}/src-tauri"
+    },
+
+    // Chrome DevTools for Frontend (when running tauri dev)
+    {
+      "type": "chrome",
+      "request": "attach",
+      "name": "Attach to Frontend DevTools",
+      "port": 9222,
+      "webRoot": "${workspaceFolder}/src"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack Debug",
+      "configurations": ["Tauri Development"],
+      "stopAll": true
+    }
+  ]
+}

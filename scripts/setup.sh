@@ -156,6 +156,18 @@ info "Running tests..."
 npm test --silent && success "Frontend tests passed" || warn "Some frontend tests failed"
 npm run test:rust --silent 2>/dev/null && success "Rust tests passed" || warn "Some Rust tests failed"
 
+# VS Code setup
+echo ""
+if [ -d ".vscode-example" ]; then
+    if [ -d ".vscode" ]; then
+        info "VS Code config already exists at .vscode/"
+    else
+        info "Setting up VS Code configuration..."
+        cp -r .vscode-example/. .vscode/
+        success "VS Code config copied to .vscode/"
+    fi
+fi
+
 # Final summary
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -170,8 +182,10 @@ echo "  2. Run tests:            npm run test:all"
 echo "  3. Check code:           npm run check:all"
 echo ""
 echo "VS Code users:"
+echo "  - Open the project in VS Code"
 echo "  - Install recommended extensions when prompted"
 echo "  - Use Cmd/Ctrl+Shift+P > 'Tasks: Run Task' for common operations"
+echo "  - See .vscode-example/README.md for full documentation"
 echo ""
 echo "See CONTRIBUTING.md for more details."
 echo ""

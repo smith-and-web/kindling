@@ -1,0 +1,125 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    // Development
+    {
+      "label": "Dev: Start Application",
+      "type": "shell",
+      "command": "npm run tauri dev",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Dev: Frontend Only (Vite)",
+      "type": "shell",
+      "command": "npm run dev",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+
+    // Testing
+    {
+      "label": "Test: All",
+      "type": "shell",
+      "command": "npm run test:all",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: Frontend",
+      "type": "shell",
+      "command": "npm test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: Frontend (Watch)",
+      "type": "shell",
+      "command": "npm run test:watch",
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "Test: Rust",
+      "type": "shell",
+      "command": "npm run test:rust",
+      "problemMatcher": []
+    },
+
+    // Linting & Formatting
+    {
+      "label": "Lint: All",
+      "type": "shell",
+      "command": "npm run lint:all",
+      "problemMatcher": ["$eslint-stylish"]
+    },
+    {
+      "label": "Lint: Fix All",
+      "type": "shell",
+      "command": "npm run lint:fix && npm run format:rust",
+      "problemMatcher": []
+    },
+    {
+      "label": "Format: All",
+      "type": "shell",
+      "command": "npm run format:all",
+      "problemMatcher": []
+    },
+
+    // Pre-commit check (runs everything CI would)
+    {
+      "label": "Check: Full CI",
+      "type": "shell",
+      "command": "npm run check:all",
+      "problemMatcher": ["$eslint-stylish"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+
+    // Build
+    {
+      "label": "Build: Production",
+      "type": "shell",
+      "command": "npm run tauri build",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+
+    // Rust-specific
+    {
+      "label": "Rust: Check",
+      "type": "shell",
+      "command": "cd src-tauri && cargo check",
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "Rust: Build",
+      "type": "shell",
+      "command": "cd src-tauri && cargo build",
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "Rust: Clippy",
+      "type": "shell",
+      "command": "npm run lint:rust",
+      "problemMatcher": "$rustc"
+    }
+  ]
+}

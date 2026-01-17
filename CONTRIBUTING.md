@@ -125,17 +125,24 @@ npm run tauri dev
 
 ### VS Code Setup
 
-We recommend VS Code for development. The project includes pre-configured settings:
+We recommend VS Code for development. The project includes pre-configured settings in `.vscode-example/`:
 
-1. **Open the project** in VS Code
-2. **Install recommended extensions** when prompted (or run `Extensions: Show Recommended Extensions`)
-3. **Use Tasks** (Cmd/Ctrl+Shift+P > "Tasks: Run Task") for common operations:
-   - `Dev: Start Application` - Start the full Tauri app
-   - `Test: All` - Run all tests
-   - `Check: Full CI` - Run everything CI would check
-   - `Lint: Fix All` - Auto-fix linting issues
+```bash
+# Copy the example configs to your local .vscode folder
+cp -r .vscode-example/. .vscode/
+```
 
-See `.vscode/` for all configuration files.
+This gives you:
+- **Recommended extensions** - VS Code will prompt to install them
+- **Auto-formatting** on save for TypeScript, Svelte, and Rust
+- **Tasks** (Cmd/Ctrl+Shift+P > "Tasks: Run Task") for common operations:
+  - `Dev: Start Application` - Start the full Tauri app
+  - `Test: All` - Run all tests
+  - `Check: Full CI` - Run everything CI would check
+  - `Lint: Fix All` - Auto-fix linting issues
+- **Debug configurations** for Rust and frontend debugging
+
+See `.vscode-example/README.md` for full documentation of each config file.
 
 ### Running Tests
 

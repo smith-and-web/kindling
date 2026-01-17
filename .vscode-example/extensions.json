@@ -1,0 +1,21 @@
+{
+  "recommendations": [
+    // Essential
+    "svelte.svelte-vscode",
+    "rust-lang.rust-analyzer",
+    "tauri-apps.tauri-vscode",
+
+    // Formatting & Linting
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+
+    // Tailwind CSS
+    "bradlc.vscode-tailwindcss",
+
+    // Helpful utilities
+    "streetsidesoftware.code-spell-checker",
+    "usernamehw.errorlens",
+    "eamodio.gitlens"
+  ],
+  "unwantedRecommendations": []
+}
