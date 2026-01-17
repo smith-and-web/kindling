@@ -8,7 +8,11 @@
   <!-- Background with rounded corners - using Surface color from brand guidelines -->
   <rect x="0" y="0" width="1024" height="1024" rx="180" ry="180" fill="#1A1817"/>
   <!-- Flame and book icon - centered and scaled to fill the icon -->
-  <g transform="translate(-332, -230) scale(1.65)">
+  <!-- Original logo: x range ~344-680 (width 336, center 512), y range ~288-741 (height 453, center 514.5) -->
+  <!-- At scale 1.65: width 554, height 747. To center in 1024: translate so center maps to 512 -->
+  <!-- x: 512 - (512 * 1.65) = 512 - 845 = -333 -->
+  <!-- y: 512 - (514.5 * 1.65) = 512 - 849 = -337 -->
+  <g transform="translate(-333, -337) scale(1.65)">
     <!-- Main flame (left) -->
     <path fill="#E25227" d="M495.154 288.138C498.378 289.608 505.914 297.445 508.313 300.3C526.269 321.669 539.502 342.79 542.378 370.879C549.115 436.662 490.007 467.903 476.848 526.209C472.415 545.849 474.731 568.443 482.366 587.122C483.763 590.541 490.702 602.324 490.569 604.62L489.492 604.081C466.698 587.526 440.031 561.25 430.639 534.248C403.556 456.377 485.481 402.143 496.346 330.247C498.679 314.804 498.133 303.222 495.154 288.138Z"/>
     <!-- Book base -->
