@@ -1,6 +1,22 @@
+/**
+ * Project Store - Manages all project-related state
+ *
+ * This store holds the currently loaded project data including chapters, scenes,
+ * beats, characters, and locations. It uses Svelte 5 runes ($state) for reactivity.
+ *
+ * Usage:
+ *   import { currentProject } from "$lib/stores/project.svelte";
+ *   currentProject.setProject(project);
+ *   console.log(currentProject.chapters);
+ *
+ * The store maintains the current selection state (currentChapter, currentScene)
+ * and automatically clears child data when selections change.
+ *
+ * @see types.ts for the shape of each data type
+ * @see ui.svelte.ts for UI-related state (panel visibility, onboarding, etc.)
+ */
 import type { Project, Chapter, Scene, Beat, Character, Location } from "../types";
 
-// Current project state
 class ProjectStore {
   value = $state<Project | null>(null);
   chapters = $state<Chapter[]>([]);

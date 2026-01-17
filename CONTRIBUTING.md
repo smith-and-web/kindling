@@ -61,32 +61,55 @@ Documentation improvements are always welcome! This includes:
 
 ## Development Setup
 
-### Prerequisites
+### Quick Start (Recommended)
+
+We provide a setup script that automates the entire process:
+
+```bash
+# Clone your fork
+git clone https://github.com/YOUR_USERNAME/kindling.git
+cd kindling
+
+# Run the setup script
+./scripts/setup.sh
+```
+
+The script will:
+- Check for required tools (Node.js 20+, Rust)
+- Verify platform-specific dependencies
+- Install npm and Rust dependencies
+- Run linters and tests to verify your setup
+
+### Manual Setup
+
+If you prefer manual setup or the script doesn't work for your system:
+
+#### Prerequisites
 
 - **Node.js** 20+
 - **Rust** (stable toolchain)
 - **Platform-specific dependencies** (see below)
 
-### macOS
+#### macOS
 
 ```bash
 # Install Xcode Command Line Tools
 xcode-select --install
 ```
 
-### Linux (Ubuntu/Debian)
+#### Linux (Ubuntu/Debian)
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 ```
 
-### Windows
+#### Windows
 
 - Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
 - Install [WebView2](https://developer.microsoft.com/en-us/microsoft-edge/webview2/)
 
-### Setup
+#### Install and Run
 
 ```bash
 # Clone your fork
@@ -100,20 +123,50 @@ npm install
 npm run tauri dev
 ```
 
+### VS Code Setup
+
+We recommend VS Code for development. The project includes pre-configured settings:
+
+1. **Open the project** in VS Code
+2. **Install recommended extensions** when prompted (or run `Extensions: Show Recommended Extensions`)
+3. **Use Tasks** (Cmd/Ctrl+Shift+P > "Tasks: Run Task") for common operations:
+   - `Dev: Start Application` - Start the full Tauri app
+   - `Test: All` - Run all tests
+   - `Check: Full CI` - Run everything CI would check
+   - `Lint: Fix All` - Auto-fix linting issues
+
+See `.vscode/` for all configuration files.
+
 ### Running Tests
 
 ```bash
-# Frontend tests
+# All tests (frontend + Rust)
+npm run test:all
+
+# Frontend tests only
 npm test
 
-# Frontend linting
-npm run lint
+# Rust tests only
+npm run test:rust
 
-# Rust tests
-cd src-tauri && cargo test
+# Watch mode for frontend
+npm run test:watch
+```
 
-# Rust linting
-cd src-tauri && cargo clippy
+### Linting & Formatting
+
+```bash
+# Check everything (like CI does)
+npm run check:all
+
+# Lint everything
+npm run lint:all
+
+# Fix all auto-fixable issues
+npm run lint:fix && npm run format:rust
+
+# Format everything
+npm run format:all
 ```
 
 ## Style Guidelines
