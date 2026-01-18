@@ -478,26 +478,28 @@
   .novel-page-wrapper {
     flex: 1;
     overflow: hidden;
-    padding: 1.5rem;
+    padding: 1rem;
     display: flex;
     flex-direction: column;
     align-items: center;
     background: var(--color-bg-panel);
+    min-height: 0; /* Allow flex child to shrink */
   }
 
-  /* Novel Page - mimics a trade paperback (5.5" x 8.5" aspect ratio, scaled 150% for editing) */
+  /* Novel Page - mimics a trade paperback, fills available height */
   .novel-page {
     width: 33rem; /* ~528px - paperback proportions scaled for comfortable editing */
-    height: 51rem; /* ~816px - maintains 5.5:8.5 aspect ratio */
+    flex: 1;
+    min-height: 0; /* Allow flex child to shrink */
+    max-height: 100%;
     background: #faf9f7; /* Warm white paper color */
     border-radius: 0.125rem;
     box-shadow:
       0 1px 3px rgba(0, 0, 0, 0.2),
       0 4px 12px rgba(0, 0, 0, 0.15),
       inset 0 0 0 1px rgba(0, 0, 0, 0.05);
-    padding: 2.5rem 2rem;
+    padding: 2rem 1.5rem;
     overflow: hidden;
-    flex-shrink: 0;
   }
 
   /* Pages container with CSS columns for pagination */
@@ -528,10 +530,11 @@
     display: flex;
     align-items: center;
     gap: 1rem;
-    margin-top: 1rem;
+    margin-top: 0.75rem;
     padding: 0.5rem 1rem;
     background: var(--color-bg-card);
     border-radius: 0.5rem;
+    flex-shrink: 0;
   }
 
   .page-nav-btn {
