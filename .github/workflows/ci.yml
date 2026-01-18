@@ -37,6 +37,9 @@ jobs:
       - name: Type check
         run: npm run check
 
+      - name: Security audit
+        run: npm audit --audit-level=high
+
       - name: Test with coverage
         run: npm test -- --coverage
 
@@ -84,6 +87,11 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Security audit
+        run: |
+          cargo install cargo-audit --quiet || true
+          cargo audit
 
       - name: Test
         run: cargo test --all-features

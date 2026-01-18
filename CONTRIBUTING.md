@@ -206,6 +206,20 @@ npm run lint
 cd src-tauri && cargo clippy
 ```
 
+### Security Scanning
+
+Security audits run automatically in CI and weekly via scheduled workflows:
+
+```bash
+# Check npm dependencies for vulnerabilities
+npm audit
+
+# Check Rust dependencies for vulnerabilities
+cd src-tauri && cargo audit
+```
+
+If you're adding new dependencies, ensure they don't introduce known vulnerabilities. The CI will fail on high-severity issues.
+
 ## Style Guidelines
 
 ### TypeScript/Svelte
