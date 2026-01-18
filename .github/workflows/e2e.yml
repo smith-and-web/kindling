@@ -39,7 +39,7 @@ jobs:
         uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry/index/
@@ -49,7 +49,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-registry-
 
       - name: Cache tauri-driver
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cargo/bin/tauri-driver
           key: ${{ runner.os }}-tauri-driver-2.0
@@ -106,7 +106,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-test-results
           path: |
@@ -118,7 +118,7 @@ jobs:
 
       - name: Upload test screenshots on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-failure-screenshots
           path: e2e/screenshots/
@@ -127,7 +127,7 @@ jobs:
 
       - name: Publish JUnit Test Results
         if: always()
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         with:
           report_paths: "e2e/results/*.xml"
           fail_on_failure: false
