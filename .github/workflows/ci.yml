@@ -13,6 +13,9 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short
+  # sccache configuration for faster Rust builds
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
 
 jobs:
   # Commit message linting (PR only)
@@ -90,17 +93,24 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Cache cargo
-        uses: actions/cache@v5
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            src-tauri/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-registry-
+
+      - name: Cache cargo-audit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: ${{ runner.os }}-cargo-audit-0.18
 
       - name: Install system dependencies
         run: |
@@ -115,7 +125,7 @@ jobs:
 
       - name: Security audit
         run: |
-          cargo install cargo-audit --quiet || true
+          command -v cargo-audit || cargo install cargo-audit --quiet
           cargo audit
 
       - name: Test
@@ -153,31 +163,18 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Cache cargo (Unix)
-        if: runner.os != 'Windows'
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            src-tauri/target/
-          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-${{ matrix.target }}-cargo-
-
-      - name: Cache cargo (Windows)
-        if: runner.os == 'Windows'
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~\.cargo\bin\
-            ~\.cargo\registry\index\
-            ~\.cargo\registry\cache\
-            ~\.cargo\git\db\
-            src-tauri\target\
-          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-${{ matrix.target }}-cargo-
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-registry-
 
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
@@ -193,3 +190,12 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ""
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.target }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/
+          retention-days: 7
+          if-no-files-found: ignore
