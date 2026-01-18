@@ -21,12 +21,14 @@
   <a href="https://github.com/smith-and-web/kindling/stargazers">
     <img src="https://img.shields.io/github/stars/smith-and-web/kindling?style=flat" alt="Stars" />
   </a>
+  <img src="https://img.shields.io/badge/coverage-95%25-brightgreen" alt="Test Coverage" />
 </p>
 
 <p align="center">
   <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#roadmap">Roadmap</a> •
+  <a href="#testing">Testing</a> •
   <a href="#contributing">Contributing</a> •
   <a href="#support">Support</a>
 </p>
@@ -132,6 +134,36 @@ kindling/
 ```
 
 </details>
+
+## Testing
+
+Kindling maintains high test coverage standards to ensure code quality and prevent regressions.
+
+### Coverage Requirements
+
+| Metric | Minimum | Current |
+|--------|---------|---------|
+| Statements | 95% | 95%+ |
+| Branches | 65% | 65%+ |
+| Functions | 98% | 98%+ |
+| Lines | 95% | 95%+ |
+
+**CI will fail if coverage drops below these thresholds.** New code must include appropriate tests.
+
+### Running Tests
+
+```bash
+# Frontend tests with coverage
+npm test -- --coverage
+
+# Rust tests
+cd src-tauri && cargo test
+
+# Run all checks (lint, format, types, tests)
+npm run check:all
+```
+
+Coverage reports are uploaded as artifacts on every CI run and can be viewed in the GitHub Actions workflow summary.
 
 ## Contributing
 
