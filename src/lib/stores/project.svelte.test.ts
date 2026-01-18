@@ -573,4 +573,230 @@ describe("currentProject store", () => {
     currentProject.setLocations(locations);
     expect(currentProject.locations).toEqual(locations);
   });
+
+  it("should add a beat", () => {
+    const beat1 = { id: "b-1", scene_id: "sc-1", content: "Beat 1", position: 0, prose: null };
+    const beat2 = { id: "b-2", scene_id: "sc-1", content: "Beat 2", position: 1, prose: null };
+
+    currentProject.setBeats([beat1]);
+    currentProject.addBeat(beat2);
+
+    expect(currentProject.beats).toHaveLength(2);
+    expect(currentProject.beats[1]).toEqual(beat2);
+  });
+
+  it("should update scene synopsis", () => {
+    const scene = {
+      id: "sc-1",
+      chapter_id: "ch-1",
+      title: "Scene 1",
+      synopsis: "Original synopsis",
+      position: 0,
+      prose: null,
+      archived: false,
+      locked: false,
+    };
+    currentProject.setScenes([scene]);
+
+    currentProject.updateSceneSynopsis("sc-1", "Updated synopsis");
+
+    expect(currentProject.scenes[0].synopsis).toBe("Updated synopsis");
+  });
+
+  it("should update scene synopsis and currentScene when it matches", () => {
+    const scene = {
+      id: "sc-1",
+      chapter_id: "ch-1",
+      title: "Scene 1",
+      synopsis: "Original synopsis",
+      position: 0,
+      prose: null,
+      archived: false,
+      locked: false,
+    };
+    currentProject.setScenes([scene]);
+    currentProject.setCurrentScene(scene);
+
+    currentProject.updateSceneSynopsis("sc-1", "Updated synopsis");
+
+    expect(currentProject.scenes[0].synopsis).toBe("Updated synopsis");
+    expect(currentProject.currentScene?.synopsis).toBe("Updated synopsis");
+  });
+
+  it("should update scene synopsis to null", () => {
+    const scene = {
+      id: "sc-1",
+      chapter_id: "ch-1",
+      title: "Scene 1",
+      synopsis: "Original synopsis",
+      position: 0,
+      prose: null,
+      archived: false,
+      locked: false,
+    };
+    currentProject.setScenes([scene]);
+
+    currentProject.updateSceneSynopsis("sc-1", null);
+
+    expect(currentProject.scenes[0].synopsis).toBeNull();
+  });
+
+  it("should update chapter", () => {
+    const chapter = {
+      id: "ch-1",
+      project_id: "p1",
+      title: "Original Title",
+      position: 0,
+      archived: false,
+      locked: false,
+    };
+    currentProject.setChapters([chapter]);
+
+    currentProject.updateChapter("ch-1", { title: "Updated Title", locked: true });
+
+    expect(currentProject.chapters[0].title).toBe("Updated Title");
+    expect(currentProject.chapters[0].locked).toBe(true);
+    expect(currentProject.chapters[0].position).toBe(0); // unchanged
+  });
+
+  it("should update chapter and currentChapter when it matches", () => {
+    const chapter = {
+      id: "ch-1",
+      project_id: "p1",
+      title: "Original Title",
+      position: 0,
+      archived: false,
+      locked: false,
+    };
+    currentProject.setChapters([chapter]);
+    currentProject.setCurrentChapter(chapter);
+
+    currentProject.updateChapter("ch-1", { title: "Updated Title" });
+
+    expect(currentProject.chapters[0].title).toBe("Updated Title");
+    expect(currentProject.currentChapter?.title).toBe("Updated Title");
+  });
+
+  it("should not update currentChapter when updating a different chapter", () => {
+    const chapter1 = {
+      id: "ch-1",
+      project_id: "p1",
+      title: "Chapter 1",
+      position: 0,
+      archived: false,
+      locked: false,
+    };
+    const chapter2 = {
+      id: "ch-2",
+      project_id: "p1",
+      title: "Chapter 2",
+      position: 1,
+      archived: false,
+      locked: false,
+    };
+    currentProject.setChapters([chapter1, chapter2]);
+    currentProject.setCurrentChapter(chapter1);
+
+    currentProject.updateChapter("ch-2", { title: "Updated Chapter 2" });
+
+    expect(currentProject.currentChapter?.title).toBe("Chapter 1");
+    expect(currentProject.chapters[1].title).toBe("Updated Chapter 2");
+  });
+
+  it("should update scene", () => {
+    const scene = {
+      id: "sc-1",
+      chapter_id: "ch-1",
+      title: "Original Title",
+      synopsis: "Synopsis",
+      position: 0,
+      prose: null,
+      archived: false,
+      locked: false,
+    };
+    currentProject.setScenes([scene]);
+
+    currentProject.updateScene("sc-1", { title: "Updated Title", locked: true });
+
+    expect(currentProject.scenes[0].title).toBe("Updated Title");
+    expect(currentProject.scenes[0].locked).toBe(true);
+    expect(currentProject.scenes[0].synopsis).toBe("Synopsis"); // unchanged
+  });
+
+  it("should update scene and currentScene when it matches", () => {
+    const scene = {
+      id: "sc-1",
+      chapter_id: "ch-1",
+      title: "Original Title",
+      synopsis: "Synopsis",
+      position: 0,
+      prose: null,
+      archived: false,
+      locked: false,
+    };
+    currentProject.setScenes([scene]);
+    currentProject.setCurrentScene(scene);
+
+    currentProject.updateScene("sc-1", { title: "Updated Title" });
+
+    expect(currentProject.scenes[0].title).toBe("Updated Title");
+    expect(currentProject.currentScene?.title).toBe("Updated Title");
+  });
+
+  it("should not update currentScene when updating a different scene", () => {
+    const scene1 = {
+      id: "sc-1",
+      chapter_id: "ch-1",
+      title: "Scene 1",
+      synopsis: "",
+      position: 0,
+      prose: null,
+      archived: false,
+      locked: false,
+    };
+    const scene2 = {
+      id: "sc-2",
+      chapter_id: "ch-1",
+      title: "Scene 2",
+      synopsis: "",
+      position: 1,
+      prose: null,
+      archived: false,
+      locked: false,
+    };
+    currentProject.setScenes([scene1, scene2]);
+    currentProject.setCurrentScene(scene1);
+
+    currentProject.updateScene("sc-2", { title: "Updated Scene 2" });
+
+    expect(currentProject.currentScene?.title).toBe("Scene 1");
+    expect(currentProject.scenes[1].title).toBe("Updated Scene 2");
+  });
+
+  it("should refresh current scene", () => {
+    const scene = {
+      id: "sc-1",
+      chapter_id: "ch-1",
+      title: "Original Title",
+      synopsis: "Synopsis",
+      position: 0,
+      prose: null,
+      archived: false,
+      locked: false,
+    };
+    currentProject.setScenes([scene]);
+    currentProject.setCurrentScene(scene);
+
+    const updatedScene = {
+      ...scene,
+      title: "Refreshed Title",
+      prose: "Some prose",
+    };
+    currentProject.refreshCurrentScene(updatedScene);
+
+    expect(currentProject.currentScene?.title).toBe("Refreshed Title");
+    expect(currentProject.currentScene?.prose).toBe("Some prose");
+    expect(currentProject.scenes[0].title).toBe("Refreshed Title");
+    expect(currentProject.scenes[0].prose).toBe("Some prose");
+  });
 });

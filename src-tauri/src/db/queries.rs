@@ -1033,3 +1033,482 @@ pub fn get_scene_by_id(conn: &Connection, scene_id: &Uuid) -> Result<Option<Scen
 
     Ok(scene)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::schema::initialize_schema;
+    use crate::models::SourceType;
+    use std::collections::HashMap;
+
+    fn setup_test_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        initialize_schema(&conn).unwrap();
+        conn
+    }
+
+    fn create_test_project(conn: &Connection) -> Project {
+        let project = Project::new(
+            "Test Project".to_string(),
+            SourceType::Markdown,
+            Some("/test/path".to_string()),
+        );
+        insert_project(conn, &project).unwrap();
+        project
+    }
+
+    fn create_test_chapter(conn: &Connection, project_id: Uuid) -> Chapter {
+        let chapter = Chapter {
+            id: Uuid::new_v4(),
+            project_id,
+            title: "Test Chapter".to_string(),
+            position: 0,
+            source_id: None,
+            archived: false,
+            locked: false,
+        };
+        insert_chapter(conn, &chapter).unwrap();
+        chapter
+    }
+
+    fn create_test_scene(conn: &Connection, chapter_id: Uuid) -> Scene {
+        let scene = Scene {
+            id: Uuid::new_v4(),
+            chapter_id,
+            title: "Test Scene".to_string(),
+            synopsis: Some("A test synopsis".to_string()),
+            prose: None,
+            position: 0,
+            source_id: None,
+            archived: false,
+            locked: false,
+        };
+        insert_scene(conn, &scene).unwrap();
+        scene
+    }
+
+    // ========================================================================
+    // Project Tests
+    // ========================================================================
+
+    #[test]
+    fn test_insert_and_get_project() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+
+        let retrieved = get_project(&conn, &project.id).unwrap();
+        assert!(retrieved.is_some());
+        let retrieved = retrieved.unwrap();
+        assert_eq!(retrieved.name, "Test Project");
+        assert_eq!(retrieved.source_type, SourceType::Markdown);
+    }
+
+    #[test]
+    fn test_get_nonexistent_project() {
+        let conn = setup_test_db();
+        let result = get_project(&conn, &Uuid::new_v4()).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_get_recent_projects() {
+        let conn = setup_test_db();
+        create_test_project(&conn);
+        create_test_project(&conn);
+
+        let projects = get_recent_projects(&conn, 10).unwrap();
+        assert_eq!(projects.len(), 2);
+    }
+
+    #[test]
+    fn test_update_project_modified() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let original_time = project.modified_at;
+
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        update_project_modified(&conn, &project.id).unwrap();
+
+        let updated = get_project(&conn, &project.id).unwrap().unwrap();
+        assert!(updated.modified_at > original_time);
+    }
+
+    // ========================================================================
+    // Chapter Tests
+    // ========================================================================
+
+    #[test]
+    fn test_insert_and_get_chapters() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+
+        let chapters = get_chapters(&conn, &project.id).unwrap();
+        assert_eq!(chapters.len(), 1);
+        assert_eq!(chapters[0].title, chapter.title);
+    }
+
+    #[test]
+    fn test_get_max_chapter_position() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+
+        // Empty project should return -1
+        let max = get_max_chapter_position(&conn, &project.id).unwrap();
+        assert_eq!(max, -1);
+
+        // After adding a chapter at position 0
+        create_test_chapter(&conn, project.id);
+        let max = get_max_chapter_position(&conn, &project.id).unwrap();
+        assert_eq!(max, 0);
+    }
+
+    #[test]
+    fn test_reorder_chapters() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+
+        let ch1 = Chapter {
+            id: Uuid::new_v4(),
+            project_id: project.id,
+            title: "Chapter 1".to_string(),
+            position: 0,
+            source_id: None,
+            archived: false,
+            locked: false,
+        };
+        let ch2 = Chapter {
+            id: Uuid::new_v4(),
+            project_id: project.id,
+            title: "Chapter 2".to_string(),
+            position: 1,
+            source_id: None,
+            archived: false,
+            locked: false,
+        };
+        insert_chapter(&conn, &ch1).unwrap();
+        insert_chapter(&conn, &ch2).unwrap();
+
+        // Reverse order
+        reorder_chapters(&conn, &project.id, &[ch2.id, ch1.id]).unwrap();
+
+        let chapters = get_chapters(&conn, &project.id).unwrap();
+        assert_eq!(chapters[0].id, ch2.id);
+        assert_eq!(chapters[0].position, 0);
+        assert_eq!(chapters[1].id, ch1.id);
+        assert_eq!(chapters[1].position, 1);
+    }
+
+    #[test]
+    fn test_rename_chapter() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+
+        rename_chapter(&conn, &chapter.id, "New Title").unwrap();
+
+        let updated = get_chapter_by_id(&conn, &chapter.id).unwrap().unwrap();
+        assert_eq!(updated.title, "New Title");
+    }
+
+    #[test]
+    fn test_delete_chapter() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+
+        delete_chapter(&conn, &chapter.id).unwrap();
+
+        let chapters = get_chapters(&conn, &project.id).unwrap();
+        assert!(chapters.is_empty());
+    }
+
+    // ========================================================================
+    // Scene Tests
+    // ========================================================================
+
+    #[test]
+    fn test_insert_and_get_scenes() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let scene = create_test_scene(&conn, chapter.id);
+
+        let scenes = get_scenes(&conn, &chapter.id).unwrap();
+        assert_eq!(scenes.len(), 1);
+        assert_eq!(scenes[0].title, scene.title);
+    }
+
+    #[test]
+    fn test_update_scene_prose() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let scene = create_test_scene(&conn, chapter.id);
+
+        update_scene_prose(&conn, &scene.id, "New prose content").unwrap();
+
+        let updated = get_scene_by_id(&conn, &scene.id).unwrap().unwrap();
+        assert_eq!(updated.prose, Some("New prose content".to_string()));
+    }
+
+    #[test]
+    fn test_update_scene_synopsis() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let scene = create_test_scene(&conn, chapter.id);
+
+        update_scene_synopsis(&conn, &scene.id, Some("Updated synopsis")).unwrap();
+
+        let updated = get_scene_by_id(&conn, &scene.id).unwrap().unwrap();
+        assert_eq!(updated.synopsis, Some("Updated synopsis".to_string()));
+    }
+
+    #[test]
+    fn test_move_scene_to_chapter() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter1 = create_test_chapter(&conn, project.id);
+        let chapter2 = Chapter {
+            id: Uuid::new_v4(),
+            project_id: project.id,
+            title: "Chapter 2".to_string(),
+            position: 1,
+            source_id: None,
+            archived: false,
+            locked: false,
+        };
+        insert_chapter(&conn, &chapter2).unwrap();
+
+        let scene = create_test_scene(&conn, chapter1.id);
+        move_scene_to_chapter(&conn, &scene.id, &chapter2.id, 0).unwrap();
+
+        let updated = get_scene_by_id(&conn, &scene.id).unwrap().unwrap();
+        assert_eq!(updated.chapter_id, chapter2.id);
+    }
+
+    #[test]
+    fn test_delete_scene() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let scene = create_test_scene(&conn, chapter.id);
+
+        delete_scene(&conn, &scene.id).unwrap();
+
+        let scenes = get_scenes(&conn, &chapter.id).unwrap();
+        assert!(scenes.is_empty());
+    }
+
+    // ========================================================================
+    // Beat Tests
+    // ========================================================================
+
+    #[test]
+    fn test_insert_and_get_beats() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let scene = create_test_scene(&conn, chapter.id);
+
+        let beat = Beat {
+            id: Uuid::new_v4(),
+            scene_id: scene.id,
+            content: "Test beat content".to_string(),
+            prose: None,
+            position: 0,
+            source_id: None,
+        };
+        insert_beat(&conn, &beat).unwrap();
+
+        let beats = get_beats(&conn, &scene.id).unwrap();
+        assert_eq!(beats.len(), 1);
+        assert_eq!(beats[0].content, "Test beat content");
+    }
+
+    #[test]
+    fn test_update_beat_prose() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let scene = create_test_scene(&conn, chapter.id);
+
+        let beat = Beat {
+            id: Uuid::new_v4(),
+            scene_id: scene.id,
+            content: "Test beat".to_string(),
+            prose: None,
+            position: 0,
+            source_id: None,
+        };
+        insert_beat(&conn, &beat).unwrap();
+
+        update_beat_prose(&conn, &beat.id, "Beat prose").unwrap();
+
+        let beats = get_beats(&conn, &scene.id).unwrap();
+        assert_eq!(beats[0].prose, Some("Beat prose".to_string()));
+    }
+
+    // ========================================================================
+    // Lock Tests
+    // ========================================================================
+
+    #[test]
+    fn test_lock_unlock_chapter() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+
+        assert!(!is_chapter_locked(&conn, &chapter.id).unwrap());
+
+        lock_chapter(&conn, &chapter.id).unwrap();
+        assert!(is_chapter_locked(&conn, &chapter.id).unwrap());
+
+        unlock_chapter(&conn, &chapter.id).unwrap();
+        assert!(!is_chapter_locked(&conn, &chapter.id).unwrap());
+    }
+
+    #[test]
+    fn test_lock_unlock_scene() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let scene = create_test_scene(&conn, chapter.id);
+
+        assert!(!is_scene_locked(&conn, &scene.id).unwrap());
+
+        lock_scene(&conn, &scene.id).unwrap();
+        assert!(is_scene_locked(&conn, &scene.id).unwrap());
+
+        unlock_scene(&conn, &scene.id).unwrap();
+        assert!(!is_scene_locked(&conn, &scene.id).unwrap());
+    }
+
+    #[test]
+    fn test_scene_locked_by_chapter() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let scene = create_test_scene(&conn, chapter.id);
+
+        // Scene is unlocked
+        assert!(!is_scene_locked(&conn, &scene.id).unwrap());
+
+        // Lock the chapter - scene should now be locked too
+        lock_chapter(&conn, &chapter.id).unwrap();
+        assert!(is_scene_locked(&conn, &scene.id).unwrap());
+    }
+
+    // ========================================================================
+    // Character and Location Tests
+    // ========================================================================
+
+    #[test]
+    fn test_insert_and_get_characters() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+
+        let character = Character {
+            id: Uuid::new_v4(),
+            project_id: project.id,
+            name: "Hero".to_string(),
+            description: Some("The main character".to_string()),
+            attributes: HashMap::from([("role".to_string(), "protagonist".to_string())]),
+            source_id: None,
+        };
+        insert_character(&conn, &character).unwrap();
+
+        let characters = get_characters(&conn, &project.id).unwrap();
+        assert_eq!(characters.len(), 1);
+        assert_eq!(characters[0].name, "Hero");
+    }
+
+    #[test]
+    fn test_insert_and_get_locations() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+
+        let location = Location {
+            id: Uuid::new_v4(),
+            project_id: project.id,
+            name: "Castle".to_string(),
+            description: Some("A grand castle".to_string()),
+            attributes: HashMap::from([("type".to_string(), "building".to_string())]),
+            source_id: None,
+        };
+        insert_location(&conn, &location).unwrap();
+
+        let locations = get_locations(&conn, &project.id).unwrap();
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].name, "Castle");
+    }
+
+    // ========================================================================
+    // Archive Tests
+    // ========================================================================
+
+    #[test]
+    fn test_archive_restore_chapter() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+
+        archive_chapter(&conn, &chapter.id).unwrap();
+        let archived = get_chapter_by_id(&conn, &chapter.id).unwrap().unwrap();
+        assert!(archived.archived);
+
+        restore_chapter(&conn, &chapter.id).unwrap();
+        let restored = get_chapter_by_id(&conn, &chapter.id).unwrap().unwrap();
+        assert!(!restored.archived);
+    }
+
+    #[test]
+    fn test_archive_restore_scene() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let scene = create_test_scene(&conn, chapter.id);
+
+        archive_scene(&conn, &scene.id).unwrap();
+        let archived = get_scene_by_id(&conn, &scene.id).unwrap().unwrap();
+        assert!(archived.archived);
+
+        restore_scene(&conn, &scene.id).unwrap();
+        let restored = get_scene_by_id(&conn, &scene.id).unwrap().unwrap();
+        assert!(!restored.archived);
+    }
+
+    #[test]
+    fn test_get_archived_chapters() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+
+        // Initially no archived chapters
+        let archived = get_archived_chapters(&conn, &project.id).unwrap();
+        assert!(archived.is_empty());
+
+        // Archive the chapter
+        archive_chapter(&conn, &chapter.id).unwrap();
+        let archived = get_archived_chapters(&conn, &project.id).unwrap();
+        assert_eq!(archived.len(), 1);
+    }
+
+    #[test]
+    fn test_get_archived_scenes() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let scene = create_test_scene(&conn, chapter.id);
+
+        // Initially no archived scenes
+        let archived = get_archived_scenes(&conn, &project.id).unwrap();
+        assert!(archived.is_empty());
+
+        // Archive the scene
+        archive_scene(&conn, &scene.id).unwrap();
+        let archived = get_archived_scenes(&conn, &project.id).unwrap();
+        assert_eq!(archived.len(), 1);
+    }
+}
