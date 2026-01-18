@@ -52,16 +52,26 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache cargo tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/cargo-audit
+            ~/.cargo/bin/cargo-outdated
+          key: ${{ runner.os }}-cargo-security-tools-v1
+
       - name: Install cargo-audit
-        run: cargo install cargo-audit --quiet
+        run: command -v cargo-audit || cargo install cargo-audit --quiet
 
       - name: Run security audit
         run: cargo audit
 
+      - name: Install cargo-outdated
+        run: command -v cargo-outdated || cargo install cargo-outdated --quiet
+        continue-on-error: true
+
       - name: Check for outdated packages
-        run: |
-          cargo install cargo-outdated --quiet || true
-          cargo outdated || true
+        run: cargo outdated || true
         continue-on-error: true
 
   # SARIF upload for GitHub Security tab integration
