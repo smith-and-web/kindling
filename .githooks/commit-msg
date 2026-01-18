@@ -1,0 +1,23 @@
+#!/bin/sh
+# Commit message linting hook
+# Enforces Conventional Commits format
+
+# Run commitlint on the commit message
+npx --no -- commitlint --edit "$1"
+
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "❌ Commit message does not follow Conventional Commits format."
+    echo ""
+    echo "Expected format: <type>(<scope>): <subject>"
+    echo ""
+    echo "Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
+    echo ""
+    echo "Examples:"
+    echo "  feat(import): add support for Scrivener 3 projects"
+    echo "  fix(editor): resolve cursor position issue on paste"
+    echo "  docs(readme): update installation instructions"
+    echo ""
+    echo "See CONTRIBUTING.md for more details."
+    exit 1
+fi

@@ -244,7 +244,7 @@ If you're adding new dependencies, ensure they don't introduce known vulnerabili
 
 ## Commit Messages
 
-We follow [Conventional Commits](https://www.conventionalcommits.org/):
+We enforce [Conventional Commits](https://www.conventionalcommits.org/) via automated linting. Your commits will be checked both locally (via git hook) and in CI.
 
 ```
 <type>(<scope>): <description>
@@ -254,27 +254,64 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 [optional footer]
 ```
 
+### Rules
+
+- **Type** is required (see list below)
+- **Scope** is optional but encouraged (use kebab-case)
+- **Description** must be lowercase and not end with a period
+- **Header** (type + scope + description) max 100 characters
+
 ### Types
 
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `style`: Code style changes (formatting, etc.)
-- `refactor`: Code changes that neither fix bugs nor add features
-- `test`: Adding or modifying tests
-- `chore`: Maintenance tasks
+| Type | Description |
+|------|-------------|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Documentation changes |
+| `style` | Code style changes (formatting, etc.) |
+| `refactor` | Code changes that neither fix bugs nor add features |
+| `perf` | Performance improvements |
+| `test` | Adding or modifying tests |
+| `build` | Build system or external dependencies |
+| `ci` | CI/CD configuration |
+| `chore` | Maintenance tasks |
+| `revert` | Revert a previous commit |
 
 ### Examples
 
-```
+```bash
+# Feature with scope
 feat(import): add support for Scrivener 3 projects
 
+# Bug fix
 fix(editor): resolve cursor position issue on paste
 
+# Documentation
 docs(readme): update installation instructions
 
+# Dependencies
 chore(deps): update Tauri to 2.1.0
+
+# CI changes
+ci(workflow): add security scanning to pipeline
+
+# With body for more context
+feat(sync): add selective sync preview
+
+Allow users to choose which changes to apply when
+reimporting from source files. Includes checkbox
+UI for additions and modifications.
+
+Closes #42
 ```
+
+### Validation
+
+Commit messages are validated:
+- **Locally**: The `commit-msg` hook runs commitlint automatically
+- **In CI**: All PR commits are checked before merge is allowed
+
+If your commit is rejected, you'll see helpful error messages explaining what needs to be fixed.
 
 ## Pull Request Process
 
