@@ -305,7 +305,7 @@
 
                   <!-- Expanded Beat Content -->
                   {#if isExpanded}
-                    <div class="border-t border-bg-card" style="height: 600px;">
+                    <div class="border-t border-bg-card" style="height: 48rem;">
                       <NovelEditor
                         content={beat.prose || ""}
                         placeholder={isLocked
