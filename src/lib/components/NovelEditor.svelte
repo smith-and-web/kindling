@@ -73,9 +73,9 @@
   }
 
   // Page dimensions - must match CSS values
-  // Column width: 19rem = 304px, Gap: 3rem = 48px
-  const PAGE_WIDTH = 304; // 19rem in pixels
-  const PAGE_GAP = 48; // 3rem in pixels
+  // Column width: 29rem = 464px, Gap: 4rem = 64px
+  const PAGE_WIDTH = 464; // 29rem in pixels
+  const PAGE_GAP = 64; // 4rem in pixels
   const PAGE_STRIDE = PAGE_WIDTH + PAGE_GAP; // Total width per page including gap
 
   // Calculate total pages based on content width
@@ -485,17 +485,17 @@
     background: var(--color-bg-panel);
   }
 
-  /* Novel Page - mimics a trade paperback (5.5" x 8.5" aspect ratio) */
+  /* Novel Page - mimics a trade paperback (5.5" x 8.5" aspect ratio, scaled 150% for editing) */
   .novel-page {
-    width: 22rem; /* ~352px - narrower like a real paperback */
-    height: 34rem; /* ~544px - maintains 5.5:8.5 aspect ratio */
+    width: 33rem; /* ~528px - paperback proportions scaled for comfortable editing */
+    height: 51rem; /* ~816px - maintains 5.5:8.5 aspect ratio */
     background: #faf9f7; /* Warm white paper color */
     border-radius: 0.125rem;
     box-shadow:
       0 1px 3px rgba(0, 0, 0, 0.2),
       0 4px 12px rgba(0, 0, 0, 0.15),
       inset 0 0 0 1px rgba(0, 0, 0, 0.05);
-    padding: 2rem 1.5rem;
+    padding: 2.5rem 2rem;
     overflow: hidden;
     flex-shrink: 0;
   }
@@ -518,8 +518,8 @@
 
   .editor-wrapper {
     height: 100%;
-    column-width: 19rem; /* Page content width (22rem - 3rem padding) */
-    column-gap: 3rem;
+    column-width: 29rem; /* Page content width (33rem - 4rem padding) */
+    column-gap: 4rem;
     column-fill: auto;
   }
 
