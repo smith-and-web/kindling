@@ -1,0 +1,66 @@
+{
+  // Svelte
+  "svelte.enable-ts-plugin": true,
+  "svelte.plugin.svelte.defaultScriptLanguage": "ts",
+
+  // TypeScript
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "typescript.suggest.autoImports": true,
+
+  // Formatting - match project prettier/eslint config
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[svelte]": {
+    "editor.defaultFormatter": "svelte.svelte-vscode"
+  },
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.formatOnSave": true
+  },
+
+  // ESLint
+  "eslint.validate": ["javascript", "typescript", "svelte"],
+  "eslint.workingDirectories": ["."],
+
+  // Rust Analyzer
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.cargo.features": "all",
+  "rust-analyzer.linkedProjects": ["./src-tauri/Cargo.toml"],
+
+  // Tailwind CSS - recognize custom classes
+  "tailwindCSS.includeLanguages": {
+    "svelte": "html"
+  },
+  "tailwindCSS.experimental.classRegex": [
+    ["class=\"([^\"]*)\"", "([a-zA-Z0-9\\-:]+)"],
+    ["class=\\{([^}]*)\\}", "([a-zA-Z0-9\\-:]+)"]
+  ],
+
+  // File associations
+  "files.associations": {
+    "*.svelte": "svelte"
+  },
+
+  // Search exclusions (faster searches)
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/target": true,
+    "**/coverage": true,
+    "**/.svelte-kit": true
+  },
+
+  // Editor settings
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+
+  // File nesting (cleaner explorer)
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "package.json": "package-lock.json, .npmrc, .prettierrc, .eslintrc*, eslint.config.js, tsconfig*.json, vite.config.*, vitest.config.*",
+    "Cargo.toml": "Cargo.lock, rust-toolchain.toml"
+  }
+}

@@ -1,4 +1,22 @@
-// UI state management using Svelte 5 runes
+/**
+ * UI Store - Manages application UI state
+ *
+ * This store handles all UI-related state that isn't directly tied to project data:
+ * - Current view (start screen vs editor)
+ * - Panel visibility and sizing
+ * - Focus mode
+ * - Onboarding flow
+ * - Import progress indicators
+ *
+ * State is persisted to localStorage where appropriate (panel widths, onboarding completion).
+ *
+ * Usage:
+ *   import { ui } from "$lib/stores/ui.svelte";
+ *   ui.setView("editor");
+ *   ui.toggleSidebar();
+ *
+ * @see project.svelte.ts for project data state
+ */
 
 export type View = "start" | "editor";
 export type Panel = "sidebar" | "editor" | "references";

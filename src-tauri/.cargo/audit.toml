@@ -1,0 +1,32 @@
+# cargo-audit configuration
+# See https://docs.rs/cargo-audit/latest/cargo_audit/config/
+
+[advisories]
+# Ignore unmaintained GTK3 binding warnings - these are transitive deps from Tauri
+# and cannot be avoided until Tauri migrates to GTK4
+ignore = [
+    # gtk-rs GTK3 bindings - unmaintained (all related packages)
+    "RUSTSEC-2024-0405",  # cairo-rs
+    "RUSTSEC-2024-0406",  # cairo-sys-rs
+    "RUSTSEC-2024-0407",  # gdk
+    "RUSTSEC-2024-0408",  # gdk-pixbuf
+    "RUSTSEC-2024-0409",  # gdk-pixbuf-sys
+    "RUSTSEC-2024-0410",  # gdk-sys
+    "RUSTSEC-2024-0411",  # gdkx11
+    "RUSTSEC-2024-0412",  # gdkx11-sys
+    "RUSTSEC-2024-0413",  # atk
+    "RUSTSEC-2024-0414",  # atk-sys
+    "RUSTSEC-2024-0415",  # gtk
+    "RUSTSEC-2024-0416",  # atk-sys (duplicate)
+    "RUSTSEC-2024-0417",  # gtk-sys
+    "RUSTSEC-2024-0418",  # glib
+    "RUSTSEC-2024-0419",  # glib-sys
+    "RUSTSEC-2024-0420",  # gio
+    "RUSTSEC-2024-0421",  # gio-sys
+    "RUSTSEC-2024-0422",  # pango
+    "RUSTSEC-2024-0423",  # pango-sys
+    "RUSTSEC-2024-0424",  # pangocairo
+]
+
+# Don't treat unmaintained crate warnings as errors
+informational_warnings = ["unmaintained"]

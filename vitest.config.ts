@@ -12,7 +12,13 @@ export default defineConfig({
       provider: "v8",
       include: ["src/lib/**/*.ts"],
       exclude: ["src/lib/**/*.test.ts", "src/lib/**/*.spec.ts"],
-      reporter: ["text", "html"],
+      reporter: ["text", "html", "json-summary"],
+      thresholds: {
+        statements: 95,
+        branches: 65,
+        functions: 98,
+        lines: 95,
+      },
     },
   },
 });

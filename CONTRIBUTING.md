@@ -61,32 +61,55 @@ Documentation improvements are always welcome! This includes:
 
 ## Development Setup
 
-### Prerequisites
+### Quick Start (Recommended)
+
+We provide a setup script that automates the entire process:
+
+```bash
+# Clone your fork
+git clone https://github.com/YOUR_USERNAME/kindling.git
+cd kindling
+
+# Run the setup script
+./scripts/setup.sh
+```
+
+The script will:
+- Check for required tools (Node.js 20+, Rust)
+- Verify platform-specific dependencies
+- Install npm and Rust dependencies
+- Run linters and tests to verify your setup
+
+### Manual Setup
+
+If you prefer manual setup or the script doesn't work for your system:
+
+#### Prerequisites
 
 - **Node.js** 20+
 - **Rust** (stable toolchain)
 - **Platform-specific dependencies** (see below)
 
-### macOS
+#### macOS
 
 ```bash
 # Install Xcode Command Line Tools
 xcode-select --install
 ```
 
-### Linux (Ubuntu/Debian)
+#### Linux (Ubuntu/Debian)
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 ```
 
-### Windows
+#### Windows
 
 - Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
 - Install [WebView2](https://developer.microsoft.com/en-us/microsoft-edge/webview2/)
 
-### Setup
+#### Install and Run
 
 ```bash
 # Clone your fork
@@ -100,27 +123,48 @@ npm install
 npm run tauri dev
 ```
 
+### VS Code Setup
+
+We recommend VS Code for development. The project includes pre-configured settings in `.vscode-example/`:
+
+```bash
+# Copy the example configs to your local .vscode folder
+cp -r .vscode-example/. .vscode/
+```
+
+This gives you:
+- **Recommended extensions** - VS Code will prompt to install them
+- **Auto-formatting** on save for TypeScript, Svelte, and Rust
+- **Tasks** (Cmd/Ctrl+Shift+P > "Tasks: Run Task") for common operations:
+  - `Dev: Start Application` - Start the full Tauri app
+  - `Test: All` - Run all tests
+  - `Check: Full CI` - Run everything CI would check
+  - `Lint: Fix All` - Auto-fix linting issues
+- **Debug configurations** for Rust and frontend debugging
+
+See `.vscode-example/README.md` for full documentation of each config file.
+
 ### Running Tests
 
 ```bash
-# Frontend unit tests
+# All tests (frontend + Rust)
+npm run test:all
+
+# Frontend tests only
 npm test
 
-# Frontend unit tests in watch mode
+# Frontend tests in watch mode
 npm run test:watch
 
 # Frontend test coverage
 npm run test:coverage
 
-# Rust tests
-cd src-tauri && cargo test
+# Rust tests only
+npm run test:rust
 
 # E2E tests (Linux/Windows only - requires built app)
 npm run tauri build
 npm run test:e2e
-
-# Run all tests (unit + e2e)
-npm run test:all
 ```
 
 ### E2E Testing
@@ -140,18 +184,41 @@ npm run tauri build
 npm run test:e2e
 ```
 
-### Linting
+### Linting & Formatting
 
 ```bash
-# Frontend linting
+# Check everything (like CI does)
+npm run check:all
+
+# Lint everything (frontend + Rust)
+npm run lint:all
+
+# Fix all auto-fixable issues
+npm run lint:fix && npm run format:rust
+
+# Format everything
+npm run format:all
+
+# Frontend linting only
 npm run lint
 
-# Auto-fix lint issues
-npm run lint:fix
-
-# Rust linting
+# Rust linting only
 cd src-tauri && cargo clippy
 ```
+
+### Security Scanning
+
+Security audits run automatically in CI and weekly via scheduled workflows:
+
+```bash
+# Check npm dependencies for vulnerabilities
+npm audit
+
+# Check Rust dependencies for vulnerabilities
+cd src-tauri && cargo audit
+```
+
+If you're adding new dependencies, ensure they don't introduce known vulnerabilities. The CI will fail on high-severity issues.
 
 ## Style Guidelines
 
@@ -177,7 +244,7 @@ cd src-tauri && cargo clippy
 
 ## Commit Messages
 
-We follow [Conventional Commits](https://www.conventionalcommits.org/):
+We enforce [Conventional Commits](https://www.conventionalcommits.org/) via automated linting. Your commits will be checked both locally (via git hook) and in CI.
 
 ```
 <type>(<scope>): <description>
@@ -187,27 +254,64 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 [optional footer]
 ```
 
+### Rules
+
+- **Type** is required (see list below)
+- **Scope** is optional but encouraged (use kebab-case)
+- **Description** must be lowercase and not end with a period
+- **Header** (type + scope + description) max 100 characters
+
 ### Types
 
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `style`: Code style changes (formatting, etc.)
-- `refactor`: Code changes that neither fix bugs nor add features
-- `test`: Adding or modifying tests
-- `chore`: Maintenance tasks
+| Type | Description |
+|------|-------------|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Documentation changes |
+| `style` | Code style changes (formatting, etc.) |
+| `refactor` | Code changes that neither fix bugs nor add features |
+| `perf` | Performance improvements |
+| `test` | Adding or modifying tests |
+| `build` | Build system or external dependencies |
+| `ci` | CI/CD configuration |
+| `chore` | Maintenance tasks |
+| `revert` | Revert a previous commit |
 
 ### Examples
 
-```
+```bash
+# Feature with scope
 feat(import): add support for Scrivener 3 projects
 
+# Bug fix
 fix(editor): resolve cursor position issue on paste
 
+# Documentation
 docs(readme): update installation instructions
 
+# Dependencies
 chore(deps): update Tauri to 2.1.0
+
+# CI changes
+ci(workflow): add security scanning to pipeline
+
+# With body for more context
+feat(sync): add selective sync preview
+
+Allow users to choose which changes to apply when
+reimporting from source files. Includes checkbox
+UI for additions and modifications.
+
+Closes #42
 ```
+
+### Validation
+
+Commit messages are validated:
+- **Locally**: The `commit-msg` hook runs commitlint automatically
+- **In CI**: All PR commits are checked before merge is allowed
+
+If your commit is rejected, you'll see helpful error messages explaining what needs to be fixed.
 
 ## Pull Request Process
 

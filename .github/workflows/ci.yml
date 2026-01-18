@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Weekly build verification (Sundays at midnight UTC)
+    - cron: "0 0 * * 0"
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,6 +15,28 @@ env:
   RUST_BACKTRACE: short
 
 jobs:
+  # Commit message linting (PR only)
+  commitlint:
+    name: Commit Messages
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate PR commits
+        run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
+
   # Frontend checks
   frontend:
     name: Frontend
@@ -37,8 +62,18 @@ jobs:
       - name: Type check
         run: npm run check
 
-      - name: Test
-        run: npm test
+      - name: Security audit
+        run: npm audit --audit-level=high
+
+      - name: Test with coverage
+        run: npm test -- --coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: coverage/
+          retention-days: 7
 
   # Rust checks
   rust:
@@ -78,13 +113,20 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
+      - name: Security audit
+        run: |
+          cargo install cargo-audit --quiet || true
+          cargo audit
+
       - name: Test
         run: cargo test --all-features
 
   # Build check (ensures the full app can build)
+  # Only runs on push to main or scheduled runs, not on PRs
   build:
     name: Build
     needs: [frontend, rust]
+    if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

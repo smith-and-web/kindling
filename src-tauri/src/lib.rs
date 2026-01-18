@@ -1,3 +1,23 @@
+//! Kindling - Rust Backend
+//!
+//! This is the Tauri backend for Kindling, a writing application that bridges
+//! outline planning and prose writing.
+//!
+//! # Module Overview
+//!
+//! - [`commands`]: Tauri IPC command handlers (called from frontend via `invoke()`)
+//! - [`db`]: SQLite database schema and query functions
+//! - [`models`]: Data structures (Project, Chapter, Scene, Beat, Character, Location)
+//! - [`parsers`]: Import parsers for Plottr, Scrivener, and Markdown formats
+//!
+//! # Architecture
+//!
+//! The frontend communicates with this backend via Tauri's IPC system. Commands
+//! are registered in the `run()` function and exposed to the frontend. All data
+//! is persisted to a SQLite database in the app's data directory.
+//!
+//! See `docs/ARCHITECTURE.md` for a full overview of the system.
+
 pub mod commands;
 pub mod db;
 pub mod models;
