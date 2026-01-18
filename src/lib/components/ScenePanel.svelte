@@ -4,6 +4,7 @@
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Beat } from "../types";
+  import NovelEditor from "./NovelEditor.svelte";
 
   // Check if scene is locked (either directly or via parent chapter)
   const isLocked = $derived(
@@ -54,6 +55,12 @@
     saveTimeout = setTimeout(() => {
       saveBeatProse(beatId, value);
     }, 500);
+  }
+
+  function handleEditorUpdate(beatId: string) {
+    return (html: string) => {
+      handleProseInput(beatId, html);
+    };
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -293,42 +300,17 @@
 
                   <!-- Expanded Beat Content -->
                   {#if isExpanded}
-                    <div class="px-4 py-4 border-t border-bg-card">
-                      <div class="relative">
-                        <textarea
-                          data-testid="beat-prose-textarea"
-                          class="w-full min-h-[200px] bg-bg-card rounded-lg p-4 text-text-primary font-prose leading-relaxed resize-y border border-bg-card focus:border-accent focus:outline-none"
-                          class:opacity-60={isLocked}
-                          class:cursor-not-allowed={isLocked}
-                          placeholder={isLocked
-                            ? "Scene is locked"
-                            : "Write your prose for this beat..."}
-                          value={beat.prose || ""}
-                          oninput={(e) =>
-                            !isLocked && handleProseInput(beat.id, e.currentTarget.value)}
-                          readonly={isLocked}
-                        ></textarea>
-                        <!-- Subtle save indicator in bottom right -->
-                        {#if ui.beatSaveStatus === "saving"}
-                          <div
-                            data-testid="save-indicator"
-                            class="absolute bottom-3 right-3 flex items-center gap-1.5 text-text-secondary/50"
-                          >
-                            <Loader2 class="w-3.5 h-3.5 animate-spin" />
-                            <span class="text-xs">Saving...</span>
-                          </div>
-                        {:else if ui.beatSaveStatus === "error"}
-                          <div
-                            data-testid="save-indicator"
-                            class="absolute bottom-3 right-3 text-red-500/70 text-xs"
-                          >
-                            Error saving
-                          </div>
-                        {/if}
-                      </div>
-                      <p class="text-text-secondary text-xs mt-2">
-                        Press Escape to collapse. Changes are saved automatically.
-                      </p>
+                    <div class="border-t border-bg-card" style="height: 600px;">
+                      <NovelEditor
+                        content={beat.prose || ""}
+                        placeholder={isLocked
+                          ? "Scene is locked"
+                          : "Write your prose for this beat..."}
+                        readonly={isLocked}
+                        saving={ui.beatSaveStatus === "saving"}
+                        saveError={ui.beatSaveStatus === "error"}
+                        onUpdate={handleEditorUpdate(beat.id)}
+                      />
                     </div>
                   {:else if beat.prose}
                     <!-- Show preview of prose when collapsed -->
