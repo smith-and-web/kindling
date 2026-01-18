@@ -22,14 +22,23 @@ import {
 
 /**
  * Helper to close any open dialogs
+ * Uses multiple approaches to ensure dialogs are closed
  */
 async function closeAllDialogs() {
+  // Give any animations time to complete
+  await browser.pause(300);
+
   // Close sync preview dialog by clicking the X button
   const syncDialog = await $('[data-testid="sync-preview-dialog"]');
   if (await syncDialog.isExisting()) {
     const closeButton = await $('[data-testid="sync-dialog-close"]');
     if (await closeButton.isExisting()) {
-      await closeButton.click();
+      try {
+        await closeButton.click();
+      } catch {
+        // If click fails, try pressing Escape
+        await browser.keys("Escape");
+      }
       await browser.waitUntil(
         async () => {
           const d = await $('[data-testid="sync-preview-dialog"]');
@@ -45,13 +54,45 @@ async function closeAllDialogs() {
   if (await summaryDialog.isExisting()) {
     const closeButton = await $('[data-testid="dialog-close"]');
     if (await closeButton.isExisting()) {
-      await closeButton.click();
+      try {
+        await closeButton.click();
+      } catch {
+        await browser.keys("Escape");
+      }
       await browser.waitUntil(
         async () => !(await summaryDialog.isExisting()),
         { timeout: 3000 }
       ).catch(() => {});
     }
   }
+
+  // Final pause to ensure UI is settled
+  await browser.pause(200);
+}
+
+/**
+ * Wait for sync button to be clickable (not obscured by dialogs)
+ */
+async function waitForSyncButtonClickable() {
+  await browser.waitUntil(
+    async () => {
+      const syncButton = await $('[data-testid="reimport-button"]');
+      if (!(await syncButton.isExisting())) return false;
+      if (!(await syncButton.isDisplayed())) return false;
+      return await syncButton.isClickable();
+    },
+    { timeout: 5000, timeoutMsg: "Sync button not clickable" }
+  );
+}
+
+/**
+ * Safely click the sync button, handling potential overlays
+ */
+async function clickSyncButton() {
+  await closeAllDialogs();
+  await waitForSyncButtonClickable();
+  const syncButton = await $('[data-testid="reimport-button"]');
+  await syncButton.click();
 }
 
 describe("Re-import to Update Project (#40)", () => {
@@ -85,8 +126,7 @@ describe("Re-import to Update Project (#40)", () => {
 
   describe("Sync Process", () => {
     it("should show loading spinner when clicking sync", async () => {
-      const syncButton = await $('[data-testid="reimport-button"]');
-      await syncButton.click();
+      await clickSyncButton();
 
       // The spinner appears briefly while loading preview
       // We can't reliably test it, so we just verify the flow continues
@@ -104,8 +144,7 @@ describe("Re-import to Update Project (#40)", () => {
     });
 
     it("should show sync preview dialog", async () => {
-      const syncButton = await $('[data-testid="reimport-button"]');
-      await syncButton.click();
+      await clickSyncButton();
 
       // Wait for sync preview dialog
       const dialog = await browser.waitUntil(
@@ -120,8 +159,7 @@ describe("Re-import to Update Project (#40)", () => {
     });
 
     it("should show 'All synced' when no changes detected", async () => {
-      const syncButton = await $('[data-testid="reimport-button"]');
-      await syncButton.click();
+      await clickSyncButton();
 
       // Wait for sync preview dialog
       const dialog = await browser.waitUntil(
@@ -160,8 +198,7 @@ describe("Re-import to Update Project (#40)", () => {
       await browser.pause(200);
 
       // Now click sync
-      const syncButton = await $('[data-testid="reimport-button"]');
-      await syncButton.click();
+      await clickSyncButton();
 
       // Wait for sync preview dialog
       await browser.waitUntil(
@@ -208,8 +245,7 @@ describe("Re-import to Update Project (#40)", () => {
 
   describe("Apply Sync", () => {
     it("should show summary dialog after applying sync", async () => {
-      const syncButton = await $('[data-testid="reimport-button"]');
-      await syncButton.click();
+      await clickSyncButton();
 
       // Wait for sync preview dialog
       await browser.waitUntil(
@@ -251,9 +287,10 @@ describe("Re-import to Update Project (#40)", () => {
       // This test requires the source file to have been modified externally
       // In CI, we'd swap the test file before this test runs
 
-      // For now, verify the sync button works
+      // For now, verify the sync button is accessible
+      await waitForSyncButtonClickable();
       const syncButton = await $('[data-testid="reimport-button"]');
-      expect(await syncButton.isClickable()).toBe(true);
+      expect(await syncButton.isExisting()).toBe(true);
     });
 
     it("should add new chapters from source", async () => {
