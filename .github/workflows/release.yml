@@ -66,6 +66,26 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          # Extract the changelog section for this version
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"  # Remove 'v' prefix if present
+
+          # Extract content between this version header and the next version header
+          CHANGELOG=$(awk "/^## \[?${VERSION}\]?/{flag=1; next} /^## \[?[0-9]/{flag=0} flag" CHANGELOG.md | head -100)
+
+          # If no specific changelog found, use a default message
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="See [CHANGELOG.md](https://github.com/smith-and-web/kindling/blob/main/CHANGELOG.md) for details."
+          fi
+
+          # Write to output (handle multiline)
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Build and Release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -92,8 +112,13 @@ jobs:
 
             ---
 
-            See the full changelog below.
+            ## What's Changed
+
+            ${{ steps.changelog.outputs.content }}
+
+            ---
+
+            [Full Changelog](https://github.com/smith-and-web/kindling/blob/main/CHANGELOG.md)
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
-          generateReleaseNotes: true
           args: ${{ matrix.args }}
