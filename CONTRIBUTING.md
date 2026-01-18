@@ -153,11 +153,35 @@ npm run test:all
 # Frontend tests only
 npm test
 
+# Frontend tests in watch mode
+npm run test:watch
+
+# Frontend test coverage
+npm run test:coverage
+
 # Rust tests only
 npm run test:rust
 
-# Watch mode for frontend
-npm run test:watch
+# E2E tests (Linux/Windows only - requires built app)
+npm run tauri build
+npm run test:e2e
+```
+
+### E2E Testing
+
+E2E tests use WebdriverIO with Tauri's WebDriver support. See [`e2e/README.md`](./e2e/README.md) for detailed documentation.
+
+**Important notes:**
+- E2E tests require a built Tauri binary (`npm run tauri build`)
+- macOS does not support local E2E testing (no WKWebView WebDriver)
+- E2E tests run automatically in CI on Linux
+
+```bash
+# Quick E2E setup on Linux
+sudo apt-get install -y webkit2gtk-driver xvfb
+cargo install tauri-driver
+npm run tauri build
+npm run test:e2e
 ```
 
 ### Linting & Formatting
@@ -166,7 +190,7 @@ npm run test:watch
 # Check everything (like CI does)
 npm run check:all
 
-# Lint everything
+# Lint everything (frontend + Rust)
 npm run lint:all
 
 # Fix all auto-fixable issues
@@ -174,6 +198,12 @@ npm run lint:fix && npm run format:rust
 
 # Format everything
 npm run format:all
+
+# Frontend linting only
+npm run lint
+
+# Rust linting only
+cd src-tauri && cargo clippy
 ```
 
 ## Style Guidelines
