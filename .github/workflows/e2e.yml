@@ -20,6 +20,9 @@ jobs:
   e2e:
     name: E2E Tests (Linux)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
     steps:
       - uses: actions/checkout@v6
 
