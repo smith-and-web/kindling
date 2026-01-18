@@ -10,8 +10,11 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  CARGO_INCREMENTAL: 1
+  CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short
+  # sccache configuration for faster Rust builds
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
 
 jobs:
   e2e:
@@ -29,25 +32,24 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-registry-
 
-      - name: Cache cargo build
+      - name: Cache tauri-driver
         uses: actions/cache@v4
         with:
-          path: src-tauri/target/
-          key: ${{ runner.os }}-e2e-cargo-build-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('src-tauri/src/**') }}
-          restore-keys: |
-            ${{ runner.os }}-e2e-cargo-build-${{ hashFiles('**/Cargo.lock') }}-
-            ${{ runner.os }}-e2e-cargo-build-
+          path: ~/.cargo/bin/tauri-driver
+          key: ${{ runner.os }}-tauri-driver-2.0
 
       - name: Install system dependencies
         run: |
@@ -62,11 +64,7 @@ jobs:
 
       - name: Install tauri-driver
         run: |
-          if ! command -v tauri-driver &> /dev/null; then
-            cargo install tauri-driver
-          else
-            echo "tauri-driver already installed"
-          fi
+          command -v tauri-driver || cargo install tauri-driver
 
       - name: Install npm dependencies
         run: npm ci
