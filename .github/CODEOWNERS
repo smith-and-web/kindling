@@ -1,0 +1,35 @@
+# CODEOWNERS - Automatically request reviews from the right people
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything
+* @smith-and-web
+
+# Frontend (Svelte/TypeScript)
+/src/ @smith-and-web
+*.svelte @smith-and-web
+*.ts @smith-and-web
+
+# Backend (Rust/Tauri)
+/src-tauri/ @smith-and-web
+*.rs @smith-and-web
+Cargo.toml @smith-and-web
+Cargo.lock @smith-and-web
+
+# E2E Tests
+/e2e/ @smith-and-web
+
+# CI/CD and DevOps
+/.github/ @smith-and-web
+/.githooks/ @smith-and-web
+
+# Documentation
+/docs/ @smith-and-web
+*.md @smith-and-web
+
+# Configuration files
+package.json @smith-and-web
+package-lock.json @smith-and-web
+tsconfig.json @smith-and-web
+vite.config.ts @smith-and-web
+vitest.config.ts @smith-and-web
+tailwind.config.* @smith-and-web
