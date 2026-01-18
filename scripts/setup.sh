@@ -156,6 +156,16 @@ info "Running tests..."
 npm test --silent && success "Frontend tests passed" || warn "Some frontend tests failed"
 npm run test:rust --silent 2>/dev/null && success "Rust tests passed" || warn "Some Rust tests failed"
 
+# Git hooks setup
+echo ""
+info "Setting up git hooks..."
+if [ -d ".githooks" ]; then
+    git config core.hooksPath .githooks
+    success "Git hooks configured (commitlint will validate commit messages)"
+else
+    warn "Git hooks directory not found"
+fi
+
 # VS Code setup
 echo ""
 if [ -d ".vscode-example" ]; then
