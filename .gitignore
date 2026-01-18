@@ -35,3 +35,9 @@ vite.config.ts.timestamp-*
 # Logs
 *.log
 npm-debug.log*
+
+# Claude Code
+.claude/
+
+# Test coverage
+coverage/
