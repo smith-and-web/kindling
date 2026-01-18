@@ -11,11 +11,13 @@ env:
   SCCACHE_GHA_ENABLED: "true"
   RUSTC_WRAPPER: "sccache"
 
+# Required for creating releases
+permissions:
+  contents: write
+
 jobs:
   release:
     name: Release
-    permissions:
-      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -78,6 +80,7 @@ jobs:
 
       - name: Extract changelog for this version
         id: changelog
+        shell: bash
         run: |
           # Extract the changelog section for this version
           VERSION="${{ github.ref_name }}"
