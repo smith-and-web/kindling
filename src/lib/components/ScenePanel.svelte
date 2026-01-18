@@ -145,6 +145,11 @@
       createBeat();
     }
   }
+
+  // Strip HTML tags for plain text preview
+  function stripHtml(html: string): string {
+    return html.replace(/<[^>]*>/g, "").trim();
+  }
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -318,7 +323,7 @@
                       <p
                         class="text-text-primary font-prose leading-relaxed whitespace-pre-wrap line-clamp-3"
                       >
-                        {beat.prose}
+                        {stripHtml(beat.prose)}
                       </p>
                     </div>
                   {/if}
