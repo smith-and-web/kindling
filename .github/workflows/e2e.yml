@@ -10,7 +10,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  CARGO_INCREMENTAL: 1
+  CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short
   # sccache configuration for faster Rust builds
   SCCACHE_GHA_ENABLED: "true"
