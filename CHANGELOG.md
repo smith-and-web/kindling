@@ -4,11 +4,41 @@ All notable changes to this project will be documented in this file.
 
 This changelog is automatically generated from [Conventional Commits](https://www.conventionalcommits.org/).
 
-## [0.1.0](https://github.com/smith-and-web/kindling/compare/v0.0.1-alpha...v0.1.0) (2026-01-18)
+## [0.2.0-alpha](https://github.com/smith-and-web/kindling/compare/v0.1.0-alpha...v0.2.0-alpha) (2026-01-18)
 
 ### Features
 
-* **e2e:** add WebdriverIO e2e testing infrastructure ([290de9a](https://github.com/smith-and-web/kindling/commit/290de9a)), closes [#38](https://github.com/smith-and-web/kindling/issues/38) [#15](https://github.com/smith-and-web/kindling/issues/15) [#14](https://github.com/smith-and-web/kindling/issues/14) [#16](https://github.com/smith-and-web/kindling/issues/16) [#40](https://github.com/smith-and-web/kindling/issues/40)
+* **sdlc:** add changelog generation with conventional-changelog ([941f7ca](https://github.com/smith-and-web/kindling/commit/941f7ca))
+* **sdlc:** add CODEOWNERS for automatic reviewer assignment ([3426bed](https://github.com/smith-and-web/kindling/commit/3426bed))
+* **sdlc:** enhance Dependabot config with grouping and labels ([3426bed](https://github.com/smith-and-web/kindling/commit/3426bed))
+* **sdlc:** add git hooks setup to development setup script ([be3307a](https://github.com/smith-and-web/kindling/commit/be3307a))
+
+### Performance
+
+* **ci:** optimize workflows with sccache and improved caching ([7a4bfcf](https://github.com/smith-and-web/kindling/commit/7a4bfcf))
+* **ci:** add cargo registry caching across all workflows
+* **ci:** cache tauri-driver and cargo-audit binaries
+
+### Bug Fixes
+
+* **ci:** disable incremental compilation for sccache compatibility ([3464a57](https://github.com/smith-and-web/kindling/commit/3464a57))
+* **ci:** add checks write permission for JUnit report annotations ([fdfa5c1](https://github.com/smith-and-web/kindling/commit/fdfa5c1))
+* **ci:** add shell bash for Windows and move permissions to workflow level ([d87fa35](https://github.com/smith-and-web/kindling/commit/d87fa35))
+* **e2e:** improve reimport test reliability with safer sync button clicks ([063a0da](https://github.com/smith-and-web/kindling/commit/063a0da))
+
+### Chores
+
+* **deps:** bump the actions group with 6 updates ([#80](https://github.com/smith-and-web/kindling/issues/80))
+* **deps:** bump the e2e-dependencies group with 5 updates ([#79](https://github.com/smith-and-web/kindling/issues/79))
+* regenerate package-lock.json for npm ci compatibility ([e3e02da](https://github.com/smith-and-web/kindling/commit/e3e02da))
+
+---
+
+## [0.1.0-alpha](https://github.com/smith-and-web/kindling/compare/v0.0.1-alpha...v0.1.0-alpha) (2026-01-15)
+
+### Features
+
+* **e2e:** add WebdriverIO e2e testing infrastructure ([290de9a](https://github.com/smith-and-web/kindling/commit/290de9a)), closes [#38](https://github.com/smith-and-web/kindling/issues/38)
 * **e2e:** add data-testid attributes for e2e testing ([29b9e7b](https://github.com/smith-and-web/kindling/commit/29b9e7b))
 * **e2e:** improve E2E testing setup and developer experience ([3647430](https://github.com/smith-and-web/kindling/commit/3647430))
 * **onboarding:** add first-run onboarding flow with Lucide icons ([e392f61](https://github.com/smith-and-web/kindling/commit/e392f61)), closes [#18](https://github.com/smith-and-web/kindling/issues/18)
@@ -52,62 +82,11 @@ This changelog is automatically generated from [Conventional Commits](https://ww
 * avoid duplicating single-sentence synopsis as beat in Scrivener ([673deb4](https://github.com/smith-and-web/kindling/commit/673deb4))
 * cast usize to i64 for rusqlite 0.38 compatibility ([3dbc22a](https://github.com/smith-and-web/kindling/commit/3dbc22a))
 * expose Tauri invoke for E2E testing via __KINDLING_TEST__ ([ffb7d27](https://github.com/smith-and-web/kindling/commit/ffb7d27))
-* implement importPlottrFile() helper for E2E tests ([0627b01](https://github.com/smith-and-web/kindling/commit/0627b01))
 * improve save indicator and sidebar width ([a5c2a53](https://github.com/smith-and-web/kindling/commit/a5c2a53))
-* load chapters directly in importProject for E2E testing ([1d8df72](https://github.com/smith-and-web/kindling/commit/1d8df72))
+* mute reimport prose preserved text ([f07f78a](https://github.com/smith-and-web/kindling/commit/f07f78a))
 * prevent loading race condition in Sidebar ([99e1be5](https://github.com/smith-and-web/kindling/commit/99e1be5))
 * refresh project list when returning to start screen ([9032217](https://github.com/smith-and-web/kindling/commit/9032217))
-* replace :has-text() with WebDriverIO-compatible selectors ([af1607c](https://github.com/smith-and-web/kindling/commit/af1607c))
 * resolve parser duplication and empty scene bugs ([ffe200c](https://github.com/smith-and-web/kindling/commit/ffe200c)), closes [#26](https://github.com/smith-and-web/kindling/issues/26) [#27](https://github.com/smith-and-web/kindling/issues/27) [#28](https://github.com/smith-and-web/kindling/issues/28)
 * resolve three Sidebar bugs ([9bf8b43](https://github.com/smith-and-web/kindling/commit/9bf8b43))
 * update @tauri-apps/plugin-dialog to v2.6.0 to match Rust crate version ([ece5f4f](https://github.com/smith-and-web/kindling/commit/ece5f4f))
 * update scrivener parser for quick-xml 0.39 API changes ([55df1de](https://github.com/smith-and-web/kindling/commit/55df1de))
-
-### Tests
-
-* add comprehensive unit tests for stores, achieve 95% coverage ([1b009bd](https://github.com/smith-and-web/kindling/commit/1b009bd))
-* add test data files for e2e and manual testing ([a5e7a79](https://github.com/smith-and-web/kindling/commit/a5e7a79))
-* improve reimport e2e test reliability with safer sync button clicks ([063a0da](https://github.com/smith-and-web/kindling/commit/063a0da))
-
-### CI/CD
-
-* add cargo caching to build jobs ([9db1cf2](https://github.com/smith-and-web/kindling/commit/9db1cf2))
-* add GitHub Action to sync docs/ to wiki ([3d7b575](https://github.com/smith-and-web/kindling/commit/3d7b575))
-* fix wiki sync - requires PAT for wiki push ([b41b9a5](https://github.com/smith-and-web/kindling/commit/b41b9a5))
-
-### Documentation
-
-* add development notice to homepage ([91d61fb](https://github.com/smith-and-web/kindling/commit/91d61fb))
-* add importing projects documentation ([be2c5dd](https://github.com/smith-and-web/kindling/commit/be2c5dd))
-* add logo to README ([3c1dfdb](https://github.com/smith-and-web/kindling/commit/3c1dfdb))
-* switch to PNG logo ([b44b00a](https://github.com/smith-and-web/kindling/commit/b44b00a))
-
-### Chores
-
-* add cargo fmt to pre-push hook and track hooks in repo ([44d272a](https://github.com/smith-and-web/kindling/commit/44d272a))
-* add git hooks setup to development setup script ([be3307a](https://github.com/smith-and-web/kindling/commit/be3307a))
-
-### Dependencies
-
-* bump actions/cache from 4 to 5 ([e241f69](https://github.com/smith-and-web/kindling/commit/e241f69))
-* bump actions/checkout from 4 to 6 ([1fc4c74](https://github.com/smith-and-web/kindling/commit/1fc4c74))
-* bump actions/setup-node from 4 to 6 ([983b712](https://github.com/smith-and-web/kindling/commit/983b712))
-* update quick-xml requirement from 0.31 to 0.39 in /src-tauri ([e601c7b](https://github.com/smith-and-web/kindling/commit/e601c7b))
-* update rusqlite requirement from 0.31 to 0.38 in /src-tauri ([6eac276](https://github.com/smith-and-web/kindling/commit/6eac276))
-* update thiserror requirement from 1 to 2 in /src-tauri ([3805baa](https://github.com/smith-and-web/kindling/commit/3805baa))
-
-## [0.0.1-alpha](https://github.com/smith-and-web/kindling/releases/tag/v0.0.1-alpha) (2026-01-12)
-
-### Features
-
-* Initial scaffold: Tauri 2.x + Svelte 5 + SQLite ([144a43e](https://github.com/smith-and-web/kindling/commit/144a43e))
-
-### CI/CD
-
-* Add CI/CD, linting, testing, and code quality tooling ([52ded86](https://github.com/smith-and-web/kindling/commit/52ded86))
-* Fix CI workflow and test type errors ([8ba5f33](https://github.com/smith-and-web/kindling/commit/8ba5f33))
-
-### Documentation
-
-* add community and contribution files ([489dfee](https://github.com/smith-and-web/kindling/commit/489dfee))
-* **readme:** modernize with badges, tables, and sponsor section ([0ff137e](https://github.com/smith-and-web/kindling/commit/0ff137e))
