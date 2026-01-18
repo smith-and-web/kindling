@@ -27,10 +27,10 @@ jobs:
     if: ${{ vars.WIKI_SYNC_ENABLED == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout main repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout wiki repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ github.repository }}.wiki
           path: wiki
