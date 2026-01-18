@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Weekly build verification (Sundays at midnight UTC)
+    - cron: "0 0 * * 0"
 
 env:
   CARGO_TERM_COLOR: always
@@ -119,9 +122,11 @@ jobs:
         run: cargo test --all-features
 
   # Build check (ensures the full app can build)
+  # Only runs on push to main or scheduled runs, not on PRs
   build:
     name: Build
     needs: [frontend, rust]
+    if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

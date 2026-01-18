@@ -15,9 +15,8 @@ Enable **"Require status checks to pass before merging"** with the following che
 | Commit Messages | `Commit Messages` | Yes |
 | Frontend | `Frontend` | Yes |
 | Rust | `Rust` | Yes |
-| Build (Linux) | `Build (ubuntu-latest, x86_64-unknown-linux-gnu)` | Yes |
-| Build (macOS) | `Build (macos-latest, aarch64-apple-darwin)` | Yes |
-| Build (Windows) | `Build (windows-latest, x86_64-pc-windows-msvc)` | Yes |
+
+> **Note**: Multi-platform builds run only on pushes to main and weekly scheduled runs, not on PRs. This speeds up PR feedback while still verifying builds before release.
 
 Additionally enable:
 - **"Require branches to be up to date before merging"** - Ensures PRs are tested against the latest main
@@ -81,7 +80,7 @@ While not enforced by GitHub, contributors should follow these branch naming con
 
 gh api repos/{owner}/{repo}/branches/main/protection \
   --method PUT \
-  --field required_status_checks='{"strict":true,"contexts":["Commit Messages","Frontend","Rust","Build (ubuntu-latest, x86_64-unknown-linux-gnu)","Build (macos-latest, aarch64-apple-darwin)","Build (windows-latest, x86_64-pc-windows-msvc)"]}' \
+  --field required_status_checks='{"strict":true,"contexts":["Commit Messages","Frontend","Rust"]}' \
   --field enforce_admins=true \
   --field required_pull_request_reviews='{"required_approving_review_count":1,"dismiss_stale_reviews":true}' \
   --field restrictions=null \
