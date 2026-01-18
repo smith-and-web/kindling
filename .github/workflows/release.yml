@@ -11,13 +11,75 @@ env:
   SCCACHE_GHA_ENABLED: "true"
   RUSTC_WRAPPER: "sccache"
 
-# Required for creating releases
+# Required for creating releases and committing changelog
 permissions:
   contents: write
 
 jobs:
+  # Generate changelog and commit it back to the repo
+  changelog:
+    name: Update Changelog
+    runs-on: ubuntu-latest
+    outputs:
+      changelog: ${{ steps.changelog.outputs.content }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate changelog
+        run: npm run changelog
+
+      - name: Extract changelog for this version
+        id: changelog
+        shell: bash
+        run: |
+          # Extract the changelog section for this version
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"  # Remove 'v' prefix if present
+
+          # Extract content between this version header and the next version header (or --- separator)
+          CHANGELOG=$(awk "/^## \[?${VERSION}\]?/{flag=1; next} /^## \[?[0-9]|^---/{flag=0} flag" CHANGELOG.md | head -100)
+
+          # If no specific changelog found, use a default message
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="See [CHANGELOG.md](https://github.com/smith-and-web/kindling/blob/main/CHANGELOG.md) for details."
+          fi
+
+          # Write to output (handle multiline)
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Commit changelog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Check if there are changes to commit
+          if git diff --quiet CHANGELOG.md; then
+            echo "No changelog changes to commit"
+          else
+            git add CHANGELOG.md
+            git commit -m "docs: update changelog for ${{ github.ref_name }} [skip ci]"
+            git push origin main
+          fi
+
+  # Build and release for each platform
   release:
     name: Release
+    needs: changelog
     strategy:
       fail-fast: false
       matrix:
@@ -78,27 +140,6 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Extract changelog for this version
-        id: changelog
-        shell: bash
-        run: |
-          # Extract the changelog section for this version
-          VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"  # Remove 'v' prefix if present
-
-          # Extract content between this version header and the next version header
-          CHANGELOG=$(awk "/^## \[?${VERSION}\]?/{flag=1; next} /^## \[?[0-9]/{flag=0} flag" CHANGELOG.md | head -100)
-
-          # If no specific changelog found, use a default message
-          if [ -z "$CHANGELOG" ]; then
-            CHANGELOG="See [CHANGELOG.md](https://github.com/smith-and-web/kindling/blob/main/CHANGELOG.md) for details."
-          fi
-
-          # Write to output (handle multiline)
-          echo "content<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - name: Build and Release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -127,7 +168,7 @@ jobs:
 
             ## What's Changed
 
-            ${{ steps.changelog.outputs.content }}
+            ${{ needs.changelog.outputs.changelog }}
 
             ---
 
