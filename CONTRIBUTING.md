@@ -313,6 +313,20 @@ Commit messages are validated:
 
 If your commit is rejected, you'll see helpful error messages explaining what needs to be fixed.
 
+### Changelog
+
+The [CHANGELOG.md](CHANGELOG.md) is automatically generated from conventional commits. To update it:
+
+```bash
+# Add recent commits to changelog
+npm run changelog
+
+# Regenerate entire changelog (rarely needed)
+npm run changelog:all
+```
+
+The changelog is typically updated as part of the release process, not with every commit.
+
 ## Pull Request Process
 
 1. **Update documentation** if you're changing behavior

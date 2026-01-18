@@ -26,6 +26,8 @@
     "test:e2e:ci": "npm run test:ci --prefix e2e",
     "test:all": "npm run test && npm run test:rust",
     "check:all": "npm run check && npm run format:check && npm run lint && npm run format:rust:check && npm run lint:rust",
+    "changelog": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -s",
+    "changelog:all": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -s -r 0",
     "prepare": "git config core.hooksPath .githooks"
   },
   "license": "MIT",
@@ -45,6 +47,7 @@
     "@testing-library/svelte": "^5.3.1",
     "@vitest/coverage-v8": "^4.0.17",
     "@wdio/cli": "^9.23.0",
+    "conventional-changelog-cli": "^5.0.0",
     "eslint": "^9.39.2",
     "eslint-plugin-svelte": "^3.14.0",
     "jsdom": "^27.4.0",
