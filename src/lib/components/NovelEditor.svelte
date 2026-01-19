@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy, tick } from "svelte";
+  import { onMount, onDestroy, untrack } from "svelte";
   import { Editor } from "@tiptap/core";
   import StarterKit from "@tiptap/starter-kit";
   import Underline from "@tiptap/extension-underline";
@@ -17,16 +17,13 @@
     IndentIncrease,
     IndentDecrease,
     Loader2,
-    ChevronLeft,
-    ChevronRight,
   } from "lucide-svelte";
 
   interface Props {
     content: string;
     placeholder?: string;
     readonly?: boolean;
-    saving?: boolean;
-    saveError?: boolean;
+    saveStatus?: "idle" | "saving" | "error";
     onUpdate?: (html: string) => void;
   }
 
@@ -34,20 +31,19 @@
     content,
     placeholder = "Write your prose...",
     readonly = false,
-    saving = false,
-    saveError = false,
+    saveStatus = "idle",
     onUpdate,
   }: Props = $props();
 
   let editorElement: HTMLElement;
-  let pagesContainer: HTMLElement;
   let editor: Editor | null = $state(null);
   let isInitialized = false;
-  let isSettingContent = false; // Prevent update loops when setting content programmatically
+  let isSettingContent = false;
+  let lastExternalContent = "";
+  let lastEmittedContent = "";
 
-  // Pagination state
-  let currentPage = $state(1);
-  let totalPages = $state(1);
+  // Word count
+  let wordCount = $state(0);
 
   // Track editor state for toolbar reactivity
   let isBold = $state(false);
@@ -73,46 +69,15 @@
           : "left";
   }
 
-  // Page dimensions - must match CSS values
-  // Column width: 23rem = 368px, Gap: 23rem = 368px
-  const PAGE_WIDTH = 368; // 23rem in pixels
-  const PAGE_GAP = 368; // 23rem in pixels (same as width for clean page breaks)
-  const PAGE_STRIDE = PAGE_WIDTH + PAGE_GAP; // Total width per page including gap
-
-  // Calculate total pages based on content width
-  function updatePageCount() {
-    if (!pagesContainer || !editorElement) return;
-    const contentWidth = editorElement.scrollWidth;
-    // First page is just PAGE_WIDTH, subsequent pages add PAGE_STRIDE
-    if (contentWidth <= PAGE_WIDTH) {
-      totalPages = 1;
-    } else {
-      totalPages = 1 + Math.ceil((contentWidth - PAGE_WIDTH) / PAGE_STRIDE);
-    }
-  }
-
-  // Navigate to a specific page
-  function goToPage(page: number) {
-    if (page < 1 || page > totalPages) return;
-    currentPage = page;
-    if (pagesContainer) {
-      // Scroll to the start of the requested page
-      pagesContainer.scrollLeft = (page - 1) * PAGE_STRIDE;
-    }
-  }
-
-  function previousPage() {
-    goToPage(currentPage - 1);
-  }
-
-  function nextPage() {
-    goToPage(currentPage + 1);
-  }
-
-  // Update page count when content changes
-  async function onContentUpdate() {
-    await tick();
-    updatePageCount();
+  function updateWordCount() {
+    if (!editor) return;
+    const text = editor.getText();
+    // Count words by splitting on whitespace and filtering empty strings
+    const words = text
+      .trim()
+      .split(/\s+/)
+      .filter((word) => word.length > 0);
+    wordCount = words.length;
   }
 
   onMount(() => {
@@ -120,7 +85,6 @@
       element: editorElement,
       extensions: [
         StarterKit.configure({
-          // Disable features we don't need for novel writing
           heading: false,
           bulletList: false,
           orderedList: false,
@@ -143,10 +107,13 @@
       },
       onUpdate: ({ editor }) => {
         updateToolbarState();
-        onContentUpdate();
-        // Skip updates during initialization or programmatic content setting
+        updateWordCount();
         if (onUpdate && isInitialized && !isSettingContent) {
-          onUpdate(editor.getHTML());
+          const html = editor.getHTML();
+          if (html !== lastEmittedContent) {
+            lastEmittedContent = html;
+            onUpdate(html);
+          }
         }
       },
       onSelectionUpdate: () => {
@@ -158,10 +125,12 @@
     });
 
     updateToolbarState();
-    // Mark as initialized after a tick to allow initial content to settle
+    updateWordCount();
+    lastExternalContent = content || "";
+    lastEmittedContent = content || "";
+
     setTimeout(() => {
       isInitialized = true;
-      updatePageCount();
     }, 0);
   });
 
@@ -171,13 +140,24 @@
     }
   });
 
-  // Update content when prop changes (e.g., switching beats)
-  $effect(() => {
-    if (editor && content !== editor.getHTML()) {
-      isSettingContent = true;
-      editor.commands.setContent(content || "");
-      isSettingContent = false;
-    }
+  // Update content when prop changes
+  $effect.pre(() => {
+    const normalizedContent = content || "";
+
+    untrack(() => {
+      if (editor) {
+        if (normalizedContent !== lastExternalContent && normalizedContent !== lastEmittedContent) {
+          lastExternalContent = normalizedContent;
+          lastEmittedContent = normalizedContent;
+          isSettingContent = true;
+          editor.commands.setContent(normalizedContent);
+          isSettingContent = false;
+          updateWordCount();
+        } else {
+          lastExternalContent = normalizedContent;
+        }
+      }
+    });
   });
 
   // Update editable state when readonly prop changes
@@ -213,7 +193,6 @@
   }
 
   function insertTab() {
-    // Insert a tab character for indentation
     editor?.chain().focus().insertContent("\t").run();
   }
 
@@ -222,24 +201,13 @@
   }
 
   function outdent() {
-    // For outdent, we'd need to remove leading whitespace - this is complex
-    // For now, this is a no-op since we're using inline tabs
+    // No-op for now
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    // Capture Tab key to insert indentation instead of moving focus
     if (e.key === "Tab" && !e.shiftKey) {
       e.preventDefault();
       insertTab();
-    }
-    // Page navigation with Ctrl/Cmd + Arrow keys
-    if ((e.ctrlKey || e.metaKey) && e.key === "ArrowLeft") {
-      e.preventDefault();
-      previousPage();
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === "ArrowRight") {
-      e.preventDefault();
-      nextPage();
     }
   }
 </script>
@@ -348,53 +316,30 @@
         </button>
       </div>
 
-      <!-- Save status indicator -->
+      <!-- Save status and word count -->
       <div class="toolbar-spacer"></div>
-      {#if saving}
-        <div class="save-indicator">
+      {#if saveStatus === "saving"}
+        <div class="save-status saving">
           <Loader2 class="w-3.5 h-3.5 animate-spin" />
           <span>Saving...</span>
         </div>
-      {:else if saveError}
-        <div class="save-indicator error">
+      {:else if saveStatus === "error"}
+        <div class="save-status error">
           <span>Error saving</span>
         </div>
       {/if}
+      <div class="word-count">
+        {wordCount}
+        {wordCount === 1 ? "word" : "words"}
+      </div>
     </div>
   {/if}
 
-  <!-- Novel Page with Pagination -->
+  <!-- Editor -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="novel-page-wrapper" onkeydown={handleKeydown}>
+  <div class="novel-pages-container" onkeydown={handleKeydown}>
     <div class="novel-page">
-      <div bind:this={pagesContainer} class="pages-container">
-        <div bind:this={editorElement} class="editor-wrapper"></div>
-      </div>
-    </div>
-
-    <!-- Page Navigation -->
-    <div class="page-navigation">
-      <button
-        type="button"
-        class="page-nav-btn"
-        onclick={previousPage}
-        disabled={currentPage <= 1}
-        aria-label="Previous page"
-      >
-        <ChevronLeft class="w-4 h-4" />
-      </button>
-      <span class="page-indicator">
-        Page {currentPage} of {totalPages}
-      </span>
-      <button
-        type="button"
-        class="page-nav-btn"
-        onclick={nextPage}
-        disabled={currentPage >= totalPages}
-        aria-label="Next page"
-      >
-        <ChevronRight class="w-4 h-4" />
-      </button>
+      <div bind:this={editorElement} class="editor-wrapper"></div>
     </div>
   </div>
 </div>
@@ -464,134 +409,85 @@
     flex: 1;
   }
 
-  .save-indicator {
+  .save-status {
     display: flex;
     align-items: center;
     gap: 0.375rem;
-    color: var(--color-text-secondary);
     font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    margin-right: 0.5rem;
+  }
+
+  .save-status.saving {
+    color: var(--color-text-secondary);
     opacity: 0.7;
   }
 
-  .save-indicator.error {
+  .save-status.error {
     color: #ef4444;
   }
 
-  /* Novel Page Wrapper */
-  .novel-page-wrapper {
+  .word-count {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    padding: 0.25rem 0.5rem;
+    background: var(--color-bg-panel);
+    border-radius: 0.25rem;
+  }
+
+  /* Pages container - scrollable area */
+  .novel-pages-container {
     flex: 1;
-    overflow: auto;
-    padding: 1rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 1.5rem;
+    background: var(--color-bg-panel);
     display: flex;
     flex-direction: column;
     align-items: center;
-    background: var(--color-bg-panel);
   }
 
-  /* Novel Page - trade paperback aspect ratio (5.5:8.5 = 0.647) */
+  /* Novel Page - the paper appearance */
   .novel-page {
-    width: 26rem; /* Fixed width */
-    height: 40rem; /* Height maintains ~5.5:8.5 aspect ratio */
-    background: #faf9f7; /* Warm white paper color */
+    width: 26rem;
+    min-height: 40rem;
+    background: #faf9f7;
     border-radius: 0.125rem;
     box-shadow:
       0 1px 3px rgba(0, 0, 0, 0.2),
       0 4px 12px rgba(0, 0, 0, 0.15),
       inset 0 0 0 1px rgba(0, 0, 0, 0.05);
     padding: 2rem 1.5rem;
-    overflow: hidden;
     flex-shrink: 0;
-  }
-
-  /* Pages container with CSS columns for pagination */
-  .pages-container {
-    height: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-behavior: smooth;
-    scroll-snap-type: x mandatory;
-    /* Hide scrollbar but allow scrolling */
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  .pages-container::-webkit-scrollbar {
-    display: none;
   }
 
   .editor-wrapper {
-    height: 100%;
-    column-width: 23rem; /* Page content width (26rem - 3rem padding) */
-    column-gap: 23rem; /* Same as column width for clean page breaks */
-    column-fill: auto;
-  }
-
-  /* Page Navigation */
-  .page-navigation {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-top: 0.75rem;
-    padding: 0.5rem 1rem;
-    background: var(--color-bg-card);
-    border-radius: 0.5rem;
-    flex-shrink: 0;
-  }
-
-  .page-nav-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 0.375rem;
-    color: var(--color-text-secondary);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-
-  .page-nav-btn:hover:not(:disabled) {
-    background: var(--color-bg-panel);
-    color: var(--color-text-primary);
-  }
-
-  .page-nav-btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-
-  .page-indicator {
-    font-size: 0.875rem;
-    color: var(--color-text-secondary);
-    min-width: 6rem;
-    text-align: center;
+    width: 100%;
+    min-height: 36rem;
   }
 
   /* TipTap Editor Styles - Novel typography */
   :global(.novel-editor-content) {
     outline: none;
     font-family: "Lora", Georgia, serif;
-    font-size: 0.8125rem; /* 13px - typical novel font size */
+    font-size: 0.8125rem;
     line-height: 1.6;
     color: #1a1a1a;
-    height: 100%;
+    min-height: 36rem;
     tab-size: 4;
     white-space: pre-wrap;
+    cursor: text;
   }
 
+  /* Paragraph styles */
   :global(.novel-editor-content p) {
     margin: 0;
     text-indent: 1.5em;
   }
 
-  :global(.novel-editor-content p:first-child) {
+  :global(.novel-editor-content p:first-child),
+  :global(.novel-editor-content p.is-editor-empty:first-child) {
     text-indent: 0;
-  }
-
-  :global(.novel-editor-content p + p) {
-    margin-top: 0;
   }
 
   :global(.novel-editor-content p.is-editor-empty:first-child::before) {
@@ -629,18 +525,5 @@
 
   :global(.novel-editor-content u) {
     text-decoration: underline;
-  }
-
-  /* Text alignment */
-  :global(.novel-editor-content p[style*="text-align: center"]) {
-    text-indent: 0;
-  }
-
-  :global(.novel-editor-content p[style*="text-align: right"]) {
-    text-indent: 0;
-  }
-
-  :global(.novel-editor-content p[style*="text-align: justify"]) {
-    text-align: justify;
   }
 </style>

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { FileText, ChevronRight, ChevronDown, Loader2, Plus, Pencil, Lock } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { tick } from "svelte";
+  import { SvelteMap } from "svelte/reactivity";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Beat } from "../types";
@@ -10,6 +12,19 @@
   const isLocked = $derived(
     currentProject.currentScene?.locked || currentProject.currentChapter?.locked || false
   );
+
+  // Refs for beat articles to scroll into view
+  let beatRefs = new SvelteMap<string, HTMLElement>();
+
+  // Action to register beat element refs
+  function registerBeatRef(node: HTMLElement, beatId: string) {
+    beatRefs.set(beatId, node);
+    return {
+      destroy() {
+        beatRefs.delete(beatId);
+      },
+    };
+  }
 
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   let synopsisSaveTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -24,26 +39,54 @@
   let newBeatContent = $state("");
   let creatingBeat = $state(false);
 
-  function toggleBeat(beatId: string) {
+  async function toggleBeat(beatId: string) {
     if (ui.expandedBeatId === beatId) {
+      // Collapsing - sync any pending prose updates to the store
+      const pendingProse = pendingProseUpdates.get(beatId);
+      if (pendingProse !== undefined) {
+        currentProject.updateBeatProse(beatId, pendingProse);
+        pendingProseUpdates.delete(beatId);
+      }
       ui.setExpandedBeat(null);
     } else {
+      // If we're switching from another beat, sync its pending updates first
+      if (ui.expandedBeatId) {
+        const pendingProse = pendingProseUpdates.get(ui.expandedBeatId);
+        if (pendingProse !== undefined) {
+          currentProject.updateBeatProse(ui.expandedBeatId, pendingProse);
+          pendingProseUpdates.delete(ui.expandedBeatId);
+        }
+      }
       ui.setExpandedBeat(beatId);
+      // Wait for DOM to update, then scroll the beat into view
+      await tick();
+      const beatElement = beatRefs.get(beatId);
+      if (beatElement) {
+        beatElement.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
     }
   }
 
+  // Track pending prose updates to sync to store when beat is collapsed
+  let pendingProseUpdates = new SvelteMap<string, string>();
+
+  // Local save status to avoid global store updates causing re-renders
+  let localSaveStatus = $state<"idle" | "saving" | "error">("idle");
+
   async function saveBeatProse(beatId: string, prose: string) {
-    ui.setBeatSaveStatus("saving");
+    localSaveStatus = "saving";
     try {
       await invoke("save_beat_prose", { beatId, prose });
-      currentProject.updateBeatProse(beatId, prose);
+      // Don't update the store while editing - it causes re-renders and flashing
+      // Instead, track the update and sync when the beat is collapsed
+      pendingProseUpdates.set(beatId, prose);
       // Keep showing "saving" for 1 more second so user sees the indicator
       setTimeout(() => {
-        ui.setBeatSaveStatus("idle");
+        localSaveStatus = "idle";
       }, 1000);
     } catch (e) {
       console.error("Failed to save beat prose:", e);
-      ui.setBeatSaveStatus("error");
+      localSaveStatus = "error";
     }
   }
 
@@ -279,7 +322,10 @@
             <div class="space-y-4">
               {#each currentProject.beats as beat, index (beat.id)}
                 {@const isExpanded = ui.expandedBeatId === beat.id}
-                <article class="bg-bg-panel rounded-lg overflow-hidden">
+                <article
+                  class="bg-bg-panel rounded-lg overflow-hidden"
+                  use:registerBeatRef={beat.id}
+                >
                   <!-- Beat Header (clickable to expand) -->
                   <button
                     data-testid="beat-header"
@@ -305,15 +351,14 @@
 
                   <!-- Expanded Beat Content -->
                   {#if isExpanded}
-                    <div class="border-t border-bg-card" style="height: 50rem;">
+                    <div class="border-t border-bg-card relative" style="height: 50rem;">
                       <NovelEditor
                         content={beat.prose || ""}
                         placeholder={isLocked
                           ? "Scene is locked"
                           : "Write your prose for this beat..."}
                         readonly={isLocked}
-                        saving={ui.beatSaveStatus === "saving"}
-                        saveError={ui.beatSaveStatus === "error"}
+                        saveStatus={localSaveStatus}
                         onUpdate={handleEditorUpdate(beat.id)}
                       />
                     </div>

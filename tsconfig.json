@@ -16,7 +16,11 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "lib": ["ES2021", "DOM", "DOM.Iterable"],
-    "types": ["svelte"]
+    "types": ["svelte"],
+    "baseUrl": ".",
+    "paths": {
+      "$lib/*": ["src/lib/*"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.svelte"]
 }
