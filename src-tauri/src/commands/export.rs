@@ -87,6 +87,34 @@ fn default_title_page() -> bool {
     true
 }
 
+/// Extract surname from a full name
+///
+/// Assumes the last word in the name is the surname.
+/// Examples:
+/// - "John Smith" -> "Smith"
+/// - "Mary Jane Watson" -> "Watson"
+/// - "Prince" -> "Prince" (single name)
+fn extract_surname(full_name: &str) -> String {
+    full_name
+        .split_whitespace()
+        .last()
+        .unwrap_or(full_name)
+        .to_string()
+}
+
+/// Abbreviate a title for the running header
+///
+/// If the title is longer than max_words, truncate to max_words.
+/// The title is converted to uppercase as per SMF.
+fn abbreviate_title(title: &str, max_words: usize) -> String {
+    let words: Vec<&str> = title.split_whitespace().collect();
+    if words.len() <= max_words {
+        title.to_uppercase()
+    } else {
+        words[..max_words].join(" ").to_uppercase()
+    }
+}
+
 /// Sanitize a filename by removing invalid characters
 fn sanitize_filename(name: &str) -> String {
     name.chars()
@@ -679,13 +707,76 @@ pub async fn export_to_markdown(
     })
 }
 
+/// Create the running header for the document
+///
+/// Standard Manuscript Format running header:
+/// - Right-aligned: "Surname / TITLE / PageNumber"
+/// - Courier New 12pt font
+/// - Only appears on pages after the title page
+fn create_running_header(author_surname: &str, title: &str) -> Header {
+    // Format: Surname / TITLE / [page number]
+    // Use abbreviated title (max 3 words) in uppercase
+    let abbreviated_title = abbreviate_title(title, 3);
+    let header_text = format!("{} / {} / ", author_surname, abbreviated_title);
+
+    Header::new().add_paragraph(
+        Paragraph::new()
+            // Add the static text part
+            .add_run(
+                Run::new()
+                    .add_text(&header_text)
+                    .size(24) // 12pt
+                    .fonts(RunFonts::new().ascii("Courier New")),
+            )
+            // Add the page number field
+            // Field structure: BEGIN -> instruction -> SEPARATE -> result -> END
+            .add_run(
+                Run::new()
+                    .add_field_char(FieldCharType::Begin, false)
+                    .size(24)
+                    .fonts(RunFonts::new().ascii("Courier New")),
+            )
+            .add_run(
+                Run::new()
+                    .add_instr_text(InstrText::PAGE(InstrPAGE {}))
+                    .size(24)
+                    .fonts(RunFonts::new().ascii("Courier New")),
+            )
+            .add_run(
+                Run::new()
+                    .add_field_char(FieldCharType::Separate, false)
+                    .size(24)
+                    .fonts(RunFonts::new().ascii("Courier New")),
+            )
+            .add_run(
+                Run::new()
+                    .add_text("1") // Placeholder that Word will replace
+                    .size(24)
+                    .fonts(RunFonts::new().ascii("Courier New")),
+            )
+            .add_run(
+                Run::new()
+                    .add_field_char(FieldCharType::End, false)
+                    .size(24)
+                    .fonts(RunFonts::new().ascii("Courier New")),
+            )
+            .align(AlignmentType::Right),
+    )
+}
+
+/// Create an empty header for the first page (title page)
+fn create_empty_first_header() -> Header {
+    Header::new()
+}
+
 /// Create heading styles and page setup for the DOCX document
 ///
 /// Standard Manuscript Format:
 /// - 1-inch margins on all sides
 /// - Courier New 12pt font
 /// - Double-spaced body text
-fn create_docx_styles() -> Docx {
+/// - Running header with Surname / TITLE / PageNumber (not on title page)
+fn create_docx_styles(author_name: Option<&str>, project_title: &str) -> Docx {
     // 1440 twips = 1 inch (there are 1440 twips per inch)
     let page_margin = PageMargin::new()
         .top(1440)
@@ -695,9 +786,28 @@ fn create_docx_styles() -> Docx {
         .header(720) // 0.5 inch header margin
         .footer(720); // 0.5 inch footer margin
 
+    // Extract surname for running header
+    let surname = author_name.map(extract_surname).unwrap_or_default();
+
+    // Create the running header (for all pages except first)
+    let running_header = create_running_header(&surname, project_title);
+
+    // Create empty header for title page
+    let empty_header = create_empty_first_header();
+
+    // With title_pg() enabled:
+    // - first_header() sets the header for the first page only
+    // - header() sets the header for all other pages (default header)
+    // Note: Order matters - header() must be called before first_header()
     Docx::new()
         // Set page margins (1 inch on all sides)
         .page_margin(page_margin)
+        // Enable different first page header
+        .title_pg()
+        // Running header for all pages after the first (must be set before first_header)
+        .header(running_header)
+        // Empty header for title page (first page)
+        .first_header(empty_header)
         // Heading 1 style (for chapters) - large, bold, Courier New
         .add_style(
             Style::new("Heading1", StyleType::Paragraph)
@@ -964,8 +1074,16 @@ pub async fn export_to_docx(
     let mut chapters_exported = 0;
     let mut scenes_exported = 0;
 
-    // Initialize document with styles
-    let mut docx = create_docx_styles();
+    // Determine author name for running header (pen name or app settings author name)
+    let author_name_for_header = project
+        .author_pen_name
+        .as_ref()
+        .filter(|s| !s.trim().is_empty())
+        .or(app_settings.author_name.as_ref())
+        .map(|s| s.as_str());
+
+    // Initialize document with styles and running header
+    let mut docx = create_docx_styles(author_name_for_header, &project.name);
 
     // Add title page if requested
     if options.include_title_page {
@@ -1129,7 +1247,7 @@ mod tests {
     #[test]
     fn test_create_docx_styles() {
         // Test that the styles are created without panicking
-        let docx = create_docx_styles();
+        let docx = create_docx_styles(Some("John Smith"), "My Novel Title");
         // Build should succeed
         let built = docx.build();
         // Pack to a buffer should succeed
@@ -1137,6 +1255,42 @@ mod tests {
         built.pack(&mut std::io::Cursor::new(&mut buffer)).unwrap();
         // Should produce a non-empty zip file
         assert!(!buffer.is_empty());
+    }
+
+    #[test]
+    fn test_create_docx_styles_no_author() {
+        // Test with no author name
+        let docx = create_docx_styles(None, "Untitled");
+        let built = docx.build();
+        let mut buffer = Vec::new();
+        built.pack(&mut std::io::Cursor::new(&mut buffer)).unwrap();
+        assert!(!buffer.is_empty());
+    }
+
+    #[test]
+    fn test_extract_surname() {
+        assert_eq!(extract_surname("John Smith"), "Smith");
+        assert_eq!(extract_surname("Mary Jane Watson"), "Watson");
+        assert_eq!(extract_surname("Prince"), "Prince");
+        assert_eq!(extract_surname("John   Smith"), "Smith"); // Multiple spaces
+        assert_eq!(extract_surname(""), "");
+    }
+
+    #[test]
+    fn test_abbreviate_title() {
+        // Short titles stay the same (but uppercase)
+        assert_eq!(abbreviate_title("My Novel", 3), "MY NOVEL");
+        assert_eq!(abbreviate_title("Title", 3), "TITLE");
+
+        // Long titles get truncated
+        assert_eq!(
+            abbreviate_title("The Very Long Title of My Book", 3),
+            "THE VERY LONG"
+        );
+        assert_eq!(abbreviate_title("A Tale of Two Cities", 3), "A TALE OF");
+
+        // Exactly max_words
+        assert_eq!(abbreviate_title("One Two Three", 3), "ONE TWO THREE");
     }
 
     #[test]
