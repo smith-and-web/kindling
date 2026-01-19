@@ -43,6 +43,7 @@
   let pagesContainer: HTMLElement;
   let editor: Editor | null = $state(null);
   let isInitialized = false;
+  let isSettingContent = false; // Prevent update loops when setting content programmatically
 
   // Pagination state
   let currentPage = $state(1);
@@ -143,8 +144,8 @@
       onUpdate: ({ editor }) => {
         updateToolbarState();
         onContentUpdate();
-        // Skip the initial update that fires when content is first set
-        if (onUpdate && isInitialized) {
+        // Skip updates during initialization or programmatic content setting
+        if (onUpdate && isInitialized && !isSettingContent) {
           onUpdate(editor.getHTML());
         }
       },
@@ -173,7 +174,9 @@
   // Update content when prop changes (e.g., switching beats)
   $effect(() => {
     if (editor && content !== editor.getHTML()) {
+      isSettingContent = true;
       editor.commands.setContent(content || "");
+      isSettingContent = false;
     }
   });
 
