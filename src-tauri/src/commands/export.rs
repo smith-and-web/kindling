@@ -4,11 +4,11 @@
 
 use crate::commands::AppState;
 use crate::db;
-use crate::models::{Beat, Scene};
+use crate::models::{Beat, Scene, SnapshotTrigger};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use tauri::State;
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 /// Export scope - what to export
@@ -32,6 +32,15 @@ pub struct MarkdownExportOptions {
     pub include_beat_markers: bool,
     /// Output directory path
     pub output_path: String,
+    /// Delete existing export folder if it exists
+    #[serde(default)]
+    pub delete_existing: bool,
+    /// Custom name for the export folder (defaults to project name if not provided)
+    #[serde(default)]
+    pub export_name: Option<String>,
+    /// Create a snapshot before exporting
+    #[serde(default)]
+    pub create_snapshot: bool,
 }
 
 /// Result of export operation
@@ -163,9 +172,35 @@ fn generate_scene_markdown(scene: &Scene, beats: &[Beat], include_beat_markers: 
 pub async fn export_to_markdown(
     project_id: String,
     options: MarkdownExportOptions,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<ExportResult, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+
+    // Create snapshot if requested (before taking the connection lock)
+    if options.create_snapshot {
+        let snapshot_name = options
+            .export_name
+            .as_ref()
+            .filter(|s| !s.trim().is_empty())
+            .cloned()
+            .unwrap_or_else(|| "Pre-export snapshot".to_string());
+
+        let snapshot_options = super::CreateSnapshotOptions {
+            name: snapshot_name,
+            description: Some("Automatic snapshot created before export".to_string()),
+            trigger_type: SnapshotTrigger::Export,
+        };
+
+        super::create_snapshot(
+            project_id.clone(),
+            snapshot_options,
+            app_handle,
+            state.clone(),
+        )
+        .await?;
+    }
+
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
     // Get project info
@@ -175,10 +210,16 @@ pub async fn export_to_markdown(
 
     let output_base = PathBuf::from(&options.output_path);
 
+    // Use custom export name if provided, otherwise use project name
+    let folder_name = options
+        .export_name
+        .as_ref()
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| sanitize_filename(s))
+        .unwrap_or_else(|| sanitize_filename(&project.name));
+
     // Create project folder
-    let project_folder = output_base.join(sanitize_filename(&project.name));
-    fs::create_dir_all(&project_folder)
-        .map_err(|e| format!("Failed to create output directory: {}", e))?;
+    let project_folder = output_base.join(folder_name);
 
     let mut files_created = 0;
     let mut chapters_exported = 0;
@@ -186,16 +227,28 @@ pub async fn export_to_markdown(
 
     match options.scope {
         ExportScope::Project => {
+            // Delete existing project folder if requested (only for project-level export)
+            if options.delete_existing && project_folder.exists() {
+                fs::remove_dir_all(&project_folder)
+                    .map_err(|e| format!("Failed to delete existing folder: {}", e))?;
+            }
+
+            fs::create_dir_all(&project_folder)
+                .map_err(|e| format!("Failed to create output directory: {}", e))?;
             // Get all chapters
             let chapters =
                 db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
 
+            let mut chapter_num = 0;
             for chapter in &chapters {
                 if chapter.archived {
                     continue;
                 }
+                chapter_num += 1;
 
-                let chapter_folder = project_folder.join(sanitize_filename(&chapter.title));
+                let chapter_folder_name =
+                    format!("{:02} - {}", chapter_num, sanitize_filename(&chapter.title));
+                let chapter_folder = project_folder.join(&chapter_folder_name);
                 fs::create_dir_all(&chapter_folder)
                     .map_err(|e| format!("Failed to create chapter directory: {}", e))?;
 
@@ -203,18 +256,24 @@ pub async fn export_to_markdown(
                 let scenes =
                     db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
 
+                let mut scene_num = 0;
                 for scene in &scenes {
                     if scene.archived {
                         continue;
                     }
+                    scene_num += 1;
 
                     let beats =
                         db::queries::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
 
                     let markdown =
                         generate_scene_markdown(scene, &beats, options.include_beat_markers);
-                    let scene_file =
-                        chapter_folder.join(format!("{}.md", sanitize_filename(&scene.title)));
+
+                    let scene_file = chapter_folder.join(format!(
+                        "{:02} - {}.md",
+                        scene_num,
+                        sanitize_filename(&scene.title)
+                    ));
 
                     fs::write(&scene_file, markdown)
                         .map_err(|e| format!("Failed to write scene file: {}", e))?;
@@ -227,30 +286,64 @@ pub async fn export_to_markdown(
             }
         }
         ExportScope::Chapter(chapter_id) => {
+            // Create project folder (don't delete it for chapter-level export)
+            fs::create_dir_all(&project_folder)
+                .map_err(|e| format!("Failed to create output directory: {}", e))?;
+
             let chapter_uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
 
-            // Get chapter info
-            let chapter = db::queries::get_chapter_by_id(&conn, &chapter_uuid)
-                .map_err(|e| e.to_string())?
-                .ok_or_else(|| format!("Chapter not found: {}", chapter_id))?;
+            // Get all chapters to find this chapter's position
+            let all_chapters =
+                db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
 
-            let chapter_folder = project_folder.join(sanitize_filename(&chapter.title));
+            // Find the chapter and its position (1-based, excluding archived)
+            let mut chapter_num = 0;
+            let mut target_chapter = None;
+            for ch in &all_chapters {
+                if !ch.archived {
+                    chapter_num += 1;
+                    if ch.id == chapter_uuid {
+                        target_chapter = Some(ch);
+                        break;
+                    }
+                }
+            }
+
+            let chapter =
+                target_chapter.ok_or_else(|| format!("Chapter not found: {}", chapter_id))?;
+
+            let chapter_folder_name =
+                format!("{:02} - {}", chapter_num, sanitize_filename(&chapter.title));
+            let chapter_folder = project_folder.join(&chapter_folder_name);
+
+            // Delete existing chapter folder if requested
+            if options.delete_existing && chapter_folder.exists() {
+                fs::remove_dir_all(&chapter_folder)
+                    .map_err(|e| format!("Failed to delete existing chapter folder: {}", e))?;
+            }
+
             fs::create_dir_all(&chapter_folder)
                 .map_err(|e| format!("Failed to create chapter directory: {}", e))?;
 
             // Get scenes for this chapter
             let scenes = db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
 
+            let mut scene_num = 0;
             for scene in &scenes {
                 if scene.archived {
                     continue;
                 }
+                scene_num += 1;
 
                 let beats = db::queries::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
 
                 let markdown = generate_scene_markdown(scene, &beats, options.include_beat_markers);
-                let scene_file =
-                    chapter_folder.join(format!("{}.md", sanitize_filename(&scene.title)));
+
+                let scene_file = chapter_folder.join(format!(
+                    "{:02} - {}.md",
+                    scene_num,
+                    sanitize_filename(&scene.title)
+                ));
 
                 fs::write(&scene_file, markdown)
                     .map_err(|e| format!("Failed to write scene file: {}", e))?;
@@ -262,6 +355,10 @@ pub async fn export_to_markdown(
             chapters_exported = 1;
         }
         ExportScope::Scene(scene_id) => {
+            // Create project folder (don't delete it for scene-level export)
+            fs::create_dir_all(&project_folder)
+                .map_err(|e| format!("Failed to create output directory: {}", e))?;
+
             let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
 
             // Get scene info
@@ -269,10 +366,60 @@ pub async fn export_to_markdown(
                 .map_err(|e| e.to_string())?
                 .ok_or_else(|| format!("Scene not found: {}", scene_id))?;
 
+            // Get chapter info to determine chapter position
+            let chapter = db::queries::get_chapter_by_id(&conn, &scene.chapter_id)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| "Scene's chapter not found".to_string())?;
+
+            // Get all chapters to find chapter position
+            let all_chapters =
+                db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+
+            let mut chapter_num = 0;
+            for ch in &all_chapters {
+                if !ch.archived {
+                    chapter_num += 1;
+                    if ch.id == chapter.id {
+                        break;
+                    }
+                }
+            }
+
+            // Get all scenes in this chapter to find scene position
+            let all_scenes =
+                db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
+
+            let mut scene_num = 0;
+            for sc in &all_scenes {
+                if !sc.archived {
+                    scene_num += 1;
+                    if sc.id == scene.id {
+                        break;
+                    }
+                }
+            }
+
+            // Create chapter folder with prefix (don't delete it for scene-level export)
+            let chapter_folder_name =
+                format!("{:02} - {}", chapter_num, sanitize_filename(&chapter.title));
+            let chapter_folder = project_folder.join(&chapter_folder_name);
+            fs::create_dir_all(&chapter_folder)
+                .map_err(|e| format!("Failed to create chapter directory: {}", e))?;
+
             let beats = db::queries::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
 
             let markdown = generate_scene_markdown(&scene, &beats, options.include_beat_markers);
-            let scene_file = project_folder.join(format!("{}.md", sanitize_filename(&scene.title)));
+            let scene_file = chapter_folder.join(format!(
+                "{:02} - {}.md",
+                scene_num,
+                sanitize_filename(&scene.title)
+            ));
+
+            // Delete existing scene file if requested
+            if options.delete_existing && scene_file.exists() {
+                fs::remove_file(&scene_file)
+                    .map_err(|e| format!("Failed to delete existing scene file: {}", e))?;
+            }
 
             fs::write(&scene_file, markdown)
                 .map_err(|e| format!("Failed to write scene file: {}", e))?;

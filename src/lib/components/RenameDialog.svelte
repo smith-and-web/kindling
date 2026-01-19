@@ -1,6 +1,7 @@
 <script lang="ts">
   /* eslint-disable no-undef, svelte/prefer-writable-derived */
   import { X, Loader2 } from "lucide-svelte";
+  import Tooltip from "./Tooltip.svelte";
 
   let {
     title,
@@ -84,14 +85,16 @@
       <h2 id="rename-dialog-title" class="text-lg font-medium text-text-primary">
         {title}
       </h2>
-      <button
-        type="button"
-        onclick={onClose}
-        class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
-        aria-label="Close"
-      >
-        <X class="w-5 h-5" />
-      </button>
+      <Tooltip text="Close" position="left">
+        <button
+          type="button"
+          onclick={onClose}
+          class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
+          aria-label="Close"
+        >
+          <X class="w-5 h-5" />
+        </button>
+      </Tooltip>
     </div>
 
     <!-- Content -->

@@ -164,6 +164,12 @@ export interface MarkdownExportOptions {
   include_beat_markers: boolean;
   /** Output directory path */
   output_path: string;
+  /** Delete existing export folder if it exists */
+  delete_existing: boolean;
+  /** Custom name for the export folder (defaults to project name) */
+  export_name?: string;
+  /** Create a snapshot before exporting */
+  create_snapshot?: boolean;
 }
 
 /** Result of an export operation */
@@ -176,4 +182,52 @@ export interface ExportResult {
   chapters_exported: number;
   /** Total scenes exported */
   scenes_exported: number;
+}
+
+// =============================================================================
+// Snapshot Types
+// Used for creating and restoring project snapshots (versioning)
+// =============================================================================
+
+/** Trigger type for snapshot creation */
+export type SnapshotTrigger = "manual" | "export" | "auto";
+
+/** Restore mode for snapshots */
+export type RestoreMode = "replace_current" | "create_new";
+
+/** Metadata about a snapshot stored in the database */
+export interface SnapshotMetadata {
+  id: string;
+  project_id: string;
+  name: string;
+  description?: string | null;
+  trigger_type: SnapshotTrigger;
+  created_at: string;
+  file_path: string;
+  file_size: number;
+  uncompressed_size?: number | null;
+  chapter_count: number;
+  scene_count: number;
+  beat_count: number;
+  word_count?: number | null;
+  schema_version: number;
+}
+
+/** Options for creating a snapshot */
+export interface CreateSnapshotOptions {
+  name: string;
+  description?: string;
+  trigger_type: SnapshotTrigger;
+}
+
+/** Options for restoring a snapshot */
+export interface RestoreSnapshotOptions {
+  mode: RestoreMode;
+  new_project_name?: string;
+}
+
+/** Preview of a snapshot (lightweight metadata) */
+export interface SnapshotPreview {
+  metadata: SnapshotMetadata;
+  project_name: string;
 }

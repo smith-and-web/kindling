@@ -52,6 +52,7 @@ pub fn run() {
             commands::import_markdown,
             commands::get_project,
             commands::get_recent_projects,
+            commands::delete_project,
             commands::get_chapters,
             commands::create_chapter,
             commands::get_scenes,
@@ -92,6 +93,12 @@ pub fn run() {
             commands::unlock_scene,
             // Export commands
             commands::export_to_markdown,
+            // Snapshot commands
+            commands::create_snapshot,
+            commands::list_snapshots,
+            commands::delete_snapshot,
+            commands::restore_snapshot,
+            commands::preview_snapshot,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

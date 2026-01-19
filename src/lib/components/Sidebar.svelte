@@ -14,6 +14,7 @@
     ChevronRight,
     ChevronsLeft,
     ChevronsRight,
+    Clock,
     FileText,
     Folder,
     Home,
@@ -21,23 +22,27 @@
     Trash2,
     GripVertical,
     RefreshCw,
-    Loader2,
     Pencil,
     MoreVertical,
     Copy,
     Archive,
     Lock,
     Unlock,
+    Download,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
-  import type { Chapter, Scene, SyncPreview, ReimportSummary } from "../types";
+  import type { Chapter, Scene, SyncPreview, ReimportSummary, ExportResult } from "../types";
   import ArchivePanel from "./ArchivePanel.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import ContextMenu from "./ContextMenu.svelte";
   import RenameDialog from "./RenameDialog.svelte";
   import SyncDialog from "./SyncDialog.svelte";
   import SyncSummaryDialog from "./SyncSummaryDialog.svelte";
+  import ExportDialog from "./ExportDialog.svelte";
+  import ExportSuccessDialog from "./ExportSuccessDialog.svelte";
+  import SnapshotsPanel from "./SnapshotsPanel.svelte";
+  import Tooltip from "./Tooltip.svelte";
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   type IconComponent = any;
@@ -102,6 +107,18 @@
 
   // Archive panel state
   let showArchivePanel = $state(false);
+
+  // Snapshots panel state
+  let showSnapshotsPanel = $state(false);
+
+  // Export dialog state
+  let exportDialog: {
+    scope: "project" | "chapter" | "scene";
+    scopeId: string | null;
+    scopeTitle: string;
+  } | null = $state(null);
+
+  let exportResult: ExportResult | null = $state(null);
 
   async function loadChapters() {
     if (!currentProject.value) return;
@@ -521,6 +538,17 @@
         action: () => handleArchive(type, item.id),
         disabled: isLocked,
       },
+      {
+        label: "Export",
+        icon: Download,
+        action: () => {
+          exportDialog = {
+            scope: type,
+            scopeId: item.id,
+            scopeTitle: item.title,
+          };
+        },
+      },
       { divider: true, label: "", action: () => {} },
       {
         label: "Delete",
@@ -673,53 +701,86 @@
         </svg>
         kindling
       </span>
-      <button
-        onclick={toggleSidebar}
-        class="text-text-secondary hover:text-text-primary p-1"
-        aria-label="Collapse sidebar"
-      >
-        <ChevronsLeft class="w-5 h-5" />
-      </button>
+      <Tooltip text="Collapse sidebar" position="bottom">
+        <button
+          onclick={toggleSidebar}
+          class="text-text-secondary hover:text-text-primary p-1"
+          aria-label="Collapse sidebar"
+        >
+          <ChevronsLeft class="w-5 h-5" />
+        </button>
+      </Tooltip>
     </div>
     {#if currentProject.value}
-      <p class="text-text-secondary text-sm mt-1 truncate">
-        {currentProject.value.name}
-      </p>
-      <div class="flex gap-2 mt-3">
+      <!-- Project name with action icons -->
+      <div class="flex items-center justify-between mt-2 gap-2">
+        <p class="text-text-primary text-base font-semibold truncate min-w-0 flex-1">
+          {currentProject.value.name}
+        </p>
+        <!-- Action icons -->
+        <div class="flex items-center gap-0.5 flex-shrink-0">
+          <Tooltip text="Export project" position="bottom">
+            <button
+              data-testid="export-button"
+              onclick={() => {
+                if (currentProject.value) {
+                  exportDialog = {
+                    scope: "project",
+                    scopeId: null,
+                    scopeTitle: currentProject.value.name,
+                  };
+                }
+              }}
+              class="p-1.5 text-text-secondary hover:text-text-primary hover:bg-bg-card rounded transition-colors"
+              aria-label="Export project"
+            >
+              <Download class="w-4 h-4" />
+            </button>
+          </Tooltip>
+          <Tooltip text="Snapshots" position="bottom">
+            <button
+              data-testid="snapshots-button"
+              onclick={() => (showSnapshotsPanel = true)}
+              class="p-1.5 text-text-secondary hover:text-text-primary hover:bg-bg-card rounded transition-colors"
+              aria-label="View snapshots"
+            >
+              <Clock class="w-4 h-4" />
+            </button>
+          </Tooltip>
+          <Tooltip text="Archive" position="bottom">
+            <button
+              data-testid="archive-button"
+              onclick={() => (showArchivePanel = true)}
+              class="p-1.5 text-text-secondary hover:text-text-primary hover:bg-bg-card rounded transition-colors"
+              aria-label="View archive"
+            >
+              <Archive class="w-4 h-4" />
+            </button>
+          </Tooltip>
+          {#if currentProject.value.source_path}
+            <Tooltip text="Sync from source" position="bottom">
+              <button
+                data-testid="sync-button"
+                onclick={handleSyncClick}
+                disabled={loadingSyncPreview}
+                class="p-1.5 text-text-secondary hover:text-text-primary hover:bg-bg-card rounded transition-colors disabled:opacity-50"
+                aria-label="Sync from source"
+              >
+                <RefreshCw class="w-4 h-4 {loadingSyncPreview ? 'animate-spin' : ''}" />
+              </button>
+            </Tooltip>
+          {/if}
+        </div>
+      </div>
+      <div class="mt-2">
         <button
           onclick={goHome}
-          class="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded-lg transition-colors"
+          class="w-full flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded-lg transition-colors"
           aria-label="Close project"
         >
           <Home class="w-3.5 h-3.5" />
           All Projects
         </button>
-        <button
-          data-testid="archive-button"
-          onclick={() => (showArchivePanel = true)}
-          class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded-lg transition-colors"
-          aria-label="View archive"
-          title="View archived items"
-        >
-          <Archive class="w-3.5 h-3.5" />
-        </button>
-        {#if currentProject.value.source_path}
-          <button
-            data-testid="reimport-button"
-            onclick={handleSyncClick}
-            disabled={loadingSyncPreview}
-            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-beat-header rounded-lg transition-colors disabled:opacity-50"
-            aria-label="Sync from source"
-            title="Sync from source file"
-          >
-            {#if loadingSyncPreview}
-              <Loader2 data-testid="reimport-spinner" class="w-3.5 h-3.5 animate-spin" />
-            {:else}
-              <RefreshCw class="w-3.5 h-3.5" />
-            {/if}
-            <span>Sync</span>
-          </button>
-        {/if}
       </div>
     {/if}
   </div>
@@ -945,13 +1006,15 @@
 
 <!-- Collapsed sidebar toggle -->
 {#if ui.sidebarCollapsed}
-  <button
-    onclick={toggleSidebar}
-    class="fixed left-0 top-1/2 -translate-y-1/2 bg-bg-panel p-2 rounded-r-lg text-text-secondary hover:text-text-primary z-10"
-    aria-label="Expand sidebar"
-  >
-    <ChevronsRight class="w-5 h-5" />
-  </button>
+  <Tooltip text="Expand sidebar" position="right">
+    <button
+      onclick={toggleSidebar}
+      class="fixed left-0 top-1/2 -translate-y-1/2 bg-bg-panel p-2 rounded-r-lg text-text-secondary hover:text-text-primary z-10"
+      aria-label="Expand sidebar"
+    >
+      <ChevronsRight class="w-5 h-5" />
+    </button>
+  </Tooltip>
 {/if}
 
 <!-- Sync Preview Dialog -->
@@ -1002,4 +1065,28 @@
 <!-- Archive Panel -->
 {#if showArchivePanel}
   <ArchivePanel onClose={() => (showArchivePanel = false)} />
+{/if}
+
+<!-- Snapshots Panel -->
+{#if showSnapshotsPanel}
+  <SnapshotsPanel onClose={() => (showSnapshotsPanel = false)} />
+{/if}
+
+<!-- Export Dialog -->
+{#if exportDialog}
+  <ExportDialog
+    scope={exportDialog.scope}
+    scopeId={exportDialog.scopeId}
+    scopeTitle={exportDialog.scopeTitle}
+    onClose={() => (exportDialog = null)}
+    onSuccess={(result) => {
+      exportDialog = null;
+      exportResult = result;
+    }}
+  />
+{/if}
+
+<!-- Export Success Dialog -->
+{#if exportResult}
+  <ExportSuccessDialog result={exportResult} onClose={() => (exportResult = null)} />
 {/if}
