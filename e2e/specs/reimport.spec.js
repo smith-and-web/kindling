@@ -17,6 +17,8 @@ import {
   selectScene,
   expandBeat,
   typeProse,
+  getProseContent,
+  clearProseContent,
   waitForSaved,
 } from "./helpers.js";
 
@@ -188,8 +190,7 @@ describe("Re-import to Update Project (#40)", () => {
       await expandBeat(0);
 
       // Clear existing content first, then type new prose
-      const textarea = await $('[data-testid="beat-prose-textarea"]');
-      await textarea.clearValue();
+      await clearProseContent();
       await typeProse(testProse);
       await waitForSaved();
 
@@ -227,18 +228,17 @@ describe("Re-import to Update Project (#40)", () => {
       await selectScene("The Beginning");
       await expandBeat(0);
 
-      // Wait for textarea to appear
+      // Wait for editor to appear
       await browser.waitUntil(
         async () => {
-          const ta = await $('[data-testid="beat-prose-textarea"]');
-          return await ta.isExisting();
+          const ed = await $('[data-testid="beat-prose-editor"]');
+          return await ed.isExisting();
         },
         { timeout: 3000 }
       );
 
       // Verify prose is still there
-      const resultTextarea = await $('[data-testid="beat-prose-textarea"]');
-      const value = await resultTextarea.getValue();
+      const value = await getProseContent();
       expect(value).toBe(testProse);
     });
   });

@@ -12,6 +12,8 @@ import {
   selectScene,
   expandBeat,
   typeProse,
+  getProseContent,
+  clearProseContent,
   waitForSaved,
 } from "./helpers.js";
 
@@ -36,25 +38,25 @@ describe("Beat-Level Prose Editing (#38)", () => {
     // Click on the first beat header
     await expandBeat(0);
 
-    // Check that textarea is now visible
-    const textarea = await $('[data-testid="beat-prose-textarea"]');
-    expect(await textarea.isExisting()).toBe(true);
+    // Check that prose editor is now visible (TipTap contenteditable)
+    const editor = await $('[data-testid="beat-prose-editor"]');
+    expect(await editor.isExisting()).toBe(true);
   });
 
   it("should collapse a beat when pressing Escape", async () => {
     // Expand a beat
     await expandBeat(0);
-    const textarea = await $('[data-testid="beat-prose-textarea"]');
-    expect(await textarea.isExisting()).toBe(true);
+    const editor = await $('[data-testid="beat-prose-editor"]');
+    expect(await editor.isExisting()).toBe(true);
 
     // Press Escape
     await browser.keys("Escape");
 
-    // Textarea should no longer be visible
+    // Editor should no longer be visible
     await browser.waitUntil(
       async () => {
-        const ta = await $('[data-testid="beat-prose-textarea"]');
-        return !(await ta.isExisting());
+        const ed = await $('[data-testid="beat-prose-editor"]');
+        return !(await ed.isExisting());
       },
       { timeout: 2000 }
     );
@@ -65,11 +67,11 @@ describe("Beat-Level Prose Editing (#38)", () => {
     await expandBeat(0);
     await expandBeat(0); // Click again
 
-    // Textarea should be gone
+    // Editor should be gone
     await browser.waitUntil(
       async () => {
-        const ta = await $('[data-testid="beat-prose-textarea"]');
-        return !(await ta.isExisting());
+        const ed = await $('[data-testid="beat-prose-editor"]');
+        return !(await ed.isExisting());
       },
       { timeout: 2000 }
     );
@@ -79,15 +81,14 @@ describe("Beat-Level Prose Editing (#38)", () => {
     await expandBeat(0);
 
     // Clear existing content first
-    const textarea = await $('[data-testid="beat-prose-textarea"]');
-    await textarea.clearValue();
+    await clearProseContent();
     await typeProse("The morning light filtered through the dusty window.");
 
     // Wait for the save to complete (indicator disappears when save is done)
     await waitForSaved();
 
-    // Verify the textarea still has our content (save didn't clear it)
-    const value = await textarea.getValue();
+    // Verify the editor still has our content (save didn't clear it)
+    const value = await getProseContent();
     expect(value).toContain("morning light");
   });
 
@@ -95,18 +96,14 @@ describe("Beat-Level Prose Editing (#38)", () => {
     await expandBeat(0);
 
     // Start typing - should show "Saving..."
-    const textarea = await $('[data-testid="beat-prose-textarea"]');
-    await textarea.setValue("Test content for saving");
+    await typeProse("Test content for saving");
 
-    // Wait for saving indicator to appear (debounce is 1s, then "Saving..." shows)
+    // Wait for saving indicator to appear (debounce is 500ms, then "Saving..." shows)
     await browser.waitUntil(
       async () => {
-        const indicator = await $('[data-testid="save-indicator"]');
-        if (await indicator.isExisting()) {
-          const text = await browser.execute((el) => el.textContent, indicator);
-          return text && text.includes("Saving");
-        }
-        return false;
+        // The save status is shown in the NovelEditor toolbar
+        const savingText = await $(".save-status.saving");
+        return await savingText.isExisting();
       },
       { timeout: 3000, timeoutMsg: "Save indicator did not appear" }
     );
@@ -117,8 +114,7 @@ describe("Beat-Level Prose Editing (#38)", () => {
 
     // Write prose (clear first to avoid accumulation from previous tests)
     await expandBeat(0);
-    const textarea = await $('[data-testid="beat-prose-textarea"]');
-    await textarea.clearValue();
+    await clearProseContent();
     await typeProse(testProse);
     await waitForSaved();
 
@@ -133,32 +129,31 @@ describe("Beat-Level Prose Editing (#38)", () => {
     await selectScene("The Beginning");
     await expandBeat(0);
 
-    // Wait for textarea to appear after beat expansion
+    // Wait for editor to appear after beat expansion
     await browser.waitUntil(
       async () => {
-        const ta = await $('[data-testid="beat-prose-textarea"]');
-        return await ta.isExisting();
+        const ed = await $('[data-testid="beat-prose-editor"]');
+        return await ed.isExisting();
       },
-      { timeout: 3000, timeoutMsg: "Textarea did not appear after expanding beat" }
+      { timeout: 3000, timeoutMsg: "Editor did not appear after expanding beat" }
     );
 
     // Check prose is still there
-    const resultTextarea = await $('[data-testid="beat-prose-textarea"]');
-    const value = await resultTextarea.getValue();
+    const value = await getProseContent();
     expect(value).toBe(testProse);
   });
 
   it("should collapse current beat when expanding another", async () => {
     // Expand first beat
     await expandBeat(0);
-    let textareas = await $$('[data-testid="beat-prose-textarea"]');
-    expect(textareas.length).toBe(1);
+    let editors = await $$('[data-testid="beat-prose-editor"]');
+    expect(editors.length).toBe(1);
 
     // Expand second beat
     await expandBeat(1);
 
-    // Should still only have one textarea visible
-    textareas = await $$('[data-testid="beat-prose-textarea"]');
-    expect(textareas.length).toBe(1);
+    // Should still only have one editor visible
+    editors = await $$('[data-testid="beat-prose-editor"]');
+    expect(editors.length).toBe(1);
   });
 });
