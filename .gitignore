@@ -41,3 +41,4 @@ npm-debug.log*
 
 # Test coverage
 coverage/
+coverage-rust/
