@@ -11,12 +11,14 @@
 //! - [`lock`]: Lock/unlock commands
 //! - [`export`]: Export commands for Markdown, DOCX
 //! - [`snapshot`]: Snapshot/versioning commands
+//! - [`settings`]: App-wide settings
 
 mod archive;
 mod crud;
 mod export;
 mod import;
 mod lock;
+mod settings;
 mod snapshot;
 mod state;
 mod sync;
@@ -27,6 +29,7 @@ pub use crud::*;
 pub use export::*;
 pub use import::*;
 pub use lock::*;
+pub use settings::*;
 pub use snapshot::*;
 pub use state::*;
 pub use sync::*;

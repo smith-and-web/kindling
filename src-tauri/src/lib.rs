@@ -20,6 +20,7 @@
 
 pub mod commands;
 pub mod db;
+pub mod menu;
 pub mod models;
 pub mod parsers;
 
@@ -44,6 +45,11 @@ pub fn run() {
 
             app.manage(state);
 
+            // Set up application menu
+            let app_handle = app.handle();
+            menu::create_menu(app_handle).expect("Failed to create menu");
+            menu::setup_menu_events(app_handle);
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -52,6 +58,7 @@ pub fn run() {
             commands::import_markdown,
             commands::get_project,
             commands::get_recent_projects,
+            commands::update_project_settings,
             commands::delete_project,
             commands::get_chapters,
             commands::create_chapter,
@@ -100,6 +107,9 @@ pub fn run() {
             commands::delete_snapshot,
             commands::restore_snapshot,
             commands::preview_snapshot,
+            // App settings commands
+            commands::get_app_settings,
+            commands::update_app_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

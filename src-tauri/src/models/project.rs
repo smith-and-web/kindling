@@ -35,6 +35,11 @@ pub struct Project {
     pub source_path: Option<String>,
     pub created_at: String,
     pub modified_at: String,
+    // Project-specific metadata for export title page
+    /// Pen name for this project (overrides app-level author name if set)
+    pub author_pen_name: Option<String>,
+    /// Genre of this work
+    pub genre: Option<String>,
 }
 
 impl Project {
@@ -47,6 +52,8 @@ impl Project {
             source_path,
             created_at: now.clone(),
             modified_at: now,
+            author_pen_name: None,
+            genre: None,
         }
     }
 }

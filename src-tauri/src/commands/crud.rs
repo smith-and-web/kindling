@@ -32,6 +32,40 @@ pub async fn get_recent_projects(state: State<'_, AppState>) -> Result<Vec<Proje
     db::get_recent_projects(&conn, 10).map_err(|e| e.to_string())
 }
 
+/// Input type for updating project settings (pen name and genre)
+#[derive(serde::Deserialize)]
+pub struct ProjectSettingsUpdate {
+    pub author_pen_name: Option<String>,
+    pub genre: Option<String>,
+}
+
+#[tauri::command]
+pub async fn update_project_settings(
+    project_id: String,
+    settings: ProjectSettingsUpdate,
+    state: State<'_, AppState>,
+) -> Result<Project, String> {
+    let uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Get the existing project
+    let mut project = db::get_project(&conn, &uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Project not found".to_string())?;
+
+    // Update the project-specific fields
+    project.author_pen_name = settings.author_pen_name;
+    project.genre = settings.genre;
+
+    // Update modified timestamp
+    project.modified_at = chrono::Utc::now().to_rfc3339();
+
+    // Save to database
+    db::update_project(&conn, &project).map_err(|e| e.to_string())?;
+
+    Ok(project)
+}
+
 /// Delete a project and all its associated data including snapshot files
 #[tauri::command]
 pub async fn delete_project(
