@@ -24,6 +24,26 @@ pub enum ExportScope {
     Scene(String),
 }
 
+/// Chapter heading style for DOCX export
+///
+/// Standard Manuscript Format supports various chapter heading styles.
+/// All styles produce centered, ALL CAPS headings.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ChapterHeadingStyle {
+    /// "CHAPTER ONE" - word number only (default SMF style)
+    #[default]
+    NumberOnly,
+    /// "CHAPTER ONE: THE BEGINNING" - word number with chapter title
+    NumberAndTitle,
+    /// "THE BEGINNING" - title only, no chapter number
+    TitleOnly,
+    /// "CHAPTER 1" - Arabic numeral instead of word
+    NumberArabic,
+    /// "CHAPTER 1: THE BEGINNING" - Arabic numeral with title
+    NumberArabicAndTitle,
+}
+
 /// Export options for markdown export
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarkdownExportOptions {
@@ -77,6 +97,9 @@ pub struct DocxExportOptions {
     /// Include a Standard Manuscript Format title page
     #[serde(default = "default_title_page")]
     pub include_title_page: bool,
+    /// Chapter heading style (how chapter headings are formatted)
+    #[serde(default)]
+    pub chapter_heading_style: ChapterHeadingStyle,
 }
 
 fn default_page_breaks() -> bool {
@@ -112,6 +135,87 @@ fn abbreviate_title(title: &str, max_words: usize) -> String {
         title.to_uppercase()
     } else {
         words[..max_words].join(" ").to_uppercase()
+    }
+}
+
+/// Convert a chapter number to its word form (uppercase)
+///
+/// Standard Manuscript Format typically uses word numbers for chapters.
+/// Supports chapters 1-100, falls back to Arabic numerals for higher numbers.
+fn number_to_word(n: usize) -> String {
+    const ONES: [&str; 20] = [
+        "",
+        "ONE",
+        "TWO",
+        "THREE",
+        "FOUR",
+        "FIVE",
+        "SIX",
+        "SEVEN",
+        "EIGHT",
+        "NINE",
+        "TEN",
+        "ELEVEN",
+        "TWELVE",
+        "THIRTEEN",
+        "FOURTEEN",
+        "FIFTEEN",
+        "SIXTEEN",
+        "SEVENTEEN",
+        "EIGHTEEN",
+        "NINETEEN",
+    ];
+    const TENS: [&str; 10] = [
+        "", "", "TWENTY", "THIRTY", "FORTY", "FIFTY", "SIXTY", "SEVENTY", "EIGHTY", "NINETY",
+    ];
+
+    match n {
+        0 => "ZERO".to_string(),
+        1..=19 => ONES[n].to_string(),
+        20..=99 => {
+            let tens_digit = n / 10;
+            let ones_digit = n % 10;
+            if ones_digit == 0 {
+                TENS[tens_digit].to_string()
+            } else {
+                format!("{}-{}", TENS[tens_digit], ONES[ones_digit])
+            }
+        }
+        100 => "ONE HUNDRED".to_string(),
+        _ => n.to_string(), // Fall back to Arabic for large numbers
+    }
+}
+
+/// Format a chapter heading based on the selected style
+///
+/// Returns the formatted chapter heading string in ALL CAPS.
+fn format_chapter_heading(
+    chapter_number: usize,
+    chapter_title: &str,
+    style: &ChapterHeadingStyle,
+) -> String {
+    match style {
+        ChapterHeadingStyle::NumberOnly => {
+            format!("CHAPTER {}", number_to_word(chapter_number))
+        }
+        ChapterHeadingStyle::NumberAndTitle => {
+            format!(
+                "CHAPTER {}: {}",
+                number_to_word(chapter_number),
+                chapter_title.to_uppercase()
+            )
+        }
+        ChapterHeadingStyle::TitleOnly => chapter_title.to_uppercase(),
+        ChapterHeadingStyle::NumberArabic => {
+            format!("CHAPTER {}", chapter_number)
+        }
+        ChapterHeadingStyle::NumberArabicAndTitle => {
+            format!(
+                "CHAPTER {}: {}",
+                chapter_number,
+                chapter_title.to_uppercase()
+            )
+        }
     }
 }
 
@@ -851,9 +955,16 @@ fn create_docx_styles(author_name: Option<&str>, project_title: &str) -> Docx {
 }
 
 /// Add a chapter to the document
+///
+/// SMF chapter formatting:
+/// - Hard page break before each chapter (new page)
+/// - Chapter heading ~1/3 down the page (~12-15 blank lines)
+/// - Centered, ALL CAPS chapter heading
+/// - 4-6 blank lines between heading and first paragraph
 fn add_chapter_to_docx(
     docx: Docx,
     chapter: &Chapter,
+    chapter_number: usize,
     scenes: &[Scene],
     beats_by_scene: &std::collections::HashMap<Uuid, Vec<Beat>>,
     options: &DocxExportOptions,
@@ -861,26 +972,48 @@ fn add_chapter_to_docx(
 ) -> Docx {
     let mut docx = docx;
 
-    // Add page break before chapter (except first)
+    // Add page break before chapter (except first chapter after title page)
     if !is_first_chapter && options.page_breaks_between_chapters {
         docx = docx.add_paragraph(Paragraph::new().page_break_before(true));
     }
 
-    // Chapter title as Heading 1 with spacing after
-    // SMF: Chapter headings should be centered, about 1/3 down the first page of the chapter
+    // SMF: Chapter heading should be about 1/3 down the page
+    // Add approximately 12-14 blank lines to position heading at ~1/3 page
+    // Using double-spaced blank paragraphs (480 twips line spacing)
+    for _ in 0..12 {
+        docx = docx.add_paragraph(
+            Paragraph::new().line_spacing(LineSpacing::new().line(480)), // Double-spaced blank line
+        );
+    }
+
+    // Format chapter heading based on selected style
+    let chapter_heading = format_chapter_heading(
+        chapter_number,
+        &chapter.title,
+        &options.chapter_heading_style,
+    );
+
+    // Chapter heading: centered, ALL CAPS, 12pt Courier New
     docx = docx.add_paragraph(
         Paragraph::new()
             .add_run(
                 Run::new()
-                    .add_text(&chapter.title)
+                    .add_text(&chapter_heading)
                     .size(24) // 12pt for SMF
-                    .bold()
                     .fonts(RunFonts::new().ascii("Courier New")),
             )
             .style("Heading1")
             .align(AlignmentType::Center)
-            .line_spacing(LineSpacing::new().after(480).line(480)), // Double-spaced
+            .line_spacing(LineSpacing::new().line(480)), // Double-spaced
     );
+
+    // SMF: 4-6 blank lines between chapter heading and first paragraph
+    // Using 4 double-spaced blank lines
+    for _ in 0..4 {
+        docx = docx.add_paragraph(
+            Paragraph::new().line_spacing(LineSpacing::new().line(480)), // Double-spaced blank line
+        );
+    }
 
     // Add scenes with separators between them
     let active_scenes: Vec<&Scene> = scenes.iter().filter(|s| !s.archived).collect();
@@ -1103,7 +1236,10 @@ pub async fn export_to_docx(
                 std::collections::HashMap::new();
 
             let mut is_first_chapter = true;
+            let mut chapter_number = 0;
             for chapter in chapters.iter().filter(|c| !c.archived) {
+                chapter_number += 1;
+
                 let scenes =
                     db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
                 let active_scenes: Vec<Scene> =
@@ -1121,6 +1257,7 @@ pub async fn export_to_docx(
                 docx = add_chapter_to_docx(
                     docx,
                     chapter,
+                    chapter_number,
                     &active_scenes,
                     &beats_by_scene,
                     &options,
@@ -1136,6 +1273,16 @@ pub async fn export_to_docx(
             let chapter = db::queries::get_chapter_by_id(&conn, &chapter_uuid)
                 .map_err(|e| e.to_string())?
                 .ok_or_else(|| format!("Chapter not found: {}", chapter_id))?;
+
+            // Get all chapters to determine this chapter's position number
+            let all_chapters =
+                db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+            let chapter_number = all_chapters
+                .iter()
+                .filter(|c| !c.archived)
+                .position(|c| c.id == chapter_uuid)
+                .map(|pos| pos + 1) // Convert 0-indexed to 1-indexed
+                .unwrap_or(1);
 
             let scenes = db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
             let active_scenes: Vec<Scene> = scenes.into_iter().filter(|s| !s.archived).collect();
@@ -1153,6 +1300,7 @@ pub async fn export_to_docx(
             docx = add_chapter_to_docx(
                 docx,
                 &chapter,
+                chapter_number,
                 &active_scenes,
                 &beats_by_scene,
                 &options,
@@ -1315,6 +1463,7 @@ mod tests {
             create_snapshot: false,
             page_breaks_between_chapters: true,
             include_title_page: true,
+            chapter_heading_style: ChapterHeadingStyle::NumberOnly,
         };
 
         let docx = Docx::new();
@@ -1349,6 +1498,7 @@ mod tests {
             create_snapshot: false,
             page_breaks_between_chapters: false,
             include_title_page: false,
+            chapter_heading_style: ChapterHeadingStyle::TitleOnly,
         };
 
         let docx = Docx::new();
@@ -1395,6 +1545,7 @@ mod tests {
             create_snapshot: false,
             page_breaks_between_chapters: true,
             include_title_page: true,
+            chapter_heading_style: ChapterHeadingStyle::NumberAndTitle,
         };
 
         let docx = Docx::new();
@@ -1490,5 +1641,90 @@ mod tests {
         let mut buffer = Vec::new();
         built.pack(&mut std::io::Cursor::new(&mut buffer)).unwrap();
         assert!(!buffer.is_empty());
+    }
+
+    #[test]
+    fn test_number_to_word() {
+        // Basic numbers
+        assert_eq!(number_to_word(0), "ZERO");
+        assert_eq!(number_to_word(1), "ONE");
+        assert_eq!(number_to_word(5), "FIVE");
+        assert_eq!(number_to_word(10), "TEN");
+        assert_eq!(number_to_word(11), "ELEVEN");
+        assert_eq!(number_to_word(19), "NINETEEN");
+
+        // Tens
+        assert_eq!(number_to_word(20), "TWENTY");
+        assert_eq!(number_to_word(30), "THIRTY");
+        assert_eq!(number_to_word(50), "FIFTY");
+
+        // Compound numbers
+        assert_eq!(number_to_word(21), "TWENTY-ONE");
+        assert_eq!(number_to_word(42), "FORTY-TWO");
+        assert_eq!(number_to_word(99), "NINETY-NINE");
+
+        // Edge cases
+        assert_eq!(number_to_word(100), "ONE HUNDRED");
+        assert_eq!(number_to_word(101), "101"); // Falls back to Arabic
+    }
+
+    #[test]
+    fn test_format_chapter_heading() {
+        // NumberOnly style (default SMF)
+        assert_eq!(
+            format_chapter_heading(1, "The Beginning", &ChapterHeadingStyle::NumberOnly),
+            "CHAPTER ONE"
+        );
+        assert_eq!(
+            format_chapter_heading(15, "Middle", &ChapterHeadingStyle::NumberOnly),
+            "CHAPTER FIFTEEN"
+        );
+
+        // NumberAndTitle style
+        assert_eq!(
+            format_chapter_heading(1, "The Beginning", &ChapterHeadingStyle::NumberAndTitle),
+            "CHAPTER ONE: THE BEGINNING"
+        );
+        assert_eq!(
+            format_chapter_heading(
+                5,
+                "The Journey Continues",
+                &ChapterHeadingStyle::NumberAndTitle
+            ),
+            "CHAPTER FIVE: THE JOURNEY CONTINUES"
+        );
+
+        // TitleOnly style
+        assert_eq!(
+            format_chapter_heading(1, "The Beginning", &ChapterHeadingStyle::TitleOnly),
+            "THE BEGINNING"
+        );
+
+        // NumberArabic style
+        assert_eq!(
+            format_chapter_heading(1, "The Beginning", &ChapterHeadingStyle::NumberArabic),
+            "CHAPTER 1"
+        );
+        assert_eq!(
+            format_chapter_heading(42, "Whatever", &ChapterHeadingStyle::NumberArabic),
+            "CHAPTER 42"
+        );
+
+        // NumberArabicAndTitle style
+        assert_eq!(
+            format_chapter_heading(
+                1,
+                "The Beginning",
+                &ChapterHeadingStyle::NumberArabicAndTitle
+            ),
+            "CHAPTER 1: THE BEGINNING"
+        );
+    }
+
+    #[test]
+    fn test_chapter_heading_style_default() {
+        // Default should be NumberOnly
+        let style = ChapterHeadingStyle::default();
+        assert!(matches!(style, ChapterHeadingStyle::NumberOnly));
     }
 }
