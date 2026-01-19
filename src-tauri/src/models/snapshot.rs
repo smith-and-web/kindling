@@ -51,6 +51,7 @@ pub struct SnapshotMetadata {
 }
 
 impl SnapshotMetadata {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         project_id: Uuid,
         name: String,
@@ -113,6 +114,7 @@ pub struct SnapshotData {
 }
 
 impl SnapshotData {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         project: Project,
         chapters: Vec<Chapter>,
