@@ -14,6 +14,7 @@
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Character, Location } from "../types";
+  import Tooltip from "./Tooltip.svelte";
 
   type Tab = "characters" | "locations";
 
@@ -251,31 +252,35 @@
       <h2 class="text-sm font-heading font-medium text-text-primary">References</h2>
       <div class="flex items-center gap-1">
         <!-- Collapse All button -->
-        <button
-          onclick={collapseAll}
-          class="text-text-secondary hover:text-text-primary p-1"
-          aria-label="Collapse all"
-          title="Collapse all"
-        >
-          <ListChevronsDownUp class="w-4 h-4" />
-        </button>
+        <Tooltip text="Collapse all" position="bottom">
+          <button
+            onclick={collapseAll}
+            class="text-text-secondary hover:text-text-primary p-1"
+            aria-label="Collapse all"
+          >
+            <ListChevronsDownUp class="w-4 h-4" />
+          </button>
+        </Tooltip>
         <!-- Sort Alphabetically button -->
-        <button
-          onclick={sortAlphabetically}
-          class="text-text-secondary hover:text-text-primary p-1"
-          aria-label="Sort alphabetically"
-          title="Sort A-Z"
-        >
-          <ArrowDownAZ class="w-4 h-4" />
-        </button>
+        <Tooltip text="Sort A-Z" position="bottom">
+          <button
+            onclick={sortAlphabetically}
+            class="text-text-secondary hover:text-text-primary p-1"
+            aria-label="Sort alphabetically"
+          >
+            <ArrowDownAZ class="w-4 h-4" />
+          </button>
+        </Tooltip>
         <!-- Close panel button -->
-        <button
-          onclick={toggleReferencesPanel}
-          class="text-text-secondary hover:text-text-primary p-1"
-          aria-label="Collapse references panel"
-        >
-          <ChevronsRight class="w-4 h-4" />
-        </button>
+        <Tooltip text="Collapse panel" position="bottom">
+          <button
+            onclick={toggleReferencesPanel}
+            class="text-text-secondary hover:text-text-primary p-1"
+            aria-label="Collapse references panel"
+          >
+            <ChevronsRight class="w-4 h-4" />
+          </button>
+        </Tooltip>
       </div>
     </div>
 
@@ -482,11 +487,13 @@
 
 <!-- Collapsed panel toggle -->
 {#if ui.referencesPanelCollapsed}
-  <button
-    onclick={toggleReferencesPanel}
-    class="fixed right-0 top-1/2 -translate-y-1/2 bg-bg-panel p-2 rounded-l-lg text-text-secondary hover:text-text-primary z-10"
-    aria-label="Expand references panel"
-  >
-    <ChevronsLeft class="w-5 h-5" />
-  </button>
+  <Tooltip text="Expand references" position="left">
+    <button
+      onclick={toggleReferencesPanel}
+      class="fixed right-0 top-1/2 -translate-y-1/2 bg-bg-panel p-2 rounded-l-lg text-text-secondary hover:text-text-primary z-10"
+      aria-label="Expand references panel"
+    >
+      <ChevronsLeft class="w-5 h-5" />
+    </button>
+  </Tooltip>
 {/if}

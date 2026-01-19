@@ -1,16 +1,22 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
-  import { BookOpen, FileText, Kanban } from "lucide-svelte";
+  import { BookOpen, FileText, Kanban, Trash2, Loader2 } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Project } from "../types";
+  import Tooltip from "./Tooltip.svelte";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
 
   interface Props {
     recentProjects: Project[];
   }
 
-  let { recentProjects }: Props = $props();
+  let { recentProjects = $bindable() }: Props = $props();
+
+  let deletingProjectId = $state<string | null>(null);
+  let hoveredProjectId = $state<string | null>(null);
+  let projectToDelete = $state<Project | null>(null);
 
   async function importPlottr() {
     const path = await open({
@@ -84,6 +90,33 @@
       console.error("Failed to open project:", e);
       alert(`Failed to open project: ${e}`);
     }
+  }
+
+  function showDeleteConfirmation(event: MouseEvent, project: Project) {
+    event.stopPropagation();
+    projectToDelete = project;
+  }
+
+  async function confirmDeleteProject() {
+    if (!projectToDelete) return;
+
+    const project = projectToDelete;
+    projectToDelete = null;
+    deletingProjectId = project.id;
+
+    try {
+      await invoke("delete_project", { projectId: project.id });
+      recentProjects = recentProjects.filter((p) => p.id !== project.id);
+    } catch (e) {
+      console.error("Failed to delete project:", e);
+      alert(`Failed to delete project: ${e}`);
+    } finally {
+      deletingProjectId = null;
+    }
+  }
+
+  function cancelDeleteProject() {
+    projectToDelete = null;
   }
 </script>
 
@@ -172,18 +205,49 @@
         <h2 class="text-xl font-heading font-medium text-text-primary mb-4">Recent Projects</h2>
         <div class="space-y-2">
           {#each recentProjects as project (project.id)}
-            <button
-              onclick={() => openProject(project)}
-              class="w-full flex items-center justify-between p-3 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer text-left"
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+              class="relative flex items-center bg-bg-card rounded-lg hover:bg-beat-header transition-colors"
+              onmouseenter={() => (hoveredProjectId = project.id)}
+              onmouseleave={() => (hoveredProjectId = null)}
             >
-              <div>
-                <span class="text-text-primary font-medium">{project.name}</span>
-                <span class="text-text-secondary text-sm ml-2">({project.source_type})</span>
+              <button
+                onclick={() => openProject(project)}
+                class="flex-1 flex items-center justify-between p-3 cursor-pointer text-left"
+              >
+                <div>
+                  <span class="text-text-primary font-medium">{project.name}</span>
+                  <span class="text-text-secondary text-sm ml-2">({project.source_type})</span>
+                </div>
+                <span class="text-text-secondary text-sm">
+                  {new Date(project.modified_at).toLocaleDateString()}
+                </span>
+              </button>
+
+              <!-- Delete button - visible on hover -->
+              <div
+                class="pr-3 transition-opacity"
+                class:opacity-0={hoveredProjectId !== project.id &&
+                  deletingProjectId !== project.id}
+                class:opacity-100={hoveredProjectId === project.id ||
+                  deletingProjectId === project.id}
+              >
+                <Tooltip text="Delete project" position="left">
+                  <button
+                    onclick={(e) => showDeleteConfirmation(e, project)}
+                    disabled={deletingProjectId === project.id}
+                    class="p-1.5 text-text-secondary hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors disabled:opacity-50"
+                    aria-label="Delete project"
+                  >
+                    {#if deletingProjectId === project.id}
+                      <Loader2 class="w-4 h-4 animate-spin" />
+                    {:else}
+                      <Trash2 class="w-4 h-4" />
+                    {/if}
+                  </button>
+                </Tooltip>
               </div>
-              <span class="text-text-secondary text-sm">
-                {new Date(project.modified_at).toLocaleDateString()}
-              </span>
-            </button>
+            </div>
           {/each}
         </div>
       </div>
@@ -206,3 +270,14 @@
     {/if}
   </div>
 </div>
+
+<!-- Delete Project Confirmation -->
+{#if projectToDelete}
+  <ConfirmDialog
+    title="Delete Project"
+    message="Are you sure you want to delete &quot;{projectToDelete.name}&quot;? This will permanently delete the project and all its chapters, scenes, beats, and snapshots. This cannot be undone."
+    confirmLabel="Delete Project"
+    onConfirm={confirmDeleteProject}
+    onCancel={cancelDeleteProject}
+  />
+{/if}

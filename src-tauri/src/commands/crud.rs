@@ -2,7 +2,9 @@
 //!
 //! Handles create, read, update, delete operations for all data types.
 
-use tauri::State;
+use std::fs;
+use std::path::PathBuf;
+use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 use crate::db;
@@ -28,6 +30,34 @@ pub async fn get_project(id: String, state: State<'_, AppState>) -> Result<Proje
 pub async fn get_recent_projects(state: State<'_, AppState>) -> Result<Vec<Project>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     db::get_recent_projects(&conn, 10).map_err(|e| e.to_string())
+}
+
+/// Delete a project and all its associated data including snapshot files
+#[tauri::command]
+pub async fn delete_project(
+    project_id: String,
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+
+    // Delete snapshot files from disk before deleting from database
+    let snapshots_dir: PathBuf = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("snapshots")
+        .join(&project_id);
+
+    if snapshots_dir.exists() {
+        let _ = fs::remove_dir_all(&snapshots_dir);
+    }
+
+    // Delete project from database (cascades to all related tables)
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    db::delete_project(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    Ok(())
 }
 
 // ============================================================================

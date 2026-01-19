@@ -7,6 +7,7 @@
   import { ui } from "../stores/ui.svelte";
   import type { Beat } from "../types";
   import NovelEditor from "./NovelEditor.svelte";
+  import Tooltip from "./Tooltip.svelte";
 
   // Check if scene is locked (either directly or via parent chapter)
   const isLocked = $derived(
@@ -251,13 +252,15 @@
               Synopsis
             </h2>
             {#if scene.synopsis && !editingSynopsis && !isLocked}
-              <button
-                onclick={startEditingSynopsis}
-                class="text-text-secondary hover:text-text-primary transition-colors p-1"
-                aria-label="Edit synopsis"
-              >
-                <Pencil class="w-3.5 h-3.5" />
-              </button>
+              <Tooltip text="Edit synopsis" position="left">
+                <button
+                  onclick={startEditingSynopsis}
+                  class="text-text-secondary hover:text-text-primary transition-colors p-1"
+                  aria-label="Edit synopsis"
+                >
+                  <Pencil class="w-3.5 h-3.5" />
+                </button>
+              </Tooltip>
             {/if}
           </div>
           {#if editingSynopsis && !isLocked}

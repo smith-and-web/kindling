@@ -9,6 +9,7 @@
   import { X, Plus, Pencil, RefreshCw, Loader2 } from "lucide-svelte";
   import { SvelteSet } from "svelte/reactivity";
   import type { SyncPreview, ReimportSummary } from "../types";
+  import Tooltip from "./Tooltip.svelte";
 
   interface Props {
     projectId: string;
@@ -102,13 +103,16 @@
         <h2 class="text-2xl font-heading font-semibold text-text-primary">Sync from Source</h2>
         <p class="text-text-secondary text-sm mt-1">Review and select items to import</p>
       </div>
-      <button
-        data-testid="sync-dialog-close"
-        onclick={onClose}
-        class="p-2 text-text-secondary hover:text-text-primary rounded-lg hover:bg-bg-card transition-colors"
-      >
-        <X class="w-6 h-6" />
-      </button>
+      <Tooltip text="Close" position="left">
+        <button
+          data-testid="sync-dialog-close"
+          onclick={onClose}
+          class="p-2 text-text-secondary hover:text-text-primary rounded-lg hover:bg-bg-card transition-colors"
+          aria-label="Close"
+        >
+          <X class="w-6 h-6" />
+        </button>
+      </Tooltip>
     </div>
 
     <!-- Content - Two Column Layout -->
@@ -147,15 +151,19 @@
             </div>
             {#if syncPreview.additions.length > 0}
               <div class="flex gap-2 text-xs">
-                <button
-                  onclick={selectAllAdditions}
-                  class="text-text-secondary hover:text-accent transition-colors">All</button
-                >
+                <Tooltip text="Select all" position="bottom">
+                  <button
+                    onclick={selectAllAdditions}
+                    class="text-text-secondary hover:text-accent transition-colors">All</button
+                  >
+                </Tooltip>
                 <span class="text-text-secondary/30">|</span>
-                <button
-                  onclick={deselectAllAdditions}
-                  class="text-text-secondary hover:text-accent transition-colors">None</button
-                >
+                <Tooltip text="Deselect all" position="bottom">
+                  <button
+                    onclick={deselectAllAdditions}
+                    class="text-text-secondary hover:text-accent transition-colors">None</button
+                  >
+                </Tooltip>
               </div>
             {/if}
           </div>
@@ -211,15 +219,19 @@
             </div>
             {#if syncPreview.changes.length > 0}
               <div class="flex gap-2 text-xs">
-                <button
-                  onclick={selectAllChanges}
-                  class="text-text-secondary hover:text-accent transition-colors">All</button
-                >
+                <Tooltip text="Select all" position="bottom">
+                  <button
+                    onclick={selectAllChanges}
+                    class="text-text-secondary hover:text-accent transition-colors">All</button
+                  >
+                </Tooltip>
                 <span class="text-text-secondary/30">|</span>
-                <button
-                  onclick={deselectAllChanges}
-                  class="text-text-secondary hover:text-accent transition-colors">None</button
-                >
+                <Tooltip text="Deselect all" position="bottom">
+                  <button
+                    onclick={deselectAllChanges}
+                    class="text-text-secondary hover:text-accent transition-colors">None</button
+                  >
+                </Tooltip>
               </div>
             {/if}
           </div>

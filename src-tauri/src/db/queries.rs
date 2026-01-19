@@ -2,7 +2,10 @@ use rusqlite::{params, Connection, OptionalExtension, Result};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::models::{Beat, Chapter, Character, Location, Project, Scene, SourceType};
+use crate::models::{
+    Beat, Chapter, Character, Location, Project, Scene, SceneCharacterRef, SceneLocationRef,
+    SnapshotMetadata, SnapshotTrigger, SourceType,
+};
 
 // ============================================================================
 // Project Queries
@@ -76,6 +79,15 @@ pub fn update_project_modified(conn: &Connection, id: &Uuid) -> Result<()> {
     conn.execute(
         "UPDATE projects SET modified_at = ?1 WHERE id = ?2",
         params![now, id.to_string()],
+    )?;
+    Ok(())
+}
+
+/// Delete a project and all its data (cascades via foreign keys)
+pub fn delete_project(conn: &Connection, id: &Uuid) -> Result<()> {
+    conn.execute(
+        "DELETE FROM projects WHERE id = ?1",
+        params![id.to_string()],
     )?;
     Ok(())
 }
@@ -1032,6 +1044,338 @@ pub fn get_scene_by_id(conn: &Connection, scene_id: &Uuid) -> Result<Option<Scen
         .optional()?;
 
     Ok(scene)
+}
+
+// ============================================================================
+// Snapshot Queries
+// ============================================================================
+
+pub fn insert_snapshot_metadata(conn: &Connection, snapshot: &SnapshotMetadata) -> Result<()> {
+    conn.execute(
+        "INSERT INTO snapshots (id, project_id, name, description, trigger_type, created_at, file_path, file_size, uncompressed_size, chapter_count, scene_count, beat_count, word_count, schema_version)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+        params![
+            snapshot.id.to_string(),
+            snapshot.project_id.to_string(),
+            snapshot.name,
+            snapshot.description,
+            snapshot.trigger_type.as_str(),
+            snapshot.created_at,
+            snapshot.file_path,
+            snapshot.file_size,
+            snapshot.uncompressed_size,
+            snapshot.chapter_count,
+            snapshot.scene_count,
+            snapshot.beat_count,
+            snapshot.word_count,
+            snapshot.schema_version,
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn get_snapshots_for_project(
+    conn: &Connection,
+    project_id: &Uuid,
+) -> Result<Vec<SnapshotMetadata>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, project_id, name, description, trigger_type, created_at, file_path, file_size, uncompressed_size, chapter_count, scene_count, beat_count, word_count, schema_version
+         FROM snapshots WHERE project_id = ?1 ORDER BY created_at DESC",
+    )?;
+
+    let snapshots = stmt
+        .query_map(params![project_id.to_string()], |row| {
+            Ok(SnapshotMetadata {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                name: row.get(2)?,
+                description: row.get(3)?,
+                trigger_type: SnapshotTrigger::parse(&row.get::<_, String>(4)?)
+                    .unwrap_or(SnapshotTrigger::Manual),
+                created_at: row.get(5)?,
+                file_path: row.get(6)?,
+                file_size: row.get(7)?,
+                uncompressed_size: row.get(8)?,
+                chapter_count: row.get(9)?,
+                scene_count: row.get(10)?,
+                beat_count: row.get(11)?,
+                word_count: row.get(12)?,
+                schema_version: row.get(13)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(snapshots)
+}
+
+pub fn get_snapshot_by_id(
+    conn: &Connection,
+    snapshot_id: &Uuid,
+) -> Result<Option<SnapshotMetadata>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, project_id, name, description, trigger_type, created_at, file_path, file_size, uncompressed_size, chapter_count, scene_count, beat_count, word_count, schema_version
+         FROM snapshots WHERE id = ?1",
+    )?;
+
+    let snapshot = stmt
+        .query_row(params![snapshot_id.to_string()], |row| {
+            Ok(SnapshotMetadata {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                name: row.get(2)?,
+                description: row.get(3)?,
+                trigger_type: SnapshotTrigger::parse(&row.get::<_, String>(4)?)
+                    .unwrap_or(SnapshotTrigger::Manual),
+                created_at: row.get(5)?,
+                file_path: row.get(6)?,
+                file_size: row.get(7)?,
+                uncompressed_size: row.get(8)?,
+                chapter_count: row.get(9)?,
+                scene_count: row.get(10)?,
+                beat_count: row.get(11)?,
+                word_count: row.get(12)?,
+                schema_version: row.get(13)?,
+            })
+        })
+        .optional()?;
+
+    Ok(snapshot)
+}
+
+pub fn delete_snapshot_metadata(conn: &Connection, snapshot_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "DELETE FROM snapshots WHERE id = ?1",
+        params![snapshot_id.to_string()],
+    )?;
+    Ok(())
+}
+
+/// Get all scene-character references for a project (for snapshots)
+pub fn get_all_scene_character_refs(
+    conn: &Connection,
+    project_id: &Uuid,
+) -> Result<Vec<SceneCharacterRef>> {
+    let mut stmt = conn.prepare(
+        "SELECT scr.scene_id, scr.character_id
+         FROM scene_character_refs scr
+         JOIN scenes s ON scr.scene_id = s.id
+         JOIN chapters c ON s.chapter_id = c.id
+         WHERE c.project_id = ?1",
+    )?;
+
+    let refs = stmt
+        .query_map(params![project_id.to_string()], |row| {
+            Ok(SceneCharacterRef {
+                scene_id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                character_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(refs)
+}
+
+/// Get all scene-location references for a project (for snapshots)
+pub fn get_all_scene_location_refs(
+    conn: &Connection,
+    project_id: &Uuid,
+) -> Result<Vec<SceneLocationRef>> {
+    let mut stmt = conn.prepare(
+        "SELECT slr.scene_id, slr.location_id
+         FROM scene_location_refs slr
+         JOIN scenes s ON slr.scene_id = s.id
+         JOIN chapters c ON s.chapter_id = c.id
+         WHERE c.project_id = ?1",
+    )?;
+
+    let refs = stmt
+        .query_map(params![project_id.to_string()], |row| {
+            Ok(SceneLocationRef {
+                scene_id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                location_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(refs)
+}
+
+/// Get all chapters for a project including archived (for snapshots)
+pub fn get_all_chapters_including_archived(
+    conn: &Connection,
+    project_id: &Uuid,
+) -> Result<Vec<Chapter>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, project_id, title, position, source_id, archived, locked
+         FROM chapters WHERE project_id = ?1 ORDER BY position",
+    )?;
+
+    let chapters = stmt
+        .query_map(params![project_id.to_string()], |row| {
+            Ok(Chapter {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                title: row.get(2)?,
+                position: row.get(3)?,
+                source_id: row.get(4)?,
+                archived: row.get::<_, i32>(5)? != 0,
+                locked: row.get::<_, i32>(6)? != 0,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(chapters)
+}
+
+/// Get all scenes for a project including archived (for snapshots)
+pub fn get_all_scenes_including_archived(
+    conn: &Connection,
+    project_id: &Uuid,
+) -> Result<Vec<Scene>> {
+    let mut stmt = conn.prepare(
+        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id, s.archived, s.locked
+         FROM scenes s
+         JOIN chapters c ON s.chapter_id = c.id
+         WHERE c.project_id = ?1
+         ORDER BY c.position, s.position",
+    )?;
+
+    let scenes = stmt
+        .query_map(params![project_id.to_string()], |row| {
+            Ok(Scene {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                chapter_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                title: row.get(2)?,
+                synopsis: row.get(3)?,
+                prose: row.get(4)?,
+                position: row.get(5)?,
+                source_id: row.get(6)?,
+                archived: row.get::<_, i32>(7)? != 0,
+                locked: row.get::<_, i32>(8)? != 0,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(scenes)
+}
+
+/// Get all beats for a project (for snapshots)
+pub fn get_all_beats_for_project(conn: &Connection, project_id: &Uuid) -> Result<Vec<Beat>> {
+    let mut stmt = conn.prepare(
+        "SELECT b.id, b.scene_id, b.content, b.prose, b.position, b.source_id
+         FROM beats b
+         JOIN scenes s ON b.scene_id = s.id
+         JOIN chapters c ON s.chapter_id = c.id
+         WHERE c.project_id = ?1
+         ORDER BY c.position, s.position, b.position",
+    )?;
+
+    let beats = stmt
+        .query_map(params![project_id.to_string()], |row| {
+            Ok(Beat {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                scene_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                content: row.get(2)?,
+                prose: row.get(3)?,
+                position: row.get(4)?,
+                source_id: row.get(5)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(beats)
+}
+
+/// Delete all project content (for restore)
+pub fn delete_all_project_content(conn: &Connection, project_id: &Uuid) -> Result<()> {
+    // Delete scene references first
+    conn.execute(
+        "DELETE FROM scene_character_refs WHERE scene_id IN (
+            SELECT s.id FROM scenes s
+            JOIN chapters c ON s.chapter_id = c.id
+            WHERE c.project_id = ?1
+        )",
+        params![project_id.to_string()],
+    )?;
+    conn.execute(
+        "DELETE FROM scene_location_refs WHERE scene_id IN (
+            SELECT s.id FROM scenes s
+            JOIN chapters c ON s.chapter_id = c.id
+            WHERE c.project_id = ?1
+        )",
+        params![project_id.to_string()],
+    )?;
+
+    // Delete beats
+    conn.execute(
+        "DELETE FROM beats WHERE scene_id IN (
+            SELECT s.id FROM scenes s
+            JOIN chapters c ON s.chapter_id = c.id
+            WHERE c.project_id = ?1
+        )",
+        params![project_id.to_string()],
+    )?;
+
+    // Delete scenes
+    conn.execute(
+        "DELETE FROM scenes WHERE chapter_id IN (
+            SELECT id FROM chapters WHERE project_id = ?1
+        )",
+        params![project_id.to_string()],
+    )?;
+
+    // Delete chapters
+    conn.execute(
+        "DELETE FROM chapters WHERE project_id = ?1",
+        params![project_id.to_string()],
+    )?;
+
+    // Delete characters and their attributes
+    conn.execute(
+        "DELETE FROM character_attributes WHERE character_id IN (
+            SELECT id FROM characters WHERE project_id = ?1
+        )",
+        params![project_id.to_string()],
+    )?;
+    conn.execute(
+        "DELETE FROM characters WHERE project_id = ?1",
+        params![project_id.to_string()],
+    )?;
+
+    // Delete locations and their attributes
+    conn.execute(
+        "DELETE FROM location_attributes WHERE location_id IN (
+            SELECT id FROM locations WHERE project_id = ?1
+        )",
+        params![project_id.to_string()],
+    )?;
+    conn.execute(
+        "DELETE FROM locations WHERE project_id = ?1",
+        params![project_id.to_string()],
+    )?;
+
+    Ok(())
+}
+
+/// Update project metadata
+pub fn update_project(conn: &Connection, project: &Project) -> Result<()> {
+    conn.execute(
+        "UPDATE projects SET name = ?1, source_type = ?2, source_path = ?3, modified_at = ?4 WHERE id = ?5",
+        params![
+            project.name,
+            project.source_type.as_str(),
+            project.source_path,
+            project.modified_at,
+            project.id.to_string(),
+        ],
+    )?;
+    Ok(())
 }
 
 #[cfg(test)]

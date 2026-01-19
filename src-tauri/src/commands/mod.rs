@@ -10,12 +10,14 @@
 //! - [`archive`]: Archive and restore commands
 //! - [`lock`]: Lock/unlock commands
 //! - [`export`]: Export commands for Markdown, DOCX
+//! - [`snapshot`]: Snapshot/versioning commands
 
 mod archive;
 mod crud;
 mod export;
 mod import;
 mod lock;
+mod snapshot;
 mod state;
 mod sync;
 
@@ -25,5 +27,6 @@ pub use crud::*;
 pub use export::*;
 pub use import::*;
 pub use lock::*;
+pub use snapshot::*;
 pub use state::*;
 pub use sync::*;

@@ -91,12 +91,30 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             last_opened_at TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS snapshots (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            description TEXT,
+            trigger_type TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            file_size INTEGER NOT NULL,
+            uncompressed_size INTEGER,
+            chapter_count INTEGER NOT NULL,
+            scene_count INTEGER NOT NULL,
+            beat_count INTEGER NOT NULL,
+            word_count INTEGER,
+            schema_version INTEGER NOT NULL DEFAULT 1
+        );
+
         -- Create indexes for common queries
         CREATE INDEX IF NOT EXISTS idx_chapters_project ON chapters(project_id);
         CREATE INDEX IF NOT EXISTS idx_scenes_chapter ON scenes(chapter_id);
         CREATE INDEX IF NOT EXISTS idx_beats_scene ON beats(scene_id);
         CREATE INDEX IF NOT EXISTS idx_characters_project ON characters(project_id);
         CREATE INDEX IF NOT EXISTS idx_locations_project ON locations(project_id);
+        CREATE INDEX IF NOT EXISTS idx_snapshots_project ON snapshots(project_id);
 
         -- Enable foreign key support
         PRAGMA foreign_keys = ON;

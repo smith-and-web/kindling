@@ -4,6 +4,7 @@ pub mod character;
 pub mod location;
 pub mod project;
 pub mod scene;
+pub mod snapshot;
 
 pub use beat::*;
 pub use chapter::*;
@@ -11,3 +12,4 @@ pub use character::*;
 pub use location::*;
 pub use project::*;
 pub use scene::*;
+pub use snapshot::*;

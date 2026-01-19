@@ -4,6 +4,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import type { Chapter, Scene, ArchivedItems } from "../types";
   import { currentProject } from "../stores/project.svelte";
+  import Tooltip from "./Tooltip.svelte";
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -144,14 +145,16 @@
         <Archive class="w-5 h-5 text-accent" />
         <h2 id="archive-panel-title" class="text-xl font-medium text-text-primary">Archive</h2>
       </div>
-      <button
-        type="button"
-        onclick={onClose}
-        class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
-        aria-label="Close"
-      >
-        <X class="w-5 h-5" />
-      </button>
+      <Tooltip text="Close" position="left">
+        <button
+          type="button"
+          onclick={onClose}
+          class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
+          aria-label="Close"
+        >
+          <X class="w-5 h-5" />
+        </button>
+      </Tooltip>
     </div>
 
     <!-- Content -->
