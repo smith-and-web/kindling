@@ -93,6 +93,7 @@ pub fn run() {
             commands::unlock_scene,
             // Export commands
             commands::export_to_markdown,
+            commands::export_to_docx,
             // Snapshot commands
             commands::create_snapshot,
             commands::list_snapshots,
