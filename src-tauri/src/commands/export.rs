@@ -78,10 +78,11 @@ fn strip_html(html: &str) -> String {
                 reading_tag_name = false;
                 // Add paragraph breaks after block-level closing tags
                 let tag_lower = tag_name.to_lowercase();
-                if tag_lower == "/p" || tag_lower == "br" || tag_lower == "br/" {
-                    if !result.ends_with('\n') && !result.is_empty() {
-                        result.push_str("\n\n");
-                    }
+                if (tag_lower == "/p" || tag_lower == "br" || tag_lower == "br/")
+                    && !result.ends_with('\n')
+                    && !result.is_empty()
+                {
+                    result.push_str("\n\n");
                 }
                 tag_name.clear();
             }
