@@ -90,6 +90,8 @@ pub fn run() {
             commands::unlock_chapter,
             commands::lock_scene,
             commands::unlock_scene,
+            // Export commands
+            commands::export_to_markdown,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

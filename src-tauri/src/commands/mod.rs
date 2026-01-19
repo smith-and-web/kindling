@@ -9,9 +9,11 @@
 //! - [`sync`]: Sync/reimport functionality
 //! - [`archive`]: Archive and restore commands
 //! - [`lock`]: Lock/unlock commands
+//! - [`export`]: Export commands for Markdown, DOCX
 
 mod archive;
 mod crud;
+mod export;
 mod import;
 mod lock;
 mod state;
@@ -20,6 +22,7 @@ mod sync;
 // Re-export everything for backwards compatibility with lib.rs
 pub use archive::*;
 pub use crud::*;
+pub use export::*;
 pub use import::*;
 pub use lock::*;
 pub use state::*;
