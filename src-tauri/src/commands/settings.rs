@@ -9,7 +9,7 @@ use tauri::{AppHandle, Manager};
 use crate::models::AppSettings;
 
 /// Get the path to the settings file
-fn get_settings_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
+pub fn get_settings_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
     let app_data_dir = app_handle
         .path()
         .app_data_dir()
@@ -23,10 +23,9 @@ fn get_settings_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
     Ok(app_data_dir.join("settings.json"))
 }
 
-/// Get app settings
-#[tauri::command]
-pub async fn get_app_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
-    let settings_path = get_settings_path(&app_handle)?;
+/// Load app settings from the settings file (internal helper)
+pub fn load_app_settings(app_handle: &AppHandle) -> Result<AppSettings, String> {
+    let settings_path = get_settings_path(app_handle)?;
 
     if settings_path.exists() {
         let contents = fs::read_to_string(&settings_path).map_err(|e| e.to_string())?;
@@ -36,6 +35,12 @@ pub async fn get_app_settings(app_handle: AppHandle) -> Result<AppSettings, Stri
         // Return default settings if file doesn't exist
         Ok(AppSettings::default())
     }
+}
+
+/// Get app settings
+#[tauri::command]
+pub async fn get_app_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
+    load_app_settings(&app_handle)
 }
 
 /// Update app settings

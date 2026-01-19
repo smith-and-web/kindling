@@ -205,6 +205,8 @@ export interface DocxExportOptions {
   create_snapshot?: boolean;
   /** Add page breaks between chapters */
   page_breaks_between_chapters?: boolean;
+  /** Include a Standard Manuscript Format title page */
+  include_title_page?: boolean;
 }
 
 /** Result of an export operation */
