@@ -266,12 +266,18 @@ fn add_title_page(
     let word_count_str = round_word_count(word_count);
 
     // Add contact info at top left (each line as separate paragraph)
+    // SMF title page uses same Courier New font as body
     for line in &contact_lines {
         docx = docx.add_paragraph(
             Paragraph::new()
-                .add_run(Run::new().add_text(line).size(24)) // 12pt
+                .add_run(
+                    Run::new()
+                        .add_text(line)
+                        .size(24) // 12pt
+                        .fonts(RunFonts::new().ascii("Courier New")),
+                )
                 .align(AlignmentType::Left)
-                .line_spacing(LineSpacing::new().line(240)), // Single spacing
+                .line_spacing(LineSpacing::new().line(240)), // Single spacing for contact info
         );
     }
 
@@ -283,7 +289,12 @@ fn add_title_page(
     }
     docx = docx.add_paragraph(
         Paragraph::new()
-            .add_run(Run::new().add_text(&word_count_str).size(24))
+            .add_run(
+                Run::new()
+                    .add_text(&word_count_str)
+                    .size(24)
+                    .fonts(RunFonts::new().ascii("Courier New")),
+            )
             .align(AlignmentType::Right),
     );
 
@@ -292,14 +303,15 @@ fn add_title_page(
         docx = docx.add_paragraph(Paragraph::new());
     }
 
-    // Title (centered, uppercase, large)
+    // Title (centered, uppercase)
+    // SMF: Title is typically uppercase, same size as body text
     docx = docx.add_paragraph(
         Paragraph::new()
             .add_run(
                 Run::new()
                     .add_text(project.name.to_uppercase())
-                    .size(48) // 24pt
-                    .bold(),
+                    .size(24) // 12pt - same as body for SMF
+                    .fonts(RunFonts::new().ascii("Courier New")),
             )
             .align(AlignmentType::Center),
     );
@@ -310,7 +322,12 @@ fn add_title_page(
     // "by" line
     docx = docx.add_paragraph(
         Paragraph::new()
-            .add_run(Run::new().add_text("by").size(24))
+            .add_run(
+                Run::new()
+                    .add_text("by")
+                    .size(24)
+                    .fonts(RunFonts::new().ascii("Courier New")),
+            )
             .align(AlignmentType::Center),
     );
 
@@ -321,7 +338,12 @@ fn add_title_page(
     if !author_name.is_empty() {
         docx = docx.add_paragraph(
             Paragraph::new()
-                .add_run(Run::new().add_text(&author_name).size(24))
+                .add_run(
+                    Run::new()
+                        .add_text(&author_name)
+                        .size(24)
+                        .fonts(RunFonts::new().ascii("Courier New")),
+                )
                 .align(AlignmentType::Center),
         );
     }
@@ -332,7 +354,13 @@ fn add_title_page(
             docx = docx.add_paragraph(Paragraph::new()); // Blank line
             docx = docx.add_paragraph(
                 Paragraph::new()
-                    .add_run(Run::new().add_text(genre).size(24).italic())
+                    .add_run(
+                        Run::new()
+                            .add_text(genre)
+                            .size(24)
+                            .italic()
+                            .fonts(RunFonts::new().ascii("Courier New")),
+                    )
                     .align(AlignmentType::Center),
             );
         }
@@ -651,47 +679,64 @@ pub async fn export_to_markdown(
     })
 }
 
-/// Create heading styles for the DOCX document
+/// Create heading styles and page setup for the DOCX document
+///
+/// Standard Manuscript Format:
+/// - 1-inch margins on all sides
+/// - Courier New 12pt font
+/// - Double-spaced body text
 fn create_docx_styles() -> Docx {
+    // 1440 twips = 1 inch (there are 1440 twips per inch)
+    let page_margin = PageMargin::new()
+        .top(1440)
+        .bottom(1440)
+        .left(1440)
+        .right(1440)
+        .header(720) // 0.5 inch header margin
+        .footer(720); // 0.5 inch footer margin
+
     Docx::new()
-        // Heading 1 style (for chapters) - large, bold, blue with spacing
+        // Set page margins (1 inch on all sides)
+        .page_margin(page_margin)
+        // Heading 1 style (for chapters) - large, bold, Courier New
         .add_style(
             Style::new("Heading1", StyleType::Paragraph)
                 .name("Heading 1")
                 .size(56) // 28pt (size is in half-points)
                 .bold()
-                .color("2E5090"),
+                .fonts(RunFonts::new().ascii("Courier New")),
         )
-        // Heading 2 style (for scenes) - medium, bold, dark gray with spacing
+        // Heading 2 style (for scenes) - medium, bold, Courier New
         .add_style(
             Style::new("Heading2", StyleType::Paragraph)
                 .name("Heading 2")
                 .size(40) // 20pt
                 .bold()
-                .color("404040"),
+                .fonts(RunFonts::new().ascii("Courier New")),
         )
-        // Heading 3 style (for beats) - smaller, bold italic, medium gray
+        // Heading 3 style (for beats) - smaller, bold italic, Courier New
         .add_style(
             Style::new("Heading3", StyleType::Paragraph)
                 .name("Heading 3")
                 .size(26) // 13pt
                 .bold()
                 .italic()
-                .color("666666"),
+                .fonts(RunFonts::new().ascii("Courier New")),
         )
-        // Synopsis style (italicized, gray, indented)
+        // Synopsis style (italicized, Courier New)
         .add_style(
             Style::new("Synopsis", StyleType::Paragraph)
                 .name("Synopsis")
                 .size(22) // 11pt
                 .italic()
-                .color("555555"),
+                .fonts(RunFonts::new().ascii("Courier New")),
         )
-        // Normal/body text style with first-line indent
+        // Normal/body text style - Courier New, 12pt (set at run level for double-spacing)
         .add_style(
             Style::new("BodyText", StyleType::Paragraph)
                 .name("Body Text")
-                .size(24), // 12pt
+                .size(24) // 12pt
+                .fonts(RunFonts::new().ascii("Courier New")),
         )
 }
 
@@ -711,30 +756,38 @@ fn add_chapter_to_docx(
         docx = docx.add_paragraph(Paragraph::new().page_break_before(true));
     }
 
-    // Chapter title as Heading 1 with spacing after (480 = 24pt in twips)
+    // Chapter title as Heading 1 with spacing after
+    // SMF: Chapter headings should be centered, about 1/3 down the first page of the chapter
     docx = docx.add_paragraph(
         Paragraph::new()
             .add_run(
                 Run::new()
                     .add_text(&chapter.title)
-                    .size(56)
+                    .size(24) // 12pt for SMF
                     .bold()
-                    .color("2E5090"),
+                    .fonts(RunFonts::new().ascii("Courier New")),
             )
             .style("Heading1")
-            .line_spacing(LineSpacing::new().after(480)),
+            .align(AlignmentType::Center)
+            .line_spacing(LineSpacing::new().after(480).line(480)), // Double-spaced
     );
 
     // Add scenes with separators between them
     let active_scenes: Vec<&Scene> = scenes.iter().filter(|s| !s.archived).collect();
     for (i, scene) in active_scenes.iter().enumerate() {
-        // Add scene separator (centered asterisks) between scenes, not before first
+        // Add scene separator (centered #) between scenes, not before first
+        // Per Standard Manuscript Format, scene breaks use a single # character
         if i > 0 {
             docx = docx.add_paragraph(
                 Paragraph::new()
-                    .add_run(Run::new().add_text("* * *").color("888888"))
+                    .add_run(
+                        Run::new()
+                            .add_text("#")
+                            .size(24)
+                            .fonts(RunFonts::new().ascii("Courier New")),
+                    )
                     .align(AlignmentType::Center)
-                    .line_spacing(LineSpacing::new().before(360).after(360)),
+                    .line_spacing(LineSpacing::new().before(480).after(480).line(480)), // Double-spaced with extra space
             );
         }
 
@@ -761,21 +814,22 @@ fn add_scene_to_docx(
 ) -> Docx {
     let mut docx = docx;
 
-    // Scene title as Heading 2 with spacing before and after (360 twips = 18pt)
+    // Scene title as Heading 2 with spacing
+    // SMF: Scene titles are typically not included in manuscript, but if included, use same formatting
     docx = docx.add_paragraph(
         Paragraph::new()
             .add_run(
                 Run::new()
                     .add_text(&scene.title)
-                    .size(40)
+                    .size(24) // 12pt for SMF
                     .bold()
-                    .color("404040"),
+                    .fonts(RunFonts::new().ascii("Courier New")),
             )
             .style("Heading2")
-            .line_spacing(LineSpacing::new().before(360).after(240)),
+            .line_spacing(LineSpacing::new().before(480).after(240).line(480)), // Double-spaced
     );
 
-    // Synopsis if requested and present - indented with left border effect via indent
+    // Synopsis if requested and present - italicized, indented
     if options.include_synopsis {
         if let Some(ref synopsis) = scene.synopsis {
             if !synopsis.trim().is_empty() {
@@ -784,13 +838,13 @@ fn add_scene_to_docx(
                         .add_run(
                             Run::new()
                                 .add_text(synopsis)
-                                .size(22)
+                                .size(24) // 12pt
                                 .italic()
-                                .color("555555"),
+                                .fonts(RunFonts::new().ascii("Courier New")),
                         )
                         .style("Synopsis")
                         .indent(Some(720), None, None, None) // 720 twips = 0.5 inch left indent
-                        .line_spacing(LineSpacing::new().after(240)),
+                        .line_spacing(LineSpacing::new().after(240).line(480)), // Double-spaced
                 );
             }
         }
@@ -815,17 +869,17 @@ fn add_beat_to_docx(docx: Docx, beat: &Beat, options: &DocxExportOptions) -> Doc
                 .add_run(
                     Run::new()
                         .add_text(&beat.content)
-                        .size(26)
+                        .size(24) // 12pt
                         .bold()
                         .italic()
-                        .color("666666"),
+                        .fonts(RunFonts::new().ascii("Courier New")),
                 )
                 .style("Heading3")
-                .line_spacing(LineSpacing::new().before(240).after(120)),
+                .line_spacing(LineSpacing::new().before(480).after(240).line(480)), // Double-spaced
         );
     }
 
-    // Beat prose
+    // Beat prose - Standard Manuscript Format: Courier New 12pt, double-spaced, 0.5" first-line indent
     if let Some(ref prose) = beat.prose {
         let clean_prose = strip_html(prose);
         if !clean_prose.is_empty() {
@@ -834,18 +888,30 @@ fn add_beat_to_docx(docx: Docx, beat: &Beat, options: &DocxExportOptions) -> Doc
             for (i, para_text) in paragraphs.iter().enumerate() {
                 let trimmed = para_text.trim();
                 if !trimmed.is_empty() {
-                    // First paragraph of beat doesn't have indent, subsequent ones do (book-style)
+                    // SMF: First paragraph after heading has no indent, subsequent paragraphs have 0.5" indent
+                    // 720 twips = 0.5 inch (standard manuscript indent)
+                    // Line spacing 480 = double-spaced for 12pt font (240 twips = 12pt single)
                     let para = if i == 0 {
                         Paragraph::new()
-                            .add_run(Run::new().add_text(trimmed).size(24))
+                            .add_run(
+                                Run::new()
+                                    .add_text(trimmed)
+                                    .size(24) // 12pt
+                                    .fonts(RunFonts::new().ascii("Courier New")),
+                            )
                             .style("BodyText")
-                            .line_spacing(LineSpacing::new().after(200))
+                            .line_spacing(LineSpacing::new().line(480)) // Double-spaced
                     } else {
                         Paragraph::new()
-                            .add_run(Run::new().add_text(trimmed).size(24))
+                            .add_run(
+                                Run::new()
+                                    .add_text(trimmed)
+                                    .size(24) // 12pt
+                                    .fonts(RunFonts::new().ascii("Courier New")),
+                            )
                             .style("BodyText")
-                            .indent(Some(360), None, None, None) // 360 twips = 0.25 inch first-line indent
-                            .line_spacing(LineSpacing::new().after(200))
+                            .indent(None, None, Some(720), None) // 720 twips = 0.5 inch first-line indent
+                            .line_spacing(LineSpacing::new().line(480)) // Double-spaced
                     };
                     docx = docx.add_paragraph(para);
                 }
