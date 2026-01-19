@@ -13,8 +13,8 @@ use crate::models::{
 
 pub fn insert_project(conn: &Connection, project: &Project) -> Result<()> {
     conn.execute(
-        "INSERT INTO projects (id, name, source_type, source_path, created_at, modified_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO projects (id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             project.id.to_string(),
             project.name,
@@ -22,6 +22,8 @@ pub fn insert_project(conn: &Connection, project: &Project) -> Result<()> {
             project.source_path,
             project.created_at,
             project.modified_at,
+            project.author_pen_name,
+            project.genre,
         ],
     )?;
     Ok(())
@@ -29,7 +31,7 @@ pub fn insert_project(conn: &Connection, project: &Project) -> Result<()> {
 
 pub fn get_project(conn: &Connection, id: &Uuid) -> Result<Option<Project>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, source_type, source_path, created_at, modified_at
+        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre
          FROM projects WHERE id = ?1",
     )?;
 
@@ -44,6 +46,8 @@ pub fn get_project(conn: &Connection, id: &Uuid) -> Result<Option<Project>> {
             source_path: row.get(3)?,
             created_at: row.get(4)?,
             modified_at: row.get(5)?,
+            author_pen_name: row.get(6)?,
+            genre: row.get(7)?,
         }))
     } else {
         Ok(None)
@@ -52,7 +56,7 @@ pub fn get_project(conn: &Connection, id: &Uuid) -> Result<Option<Project>> {
 
 pub fn get_recent_projects(conn: &Connection, limit: usize) -> Result<Vec<Project>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, source_type, source_path, created_at, modified_at
+        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre
          FROM projects ORDER BY modified_at DESC LIMIT ?1",
     )?;
 
@@ -66,6 +70,8 @@ pub fn get_recent_projects(conn: &Connection, limit: usize) -> Result<Vec<Projec
                 source_path: row.get(3)?,
                 created_at: row.get(4)?,
                 modified_at: row.get(5)?,
+                author_pen_name: row.get(6)?,
+                genre: row.get(7)?,
             })
         })?
         .filter_map(|r| r.ok())
@@ -1366,12 +1372,14 @@ pub fn delete_all_project_content(conn: &Connection, project_id: &Uuid) -> Resul
 /// Update project metadata
 pub fn update_project(conn: &Connection, project: &Project) -> Result<()> {
     conn.execute(
-        "UPDATE projects SET name = ?1, source_type = ?2, source_path = ?3, modified_at = ?4 WHERE id = ?5",
+        "UPDATE projects SET name = ?1, source_type = ?2, source_path = ?3, modified_at = ?4, author_pen_name = ?5, genre = ?6 WHERE id = ?7",
         params![
             project.name,
             project.source_type.as_str(),
             project.source_path,
             project.modified_at,
+            project.author_pen_name,
+            project.genre,
             project.id.to_string(),
         ],
     )?;

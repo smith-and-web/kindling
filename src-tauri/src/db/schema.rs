@@ -200,6 +200,20 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
         )?;
     }
 
+    // Migration: Add project-specific metadata columns
+    let columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(projects)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if !columns.contains(&"author_pen_name".to_string()) {
+        conn.execute("ALTER TABLE projects ADD COLUMN author_pen_name TEXT", [])?;
+    }
+    if !columns.contains(&"genre".to_string()) {
+        conn.execute("ALTER TABLE projects ADD COLUMN genre TEXT", [])?;
+    }
+
     Ok(())
 }
 

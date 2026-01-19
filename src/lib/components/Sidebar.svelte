@@ -29,11 +29,20 @@
     Lock,
     Unlock,
     Download,
+    Settings,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
-  import type { Chapter, Scene, SyncPreview, ReimportSummary, ExportResult } from "../types";
+  import type {
+    Chapter,
+    Scene,
+    SyncPreview,
+    ReimportSummary,
+    ExportResult,
+    Project,
+  } from "../types";
   import ArchivePanel from "./ArchivePanel.svelte";
+  import ProjectSettingsDialog from "./ProjectSettingsDialog.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import ContextMenu from "./ContextMenu.svelte";
   import RenameDialog from "./RenameDialog.svelte";
@@ -110,6 +119,9 @@
 
   // Snapshots panel state
   let showSnapshotsPanel = $state(false);
+
+  // Project settings dialog state
+  let showSettingsDialog = $state(false);
 
   // Export dialog state
   let exportDialog: {
@@ -719,6 +731,16 @@
         </p>
         <!-- Action icons -->
         <div class="flex items-center gap-0.5 flex-shrink-0">
+          <Tooltip text="Project settings" position="bottom">
+            <button
+              data-testid="settings-button"
+              onclick={() => (showSettingsDialog = true)}
+              class="p-1.5 text-text-secondary hover:text-text-primary hover:bg-bg-card rounded transition-colors"
+              aria-label="Project settings"
+            >
+              <Settings class="w-4 h-4" />
+            </button>
+          </Tooltip>
           <Tooltip text="Export project" position="bottom">
             <button
               data-testid="export-button"
@@ -1089,4 +1111,15 @@
 <!-- Export Success Dialog -->
 {#if exportResult}
   <ExportSuccessDialog result={exportResult} onClose={() => (exportResult = null)} />
+{/if}
+
+<!-- Project Settings Dialog -->
+{#if showSettingsDialog}
+  <ProjectSettingsDialog
+    onClose={() => (showSettingsDialog = false)}
+    onSave={(updatedProject: Project) => {
+      currentProject.setProject(updatedProject);
+      showSettingsDialog = false;
+    }}
+  />
 {/if}

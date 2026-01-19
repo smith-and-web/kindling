@@ -1,12 +1,13 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
-  import { BookOpen, FileText, Kanban, Trash2, Loader2 } from "lucide-svelte";
+  import { BookOpen, FileText, Kanban, Trash2, Loader2, Settings } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Project } from "../types";
   import Tooltip from "./Tooltip.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
+  import KindlingSettingsDialog from "./KindlingSettingsDialog.svelte";
 
   interface Props {
     recentProjects: Project[];
@@ -17,6 +18,7 @@
   let deletingProjectId = $state<string | null>(null);
   let hoveredProjectId = $state<string | null>(null);
   let projectToDelete = $state<Project | null>(null);
+  let showSettingsDialog = $state(false);
 
   async function importPlottr() {
     const path = await open({
@@ -120,7 +122,20 @@
   }
 </script>
 
-<div class="flex-1 flex flex-col items-center justify-center p-8">
+<div class="flex-1 flex flex-col items-center justify-center p-8 relative">
+  <!-- Settings button in corner -->
+  <div class="absolute top-4 right-4">
+    <Tooltip text="Kindling Settings" position="left">
+      <button
+        onclick={() => (showSettingsDialog = true)}
+        class="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-card rounded-lg transition-colors"
+        aria-label="Kindling Settings"
+      >
+        <Settings class="w-5 h-5" />
+      </button>
+    </Tooltip>
+  </div>
+
   <div class="max-w-2xl w-full">
     <!-- Logo & Tagline -->
     <div class="text-center mb-12">
@@ -279,5 +294,13 @@
     confirmLabel="Delete Project"
     onConfirm={confirmDeleteProject}
     onCancel={cancelDeleteProject}
+  />
+{/if}
+
+<!-- Kindling Settings Dialog -->
+{#if showSettingsDialog}
+  <KindlingSettingsDialog
+    onClose={() => (showSettingsDialog = false)}
+    onSave={() => (showSettingsDialog = false)}
   />
 {/if}

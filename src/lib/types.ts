@@ -19,6 +19,25 @@ export interface Project {
   source_path: string | null;
   created_at: string;
   modified_at: string;
+  // Project-specific metadata for export title page
+  /** Pen name for this project (overrides app-level author name if set) */
+  author_pen_name: string | null;
+  /** Genre of the work (displayed on title page) */
+  genre: string | null;
+}
+
+/** App-wide settings (stored in JSON file, not database) */
+export interface AppSettings {
+  /** Author's name (used in contact info on title pages) */
+  author_name: string | null;
+  /** First line of contact address (e.g., street address) */
+  contact_address_line1: string | null;
+  /** Second line of contact address (e.g., city, country, postal code) */
+  contact_address_line2: string | null;
+  /** Phone number */
+  contact_phone: string | null;
+  /** Email address */
+  contact_email: string | null;
 }
 
 /** A chapter groups related scenes together */

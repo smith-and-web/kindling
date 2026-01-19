@@ -26,6 +26,8 @@ describe("currentProject store", () => {
       source_path: "/path/to/file.pltr",
       created_at: new Date().toISOString(),
       modified_at: new Date().toISOString(),
+      author_pen_name: null,
+      genre: null,
     };
 
     currentProject.setProject(mockProject);

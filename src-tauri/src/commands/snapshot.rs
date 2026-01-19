@@ -360,6 +360,9 @@ fn restore_create_new(
         source_path: data.project.source_path,
         created_at: now.clone(),
         modified_at: now,
+        // Copy project-specific metadata from snapshot
+        author_pen_name: data.project.author_pen_name,
+        genre: data.project.genre,
     };
 
     if let Err(e) = db::insert_project(conn, &new_project) {
