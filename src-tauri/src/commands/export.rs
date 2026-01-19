@@ -795,18 +795,19 @@ fn create_docx_styles(author_name: Option<&str>, project_title: &str) -> Docx {
     // Create empty header for title page
     let empty_header = create_empty_first_header();
 
-    // Note: With title_pg() enabled, first_header appears on page 1, header on pages 2+
-    // However, docx_rs appears to have inverted behavior, so we swap them:
-    // - first_header gets the running header (will appear on pages 2+)
-    // - header gets the empty header (will appear on page 1)
+    // With title_pg() enabled:
+    // - first_header() sets the header for the first page only
+    // - header() sets the header for all other pages (default header)
+    // Note: Order matters - header() must be called before first_header()
     Docx::new()
         // Set page margins (1 inch on all sides)
         .page_margin(page_margin)
         // Enable different first page header
         .title_pg()
-        // Set headers - swapped due to docx_rs behavior
-        .header(empty_header)
-        .first_header(running_header)
+        // Running header for all pages after the first (must be set before first_header)
+        .header(running_header)
+        // Empty header for title page (first page)
+        .first_header(empty_header)
         // Heading 1 style (for chapters) - large, bold, Courier New
         .add_style(
             Style::new("Heading1", StyleType::Paragraph)
