@@ -41,6 +41,7 @@
   let includeBeatMarkers = $state(true);
   let includeSynopsis = $state(true);
   let pageBreaksBetweenChapters = $state(true);
+  let includeTitlePage = $state(true);
   let deleteExisting = $state(false);
   let createSnapshot = $state(false);
   let outputPath = $state("");
@@ -146,6 +147,7 @@
           output_path: docxFilePath,
           create_snapshot: createSnapshot,
           page_breaks_between_chapters: pageBreaksBetweenChapters,
+          include_title_page: includeTitlePage,
         };
 
         result = await invoke<ExportResult>("export_to_docx", {
@@ -248,6 +250,14 @@
             <span class="text-text-primary">Include beat markers as headings</span>
           </label>
           {#if exportFormat === "docx"}
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                bind:checked={includeTitlePage}
+                class="w-4 h-4 text-accent bg-bg-card border-bg-card rounded focus:ring-accent"
+              />
+              <span class="text-text-primary">Include title page</span>
+            </label>
             <label class="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"

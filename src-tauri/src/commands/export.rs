@@ -2,9 +2,9 @@
 //!
 //! Commands for exporting projects to various formats (Markdown, DOCX).
 
-use crate::commands::AppState;
+use crate::commands::{load_app_settings, AppState};
 use crate::db;
-use crate::models::{Beat, Chapter, Scene, SnapshotTrigger};
+use crate::models::{AppSettings, Beat, Chapter, Project, Scene, SnapshotTrigger};
 use docx_rs::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -74,9 +74,16 @@ pub struct DocxExportOptions {
     /// Add page breaks between chapters
     #[serde(default = "default_page_breaks")]
     pub page_breaks_between_chapters: bool,
+    /// Include a Standard Manuscript Format title page
+    #[serde(default = "default_title_page")]
+    pub include_title_page: bool,
 }
 
 fn default_page_breaks() -> bool {
+    true
+}
+
+fn default_title_page() -> bool {
     true
 }
 
@@ -152,6 +159,189 @@ fn strip_html(html: &str) -> String {
         .filter(|l| !l.is_empty())
         .collect::<Vec<_>>()
         .join("\n\n")
+}
+
+/// Count words in text (simple whitespace split)
+fn count_words(text: &str) -> usize {
+    text.split_whitespace().count()
+}
+
+/// Calculate total word count from all beats in the project
+fn calculate_project_word_count(
+    conn: &rusqlite::Connection,
+    project_uuid: &Uuid,
+) -> Result<usize, String> {
+    let chapters = db::queries::get_chapters(conn, project_uuid).map_err(|e| e.to_string())?;
+
+    let mut total_words = 0;
+
+    for chapter in chapters.iter().filter(|c| !c.archived) {
+        let scenes = db::queries::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
+
+        for scene in scenes.iter().filter(|s| !s.archived) {
+            let beats = db::queries::get_beats(conn, &scene.id).map_err(|e| e.to_string())?;
+
+            for beat in &beats {
+                if let Some(ref prose) = beat.prose {
+                    let clean_prose = strip_html(prose);
+                    total_words += count_words(&clean_prose);
+                }
+            }
+        }
+    }
+
+    Ok(total_words)
+}
+
+/// Round word count to nearest thousand for manuscript format
+fn round_word_count(count: usize) -> String {
+    if count < 1000 {
+        format!("{} words", count)
+    } else {
+        // Round to nearest thousand
+        let thousands = ((count + 500) / 1000) * 1000;
+        format!("approx. {} words", thousands)
+    }
+}
+
+/// Generate a Standard Manuscript Format title page
+///
+/// Layout (top to bottom):
+/// - Contact info (top left): Name, Address, Phone, Email
+/// - Word count (top right): "approx. XX,XXX words"
+/// - Title (centered, middle): PROJECT TITLE
+/// - Byline (centered, below title): "by" + Author Name or Pen Name
+/// - Genre (centered, below byline, optional)
+fn add_title_page(
+    docx: Docx,
+    project: &Project,
+    app_settings: &AppSettings,
+    word_count: usize,
+) -> Docx {
+    let mut docx = docx;
+
+    // Get author name: use pen name if set, otherwise fall back to app settings author name
+    let author_name = project
+        .author_pen_name
+        .as_ref()
+        .filter(|s| !s.trim().is_empty())
+        .or(app_settings.author_name.as_ref())
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+
+    // Contact name (always use legal name from app settings, not pen name)
+    let contact_name = app_settings
+        .author_name
+        .as_ref()
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+
+    // Build contact info lines
+    let mut contact_lines: Vec<String> = Vec::new();
+    if !contact_name.is_empty() {
+        contact_lines.push(contact_name);
+    }
+    if let Some(ref addr1) = app_settings.contact_address_line1 {
+        if !addr1.trim().is_empty() {
+            contact_lines.push(addr1.clone());
+        }
+    }
+    if let Some(ref addr2) = app_settings.contact_address_line2 {
+        if !addr2.trim().is_empty() {
+            contact_lines.push(addr2.clone());
+        }
+    }
+    if let Some(ref phone) = app_settings.contact_phone {
+        if !phone.trim().is_empty() {
+            contact_lines.push(phone.clone());
+        }
+    }
+    if let Some(ref email) = app_settings.contact_email {
+        if !email.trim().is_empty() {
+            contact_lines.push(email.clone());
+        }
+    }
+
+    // Word count string
+    let word_count_str = round_word_count(word_count);
+
+    // Add contact info at top left (each line as separate paragraph)
+    for line in &contact_lines {
+        docx = docx.add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new().add_text(line).size(24)) // 12pt
+                .align(AlignmentType::Left)
+                .line_spacing(LineSpacing::new().line(240)), // Single spacing
+        );
+    }
+
+    // Add word count aligned right (on same conceptual "row" but we'll add it after contact)
+    // In SMF, word count typically goes top right. We'll add blank lines then a right-aligned paragraph.
+    // Since we can't easily do two-column layout, we'll put word count on its own line after contact
+    if !contact_lines.is_empty() {
+        docx = docx.add_paragraph(Paragraph::new()); // Blank line
+    }
+    docx = docx.add_paragraph(
+        Paragraph::new()
+            .add_run(Run::new().add_text(&word_count_str).size(24))
+            .align(AlignmentType::Right),
+    );
+
+    // Add vertical space to push title toward center (approximately 1/3 down the page)
+    for _ in 0..12 {
+        docx = docx.add_paragraph(Paragraph::new());
+    }
+
+    // Title (centered, uppercase, large)
+    docx = docx.add_paragraph(
+        Paragraph::new()
+            .add_run(
+                Run::new()
+                    .add_text(project.name.to_uppercase())
+                    .size(48) // 24pt
+                    .bold(),
+            )
+            .align(AlignmentType::Center),
+    );
+
+    // Blank line
+    docx = docx.add_paragraph(Paragraph::new());
+
+    // "by" line
+    docx = docx.add_paragraph(
+        Paragraph::new()
+            .add_run(Run::new().add_text("by").size(24))
+            .align(AlignmentType::Center),
+    );
+
+    // Blank line
+    docx = docx.add_paragraph(Paragraph::new());
+
+    // Author name (pen name or real name)
+    if !author_name.is_empty() {
+        docx = docx.add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new().add_text(&author_name).size(24))
+                .align(AlignmentType::Center),
+        );
+    }
+
+    // Genre (optional, below author name)
+    if let Some(ref genre) = project.genre {
+        if !genre.trim().is_empty() {
+            docx = docx.add_paragraph(Paragraph::new()); // Blank line
+            docx = docx.add_paragraph(
+                Paragraph::new()
+                    .add_run(Run::new().add_text(genre).size(24).italic())
+                    .align(AlignmentType::Center),
+            );
+        }
+    }
+
+    // Page break after title page
+    docx = docx.add_paragraph(Paragraph::new().page_break_before(true));
+
+    docx
 }
 
 /// Generate markdown content for a scene
@@ -689,11 +879,14 @@ pub async fn export_to_docx(
         super::create_snapshot(
             project_id.clone(),
             snapshot_options,
-            app_handle,
+            app_handle.clone(),
             state.clone(),
         )
         .await?;
     }
+
+    // Load app settings for title page (before taking db lock)
+    let app_settings = load_app_settings(&app_handle)?;
 
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
@@ -708,31 +901,12 @@ pub async fn export_to_docx(
     // Initialize document with styles
     let mut docx = create_docx_styles();
 
-    // Add title page with project name - vertically centered with large font
-    // Add some blank space above to push title toward center
-    for _ in 0..8 {
-        docx = docx.add_paragraph(Paragraph::new());
+    // Add title page if requested
+    if options.include_title_page {
+        // Calculate word count for title page
+        let word_count = calculate_project_word_count(&conn, &project_uuid)?;
+        docx = add_title_page(docx, &project, &app_settings, word_count);
     }
-
-    docx = docx.add_paragraph(
-        Paragraph::new()
-            .add_run(
-                Run::new()
-                    .add_text(&project.name)
-                    .size(96)
-                    .bold()
-                    .color("2E5090"),
-            ) // 48pt title
-            .align(AlignmentType::Center),
-    );
-
-    // Add spacing below title
-    for _ in 0..4 {
-        docx = docx.add_paragraph(Paragraph::new());
-    }
-
-    // Page break after title page
-    docx = docx.add_paragraph(Paragraph::new().page_break_before(true));
 
     match &options.scope {
         ExportScope::Project => {
@@ -920,6 +1094,7 @@ mod tests {
             output_path: "/tmp/test.docx".to_string(),
             create_snapshot: false,
             page_breaks_between_chapters: true,
+            include_title_page: true,
         };
 
         let docx = Docx::new();
@@ -953,6 +1128,7 @@ mod tests {
             output_path: "/tmp/test.docx".to_string(),
             create_snapshot: false,
             page_breaks_between_chapters: false,
+            include_title_page: false,
         };
 
         let docx = Docx::new();
@@ -998,12 +1174,98 @@ mod tests {
             output_path: "/tmp/test.docx".to_string(),
             create_snapshot: false,
             page_breaks_between_chapters: true,
+            include_title_page: true,
         };
 
         let docx = Docx::new();
         let docx = add_scene_to_docx(docx, &scene, &beats, &options);
 
         // Build should succeed
+        let built = docx.build();
+        let mut buffer = Vec::new();
+        built.pack(&mut std::io::Cursor::new(&mut buffer)).unwrap();
+        assert!(!buffer.is_empty());
+    }
+
+    #[test]
+    fn test_count_words() {
+        assert_eq!(count_words("hello world"), 2);
+        assert_eq!(count_words("  multiple   spaces  "), 2);
+        assert_eq!(count_words("one"), 1);
+        assert_eq!(count_words(""), 0);
+        assert_eq!(
+            count_words("This is a longer sentence with several words."),
+            8
+        );
+    }
+
+    #[test]
+    fn test_round_word_count() {
+        assert_eq!(round_word_count(500), "500 words");
+        assert_eq!(round_word_count(999), "999 words");
+        assert_eq!(round_word_count(1000), "approx. 1000 words");
+        assert_eq!(round_word_count(1499), "approx. 1000 words");
+        assert_eq!(round_word_count(1500), "approx. 2000 words");
+        assert_eq!(round_word_count(75000), "approx. 75000 words");
+        assert_eq!(round_word_count(75499), "approx. 75000 words");
+        assert_eq!(round_word_count(75500), "approx. 76000 words");
+    }
+
+    #[test]
+    fn test_add_title_page() {
+        use crate::models::{Project, SourceType};
+
+        let project = Project {
+            id: uuid::Uuid::new_v4(),
+            name: "My Novel".to_string(),
+            source_type: SourceType::Markdown,
+            source_path: None,
+            created_at: chrono::Utc::now().to_rfc3339(),
+            modified_at: chrono::Utc::now().to_rfc3339(),
+            author_pen_name: Some("Pen Name".to_string()),
+            genre: Some("Literary Fiction".to_string()),
+        };
+
+        let app_settings = AppSettings {
+            author_name: Some("Real Name".to_string()),
+            contact_address_line1: Some("123 Main St".to_string()),
+            contact_address_line2: Some("City, Country 12345".to_string()),
+            contact_phone: Some("+1 555 1234".to_string()),
+            contact_email: Some("author@email.com".to_string()),
+        };
+
+        let docx = Docx::new();
+        let docx = add_title_page(docx, &project, &app_settings, 75000);
+
+        // Build should succeed
+        let built = docx.build();
+        let mut buffer = Vec::new();
+        built.pack(&mut std::io::Cursor::new(&mut buffer)).unwrap();
+        assert!(!buffer.is_empty());
+    }
+
+    #[test]
+    fn test_add_title_page_minimal() {
+        use crate::models::{Project, SourceType};
+
+        // Test with minimal settings (no contact info)
+        let project = Project {
+            id: uuid::Uuid::new_v4(),
+            name: "Untitled".to_string(),
+            source_type: SourceType::Plottr,
+            source_path: None,
+            created_at: chrono::Utc::now().to_rfc3339(),
+            modified_at: chrono::Utc::now().to_rfc3339(),
+            author_pen_name: None,
+            genre: None,
+        };
+
+        let app_settings = AppSettings::default();
+
+        let docx = Docx::new();
+        let docx = add_title_page(docx, &project, &app_settings, 0);
+
+        // Build should succeed even with no settings
         let built = docx.build();
         let mut buffer = Vec::new();
         built.pack(&mut std::io::Cursor::new(&mut buffer)).unwrap();
