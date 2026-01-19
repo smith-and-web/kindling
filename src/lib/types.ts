@@ -172,6 +172,22 @@ export interface MarkdownExportOptions {
   create_snapshot?: boolean;
 }
 
+/** Options for DOCX export */
+export interface DocxExportOptions {
+  /** What to export (project, chapter, or scene) */
+  scope: ExportScope;
+  /** Include beat markers as Heading 3 in output */
+  include_beat_markers: boolean;
+  /** Include scene synopsis as italicized paragraph */
+  include_synopsis: boolean;
+  /** Output file path (full path including filename) */
+  output_path: string;
+  /** Create a snapshot before exporting */
+  create_snapshot?: boolean;
+  /** Add page breaks between chapters */
+  page_breaks_between_chapters?: boolean;
+}
+
 /** Result of an export operation */
 export interface ExportResult {
   /** Path where export was saved */

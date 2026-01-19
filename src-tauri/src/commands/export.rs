@@ -464,42 +464,44 @@ pub async fn export_to_markdown(
 /// Create heading styles for the DOCX document
 fn create_docx_styles() -> Docx {
     Docx::new()
-        // Heading 1 style (for chapters)
+        // Heading 1 style (for chapters) - large, bold, blue with spacing
         .add_style(
             Style::new("Heading1", StyleType::Paragraph)
                 .name("Heading 1")
-                .size(48) // 24pt (size is in half-points)
+                .size(56) // 28pt (size is in half-points)
                 .bold()
-                .color("2E5090")
-                .next("Normal"),
+                .color("2E5090"),
         )
-        // Heading 2 style (for scenes)
+        // Heading 2 style (for scenes) - medium, bold, dark gray with spacing
         .add_style(
             Style::new("Heading2", StyleType::Paragraph)
                 .name("Heading 2")
-                .size(36) // 18pt
+                .size(40) // 20pt
                 .bold()
-                .color("404040")
-                .next("Normal"),
+                .color("404040"),
         )
-        // Heading 3 style (for beats)
+        // Heading 3 style (for beats) - smaller, bold italic, medium gray
         .add_style(
             Style::new("Heading3", StyleType::Paragraph)
                 .name("Heading 3")
-                .size(28) // 14pt
+                .size(26) // 13pt
                 .bold()
                 .italic()
-                .color("666666")
-                .next("Normal"),
+                .color("666666"),
         )
-        // Synopsis style (italicized, gray)
+        // Synopsis style (italicized, gray, indented)
         .add_style(
             Style::new("Synopsis", StyleType::Paragraph)
                 .name("Synopsis")
                 .size(22) // 11pt
                 .italic()
-                .color("666666")
-                .next("Normal"),
+                .color("555555"),
+        )
+        // Normal/body text style with first-line indent
+        .add_style(
+            Style::new("BodyText", StyleType::Paragraph)
+                .name("Body Text")
+                .size(24), // 12pt
         )
 }
 
@@ -519,15 +521,33 @@ fn add_chapter_to_docx(
         docx = docx.add_paragraph(Paragraph::new().page_break_before(true));
     }
 
-    // Chapter title as Heading 1
+    // Chapter title as Heading 1 with spacing after (480 = 24pt in twips)
     docx = docx.add_paragraph(
         Paragraph::new()
-            .add_run(Run::new().add_text(&chapter.title))
-            .style("Heading1"),
+            .add_run(
+                Run::new()
+                    .add_text(&chapter.title)
+                    .size(56)
+                    .bold()
+                    .color("2E5090"),
+            )
+            .style("Heading1")
+            .line_spacing(LineSpacing::new().after(480)),
     );
 
-    // Add scenes
-    for scene in scenes.iter().filter(|s| !s.archived) {
+    // Add scenes with separators between them
+    let active_scenes: Vec<&Scene> = scenes.iter().filter(|s| !s.archived).collect();
+    for (i, scene) in active_scenes.iter().enumerate() {
+        // Add scene separator (centered asterisks) between scenes, not before first
+        if i > 0 {
+            docx = docx.add_paragraph(
+                Paragraph::new()
+                    .add_run(Run::new().add_text("* * *").color("888888"))
+                    .align(AlignmentType::Center)
+                    .line_spacing(LineSpacing::new().before(360).after(360)),
+            );
+        }
+
         docx = add_scene_to_docx(
             docx,
             scene,
@@ -551,21 +571,36 @@ fn add_scene_to_docx(
 ) -> Docx {
     let mut docx = docx;
 
-    // Scene title as Heading 2
+    // Scene title as Heading 2 with spacing before and after (360 twips = 18pt)
     docx = docx.add_paragraph(
         Paragraph::new()
-            .add_run(Run::new().add_text(&scene.title))
-            .style("Heading2"),
+            .add_run(
+                Run::new()
+                    .add_text(&scene.title)
+                    .size(40)
+                    .bold()
+                    .color("404040"),
+            )
+            .style("Heading2")
+            .line_spacing(LineSpacing::new().before(360).after(240)),
     );
 
-    // Synopsis if requested and present
+    // Synopsis if requested and present - indented with left border effect via indent
     if options.include_synopsis {
         if let Some(ref synopsis) = scene.synopsis {
             if !synopsis.trim().is_empty() {
                 docx = docx.add_paragraph(
                     Paragraph::new()
-                        .add_run(Run::new().add_text(synopsis))
-                        .style("Synopsis"),
+                        .add_run(
+                            Run::new()
+                                .add_text(synopsis)
+                                .size(22)
+                                .italic()
+                                .color("555555"),
+                        )
+                        .style("Synopsis")
+                        .indent(Some(720), None, None, None) // 720 twips = 0.5 inch left indent
+                        .line_spacing(LineSpacing::new().after(240)),
                 );
             }
         }
@@ -583,12 +618,20 @@ fn add_scene_to_docx(
 fn add_beat_to_docx(docx: Docx, beat: &Beat, options: &DocxExportOptions) -> Docx {
     let mut docx = docx;
 
-    // Beat marker as Heading 3 if requested
+    // Beat marker as Heading 3 if requested - with spacing
     if options.include_beat_markers {
         docx = docx.add_paragraph(
             Paragraph::new()
-                .add_run(Run::new().add_text(&beat.content))
-                .style("Heading3"),
+                .add_run(
+                    Run::new()
+                        .add_text(&beat.content)
+                        .size(26)
+                        .bold()
+                        .italic()
+                        .color("666666"),
+                )
+                .style("Heading3")
+                .line_spacing(LineSpacing::new().before(240).after(120)),
         );
     }
 
@@ -597,11 +640,24 @@ fn add_beat_to_docx(docx: Docx, beat: &Beat, options: &DocxExportOptions) -> Doc
         let clean_prose = strip_html(prose);
         if !clean_prose.is_empty() {
             // Split by double newlines to create separate paragraphs
-            for para_text in clean_prose.split("\n\n") {
+            let paragraphs: Vec<&str> = clean_prose.split("\n\n").collect();
+            for (i, para_text) in paragraphs.iter().enumerate() {
                 let trimmed = para_text.trim();
                 if !trimmed.is_empty() {
-                    docx =
-                        docx.add_paragraph(Paragraph::new().add_run(Run::new().add_text(trimmed)));
+                    // First paragraph of beat doesn't have indent, subsequent ones do (book-style)
+                    let para = if i == 0 {
+                        Paragraph::new()
+                            .add_run(Run::new().add_text(trimmed).size(24))
+                            .style("BodyText")
+                            .line_spacing(LineSpacing::new().after(200))
+                    } else {
+                        Paragraph::new()
+                            .add_run(Run::new().add_text(trimmed).size(24))
+                            .style("BodyText")
+                            .indent(Some(360), None, None, None) // 360 twips = 0.25 inch first-line indent
+                            .line_spacing(LineSpacing::new().after(200))
+                    };
+                    docx = docx.add_paragraph(para);
                 }
             }
         }
@@ -652,12 +708,30 @@ pub async fn export_to_docx(
     // Initialize document with styles
     let mut docx = create_docx_styles();
 
-    // Add title page with project name
+    // Add title page with project name - vertically centered with large font
+    // Add some blank space above to push title toward center
+    for _ in 0..8 {
+        docx = docx.add_paragraph(Paragraph::new());
+    }
+
     docx = docx.add_paragraph(
         Paragraph::new()
-            .add_run(Run::new().add_text(&project.name).size(72).bold())
+            .add_run(
+                Run::new()
+                    .add_text(&project.name)
+                    .size(96)
+                    .bold()
+                    .color("2E5090"),
+            ) // 48pt title
             .align(AlignmentType::Center),
     );
+
+    // Add spacing below title
+    for _ in 0..4 {
+        docx = docx.add_paragraph(Paragraph::new());
+    }
+
+    // Page break after title page
     docx = docx.add_paragraph(Paragraph::new().page_break_before(true));
 
     match &options.scope {

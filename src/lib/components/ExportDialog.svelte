@@ -2,18 +2,23 @@
   ExportDialog.svelte - Export configuration dialog
 
   Allows users to configure and initiate project exports:
-  - Format selection (Markdown only for now, DOCX coming soon)
+  - Format selection (Markdown or Word Document)
   - Scope selection based on context (project/chapter/scene)
-  - Options like beat markers
-  - Destination folder picker
+  - Options like beat markers, synopsis, page breaks
+  - Destination folder/file picker
 -->
 <script lang="ts">
   /* eslint-disable no-undef */
   import { invoke } from "@tauri-apps/api/core";
-  import { open } from "@tauri-apps/plugin-dialog";
-  import { X, Loader2, FolderOpen } from "lucide-svelte";
+  import { open, save } from "@tauri-apps/plugin-dialog";
+  import { X, Loader2, FolderOpen, FileText } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
-  import type { ExportResult, MarkdownExportOptions, ExportScope } from "../types";
+  import type {
+    ExportResult,
+    MarkdownExportOptions,
+    DocxExportOptions,
+    ExportScope,
+  } from "../types";
   import Tooltip from "./Tooltip.svelte";
 
   const LAST_EXPORT_PATH_KEY = "kindling:lastExportPath";
@@ -34,9 +39,12 @@
 
   let exportFormat = $state<"markdown" | "docx">("markdown");
   let includeBeatMarkers = $state(true);
+  let includeSynopsis = $state(true);
+  let pageBreaksBetweenChapters = $state(true);
   let deleteExisting = $state(false);
   let createSnapshot = $state(false);
   let outputPath = $state("");
+  let docxFilePath = $state("");
   let exportName = $state("");
   let exporting = $state(false);
   let error = $state<string | null>(null);
@@ -56,7 +64,10 @@
     }
   });
 
-  const canExport = $derived(exportFormat === "markdown" && outputPath.length > 0);
+  const canExport = $derived(
+    (exportFormat === "markdown" && outputPath.length > 0) ||
+      (exportFormat === "docx" && docxFilePath.length > 0)
+  );
 
   async function selectDestination() {
     const path = await open({
@@ -67,6 +78,20 @@
 
     if (path) {
       outputPath = path;
+      error = null;
+    }
+  }
+
+  async function selectDocxFile() {
+    const defaultName = `${exportName.trim() || currentProject.value?.name || "Export"}.docx`;
+    const path = await save({
+      title: "Save Word Document",
+      defaultPath: defaultName,
+      filters: [{ name: "Word Document", extensions: ["docx"] }],
+    });
+
+    if (path) {
+      docxFilePath = path;
       error = null;
     }
   }
@@ -90,26 +115,44 @@
         exportScope = "project";
       }
 
-      const options: MarkdownExportOptions = {
-        scope: exportScope,
-        include_beat_markers: includeBeatMarkers,
-        output_path: outputPath,
-        delete_existing: deleteExisting,
-        export_name: exportName.trim() || undefined,
-        create_snapshot: createSnapshot,
-      };
-
       if (!currentProject.value) {
         throw new Error("No project selected");
       }
 
-      const result = await invoke<ExportResult>("export_to_markdown", {
-        projectId: currentProject.value.id,
-        options,
-      });
+      let result: ExportResult;
 
-      // Save the export path for next time
-      localStorage.setItem(LAST_EXPORT_PATH_KEY, outputPath);
+      if (exportFormat === "markdown") {
+        const options: MarkdownExportOptions = {
+          scope: exportScope,
+          include_beat_markers: includeBeatMarkers,
+          output_path: outputPath,
+          delete_existing: deleteExisting,
+          export_name: exportName.trim() || undefined,
+          create_snapshot: createSnapshot,
+        };
+
+        result = await invoke<ExportResult>("export_to_markdown", {
+          projectId: currentProject.value.id,
+          options,
+        });
+
+        // Save the export path for next time (markdown only, since it's a folder)
+        localStorage.setItem(LAST_EXPORT_PATH_KEY, outputPath);
+      } else {
+        const options: DocxExportOptions = {
+          scope: exportScope,
+          include_beat_markers: includeBeatMarkers,
+          include_synopsis: includeSynopsis,
+          output_path: docxFilePath,
+          create_snapshot: createSnapshot,
+          page_breaks_between_chapters: pageBreaksBetweenChapters,
+        };
+
+        result = await invoke<ExportResult>("export_to_docx", {
+          projectId: currentProject.value.id,
+          options,
+        });
+      }
 
       onSuccess(result);
     } catch (e) {
@@ -179,17 +222,15 @@
             />
             <span class="text-text-primary">Markdown (.md files)</span>
           </label>
-          <label class="flex items-center gap-2 cursor-not-allowed opacity-50">
+          <label class="flex items-center gap-2 cursor-pointer">
             <input
               type="radio"
               name="format"
               value="docx"
               bind:group={exportFormat}
-              disabled
-              class="w-4 h-4 text-accent bg-bg-card border-bg-card"
+              class="w-4 h-4 text-accent bg-bg-card border-bg-card focus:ring-accent"
             />
-            <span class="text-text-secondary">Word Document (.docx)</span>
-            <span class="text-xs text-text-secondary italic">Coming soon</span>
+            <span class="text-text-primary">Word Document (.docx)</span>
           </label>
         </div>
       </fieldset>
@@ -206,14 +247,34 @@
             />
             <span class="text-text-primary">Include beat markers as headings</span>
           </label>
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              bind:checked={deleteExisting}
-              class="w-4 h-4 text-accent bg-bg-card border-bg-card rounded focus:ring-accent"
-            />
-            <span class="text-text-primary">Delete existing export folder</span>
-          </label>
+          {#if exportFormat === "docx"}
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                bind:checked={includeSynopsis}
+                class="w-4 h-4 text-accent bg-bg-card border-bg-card rounded focus:ring-accent"
+              />
+              <span class="text-text-primary">Include scene synopses</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                bind:checked={pageBreaksBetweenChapters}
+                class="w-4 h-4 text-accent bg-bg-card border-bg-card rounded focus:ring-accent"
+              />
+              <span class="text-text-primary">Page breaks between chapters</span>
+            </label>
+          {/if}
+          {#if exportFormat === "markdown"}
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                bind:checked={deleteExisting}
+                class="w-4 h-4 text-accent bg-bg-card border-bg-card rounded focus:ring-accent"
+              />
+              <span class="text-text-primary">Delete existing export folder</span>
+            </label>
+          {/if}
           <label class="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -225,50 +286,82 @@
         </div>
       </fieldset>
 
-      <!-- Export Name -->
-      <div>
-        <label for="export-name" class="block text-sm font-medium text-text-secondary mb-2">
-          Export Name
-        </label>
-        <input
-          id="export-name"
-          type="text"
-          bind:value={exportName}
-          placeholder="Enter export folder name..."
-          class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
-        />
-        <p class="text-xs text-text-secondary mt-1">
-          Folder will be created as: {exportName.trim() || currentProject.value?.name || "Project"}
-        </p>
-      </div>
-
-      <!-- Destination -->
-      <div>
-        <label for="destination" class="block text-sm font-medium text-text-secondary mb-2">
-          Destination
-        </label>
-        <div class="flex gap-2">
+      {#if exportFormat === "markdown"}
+        <!-- Export Name (Markdown only) -->
+        <div>
+          <label for="export-name" class="block text-sm font-medium text-text-secondary mb-2">
+            Export Name
+          </label>
           <input
-            id="destination"
+            id="export-name"
             type="text"
-            readonly
-            value={outputPath}
-            placeholder="Select a folder..."
-            class="flex-1 bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent cursor-pointer"
-            onclick={selectDestination}
+            bind:value={exportName}
+            placeholder="Enter export folder name..."
+            class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
           />
-          <Tooltip text="Browse" position="top">
-            <button
-              type="button"
-              onclick={selectDestination}
-              class="px-3 py-2 bg-bg-card text-text-primary rounded-lg hover:bg-beat-header transition-colors"
-              aria-label="Browse for folder"
-            >
-              <FolderOpen class="w-5 h-5" />
-            </button>
-          </Tooltip>
+          <p class="text-xs text-text-secondary mt-1">
+            Folder will be created as: {exportName.trim() ||
+              currentProject.value?.name ||
+              "Project"}
+          </p>
         </div>
-      </div>
+
+        <!-- Destination Folder (Markdown) -->
+        <div>
+          <label for="destination" class="block text-sm font-medium text-text-secondary mb-2">
+            Destination Folder
+          </label>
+          <div class="flex gap-2">
+            <input
+              id="destination"
+              type="text"
+              readonly
+              value={outputPath}
+              placeholder="Select a folder..."
+              class="flex-1 bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent cursor-pointer"
+              onclick={selectDestination}
+            />
+            <Tooltip text="Browse" position="top">
+              <button
+                type="button"
+                onclick={selectDestination}
+                class="px-3 py-2 bg-bg-card text-text-primary rounded-lg hover:bg-beat-header transition-colors"
+                aria-label="Browse for folder"
+              >
+                <FolderOpen class="w-5 h-5" />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+      {:else}
+        <!-- Save Location (DOCX) -->
+        <div>
+          <label for="docx-destination" class="block text-sm font-medium text-text-secondary mb-2">
+            Save As
+          </label>
+          <div class="flex gap-2">
+            <input
+              id="docx-destination"
+              type="text"
+              readonly
+              value={docxFilePath}
+              placeholder="Choose where to save..."
+              class="flex-1 bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent cursor-pointer"
+              onclick={selectDocxFile}
+            />
+            <Tooltip text="Save As" position="top">
+              <button
+                type="button"
+                onclick={selectDocxFile}
+                class="px-3 py-2 bg-bg-card text-text-primary rounded-lg hover:bg-beat-header transition-colors"
+                aria-label="Choose save location"
+              >
+                <FileText class="w-5 h-5" />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+      {/if}
 
       <!-- Error Message -->
       {#if error}
