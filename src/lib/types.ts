@@ -147,3 +147,33 @@ export interface ReimportSummary {
   /** Count of prose blocks that were preserved (not overwritten) */
   prose_preserved: number;
 }
+
+// =============================================================================
+// Export Types
+// Used for exporting projects to various formats (Markdown, DOCX)
+// =============================================================================
+
+/** Export scope - what portion of the project to export */
+export type ExportScope = "project" | { chapter: string } | { scene: string };
+
+/** Options for Markdown export */
+export interface MarkdownExportOptions {
+  /** What to export (project, chapter, or scene) */
+  scope: ExportScope;
+  /** Include beat markers (## Beat: content) in output */
+  include_beat_markers: boolean;
+  /** Output directory path */
+  output_path: string;
+}
+
+/** Result of an export operation */
+export interface ExportResult {
+  /** Path where export was saved */
+  output_path: string;
+  /** Number of files created */
+  files_created: number;
+  /** Total chapters exported */
+  chapters_exported: number;
+  /** Total scenes exported */
+  scenes_exported: number;
+}
