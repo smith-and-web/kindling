@@ -244,11 +244,38 @@ export async function expandBeat(beatIndex) {
 }
 
 /**
- * Type prose into the expanded beat textarea
+ * Type prose into the expanded beat editor (TipTap contenteditable)
  */
 export async function typeProse(text) {
-  const textarea = await $('[data-testid="beat-prose-textarea"]');
-  await textarea.setValue(text);
+  // TipTap uses a contenteditable div with class "novel-editor-content"
+  const editor = await $('[data-testid="beat-prose-editor"] .novel-editor-content');
+  await editor.click(); // Focus the editor
+  // Clear existing content and type new text
+  await browser.execute((el, newText) => {
+    el.innerHTML = `<p>${newText}</p>`;
+    // Dispatch input event so TipTap processes it
+    el.dispatchEvent(new InputEvent("input", { bubbles: true }));
+  }, editor, text);
+}
+
+/**
+ * Get prose content from the expanded beat editor
+ */
+export async function getProseContent() {
+  const editor = await $('[data-testid="beat-prose-editor"] .novel-editor-content');
+  return await browser.execute((el) => el.innerText?.trim() || "", editor);
+}
+
+/**
+ * Clear prose content in the expanded beat editor
+ */
+export async function clearProseContent() {
+  const editor = await $('[data-testid="beat-prose-editor"] .novel-editor-content');
+  await editor.click(); // Focus the editor
+  await browser.execute((el) => {
+    el.innerHTML = "<p></p>";
+    el.dispatchEvent(new InputEvent("input", { bubbles: true }));
+  }, editor);
 }
 
 /**

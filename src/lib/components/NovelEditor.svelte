@@ -339,7 +339,7 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="novel-pages-container" onkeydown={handleKeydown}>
     <div class="novel-page">
-      <div bind:this={editorElement} class="editor-wrapper"></div>
+      <div bind:this={editorElement} class="editor-wrapper" data-testid="beat-prose-editor"></div>
     </div>
   </div>
 </div>
