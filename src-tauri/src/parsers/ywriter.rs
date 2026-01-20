@@ -2041,7 +2041,7 @@ mod tests {
             s.title == "New Scene"
                 && s.synopsis
                     .as_ref()
-                    .map_or(false, |syn| syn.contains("This bird is not dead"))
+                    .is_some_and(|syn| syn.contains("This bird is not dead"))
         });
 
         assert!(
