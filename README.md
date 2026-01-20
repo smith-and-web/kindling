@@ -47,8 +47,10 @@ Kindling keeps your outline visible and actionable as you write. Each scene disp
 
 | Feature | Description |
 |---------|-------------|
-| **Import from popular tools** | Plottr (.pltr), Scrivener (.scriv), or Markdown outlines |
+| **Import from popular tools** | Plottr (.pltr) or Markdown outlines |
 | **Scaffolded writing view** | Scene beats appear as expandable prompts |
+| **Rich text prose editor** | Write with formatting, auto-save, and beat context |
+| **Export to DOCX** | Standard Manuscript Format with customizable options |
 | **Distraction-free dark mode** | Easy on the eyes for long writing sessions |
 | **Local-first** | Your work stays on your machine in a SQLite database |
 | **Cross-platform** | macOS, Windows, and Linux support |
@@ -96,11 +98,10 @@ Track progress on the [project board](https://github.com/users/smith-and-web/pro
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| **v0.1 - Foundation** | 🔄 In Progress | Plottr import, basic UI, project structure |
-| **v0.2 - Outline View** | ⏳ Planned | Drag-and-drop reordering, create/delete scenes |
-| **v0.3 - Writing** | ⏳ Planned | Prose editor with beat integration |
-| **v0.4 - Export** | ⏳ Planned | Export to Scrivener, DOCX, Markdown |
-| **v1.0 - Release** | ⏳ Planned | Polish, performance, stability |
+| **v0.1 - Foundation** | ✅ Complete | Plottr import, basic UI, project structure |
+| **v0.2 - Outline View** | ✅ Complete | Drag-and-drop reordering, create/delete scenes |
+| **v0.3 - Writing & Export** | ✅ Complete | Prose editor, DOCX export with Standard Manuscript Format |
+| **v1.0.0-beta** | 🔄 In Progress | Additional importers, polish, performance, stability |
 
 See the [milestones](https://github.com/smith-and-web/kindling/milestones) for detailed breakdowns.
 
@@ -109,7 +110,7 @@ See the [milestones](https://github.com/smith-and-web/kindling/milestones) for d
 - **Frontend**: [Svelte 5](https://svelte.dev/) + [Tailwind CSS](https://tailwindcss.com/)
 - **Backend**: [Rust](https://www.rust-lang.org/) + [Tauri 2.x](https://tauri.app/)
 - **Database**: [SQLite](https://sqlite.org/) via rusqlite
-- **Parsers**: Native Rust parsers for Plottr, Scrivener, and Markdown
+- **Parsers**: Native Rust parsers for Plottr and Markdown
 
 <details>
 <summary><strong>Project Structure</strong></summary>
