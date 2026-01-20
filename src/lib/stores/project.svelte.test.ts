@@ -140,6 +140,74 @@ describe("currentProject store", () => {
     expect(currentProject.chapters[1]).toEqual(chapter2);
   });
 
+  it("should add a chapter after a specific chapter using afterId", () => {
+    const chapter1 = {
+      id: "ch-1",
+      project_id: "p1",
+      title: "Chapter 1",
+      position: 0,
+      archived: false,
+      locked: false,
+      is_part: false,
+    };
+    const chapter2 = {
+      id: "ch-2",
+      project_id: "p1",
+      title: "Chapter 2",
+      position: 1,
+      archived: false,
+      locked: false,
+      is_part: false,
+    };
+    const chapter3 = {
+      id: "ch-3",
+      project_id: "p1",
+      title: "Chapter 3",
+      position: 2,
+      archived: false,
+      locked: false,
+      is_part: false,
+    };
+
+    currentProject.setChapters([chapter1, chapter3]);
+    // Insert chapter2 after chapter1
+    currentProject.addChapter(chapter2, "ch-1");
+
+    expect(currentProject.chapters).toHaveLength(3);
+    expect(currentProject.chapters[0].id).toBe("ch-1");
+    expect(currentProject.chapters[1].id).toBe("ch-2");
+    expect(currentProject.chapters[2].id).toBe("ch-3");
+  });
+
+  it("should append to end if afterId is not found", () => {
+    const chapter1 = {
+      id: "ch-1",
+      project_id: "p1",
+      title: "Chapter 1",
+      position: 0,
+      archived: false,
+      locked: false,
+      is_part: false,
+    };
+    const chapter2 = {
+      id: "ch-2",
+      project_id: "p1",
+      title: "Chapter 2",
+      position: 1,
+      archived: false,
+      locked: false,
+      is_part: false,
+    };
+
+    currentProject.setChapters([chapter1]);
+    // Try to insert after non-existent chapter
+    currentProject.addChapter(chapter2, "non-existent");
+
+    expect(currentProject.chapters).toHaveLength(2);
+    expect(currentProject.chapters[0].id).toBe("ch-1");
+    expect(currentProject.chapters[1].id).toBe("ch-2");
+  });
+
   it("should manage scenes", () => {
     const mockScenes = [
       {
