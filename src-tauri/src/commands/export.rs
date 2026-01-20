@@ -2487,6 +2487,7 @@ mod tests {
             locked: false,
             archived: false,
             source_id: None,
+            is_part: false,
         };
 
         let scene = Scene {
@@ -2547,6 +2548,7 @@ mod tests {
             locked: false,
             archived: false,
             source_id: None,
+            is_part: false,
         };
 
         let scene1 = Scene {

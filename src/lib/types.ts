@@ -53,6 +53,8 @@ export interface Chapter {
   archived: boolean;
   /** Locked chapters cannot be edited */
   locked: boolean;
+  /** True if this chapter is a Part header (section heading). Part chapters group subsequent chapters until the next Part. */
+  is_part: boolean;
 }
 
 /** A scene is the primary unit of writing, containing beats and prose */

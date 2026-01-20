@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<YWRITER7>
+  <PROJECT>
+    <Ver>7</Ver>
+    <Title>Hamlet</Title>
+    <Desc>The Tragedy of Hamlet, Prince of Denmark</Desc>
+    <Author>William Shakespeare</Author>
+    <WordCountStart>0</WordCountStart>
+    <WordTarget>80000</WordTarget>
+  </PROJECT>
+
+  <CHAPTERS>
+    <CHAPTER>
+      <ID>1</ID>
+      <SortOrder>1</SortOrder>
+      <Title>Act I</Title>
+      <Desc>The ghost appears and Hamlet learns of his father's murder.</Desc>
+      <Type>0</Type>
+      <Scenes>1;2;3</Scenes>
+    </CHAPTER>
+    <CHAPTER>
+      <ID>2</ID>
+      <SortOrder>2</SortOrder>
+      <Title>Act II</Title>
+      <Desc>Hamlet feigns madness and plans to expose Claudius.</Desc>
+      <Type>0</Type>
+      <Scenes>4;5</Scenes>
+    </CHAPTER>
+    <CHAPTER>
+      <ID>3</ID>
+      <SortOrder>3</SortOrder>
+      <Title>Act III</Title>
+      <Desc>The play within a play reveals Claudius's guilt.</Desc>
+      <Type>0</Type>
+      <Scenes>6;7</Scenes>
+    </CHAPTER>
+  </CHAPTERS>
+
+  <SCENES>
+    <SCENE>
+      <ID>1</ID>
+      <Title>The Ghost Appears</Title>
+      <Desc>Bernardo and Francisco stand watch on the battlements of Elsinore. The ghost of the late King appears.</Desc>
+      <Goal>Establish the supernatural element and create tension</Goal>
+      <Conflict>The guards are terrified by the ghost's appearance</Conflict>
+      <Outcome>They decide to tell Prince Hamlet about the ghost</Outcome>
+      <SceneContent>[i]The battlements of Elsinore Castle. A cold night.[/i]
+
+BERNARDO: Who's there?
+
+FRANCISCO: Nay, answer me. Stand and unfold yourself.
+
+The ghost appears, wearing armor like the dead King. The guards stand frozen in fear.</SceneContent>
+      <Status>2</Status>
+      <ReactionScene>0</ReactionScene>
+      <Characters>1;2;5</Characters>
+      <Locations>1</Locations>
+      <Date>-</Date>
+      <Time>-</Time>
+      <Day>-</Day>
+    </SCENE>
+    <SCENE>
+      <ID>2</ID>
+      <Title>The Court of Denmark</Title>
+      <Desc>King Claudius addresses the court. Hamlet mourns his father.</Desc>
+      <Goal>Introduce the political situation and Hamlet's grief</Goal>
+      <Conflict>Hamlet's resentment toward Claudius and Gertrude</Conflict>
+      <Outcome>Hamlet agrees to stay in Denmark</Outcome>
+      <SceneContent>CLAUDIUS: Though yet of Hamlet our dear brother's death
+The memory be green, and that it us befitted
+To bear our hearts in grief...</SceneContent>
+      <Status>2</Status>
+      <ReactionScene>0</ReactionScene>
+      <Characters>3;4;5;6</Characters>
+      <Locations>2</Locations>
+    </SCENE>
+    <SCENE>
+      <ID>3</ID>
+      <Title>Hamlet Meets the Ghost</Title>
+      <Desc>The ghost reveals the truth about King Hamlet's murder.</Desc>
+      <Goal>Reveal the murder and set Hamlet on his path of revenge</Goal>
+      <Conflict>Hamlet must process the horrifying truth</Conflict>
+      <Outcome>Hamlet swears to avenge his father</Outcome>
+      <SceneContent>GHOST: I am thy father's spirit,
+Doomed for a certain term to walk the night...
+
+Murder most foul, as in the best it is,
+But this most foul, strange, and unnatural.</SceneContent>
+      <Status>2</Status>
+      <ReactionScene>0</ReactionScene>
+      <Characters>5;7</Characters>
+      <Locations>1</Locations>
+    </SCENE>
+    <SCENE>
+      <ID>4</ID>
+      <Title>Polonius Instructs Reynaldo</Title>
+      <Desc>Polonius sends Reynaldo to spy on Laertes in Paris.</Desc>
+      <Goal>Show Polonius's scheming nature</Goal>
+      <Conflict>The deception required to spy on one's own son</Conflict>
+      <Outcome>Reynaldo agrees to the mission</Outcome>
+      <Status>1</Status>
+      <ReactionScene>0</ReactionScene>
+      <Characters>8;9</Characters>
+      <Locations>3</Locations>
+    </SCENE>
+    <SCENE>
+      <ID>5</ID>
+      <Title>The Players Arrive</Title>
+      <Desc>A troupe of actors arrives at Elsinore.</Desc>
+      <Goal>Hamlet devises a plan to catch the conscience of the king</Goal>
+      <Conflict>Hamlet's internal struggle with inaction</Conflict>
+      <Outcome>Hamlet commissions a play mirroring his father's murder</Outcome>
+      <SceneContent>HAMLET: I'll have these players
+Play something like the murder of my father
+Before mine uncle. I'll observe his looks...</SceneContent>
+      <Status>2</Status>
+      <ReactionScene>1</ReactionScene>
+      <Characters>5</Characters>
+      <Locations>2</Locations>
+    </SCENE>
+    <SCENE>
+      <ID>6</ID>
+      <Title>To Be or Not To Be</Title>
+      <Desc>Hamlet delivers his famous soliloquy while being spied upon.</Desc>
+      <Goal>Explore Hamlet's contemplation of death and existence</Goal>
+      <Conflict>The burden of existence versus the fear of the unknown</Conflict>
+      <Outcome>Hamlet rejects suicide but remains paralyzed by thought</Outcome>
+      <SceneContent>HAMLET: To be, or not to be, that is the question:
+Whether 'tis nobler in the mind to suffer
+The slings and arrows of outrageous fortune,
+Or to take arms against a sea of troubles...</SceneContent>
+      <Status>2</Status>
+      <ReactionScene>1</ReactionScene>
+      <Characters>5</Characters>
+      <Locations>2</Locations>
+    </SCENE>
+    <SCENE>
+      <ID>7</ID>
+      <Title>The Mousetrap</Title>
+      <Desc>The play-within-a-play exposes Claudius's guilt.</Desc>
+      <Goal>Confirm Claudius's guilt through his reaction to the play</Goal>
+      <Conflict>The tension of the performance and Claudius's growing discomfort</Conflict>
+      <Outcome>Claudius flees, confirming his guilt to Hamlet</Outcome>
+      <SceneContent>HAMLET: He poisons him i' th' garden for his estate...
+You shall see anon how the murderer gets the love
+of Gonzago's wife.
+
+[i]Claudius rises in alarm.[/i]
+
+CLAUDIUS: Give me some light. Away!</SceneContent>
+      <Status>2</Status>
+      <ReactionScene>0</ReactionScene>
+      <Characters>3;4;5;6;8;10</Characters>
+      <Locations>2</Locations>
+    </SCENE>
+  </SCENES>
+
+  <CHARACTERS>
+    <CHARACTER>
+      <ID>1</ID>
+      <Title>Bernardo</Title>
+      <Desc>An officer of the watch.</Desc>
+      <FullName>Bernardo</FullName>
+      <Bio>A loyal soldier who first sees the ghost.</Bio>
+      <Goals>Protect Elsinore</Goals>
+      <Notes>Minor character, appears in Act I.</Notes>
+    </CHARACTER>
+    <CHARACTER>
+      <ID>2</ID>
+      <Title>Francisco</Title>
+      <Desc>A soldier on watch duty.</Desc>
+      <FullName>Francisco</FullName>
+    </CHARACTER>
+    <CHARACTER>
+      <ID>3</ID>
+      <Title>Claudius</Title>
+      <Desc>The King of Denmark, Hamlet's uncle and stepfather.</Desc>
+      <FullName>Claudius, King of Denmark</FullName>
+      <Bio>Murdered his brother to take the throne and marry Gertrude.</Bio>
+      <Goals>Maintain his power and eliminate threats</Goals>
+    </CHARACTER>
+    <CHARACTER>
+      <ID>4</ID>
+      <Title>Gertrude</Title>
+      <Desc>The Queen of Denmark, Hamlet's mother.</Desc>
+      <FullName>Gertrude, Queen of Denmark</FullName>
+      <Bio>Married Claudius shortly after her husband's death.</Bio>
+    </CHARACTER>
+    <CHARACTER>
+      <ID>5</ID>
+      <Title>Hamlet</Title>
+      <Desc>Prince of Denmark, son of the late King.</Desc>
+      <FullName>Hamlet, Prince of Denmark</FullName>
+      <Bio>A young prince consumed by grief and the desire for revenge.</Bio>
+      <Goals>Avenge his father's murder</Goals>
+      <Notes>The protagonist. Intellectual, melancholic, prone to philosophical reflection.</Notes>
+    </CHARACTER>
+    <CHARACTER>
+      <ID>6</ID>
+      <Title>Horatio</Title>
+      <Desc>Hamlet's loyal friend and confidant.</Desc>
+      <FullName>Horatio</FullName>
+      <Bio>A scholar and Hamlet's most trusted companion.</Bio>
+    </CHARACTER>
+    <CHARACTER>
+      <ID>7</ID>
+      <Title>Ghost</Title>
+      <Desc>The spirit of Hamlet's father, the late King.</Desc>
+      <FullName>Ghost of King Hamlet</FullName>
+      <Bio>Appears to reveal the truth about his murder.</Bio>
+    </CHARACTER>
+    <CHARACTER>
+      <ID>8</ID>
+      <Title>Polonius</Title>
+      <Desc>Lord Chamberlain, father to Laertes and Ophelia.</Desc>
+      <FullName>Polonius, Lord Chamberlain</FullName>
+      <Bio>A scheming courtier who loves to give advice.</Bio>
+    </CHARACTER>
+    <CHARACTER>
+      <ID>9</ID>
+      <Title>Reynaldo</Title>
+      <Desc>Servant to Polonius.</Desc>
+      <FullName>Reynaldo</FullName>
+    </CHARACTER>
+    <CHARACTER>
+      <ID>10</ID>
+      <Title>Ophelia</Title>
+      <Desc>Polonius's daughter, Hamlet's love interest.</Desc>
+      <FullName>Ophelia</FullName>
+      <Bio>A young noblewoman caught between her love for Hamlet and her duty to her father.</Bio>
+    </CHARACTER>
+  </CHARACTERS>
+
+  <LOCATIONS>
+    <LOCATION>
+      <ID>1</ID>
+      <Title>The Battlements</Title>
+      <Desc>The outer walls and watchtowers of Elsinore Castle.</Desc>
+      <Aka>Castle Walls</Aka>
+    </LOCATION>
+    <LOCATION>
+      <ID>2</ID>
+      <Title>The Great Hall</Title>
+      <Desc>The main hall of Elsinore Castle where the court gathers.</Desc>
+      <Aka>Throne Room</Aka>
+    </LOCATION>
+    <LOCATION>
+      <ID>3</ID>
+      <Title>Polonius's Chambers</Title>
+      <Desc>The private rooms of the Lord Chamberlain.</Desc>
+    </LOCATION>
+  </LOCATIONS>
+
+  <ITEMS>
+    <ITEM>
+      <ID>1</ID>
+      <Title>Yorick's Skull</Title>
+      <Desc>The skull of the late court jester, discovered in the graveyard.</Desc>
+    </ITEM>
+    <ITEM>
+      <ID>2</ID>
+      <Title>The Poisoned Sword</Title>
+      <Desc>Laertes' rapier, tipped with poison for the duel.</Desc>
+    </ITEM>
+  </ITEMS>
+</YWRITER7>

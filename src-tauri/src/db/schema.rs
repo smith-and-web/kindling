@@ -179,6 +179,12 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
             [],
         )?;
     }
+    if !columns.contains(&"is_part".to_string()) {
+        conn.execute(
+            "ALTER TABLE chapters ADD COLUMN is_part INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
 
     // Migration: Add archived and locked columns to scenes
     let columns: Vec<String> = conn

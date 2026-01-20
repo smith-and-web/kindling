@@ -6,6 +6,7 @@ pub enum SourceType {
     Scrivener,
     Plottr,
     Markdown,
+    YWriter,
 }
 
 impl SourceType {
@@ -14,6 +15,7 @@ impl SourceType {
             SourceType::Scrivener => "scrivener",
             SourceType::Plottr => "plottr",
             SourceType::Markdown => "markdown",
+            SourceType::YWriter => "ywriter",
         }
     }
 
@@ -22,6 +24,7 @@ impl SourceType {
             "scrivener" => Some(SourceType::Scrivener),
             "plottr" => Some(SourceType::Plottr),
             "markdown" => Some(SourceType::Markdown),
+            "ywriter" => Some(SourceType::YWriter),
             _ => None,
         }
     }

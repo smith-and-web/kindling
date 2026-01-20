@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<YWRITER7>
+<PROJECT>
+<Ver>7</Ver>
+<Title><![CDATA[A Novel in Parts]]></Title>
+<Author><![CDATA[Test Author]]></Author>
+<Desc><![CDATA[A novel organized into Parts and Chapters.]]></Desc>
+</PROJECT>
+<LOCATIONS>
+</LOCATIONS>
+<CHARACTERS>
+</CHARACTERS>
+<SCENES>
+<SCENE>
+<ID>1</ID>
+<Title><![CDATA[Scene 1]]></Title>
+<SceneContent><![CDATA[The opening scene of Chapter 1.]]></SceneContent>
+<Status>2</Status>
+</SCENE>
+<SCENE>
+<ID>2</ID>
+<Title><![CDATA[Scene 2]]></Title>
+<SceneContent><![CDATA[The second scene of Chapter 1.]]></SceneContent>
+<Status>2</Status>
+</SCENE>
+<SCENE>
+<ID>3</ID>
+<Title><![CDATA[Scene 3]]></Title>
+<SceneContent><![CDATA[The scene for Chapter 2.]]></SceneContent>
+<Status>2</Status>
+</SCENE>
+<SCENE>
+<ID>4</ID>
+<Title><![CDATA[Scene 4]]></Title>
+<SceneContent><![CDATA[The opening scene of Part 2.]]></SceneContent>
+<Status>2</Status>
+</SCENE>
+<SCENE>
+<ID>5</ID>
+<Title><![CDATA[Scene 5]]></Title>
+<SceneContent><![CDATA[Another scene in Part 2.]]></SceneContent>
+<Status>2</Status>
+</SCENE>
+</SCENES>
+<CHAPTERS>
+<CHAPTER>
+<ID>1</ID>
+<SectionStart>-1</SectionStart>
+<Title><![CDATA[Part 1]]></Title>
+<SortOrder>1</SortOrder>
+<Type>0</Type>
+</CHAPTER>
+<CHAPTER>
+<ID>2</ID>
+<Title><![CDATA[Chapter 1]]></Title>
+<SortOrder>2</SortOrder>
+<Type>0</Type>
+<Scenes>
+<ScID>1</ScID>
+<ScID>2</ScID>
+</Scenes>
+</CHAPTER>
+<CHAPTER>
+<ID>3</ID>
+<Title><![CDATA[Chapter 2]]></Title>
+<SortOrder>3</SortOrder>
+<Type>0</Type>
+<Scenes>
+<ScID>3</ScID>
+</Scenes>
+</CHAPTER>
+<CHAPTER>
+<ID>4</ID>
+<SectionStart>-1</SectionStart>
+<Title><![CDATA[Part 2]]></Title>
+<SortOrder>4</SortOrder>
+<Type>0</Type>
+</CHAPTER>
+<CHAPTER>
+<ID>5</ID>
+<Title><![CDATA[Chapter 3]]></Title>
+<SortOrder>5</SortOrder>
+<Type>0</Type>
+<Scenes>
+<ScID>4</ScID>
+<ScID>5</ScID>
+</Scenes>
+</CHAPTER>
+</CHAPTERS>
+</YWRITER7>

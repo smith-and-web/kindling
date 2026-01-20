@@ -1,0 +1,2066 @@
+<?xml version="1.0" encoding="utf-8"?>
+<YWRITER7>
+	<PROJECT>
+		<Ver>7</Ver>
+		<Title><![CDATA[Hal Spacejock book one - Sample yWriter Project]]></Title>
+		<AuthorName><![CDATA[Simon Haynes]]></AuthorName>
+		<Bio><![CDATA[Simon Haynes is the author of four Hal Spacejock novels, a number of articles on writing and publishing, and several short stories, one of which collected an Aurealis Award in 2001. He divides his time between writing fiction and computer software, with the occasional round of golf thrown in for a laugh.
+
+Born in the UK and raised in the south of Spain, Simon emigrated to Australia with his family in 1983. He's a founding member of Andromeda Spaceways Inflight Magazine, and lives in Perth with his wife and two children.
+
+His goal is to write fifteen Hal Spacejock books before someone takes his keyboard away.
+
+Simon Haynes is a client of the John Jarrold Literary Agency]]></Bio>
+		<Desc><![CDATA[An incompetent, accident-prone pilot is given one last chance to save his ship. An ageing robot is trusted with a midnight landing in a deserted field. And a desperate businessman is prepared to sacrifice both of them to get what he wants...
+
+Combining relentless action with non-stop laughs, Hal Spacejock explodes onto the science fiction scene with the subtlety of a meteor strike and the hushed reverence of a used car salesman.]]></Desc>
+		<FieldTitle1><![CDATA[Relevance]]></FieldTitle1>
+		<FieldTitle2><![CDATA[Tension]]></FieldTitle2>
+		<FieldTitle3><![CDATA[Humour]]></FieldTitle3>
+		<FieldTitle4><![CDATA[Quality]]></FieldTitle4>
+		<LastFullBackup>2020-07-16</LastFullBackup>
+		<WordTarget>0</WordTarget>
+		<WordTargetStartDate>2007-07-28</WordTargetStartDate>
+		<WordTargetEndDate>2007-08-27</WordTargetEndDate>
+		<WordCountStart>0</WordCountStart>
+		<EndFrontMatterChID>0</EndFrontMatterChID>
+		<EndMiddleChID>0</EndMiddleChID>
+		<EndBeginningChID>0</EndBeginningChID>
+		<LatexSingleQuotes>0</LatexSingleQuotes>
+		<LatexSuppressChapterTitles>0</LatexSuppressChapterTitles>
+		<LatexSceneDivider></LatexSceneDivider>
+		<HtmlSceneDivider></HtmlSceneDivider>
+		<HtmlEncoding>utf8</HtmlEncoding>
+		<HtmlUnicode>-1</HtmlUnicode>
+		<LaTeXHeaderFile><![CDATA[ ]]></LaTeXHeaderFile>
+		<MRUSpecificDate>1899-12-30</MRUSpecificDate>
+		<MRUSpecificTime>00:00:00</MRUSpecificTime>
+		<LastViewedScID>121</LastViewedScID>
+		<DeadlineDate1>2004-09-01</DeadlineDate1>
+		<DeadlineDate2>2004-12-14</DeadlineDate2>
+		<DeadlineDate3>2004-12-20</DeadlineDate3>
+		<DeadlineDate4>2005-01-07</DeadlineDate4>
+		<DeadlineDate5>2005-01-15</DeadlineDate5>
+		<DeadlineStartDate1>2004-07-01</DeadlineStartDate1>
+		<DeadlineStartDate2>2004-09-02</DeadlineStartDate2>
+		<DeadlineStartDate3>2004-12-15</DeadlineStartDate3>
+		<DeadlineStartDate4>2005-01-02</DeadlineStartDate4>
+		<DeadlineStartDate5>2005-01-08</DeadlineStartDate5>
+		<Fields>
+		</Fields>
+
+	</PROJECT>
+
+	<LOCATIONS>
+	<LOCATION>
+		<ID>1</ID>
+		<Title><![CDATA[Black Gull]]></Title>
+		<Desc><![CDATA[Hal's ship, a decrepit old freighter he bought with a dodgy loan]]></Desc>
+		<SortOrder>1</SortOrder>
+	</LOCATION>
+
+	<LOCATION>
+		<ID>2</ID>
+		<Title><![CDATA[Lamira Spaceport]]></Title>
+		<SortOrder>2</SortOrder>
+	</LOCATION>
+
+	<LOCATION>
+		<ID>3</ID>
+		<Title><![CDATA[Planet Forg]]></Title>
+		<SortOrder>3</SortOrder>
+	</LOCATION>
+
+	<LOCATION>
+		<ID>4</ID>
+		<Title><![CDATA[Jerling Enterprises]]></Title>
+		<SortOrder>4</SortOrder>
+	</LOCATION>
+
+	</LOCATIONS>
+	<ITEMS>
+	</ITEMS>
+	<CHARACTERS>
+	<CHARACTER>
+		<ID>1</ID>
+		<Title><![CDATA[Hal]]></Title>
+		<ImageFile><![CDATA[Hal1Facp_NEW.jpg]]></ImageFile>
+		<SortOrder>1</SortOrder>
+		<AKA><![CDATA[Spacejock]]></AKA>
+		<Bio><![CDATA[Somehow, Hal Spacejock ended up in the cargo game. With a loan from a dodgy operator and a ship from the wrong side of the nearest junkyard he works the back reaches of the galaxy. A couple of important things about Hal - he's determined to stay on the right side of the law, and he has a strong sense of justice.]]></Bio>
+		<FullName><![CDATA[Hal Spacejock]]></FullName>
+	</CHARACTER>
+
+	<CHARACTER>
+		<ID>2</ID>
+		<Title><![CDATA[Jerling]]></Title>
+		<SortOrder>2</SortOrder>
+		<AKA><![CDATA[Walter]]></AKA>
+		<Bio><![CDATA[Walter Jerling runs a conglomerate spanning several planets. Ruthless and wealthy, he's never forgotten his more modest roots and watches his money carefully.]]></Bio>
+		<Goals><![CDATA[One of his companies needs an urgent shipment of parts to complete a set of new robots for the Emperor.]]></Goals>
+		<FullName><![CDATA[Walter Jerling]]></FullName>
+	</CHARACTER>
+
+	<CHARACTER>
+		<ID>3</ID>
+		<Title><![CDATA[Clunk]]></Title>
+		<SortOrder>3</SortOrder>
+		<AKA><![CDATA[XG99]]></AKA>
+		<Bio><![CDATA[Aging humanoid robot owned by Walter Jerling's company, Clunk is being shipped off for reprogramming and advanced pilot training.]]></Bio>
+		<Goals><![CDATA[Undergo a refit and advanced pilot training, making him even more useful to his owner.]]></Goals>
+		<FullName><![CDATA[Clunk XG99]]></FullName>
+	</CHARACTER>
+
+	<CHARACTER>
+		<ID>4</ID>
+		<Title><![CDATA[Vurdi]]></Title>
+		<SortOrder>4</SortOrder>
+		<Bio><![CDATA[A freelance debt collector looking for that one big client to shake down. Has his sights on Hal and Farrell.]]></Bio>
+		<FullName><![CDATA[Vurdi Makalukar]]></FullName>
+	</CHARACTER>
+
+	<CHARACTER>
+		<ID>5</ID>
+		<Title><![CDATA[Farrell]]></Title>
+		<SortOrder>5</SortOrder>
+		<Bio><![CDATA[Younger brother of Gordon Hinchfig, Farrell is a wastrel playboy whose money has been cut off.]]></Bio>
+		<Goals><![CDATA[Pay off his gambling debts]]></Goals>
+		<FullName><![CDATA[Farrell Hinchfig]]></FullName>
+	</CHARACTER>
+
+	<CHARACTER>
+		<ID>6</ID>
+		<Title><![CDATA[Terry]]></Title>
+		<SortOrder>6</SortOrder>
+		<Bio><![CDATA[Farrell's driver, bodyguard and dirty tricks man. Rough and tough, not someone to cross.]]></Bio>
+		<Goals><![CDATA[Whatever Farrell wants.]]></Goals>
+	</CHARACTER>
+
+	<CHARACTER>
+		<ID>7</ID>
+		<Title><![CDATA[Carina]]></Title>
+		<SortOrder>7</SortOrder>
+		<Bio><![CDATA[Walter Jerling's private assistant]]></Bio>
+		<Goals><![CDATA[Bit player]]></Goals>
+		<FullName><![CDATA[Carina Rinoret]]></FullName>
+	</CHARACTER>
+
+	<CHARACTER>
+		<ID>8</ID>
+		<Title><![CDATA[Mike]]></Title>
+		<SortOrder>8</SortOrder>
+		<Bio><![CDATA[Computer expert at Hinchfig Enterprises.]]></Bio>
+		<Goals><![CDATA[Bit player]]></Goals>
+	</CHARACTER>
+
+	<CHARACTER>
+		<ID>9</ID>
+		<Title><![CDATA[Gordon]]></Title>
+		<SortOrder>9</SortOrder>
+		<Bio><![CDATA[Owner of Hinchfig Enterprises, which he inherited from his parents. His father had business acumen and a flair for new products. Gordon has none, and so he slavishly follows his late father's methods with little of his success. His lack of business nous is the reason the company is in trouble, and the reason Farrell Hinchfig no longer has cash to throw around.]]></Bio>
+		<Goals><![CDATA[Revitalise the company]]></Goals>
+		<FullName><![CDATA[Gordon Hinchfig]]></FullName>
+	</CHARACTER>
+
+	<CHARACTER>
+		<ID>10</ID>
+		<Title><![CDATA[Navcom]]></Title>
+		<Desc><![CDATA[The Black Gull's flight computer]]></Desc>
+		<SortOrder>10</SortOrder>
+	</CHARACTER>
+
+	<CHARACTER>
+		<ID>11</ID>
+		<Title><![CDATA[Brutus]]></Title>
+		<Desc><![CDATA[Vurdi's enforcer robot.]]></Desc>
+		<SortOrder>11</SortOrder>
+	</CHARACTER>
+
+	<CHARACTER>
+		<ID>12</ID>
+		<Title><![CDATA[Portmaster]]></Title>
+		<SortOrder>12</SortOrder>
+		<FullName><![CDATA[Portmaster Linten]]></FullName>
+	</CHARACTER>
+
+	</CHARACTERS>
+	<PROJECTNOTES>
+	<PROJECTNOTE>
+		<ID>1</ID>
+		<Title><![CDATA[About the sample project]]></Title>
+		<Desc><![CDATA[This sample project contains the outline and content for the first five chapters of my original published novel, Hal Spacejock.]]></Desc>
+		<SortOrder>1</SortOrder>
+	</PROJECTNOTE>
+
+	</PROJECTNOTES>
+	<PROJECTVARS>
+	</PROJECTVARS>
+	<PROJECTEXPS>
+	</PROJECTEXPS>
+	<SCENES>
+	<SCENE>
+		<ID>1</ID>
+		<Title><![CDATA[Meet Hal, threatened by Vurdi]]></Title>
+		<Desc><![CDATA[Hal Spacejock is aboard his ship, the Black Gull, which is parked at the spaceport on planet Lamira. Hal's waiting for a cargo job, he's not fussy as long as it's legal. So far, after several days, the only jobs he's been offered have involved smuggling, gun-running or drugs.
+Always short of money, Hal has arranged an interview with his financial backers in the hope of increasing his loan. There's a knock, but when Hal goes to let the loan people in he's confronted by a large robot which pins him to the deck. It's Brutus, an enforcer belonging to Vurdi the debt collector. Vurdi enters and explains that he's arrived to collect overdue payments on behalf of the loan company. Hal is confused, he thought they were supposed to be lending him money. Vurdi explains that it was a ploy to get aboard, since the company has had trouble getting face-to-face with Hal.
+Hal doesn't have any money, so Vurdi says he'll take an arm or leg instead, and sets Brutus on him.
+During the scuffle, Hal manages to tell Vurdi that he accepted a cargo job earlier in the day, and will use the proceeds to settle his debts. Vurdi is suspicious, but calls Brutus off and gives Hal 24 hours.
+After Vurdi leaves, Hal discusses things with the Black Gull's onboard computer (the Navcom), reviewing the cargo jobs he's been offered. He chooses the one which sounds less risky than the others, a freight job offered by the Jerling corporation. The Navcom objects, reminding Hal that he turned it down earlier because he thought it involved stolen goods. Hal doesn't care - he can't afford to be choosy any more.]]></Desc>
+		<ImageFile><![CDATA[Hal3Launch10.jpg]]></ImageFile>
+		<Notes><![CDATA[This is a note. Notice how the N icon shows up when there's a note attached to a scene.]]></Notes>
+		<BelongsToChID>1</BelongsToChID>
+		<Day>1</Day>
+		<RTFFile><![CDATA[RTF_00001.rtf]]></RTFFile>
+		<Field1>5</Field1>
+		<Field2>3</Field2>
+		<Field3>3</Field3>
+		<Field4>3</Field4>
+		<Status>4</Status>
+		<WordCount>376</WordCount>
+		<LetterCount>2245</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+			<CharID>10</CharID>
+			<CharID>4</CharID>
+			<CharID>11</CharID>
+		</Characters>
+		<Locations>
+			<LocID>1</LocID>
+			<LocID>2</LocID>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[Hal Spacejock was sitting at the Black Gull's flight console, his attention riveted to a small chessboard balanced amongst the toggle switches, flashing lights and status displays. a few weeks earlier he'd read an article extolling the benefits of the ancient game: how playing it would sharpen his mind, improve his memory and increase his attraction to the opposite sex. Chess had been an important part of his daily routine ever since, but after two hundred and seventy-six losses in a row Hal was beginning to doubt the article's claims. He didn't feel any smarter and he couldn't remember the last time he'd spoken to a member of the opposite sex, let alone had one attracted to him. Briefly, he wondered whether it had been such a clever idea to play against the Navcom, the Black Gull's onboard computer. Underpowered and outdated, it was still more than capable of running the ship's accounts, navigation and life support systems while beating humans at simple board games. However, since Hal was the only human aboard the Black Gull, his choice of opponents was limited.
+"Your turn," said the Navcom, in a neutral female voice.
+"I'm thinking."
+"While you're planning your opening move, can I tell you about a special offer?"
+"What kind of offer?" asked Hal suspiciously.
+"Planet books have a chess title on sale."
+"Really? Put it on main."
+The wide viewscreen above the console turned red, and the word 'SaLE' appeared in vibrating yellow text. /* this is the author's first note */The letters grew legs and marched off the screen, bringing a wire basket on wheels into view.
+"I don't need all this crap," said Hal. "Just show me the deal."
+"Almost there," said the Navcom. "Keep watching."
+A flock of pigeons burst from the basket, leaving a tumbling cloud of feathers which dropped to the ground and formed the words 'Special Offer'. a gust of wind blew the feathers away, and a book title flashed up on the screen.
+"Chess for the intellectually challenged?" said Hal, staring at the cover in disbelief. "Is this some kind of joke?"
+"It's part of a popular series," said the Navcom.
+"What are the others? Interstellar navigation for nutters? Moon landings for morons?"
+"Shall I add those titles to your basket?"
+
+. . .]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>2</ID>
+		<Title><![CDATA[Jerling buys team. Discusses Seraph.]]></Title>
+		<Desc><![CDATA[Walter Jerling is a businessman on Forg, a planet in the same star system as Lamira. He owns several enterprises - real estate, factories, etc. We meet him at the grand opening of a new sky hockey stadium, puffing on his cigar and finishing off the ceremony without much enthusiasm. After a smattering of polite applause from the small crowd, he departs in his limo.
+In the car he complains that he's little more than a figurehead, hopping from one PR exercise to the next. He recalls the early days, when he was personally involved in everything. His assistant, Carina, reminds him that he was running himself ragged before he mastered the art of delegating. Jerling replies that delegating can lead to people ripping him off or revealing company secrets to the Hinchfigs (competitors). Moans that the Hinchfigs get bigger crowds at their openings, Carina points out that they pay the crowds more to turn up.
+Jerling catches up on a few minor business matters. He reluctantly approves the recycling of older company equipment (including several robots), then digs until Carina gives him something more interesting to think about. He discovers there's a freight job which is going wrong, and as the limo draws into the head office carpark Jerling decides to handle it himself.
+He examines the Seraph file. There's a shipment of robot parts ordered and paid for, but the source planet (Seraph IV) is in the middle of war games and the massed ships of the Seraph Space Corps have already shot down three unarmed freighters by mistake. The parts are needed urgently by Jerling's assembly line, they're putting together a last-minute order of robots for the Emperor's summer palace. Late delivery isn't an option.
+Carina explains that they can't risk their own ships, they wouldn't be covered by insurance and anyway, none of their pilots will fly into the danger zone. They tried to hire a freelancer but none of them wanted the job either - they were all warned off by a Spacers Guild bulletin. Jerling asks why they didn't try non-Guild pilots, Carina explains that they could only locate one and he turned it down because he was convinced it was a stolen goods racket. Jerling is annoyed that his staff hid the problem from him. Carina explains that they didn't want to worry him.  Jerling says they should have come to him before, this is important, if they lose preferred supplier status his business is at risk, and worse still the Hinchfigs will gain on him.
+Jerling asks Carina to call the idiot, the one who thought it was stolen goods. Before the assistant makes the call, she discovers that there's a message from the 'idiot' already - he wants the job. Carina tries to pursuade Jerling that others can deal with the issue but Jerling's fired up and won't let go, it's his pet project.]]></Desc>
+		<BelongsToChID>2</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00002.rtf]]></RTFFile>
+		<Field1>4</Field1>
+		<Field2>1</Field2>
+		<Field3>2</Field3>
+		<Field4>2</Field4>
+		<Status>4</Status>
+		<WordCount>67</WordCount>
+		<LetterCount>387</LetterCount>
+		<Characters>
+			<CharID>2</CharID>
+			<CharID>7</CharID>
+		</Characters>
+		<Locations>
+			<LocID>3</LocID>
+			<LocID>4</LocID>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[On planet Forg, a small crowd had gathered outside the local sky hockey stadium. South Forgberg was not a prosperous area - the semi-detached houses were modest and the residents faced a constant struggle to live within their means. It was unusual to see building work or renovations, so the extensive refurbishment to the decrepit old stadium had been a talking point for months.
+. . .]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>3</ID>
+		<Title><![CDATA[Hal takes a call from Jerling]]></Title>
+		<Desc><![CDATA[Back with Hal, Jerling's call comes through and the businessman explains about his cargo, reassures Hal it's not stolen goods, then explains he has a pilot at the Lamira Spaceport (the same location as Hal) who needs a lift to Seraph IV. If Hal can take him, the pilot will return the favour by landing Hal's ship when they arrive at the destination.
+Hal says he doesn't need help, Jerling explains that the landing is at night, with no guidance. This makes Hal suspicious about the job again, but he decides that nothing could be worse than another session with Brutus. Jerling reassures him that the pilot can handle everything and reminds him that delivery is to his premises on Forg. Hal agrees to the job, starts to ask for an advance but Jerling disconnects.]]></Desc>
+		<BelongsToChID>2</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00003.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>2</Field3>
+		<Field4>3</Field4>
+		<Status>4</Status>
+		<WordCount>88</WordCount>
+		<LetterCount>489</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+			<CharID>10</CharID>
+			<CharID>2</CharID>
+		</Characters>
+		<Locations>
+			<LocID>1</LocID>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[Hal was pacing the Black Gull's flight deck, ready to put his fist through the nearest wall. "What do you mean, you can't call Jerling back? What do you mean you didn't save his details?"
+"I erased the record after you turned the job down."
+"So look it up again!"
+"Negative, we can't afford the search fees." The Navcom hesitated. "Incidentally, it's your move."
+"How can you think of a bloody chess game at a time like this?"
+"You're only saying that because you're losing."
+
+. . .]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>4</ID>
+		<Title><![CDATA[Clunk arrives]]></Title>
+		<Desc><![CDATA[The Navcom tells Hal someone is waiting outside the ship. Hal assumes it's the new pilot and goes to the airlock to admit them. Instead of a human, there's a robot outside, and for a moment Hal thinks Brutus has returned. It isn't though, it's a run-down, obsolete robot with mismatched legs and a squashy, furrowed face. The geriatric robot smiles at Hal and explains politely that it's Jerling's pilot.
+Hal closes the airlock in its face, runs to the flight deck and calls Jerling. He protests that an old robot like that can't possibly land his valuable ship. Jerling explains that the robot is an experienced pilot. After some discussion, Hal accepts the situation. He goes back to the airlock, lets Clunk in but sends him to the cargo hold.
+Hal prepares the ship for takeoff, but ground control won't let him leave. The Port Commander wants to see him in person. Hal leaves the ship, putting Clunk in charge.]]></Desc>
+		<BelongsToChID>3</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00004.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>67</WordCount>
+		<LetterCount>383</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+			<CharID>3</CharID>
+			<CharID>10</CharID>
+		</Characters>
+		<Locations>
+			<LocID>1</LocID>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA["No sign of Jerling's pilot," said Hal, who was standing in the Black Gull's airlock peering through a scratched, yellowed porthole. He cupped his hands to the plastic and squinted, but it made little difference. "There could be an army out there and I wouldn't know it."
+"Why don't you open the door?" asked the Navcom.
+"No thanks. Vurdi's robot might be hanging around."
+
+. . .]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>5</ID>
+		<Title><![CDATA[Hal going to port control]]></Title>
+		<Desc><![CDATA[Hal leaves his ship via the boarding ramp. (The Black Gull has two ramps - a large, heavy-duty cargo ramp which vehicles and robots use to load the ship, and a smaller boarding ramp which folds out from the side of the ship and admits visitors to the flight deck via an airlock.)
+He has to get to ground control, but they won't send a cab because of his unpaid account. He spots a robot mending fuel pipes near the back of the ship and asks whether he can borrow its vehicle (A battered old jet-powered ute). The robot refuses.
+Hal decides to walk and sets off across the field towards the distant buildings, but the field is covered in thick shoulder-high grasses with spore pods (Like knotted pampas grass). After struggling heroically, Hal gives up and returns in a bad temper. Approaching the landing pad again, he ducks down in the grass and sneaks towards the maintenance robot's vehicle, intending to borrow it. He's about to clamber aboard when the robot snaps something on the fuel pipes, causing a gushing leak. Hal ducks as the robot returns to the vehicle and grabs a tool kit.
+While the robot is busy mending the pipes, Hal leaps into the vehicle and starts it up. The robot spots him and pursues. The vehicle accelerates, but the robot manages to grab hold and swing itself aboard. Hal wiggles the joystick and the wild movements throw the robot from side to side, battering it against the sides of the tray. One last violent twist of the controls hurls the robot from the back of the vehicle, and it cartwheels through the grass before coming to a halt in a sparking, smoking huddle.
+Hal drives off, oblivious to the flames starting to flicker around the fallen robot.]]></Desc>
+		<BelongsToChID>4</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00005.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>2</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>177</WordCount>
+		<LetterCount>1050</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+			<LocID>2</LocID>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[Hal emerged from the Black Gull's airlock, blinking in the sudden light. On the far side of the landing field the sun was setting behind the Lamira spaceport's administration block, which shimmered in the late afternoon heat. Clustered around the spaceport buildings were the 'A' list - modern, powerful ships fitted with every comfort. Parked close to the amenities, their crews could dine at one of several restaurants, enjoy the heated swimming pool and browse the shopping arcade at their leisure.
+Hal's ship was somewhat further down the alphabet, and was therefore sitting in a disused corner of the field about as far from the amenities as the nearest moon. The area around the [i]Black Gull[/i] was little more than a graveyard for derelicts, and most of the landing pads nearby were occupied by graffiti-splashed wrecks with jagged gaps in their crumpled hulls. Some of the ships seemed familiar, and when Hal looked closer he realised the rusted hulks were Rigel-class freighters like his own. One or two were actually in better shape.
+
+. . .]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>6</ID>
+		<Title><![CDATA[Clunk checking computer for Incubots.]]></Title>
+		<Desc><![CDATA[Aboard the Black Gull, Clunk is curious. He knows he's being sent to Incubots on Seraph IV, but nobody has told him why. He searches the Black Gull's outdated computer for information on the company. (There's an equivalent to the internet called Galnet, but Hal can't afford the fees so his ship has a snapshot about 5 or 6 years old.) Clunk discovers that Incubots makes parts for new robots and replacement parts for older models. He's relieved, because Jerling's staff were vague about the reason for his trip, and it's fairly common for Jerling's older, obsolete robots to be sent to out-of-the-way planets, never to return. Now it seems he's to be upgraded, which is good news because he's got long list of worn parts which need replacements.
+Sitting at the console, Clunk uses the Black Gull's simulation mode to practice a couple of landings, then veers off and dreams he's flying the ship to a mythical robot planet.]]></Desc>
+		<BelongsToChID>4</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00006.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>125</WordCount>
+		<LetterCount>736</LetterCount>
+		<Characters>
+			<CharID>3</CharID>
+			<CharID>10</CharID>
+		</Characters>
+		<Locations>
+			<LocID>1</LocID>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[Clunk dropped the last chess piece into the small wooden box and looked around the flight deck. Despite his best efforts with the mop, it didn't look particularly clean, but compared to its previous state it was as sterile as a hospital ward. After a moment's hesitation, he sat in the pilot's chair. "Navcom, do you have a business directory?"
+"Yes."
+"Run a search, please. All details on a company called Incubots."
+There was a brief pause. "Owned by Redge Muller. Incubots specialises in robot programming and advanced pilot training."
+Clunk looked relieved. "So that's what Mr. Jerling has in store for me. When I questioned him on the subject he was rather evasive."
+"Humans tell lies about the most trivial matters."
+
+. . .]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>7</ID>
+		<Title><![CDATA[Hal talking to the Portmaster]]></Title>
+		<Desc><![CDATA[Hal is waiting in reception outside the Portmaster's office, browsing a magazine. He reads an article about overclocked robot brains being used in new robots, saving money but leading to risk of explosion. Hal wonders if Clunk is fitted with a defective brain - if any - and figures it would be just his luck if Jerling's robot turned his ship into a fiery wreck while he was sitting around waiting for petty officials.
+The Portmaster invites him into his office, and Hal discovers there are overdue landing fees, stamp duty, fuel, snacks, etc etc to pay for. The Port of Lamira is going to auction Hal's ship to recover debts. Hal protests that he has a job which will cover the fees, but the Portmaster doesn't believe him.
+Hal decides to call his brand new best buddy Clunk, thinking the robot can ask Jerling for an advance on his fee.]]></Desc>
+		<BelongsToChID>4</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00007.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>2</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>89</WordCount>
+		<LetterCount>538</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+			<CharID>12</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[Hal left the maintenance vehicle in the spaceport's outer carpark and walked to the admin block. An information kiosk directed him to an elevator, where he pressed the button marked 'Portmaster'.
+Hal watched the floor numbers changing as he dropped further and further underground. He'd expected the Portmaster to have a spacious office with a view of the whole landing field, but instead he seemed to have an office in the basement. Below the basement, amended Hal, eying the elevator's control panel. He'd passed that already.
+
+. . .]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>8</ID>
+		<Title><![CDATA[Clunk takes call from Hal. Calls Jerling. Fire.]]></Title>
+		<Desc><![CDATA[Clunk tells Hal that Jerling won't advance any money, but Hal tells him to ask anyway. Clunk calls Jerling, who won't advance any money. Clunk mentions that he's found out what Incubots is all about, Jerling hangs up quickly.
+Clunk notices smoke in the air. He runs to the airlock and discovers the landing field is on fire.]]></Desc>
+		<BelongsToChID>4</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00008.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>4</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>74</WordCount>
+		<LetterCount>451</LetterCount>
+		<Characters>
+			<CharID>3</CharID>
+			<CharID>2</CharID>
+			<CharID>1</CharID>
+			<CharID>10</CharID>
+		</Characters>
+		<Locations>
+			<LocID>1</LocID>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA["Simulation suspended, incoming message."
+The cloud cities of Aklam faded from Clunk's vision. "What?"
+"Incoming message."
+"Are we meant to answer it?"
+"It's Mr. Spacejock," said the Navcom.
+Clunk sat up straight. "Please open the connection."
+"Hey, robot!" called Hal.
+"Yes, sir?"
+"Call Jerling and get me a loan. I need three hundred in cash for landing fees and fuel."
+"I don't think he'll lend you any money," said Clunk dubiously.
+. . .]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>9</ID>
+		<Title><![CDATA[Clunk calls, the landing field is on fire. Hal tells him to sit tight.]]></Title>
+		<Desc><![CDATA[Hal is sitting with the Portmaster, waiting for a call from Clunk to say he's got the advance from Jerling. Instead, Clunk calls to say that raging flames are threatening the ship. Hal tells him to sit tight, and leaps up to go to the rescue. The Portmaster stops him - you're not fooling me, sonny, I've heard every excuse in the book. Hal protests, but the Portmaster is firm. He says the maintenance robot working near the Black Gull would have called in if anything was wrong.
+Then the control tower calls to say the landing field is on fire around the Black Gull.]]></Desc>
+		<BelongsToChID>5</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00009.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>2</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>157</WordCount>
+		<LetterCount>897</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+			<CharID>3</CharID>
+			<CharID>12</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[Portmaster Linten studied Hal across the desk, eyes narrowed. "Are you telling me this Jerling character will pay your bill?"
+"He has to. I can't deliver his cargo if the Gull is stuck here, can I?"
+The commset buzzed and Linten leant forward. "Yes?"
+There was a crackling sound. "Help! Fire!" said a voice over the noise.
+"Who is this? What are you talking about?"
+"The grass is burning," cried the voice. /* the author's second note ...*/ "There's a fire on the landing field!"
+"Which pad?"
+"Fifty-two," said Hal, smothering a grin. "That's Clunk." He leant towards the commset. "Clunk, is the ship in danger from this, er, fire?"
+"Not yet, Mr Spacejock, but it soon will be. Would you like me to move it out of the way?"
+"You keep your hands off the controls. I'll be there in a tick."
+"You'll have to hurry, the fire's right up to the refuelling cluster. If that explodes--"
+
+. . .]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>10</ID>
+		<Title><![CDATA[Clunk fighting the fire, ends up face-down]]></Title>
+		<Desc><![CDATA[Aboard the Black Gull, Clunk wrenches panels off the walls looking for a fire extinguisher. Crunches the winch controls, lowering a hook to the ground and spooling all the cable out with it. Finally gets the extinguisher and heads outside.
+He finds the source of the fire - the maintenance robot which Hal disabled. Clunk drags it out of the area, then returns and uses the fire extinguisher on the flames.
+Clunk's battery starts to run low. He continues. As the fire extinguisher begins to run low, the fuel pipes explode near the back of the ship. A piece of debris hits Clunk in the head and he falls to the ground, stunned.]]></Desc>
+		<BelongsToChID>5</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00010.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>34</WordCount>
+		<LetterCount>197</LetterCount>
+		<Characters>
+			<CharID>3</CharID>
+			<CharID>10</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA["Deploy fire hose!" shouted Clunk.
+"Deploying." There was a whining sound outside the hull, which stopped with a sharp crack.
+"What was that?"
+"The reel just fell off," said the Navcom.
+
+. . .]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>12</ID>
+		<Title><![CDATA[Hal gets to the ship and lifts off.]]></Title>
+		<Desc><![CDATA[Arriving at the Black Gull, Hal sees the prone robot in the burnt-out grass. (It's Clunk, but he assumes it's the one he disabled)  Goes aboard, seals the ship and gets the engines going. Discovers the winch has been lowered, presses the button to raise it. Prepares ship for takeoff and takes his seat.]]></Desc>
+		<BelongsToChID>6</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00011.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>15</ID>
+		<Title><![CDATA[Hal finds Clunk on rope, falls out after him.]]></Title>
+		<Desc><![CDATA[The Black Gull is roaring into the sky with Hal at the controls. The Lamira Portmaster calls and rages about the ship's sudden departure, Hal was only supposed to move it out of danger, not blast off into space. Hal says he'll be back to pay the fees. The Portmaster says he's going to spread the word about Hal, banning him from every port in the local system.
+Talking to the Navcom, Hal suddenly discovers Clunk isn't aboard. There's a clunking noise as the winch tries to retract, but it's jammed. An image appears on screen - Clunk is dangling from the hook outside.
+Hal gets the ship to hover 4,000 metres above the landing field, then goes outside on the landing platform to help. Throws Clunk a line and starts to pull the robot in, but a departing ship roars past, rocking the Black Gull and hurling Hal over the side of the platform. He ends up dangling from the safety cord, which is tied to the robot's leg.
+Clunk's batteries are failing, and he can't hang on much longer.]]></Desc>
+		<BelongsToChID>7</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00012.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>17</ID>
+		<Title><![CDATA[Climb up rope to safety. Back in ship for hyperspace.]]></Title>
+		<BelongsToChID>8</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00013.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>19</ID>
+		<Title><![CDATA[In his office. Gordon OKs the deal]]></Title>
+		<BelongsToChID>9</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00014.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>5</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>22</ID>
+		<Title><![CDATA[Exits the ship to meet Bevan]]></Title>
+		<BelongsToChID>10</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00015.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>25</ID>
+		<Title><![CDATA[Getting food out. Frozen puddings.]]></Title>
+		<BelongsToChID>11</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00016.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>27</ID>
+		<Title><![CDATA[Says goodbye to Clunk]]></Title>
+		<BelongsToChID>11</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00017.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>29</ID>
+		<Title><![CDATA[Hal depressed. No escape from here.]]></Title>
+		<BelongsToChID>12</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00018.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>31</ID>
+		<Title><![CDATA[Lighten the ship. Preparing for liftoff.]]></Title>
+		<BelongsToChID>12</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00019.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>34</ID>
+		<Title><![CDATA[Karl and Terry awaiting Hal. They take a call from their spy, intercept is at the orbiter.]]></Title>
+		<BelongsToChID>13</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00020.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>5</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>38</ID>
+		<Title><![CDATA[Karl waiting impatiently]]></Title>
+		<BelongsToChID>15</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00021.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>5</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>40</ID>
+		<Title><![CDATA[Karl and Terry confused about 'Chunk']]></Title>
+		<BelongsToChID>15</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00022.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>5</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>43</ID>
+		<Title><![CDATA[Clunk slips out the back.]]></Title>
+		<BelongsToChID>16</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00023.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>3</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>45</ID>
+		<Title><![CDATA[Karl and Terry waiting.]]></Title>
+		<BelongsToChID>16</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00024.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>5</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>47</ID>
+		<Title><![CDATA[Clunk in orbit]]></Title>
+		<BelongsToChID>17</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00025.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>3</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>49</ID>
+		<Title><![CDATA[Clunk uses cylinder]]></Title>
+		<BelongsToChID>17</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00026.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>3</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>51</ID>
+		<Title><![CDATA[Terry places the 'bomb']]></Title>
+		<BelongsToChID>18</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00027.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>6</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>53</ID>
+		<Title><![CDATA[Hal buys food]]></Title>
+		<BelongsToChID>18</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00028.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>55</ID>
+		<Title><![CDATA[Karl leaves a note, takes Clunk.]]></Title>
+		<BelongsToChID>19</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00029.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>5</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>57</ID>
+		<Title><![CDATA[Hal about to hyperspace.]]></Title>
+		<BelongsToChID>19</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00030.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>60</ID>
+		<Title><![CDATA[Hal gets real Jerling's call. Has to get cargo and robot back.]]></Title>
+		<BelongsToChID>20</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00031.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>62</ID>
+		<Title><![CDATA[Hal sets course for Forg.]]></Title>
+		<BelongsToChID>20</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00032.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>64</ID>
+		<Title><![CDATA[Land on Forg, in rubbish.]]></Title>
+		<BelongsToChID>20</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00033.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>66</ID>
+		<Title><![CDATA[Hal rents a car in Jerling's name and heads towards Forgberg and the Casino.]]></Title>
+		<BelongsToChID>21</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00034.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>68</ID>
+		<Title><![CDATA[Hal after almost running Clunk down. Picks him up.]]></Title>
+		<BelongsToChID>21</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00035.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>71</ID>
+		<Title><![CDATA[Find car, go to find clothes.]]></Title>
+		<BelongsToChID>22</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00036.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>74</ID>
+		<Title><![CDATA[Hal sells Clunk]]></Title>
+		<BelongsToChID>23</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00037.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>77</ID>
+		<Title><![CDATA[Hal annoyed at Clunk for buying only the best.]]></Title>
+		<BelongsToChID>24</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00038.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>79</ID>
+		<Title><![CDATA[Clunk gambling. Fight with human couple.]]></Title>
+		<BelongsToChID>24</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00039.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>3</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>81</ID>
+		<Title><![CDATA[Sitting on the steps, battered and bruised. Limo arrives for Karl.]]></Title>
+		<BelongsToChID>24</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00040.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>84</ID>
+		<Title><![CDATA[Clunk travelling on the back of Karl's limo]]></Title>
+		<BelongsToChID>25</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00041.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>3</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>86</ID>
+		<Title><![CDATA[Clunk sees Hal catching up again. Limo stops.]]></Title>
+		<BelongsToChID>25</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00042.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>3</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>89</ID>
+		<Title><![CDATA[Clunk uploads the Navcom into the ship.]]></Title>
+		<BelongsToChID>26</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00043.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>3</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>92</ID>
+		<Title><![CDATA[The shop robots want Clunk to escape with them. Mention Hal's capture.]]></Title>
+		<BelongsToChID>27</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00044.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>3</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>94</ID>
+		<Title><![CDATA[Clunk steals armoured car, drives it into the house.]]></Title>
+		<BelongsToChID>27</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00045.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>3</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>96</ID>
+		<Title><![CDATA[Karl and Terry take the limo]]></Title>
+		<BelongsToChID>28</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00046.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>5</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>98</ID>
+		<Title><![CDATA[Karl and Terry overtake and head for Spaceport. Looking for Volante.]]></Title>
+		<BelongsToChID>28</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00047.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>5</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>101</ID>
+		<Title><![CDATA[Hal and Clunk fleeing in Gull]]></Title>
+		<BelongsToChID>29</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00048.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>103</ID>
+		<Title><![CDATA[Clunk wants to throw stuff at the flyer]]></Title>
+		<BelongsToChID>29</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00049.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>105</ID>
+		<Title><![CDATA[Hal fetches the puddings.]]></Title>
+		<BelongsToChID>29</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00050.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>108</ID>
+		<Title><![CDATA[Hal yells at Jerling, then cargo arrives on truck.]]></Title>
+		<BelongsToChID>30</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00051.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>110</ID>
+		<Title><![CDATA[Clunk outside, depressed.]]></Title>
+		<BelongsToChID>30</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00052.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>3</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>112</ID>
+		<Title><![CDATA[Karl bursts in, armed.]]></Title>
+		<BelongsToChID>30</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00053.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>114</ID>
+		<Title><![CDATA[Terry ties Hal in hold, leaves back doors open.]]></Title>
+		<BelongsToChID>31</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00054.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>116</ID>
+		<Title><![CDATA[Hal dodges Brutus, escapes the hold.]]></Title>
+		<BelongsToChID>31</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00055.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>119</ID>
+		<Title><![CDATA[Black Gull hyperspaces to oblivion]]></Title>
+		<BelongsToChID>32</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00056.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>4</Status>
+		<WordCount>0</WordCount>
+		<LetterCount>0</LetterCount>
+		<Characters>
+			<CharID>5</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>58</ID>
+		<Title><![CDATA[New Scene]]></Title>
+		<Unused>-1</Unused>
+		<BelongsToChID>6</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00057.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>1</Status>
+		<WordCount>6</WordCount>
+		<LetterCount>25</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[This bird is not dead ...]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>120</ID>
+		<Title><![CDATA[Information about the sample project]]></Title>
+		<BelongsToChID>33</BelongsToChID>
+		<RTFFile><![CDATA[RTF_00058.rtf]]></RTFFile>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>1</Status>
+		<WordCount>64</WordCount>
+		<LetterCount>458</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[*** IMPORTANT ***
+Uninstalling yWriter5 will uninstall (delete) this sample project.
+Reinstalling yWriter5 will overwrite this sample project.
+
+Therefore, rather than modifying this project with your own content, [b]please create a new project for your own work[/b]. ([i]Project - Create Empty Project[/i], or [i]Project - New Project Wizard[/i])
+
+Any new projects created with yWriter5 will not be deleted, overwritten or modified when you uninstall or reinstall the software.]]></SceneContent>
+	</SCENE>
+
+	<SCENE>
+		<ID>121</ID>
+		<Title><![CDATA[New Scene]]></Title>
+		<BelongsToChID>36</BelongsToChID>
+		<Field1>1</Field1>
+		<Field2>1</Field2>
+		<Field3>1</Field3>
+		<Field4>1</Field4>
+		<Status>1</Status>
+		<WordCount>5</WordCount>
+		<LetterCount>24</LetterCount>
+		<Characters>
+			<CharID>1</CharID>
+		</Characters>
+		<Locations>
+		</Locations>
+		<Items>
+		</Items>
+		<SceneContent><![CDATA[This text is not needed.]]></SceneContent>
+	</SCENE>
+
+	</SCENES>
+	<CHAPTERS>
+	<CHAPTER>
+		<ID>33</ID>
+		<Title><![CDATA[Info]]></Title>
+		<SortOrder>1</SortOrder>
+		<Type>1</Type>
+		<Scenes>
+			<ScID>120</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>1</ID>
+		<Title><![CDATA[Chapter 1]]></Title>
+		<SortOrder>3</SortOrder>
+		<Fields>
+			<Field_SuppressChapterTitle>0</Field_SuppressChapterTitle>
+			<Field_SuppressChapterBreak>0</Field_SuppressChapterBreak>
+		</Fields>
+
+		<Type>0</Type>
+		<Scenes>
+			<ScID>1</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>2</ID>
+		<Title><![CDATA[Chapter 2]]></Title>
+		<SortOrder>4</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>2</ScID>
+			<ScID>3</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>3</ID>
+		<Title><![CDATA[Chapter 3]]></Title>
+		<SortOrder>5</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>4</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>4</ID>
+		<Title><![CDATA[Chapter 4]]></Title>
+		<SortOrder>6</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>5</ScID>
+			<ScID>6</ScID>
+			<ScID>7</ScID>
+			<ScID>8</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>5</ID>
+		<Title><![CDATA[Chapter 5]]></Title>
+		<SortOrder>7</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>9</ScID>
+			<ScID>10</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>6</ID>
+		<Title><![CDATA[Chapter 6]]></Title>
+		<SortOrder>8</SortOrder>
+		<Fields>
+			<Field_SuppressChapterTitle>0</Field_SuppressChapterTitle>
+			<Field_SuppressChapterBreak>0</Field_SuppressChapterBreak>
+		</Fields>
+
+		<Type>0</Type>
+		<Scenes>
+			<ScID>58</ScID>
+			<ScID>12</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>7</ID>
+		<Title><![CDATA[Chapter 7]]></Title>
+		<SortOrder>9</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>15</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>8</ID>
+		<Title><![CDATA[Chapter 8]]></Title>
+		<SortOrder>10</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>17</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>9</ID>
+		<Title><![CDATA[Chapter 9]]></Title>
+		<SortOrder>11</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>19</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>10</ID>
+		<Title><![CDATA[Chapter 10]]></Title>
+		<SortOrder>12</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>22</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>11</ID>
+		<Title><![CDATA[Chapter 11]]></Title>
+		<SortOrder>13</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>25</ScID>
+			<ScID>27</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>12</ID>
+		<Title><![CDATA[Chapter 12]]></Title>
+		<SortOrder>14</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>29</ScID>
+			<ScID>31</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>13</ID>
+		<Title><![CDATA[Chapter 13]]></Title>
+		<SortOrder>15</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>34</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>14</ID>
+		<Title><![CDATA[Chapter 14]]></Title>
+		<SortOrder>16</SortOrder>
+		<Type>0</Type>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>15</ID>
+		<Title><![CDATA[Chapter 15]]></Title>
+		<SortOrder>17</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>38</ScID>
+			<ScID>40</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>16</ID>
+		<Title><![CDATA[Chapter 16]]></Title>
+		<SortOrder>18</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>43</ScID>
+			<ScID>45</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>17</ID>
+		<Title><![CDATA[Chapter 17]]></Title>
+		<SortOrder>19</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>47</ScID>
+			<ScID>49</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>18</ID>
+		<Title><![CDATA[Chapter 18]]></Title>
+		<SortOrder>21</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>51</ScID>
+			<ScID>53</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>19</ID>
+		<Title><![CDATA[Chapter 19]]></Title>
+		<SortOrder>22</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>55</ScID>
+			<ScID>57</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>20</ID>
+		<Title><![CDATA[Chapter 20]]></Title>
+		<SortOrder>23</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>60</ScID>
+			<ScID>62</ScID>
+			<ScID>64</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>21</ID>
+		<Title><![CDATA[Chapter 21]]></Title>
+		<SortOrder>24</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>66</ScID>
+			<ScID>68</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>22</ID>
+		<Title><![CDATA[Chapter 22]]></Title>
+		<SortOrder>25</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>71</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>23</ID>
+		<Title><![CDATA[Chapter 23]]></Title>
+		<SortOrder>26</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>74</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>24</ID>
+		<Title><![CDATA[Chapter 24]]></Title>
+		<SortOrder>27</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>77</ScID>
+			<ScID>79</ScID>
+			<ScID>81</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>25</ID>
+		<Title><![CDATA[Chapter 25]]></Title>
+		<SortOrder>28</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>84</ScID>
+			<ScID>86</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>26</ID>
+		<Title><![CDATA[Chapter 26]]></Title>
+		<SortOrder>29</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>89</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>27</ID>
+		<Title><![CDATA[Chapter 27]]></Title>
+		<SortOrder>30</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>92</ScID>
+			<ScID>94</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>28</ID>
+		<Title><![CDATA[Chapter 28]]></Title>
+		<SortOrder>31</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>96</ScID>
+			<ScID>98</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>29</ID>
+		<Title><![CDATA[Chapter 29]]></Title>
+		<SortOrder>32</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>101</ScID>
+			<ScID>103</ScID>
+			<ScID>105</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>30</ID>
+		<Title><![CDATA[Chapter 30]]></Title>
+		<SortOrder>33</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>108</ScID>
+			<ScID>110</ScID>
+			<ScID>112</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>31</ID>
+		<Title><![CDATA[Chapter 31]]></Title>
+		<SortOrder>34</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>114</ScID>
+			<ScID>116</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>32</ID>
+		<Title><![CDATA[Chapter 32]]></Title>
+		<SortOrder>35</SortOrder>
+		<Type>0</Type>
+		<Scenes>
+			<ScID>119</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	<CHAPTER>
+		<ID>36</ID>
+		<Title><![CDATA[Chapter 33]]></Title>
+		<Desc><![CDATA[This is not a joke.]]></Desc>
+		<Unused>-1</Unused>
+		<SortOrder>36</SortOrder>
+		<Fields>
+			<Field_SuppressChapterTitle>0</Field_SuppressChapterTitle>
+			<Field_SuppressChapterBreak>0</Field_SuppressChapterBreak>
+		</Fields>
+
+		<Type>0</Type>
+		<Scenes>
+			<ScID>121</ScID>
+		</Scenes>
+	</CHAPTER>
+
+	</CHAPTERS>
+	<WCLog>
+	<WC>
+		<Date>2009-04-27</Date>
+		<Count>1333</Count>
+		<TotalCount>1333</TotalCount>
+	</WC>
+
+	<WC>
+		<Date>2014-06-17</Date>
+		<Count>1268</Count>
+		<TotalCount>1333</TotalCount>
+	</WC>
+
+	<WC>
+		<Date>2017-07-28</Date>
+		<Count>1268</Count>
+		<TotalCount>1333</TotalCount>
+	</WC>
+
+	<WC>
+		<Date>2019-12-20</Date>
+		<Count>1266</Count>
+		<TotalCount>1330</TotalCount>
+	</WC>
+
+	<WC>
+		<Date>2020-01-26</Date>
+		<Count>1266</Count>
+		<TotalCount>1330</TotalCount>
+	</WC>
+
+	<WC>
+		<Date>2020-01-30</Date>
+		<Count>1266</Count>
+		<TotalCount>1341</TotalCount>
+	</WC>
+
+	<WC>
+		<Date>2020-07-16</Date>
+		<Count>1254</Count>
+		<TotalCount>1329</TotalCount>
+	</WC>
+
+	</WCLog>
+</YWRITER7>

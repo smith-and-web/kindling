@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
-  import { FileText, Kanban, Trash2, Loader2, Settings } from "lucide-svelte";
+  import { FileText, Kanban, Trash2, Loader2, Settings, PenTool } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Project } from "../types";
@@ -55,6 +55,27 @@
         ui.setView("editor");
       } catch (e) {
         console.error("Failed to import Markdown file:", e);
+        alert(`Import failed: ${e}`);
+      } finally {
+        ui.finishImport();
+      }
+    }
+  }
+
+  async function importYWriter() {
+    const path = await open({
+      multiple: false,
+      filters: [{ name: "yWriter 7", extensions: ["yw7"] }],
+    });
+
+    if (path) {
+      ui.startImport();
+      try {
+        const project = await invoke<Project>("import_ywriter", { path });
+        currentProject.setProject(project);
+        ui.setView("editor");
+      } catch (e) {
+        console.error("Failed to import yWriter file:", e);
         alert(`Import failed: ${e}`);
       } finally {
         ui.finishImport();
@@ -163,7 +184,7 @@
     <!-- Import Options -->
     <div data-testid="import-section" class="bg-bg-panel rounded-lg p-6 mb-8">
       <h2 class="text-xl font-heading font-medium text-text-primary mb-4">Import Your Outline</h2>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-3 gap-4">
         <button
           onclick={importPlottr}
           class="flex flex-col items-center p-4 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer"
@@ -171,6 +192,15 @@
           <Kanban class="w-10 h-10 text-accent mb-2" />
           <span class="text-text-primary font-medium">Plottr</span>
           <span class="text-text-secondary text-sm">.pltr</span>
+        </button>
+
+        <button
+          onclick={importYWriter}
+          class="flex flex-col items-center p-4 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer"
+        >
+          <PenTool class="w-10 h-10 text-accent mb-2" />
+          <span class="text-text-primary font-medium">yWriter</span>
+          <span class="text-text-secondary text-sm">.yw7</span>
         </button>
 
         <button

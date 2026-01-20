@@ -37,7 +37,15 @@ describe("currentProject store", () => {
   it("should clear all state when setting project to null", () => {
     // Set up some state
     currentProject.setChapters([
-      { id: "ch-1", project_id: "p1", title: "Ch", position: 0, archived: false, locked: false },
+      {
+        id: "ch-1",
+        project_id: "p1",
+        title: "Ch",
+        position: 0,
+        archived: false,
+        locked: false,
+        is_part: false,
+      },
     ]);
     currentProject.setScenes([
       {
@@ -97,6 +105,7 @@ describe("currentProject store", () => {
         position: 0,
         archived: false,
         locked: false,
+        is_part: false,
       },
     ];
 
@@ -112,6 +121,7 @@ describe("currentProject store", () => {
       position: 0,
       archived: false,
       locked: false,
+      is_part: false,
     };
     const chapter2 = {
       id: "ch-2",
@@ -120,6 +130,7 @@ describe("currentProject store", () => {
       position: 1,
       archived: false,
       locked: false,
+      is_part: false,
     };
 
     currentProject.setChapters([chapter1]);
@@ -140,6 +151,7 @@ describe("currentProject store", () => {
         prose: null,
         archived: false,
         locked: false,
+        is_part: false,
       },
     ];
 
@@ -157,6 +169,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      is_part: false,
     };
     const scene2 = {
       id: "sc-2",
@@ -167,6 +180,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      is_part: false,
     };
 
     currentProject.setScenes([scene1]);
@@ -184,6 +198,7 @@ describe("currentProject store", () => {
       position: 0,
       archived: false,
       locked: false,
+      is_part: false,
     };
 
     currentProject.setCurrentChapter(mockChapter);
@@ -200,6 +215,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      is_part: false,
     };
     currentProject.setScenes([scene]);
     currentProject.setCurrentScene(scene);
@@ -221,6 +237,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      is_part: false,
     };
 
     currentProject.setCurrentScene(mockScene);
@@ -246,6 +263,7 @@ describe("currentProject store", () => {
         position: 0,
         archived: false,
         locked: false,
+        is_part: false,
       },
       {
         id: "ch-2",
@@ -254,6 +272,7 @@ describe("currentProject store", () => {
         position: 1,
         archived: false,
         locked: false,
+        is_part: false,
       },
       {
         id: "ch-3",
@@ -262,6 +281,7 @@ describe("currentProject store", () => {
         position: 2,
         archived: false,
         locked: false,
+        is_part: false,
       },
     ];
     currentProject.setChapters(chapters);
@@ -286,6 +306,7 @@ describe("currentProject store", () => {
         position: 0,
         archived: false,
         locked: false,
+        is_part: false,
       },
       {
         id: "ch-2",
@@ -294,6 +315,7 @@ describe("currentProject store", () => {
         position: 1,
         archived: false,
         locked: false,
+        is_part: false,
       },
     ];
     currentProject.setChapters(chapters);
@@ -317,6 +339,7 @@ describe("currentProject store", () => {
         prose: null,
         archived: false,
         locked: false,
+        is_part: false,
       },
       {
         id: "sc-2",
@@ -327,6 +350,7 @@ describe("currentProject store", () => {
         prose: null,
         archived: false,
         locked: false,
+        is_part: false,
       },
       {
         id: "sc-3",
@@ -337,6 +361,7 @@ describe("currentProject store", () => {
         prose: null,
         archived: false,
         locked: false,
+        is_part: false,
       },
     ];
     currentProject.setScenes(scenes);
@@ -361,6 +386,7 @@ describe("currentProject store", () => {
         position: 0,
         archived: false,
         locked: false,
+        is_part: false,
       },
       {
         id: "ch-2",
@@ -369,6 +395,7 @@ describe("currentProject store", () => {
         position: 1,
         archived: false,
         locked: false,
+        is_part: false,
       },
     ];
     currentProject.setChapters(chapters);
@@ -387,6 +414,7 @@ describe("currentProject store", () => {
       position: 0,
       archived: false,
       locked: false,
+      is_part: false,
     };
     const scene = {
       id: "sc-1",
@@ -397,6 +425,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      is_part: false,
     };
     const beat = { id: "b-1", scene_id: "sc-1", content: "Beat", position: 0, prose: null };
 
@@ -423,6 +452,7 @@ describe("currentProject store", () => {
       position: 0,
       archived: false,
       locked: false,
+      is_part: false,
     };
     const chapter2 = {
       id: "ch-2",
@@ -431,6 +461,7 @@ describe("currentProject store", () => {
       position: 1,
       archived: false,
       locked: false,
+      is_part: false,
     };
 
     currentProject.setChapters([chapter1, chapter2]);
@@ -452,6 +483,7 @@ describe("currentProject store", () => {
         prose: null,
         archived: false,
         locked: false,
+        is_part: false,
       },
       {
         id: "sc-2",
@@ -462,6 +494,7 @@ describe("currentProject store", () => {
         prose: null,
         archived: false,
         locked: false,
+        is_part: false,
       },
     ];
     currentProject.setScenes(scenes);
@@ -482,6 +515,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      is_part: false,
     };
     const beat = { id: "b-1", scene_id: "sc-1", content: "Beat", position: 0, prose: null };
 
@@ -597,6 +631,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      is_part: false,
     };
     currentProject.setScenes([scene]);
 
@@ -615,6 +650,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      is_part: false,
     };
     currentProject.setScenes([scene]);
     currentProject.setCurrentScene(scene);
@@ -635,6 +671,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      is_part: false,
     };
     currentProject.setScenes([scene]);
 
@@ -651,6 +688,7 @@ describe("currentProject store", () => {
       position: 0,
       archived: false,
       locked: false,
+      is_part: false,
     };
     currentProject.setChapters([chapter]);
 
@@ -669,6 +707,7 @@ describe("currentProject store", () => {
       position: 0,
       archived: false,
       locked: false,
+      is_part: false,
     };
     currentProject.setChapters([chapter]);
     currentProject.setCurrentChapter(chapter);
@@ -687,6 +726,7 @@ describe("currentProject store", () => {
       position: 0,
       archived: false,
       locked: false,
+      is_part: false,
     };
     const chapter2 = {
       id: "ch-2",
@@ -695,6 +735,7 @@ describe("currentProject store", () => {
       position: 1,
       archived: false,
       locked: false,
+      is_part: false,
     };
     currentProject.setChapters([chapter1, chapter2]);
     currentProject.setCurrentChapter(chapter1);
@@ -715,6 +756,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      is_part: false,
     };
     currentProject.setScenes([scene]);
 
@@ -735,6 +777,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      is_part: false,
     };
     currentProject.setScenes([scene]);
     currentProject.setCurrentScene(scene);
@@ -755,6 +798,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      is_part: false,
     };
     const scene2 = {
       id: "sc-2",
@@ -765,6 +809,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      is_part: false,
     };
     currentProject.setScenes([scene1, scene2]);
     currentProject.setCurrentScene(scene1);
@@ -785,6 +830,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      is_part: false,
     };
     currentProject.setScenes([scene]);
     currentProject.setCurrentScene(scene);

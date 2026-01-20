@@ -15,6 +15,7 @@ use tauri::{
 /// Menu item IDs for event handling
 pub mod menu_ids {
     pub const IMPORT_PLOTTR: &str = "import_plottr";
+    pub const IMPORT_YWRITER: &str = "import_ywriter";
     pub const IMPORT_MARKDOWN: &str = "import_markdown";
     pub const EXPORT: &str = "export";
     pub const CLOSE_PROJECT: &str = "close_project";
@@ -29,12 +30,17 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .id(menu_ids::IMPORT_PLOTTR)
         .build(app)?;
 
+    let import_ywriter = MenuItemBuilder::new("yWriter 7 (.yw7)")
+        .id(menu_ids::IMPORT_YWRITER)
+        .build(app)?;
+
     let import_markdown = MenuItemBuilder::new("Markdown (.md)")
         .id(menu_ids::IMPORT_MARKDOWN)
         .build(app)?;
 
     let import_submenu = SubmenuBuilder::new(app, "Import")
         .item(&import_plottr)
+        .item(&import_ywriter)
         .item(&import_markdown)
         .build()?;
 

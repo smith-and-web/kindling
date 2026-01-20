@@ -30,6 +30,7 @@
     Unlock,
     Download,
     Settings,
+    BookOpen,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
@@ -821,20 +822,24 @@
       <nav class="space-y-1" aria-label="Project outline">
         {#each currentProject.chapters as chapter (chapter.id)}
           {@const isExpanded = isChapterExpanded(chapter.id)}
+          {@const isPart = chapter.is_part}
           <div
-            data-testid="chapter-item"
+            data-testid={isPart ? "part-item" : "chapter-item"}
             data-drag-chapter={chapter.id}
             class="select-none relative rounded-lg"
             class:ring-2={dragOverId === chapter.id}
             class:ring-accent={dragOverId === chapter.id}
+            class:mt-4={isPart}
             onmouseenter={() => (hoveredChapterId = chapter.id)}
             onmouseleave={() => (hoveredChapterId = null)}
           >
-            <!-- Chapter row -->
+            <!-- Part/Chapter row -->
             <div
-              class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group"
-              class:bg-bg-card={isExpanded}
-              class:hover:bg-bg-card={!isExpanded}
+              class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group {isPart
+                ? 'bg-accent/10 border-l-2 border-accent'
+                : ''}"
+              class:bg-bg-card={isExpanded && !isPart}
+              class:hover:bg-bg-card={!isExpanded && !isPart}
               oncontextmenu={(e) => openContextMenu(e, "chapter", chapter)}
             >
               <!-- Drag handle -->
@@ -856,21 +861,33 @@
                 class="flex-1 flex items-center gap-2 text-left min-w-0"
                 aria-expanded={isExpanded}
               >
-                <!-- Expand/collapse chevron -->
-                <ChevronRight
-                  class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0 {isExpanded
-                    ? 'rotate-90'
-                    : ''}"
-                />
-                <!-- Chapter icon -->
-                <Folder class="w-4 h-4 text-text-secondary flex-shrink-0" />
+                <!-- Expand/collapse chevron (only for regular chapters) -->
+                {#if !isPart}
+                  <ChevronRight
+                    class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0 {isExpanded
+                      ? 'rotate-90'
+                      : ''}"
+                  />
+                {/if}
+                <!-- Part or Chapter icon -->
+                {#if isPart}
+                  <BookOpen class="w-4 h-4 text-accent flex-shrink-0" />
+                {:else}
+                  <Folder class="w-4 h-4 text-text-secondary flex-shrink-0" />
+                {/if}
                 <!-- Lock indicator -->
                 {#if chapter.locked}
                   <Lock class="w-3 h-3 text-amber-500 flex-shrink-0" />
                 {/if}
                 <span
-                  data-testid="chapter-title"
-                  class="text-text-primary font-medium text-sm truncate"
+                  data-testid={isPart ? "part-title" : "chapter-title"}
+                  class="font-medium text-sm truncate"
+                  class:text-accent={isPart}
+                  class:font-semibold={isPart}
+                  class:uppercase={isPart}
+                  class:tracking-wider={isPart}
+                  class:text-xs={isPart}
+                  class:text-text-primary={!isPart}
                   class:opacity-60={chapter.locked}>{chapter.title}</span
                 >
               </button>
@@ -882,7 +899,7 @@
                 class="p-1 text-text-secondary hover:text-text-primary transition-opacity flex-shrink-0"
                 class:opacity-0={hoveredChapterId !== chapter.id}
                 class:opacity-100={hoveredChapterId === chapter.id}
-                aria-label="Chapter menu"
+                aria-label="{isPart ? 'Part' : 'Chapter'} menu"
               >
                 <MoreVertical class="w-3.5 h-3.5" />
               </button>

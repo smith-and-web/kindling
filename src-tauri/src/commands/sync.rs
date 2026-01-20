@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::db;
 use crate::models::{Beat, Chapter, Scene};
-use crate::parsers::parse_plottr_file;
+use crate::parsers::{parse_plottr_file, parse_ywriter_file};
 
 use super::AppState;
 
@@ -79,6 +79,20 @@ pub async fn reimport_project(
         crate::models::SourceType::Plottr => {
             parse_plottr_file(source_path).map_err(|e| e.to_string())?
         }
+        crate::models::SourceType::YWriter => {
+            let yw_parsed = parse_ywriter_file(source_path).map_err(|e| e.to_string())?;
+            // Convert ParsedYWriter to the same structure as ParsedPlottr
+            crate::parsers::ParsedPlottr {
+                project: yw_parsed.project,
+                chapters: yw_parsed.chapters,
+                scenes: yw_parsed.scenes,
+                beats: yw_parsed.beats,
+                characters: yw_parsed.characters,
+                locations: yw_parsed.locations,
+                scene_character_refs: yw_parsed.scene_character_refs,
+                scene_location_refs: yw_parsed.scene_location_refs,
+            }
+        }
         crate::models::SourceType::Scrivener => {
             return Err(
                 "Scrivener import has been deprecated. This project cannot be reimported."
@@ -134,6 +148,7 @@ pub async fn reimport_project(
                     source_id: new_chapter.source_id.clone(),
                     archived: false,
                     locked: false,
+                    is_part: new_chapter.is_part,
                 };
                 db::insert_chapter(&conn, &chapter_to_insert).map_err(|e| {
                     let _ = conn.execute("ROLLBACK", []);
@@ -321,6 +336,19 @@ pub async fn get_sync_preview(
     let parsed = match project.source_type {
         crate::models::SourceType::Plottr => {
             parse_plottr_file(source_path).map_err(|e| e.to_string())?
+        }
+        crate::models::SourceType::YWriter => {
+            let yw_parsed = parse_ywriter_file(source_path).map_err(|e| e.to_string())?;
+            crate::parsers::ParsedPlottr {
+                project: yw_parsed.project,
+                chapters: yw_parsed.chapters,
+                scenes: yw_parsed.scenes,
+                beats: yw_parsed.beats,
+                characters: yw_parsed.characters,
+                locations: yw_parsed.locations,
+                scene_character_refs: yw_parsed.scene_character_refs,
+                scene_location_refs: yw_parsed.scene_location_refs,
+            }
         }
         crate::models::SourceType::Scrivener => {
             return Err(
@@ -560,6 +588,19 @@ pub async fn apply_sync(
         crate::models::SourceType::Plottr => {
             parse_plottr_file(source_path).map_err(|e| e.to_string())?
         }
+        crate::models::SourceType::YWriter => {
+            let yw_parsed = parse_ywriter_file(source_path).map_err(|e| e.to_string())?;
+            crate::parsers::ParsedPlottr {
+                project: yw_parsed.project,
+                chapters: yw_parsed.chapters,
+                scenes: yw_parsed.scenes,
+                beats: yw_parsed.beats,
+                characters: yw_parsed.characters,
+                locations: yw_parsed.locations,
+                scene_character_refs: yw_parsed.scene_character_refs,
+                scene_location_refs: yw_parsed.scene_location_refs,
+            }
+        }
         crate::models::SourceType::Scrivener => {
             return Err(
                 "Scrivener import has been deprecated. This project cannot be synced.".to_string(),
@@ -627,6 +668,7 @@ pub async fn apply_sync(
                         source_id: new_chapter.source_id.clone(),
                         archived: false,
                         locked: false,
+                        is_part: new_chapter.is_part,
                     };
                     db::insert_chapter(&conn, &chapter_to_insert).map_err(|e| {
                         let _ = conn.execute("ROLLBACK", []);
