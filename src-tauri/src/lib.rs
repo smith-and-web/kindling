@@ -8,7 +8,7 @@
 //! - [`commands`]: Tauri IPC command handlers (called from frontend via `invoke()`)
 //! - [`db`]: SQLite database schema and query functions
 //! - [`models`]: Data structures (Project, Chapter, Scene, Beat, Character, Location)
-//! - [`parsers`]: Import parsers for Plottr, Scrivener, and Markdown formats
+//! - [`parsers`]: Import parsers for Plottr and Markdown formats
 //!
 //! # Architecture
 //!
@@ -54,7 +54,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::import_plottr,
-            commands::import_scrivener,
             commands::import_markdown,
             commands::get_project,
             commands::get_recent_projects,

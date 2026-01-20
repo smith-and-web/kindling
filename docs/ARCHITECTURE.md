@@ -154,7 +154,7 @@ Commands are registered in `lib.rs`:
 ```
 
 **Command categories:**
-- **Import**: `import_plottr`, `import_scrivener`, `import_markdown`
+- **Import**: `import_plottr`, `import_markdown`
 - **CRUD**: `get_*`, `create_*`, `delete_*`, `rename_*`
 - **Reorder**: `reorder_chapters`, `reorder_scenes`, `move_scene_to_chapter`
 - **Sync**: `get_sync_preview`, `apply_sync`, `reimport_project`
@@ -196,7 +196,6 @@ Native Rust parsers for importing outlines:
 | Parser | File Type | Notes |
 |--------|-----------|-------|
 | `plottr.rs` | `.pltr` | JSON-based, extracts timeline/beats |
-| `scrivener.rs` | `.scriv` | XML-based binder structure |
 | `markdown.rs` | `.md` | Heading-based outline format |
 
 Each parser returns a `ParsedProject` struct that gets inserted into the database.

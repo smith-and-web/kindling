@@ -63,27 +63,6 @@
     }
   }
 
-  async function importScrivener() {
-    const path = await open({
-      multiple: false,
-      directory: true,
-    });
-
-    if (path) {
-      ui.startImport();
-      try {
-        const project = await invoke<Project>("import_scrivener", { path });
-        currentProject.setProject(project);
-        ui.setView("editor");
-      } catch (e) {
-        console.error("Failed to import Scrivener project:", e);
-        alert(`Import failed: ${e}`);
-      } finally {
-        ui.finishImport();
-      }
-    }
-  }
-
   async function importMarkdown() {
     const path = await open({
       multiple: false,
@@ -117,9 +96,6 @@
       switch (menuId) {
         case "import_plottr":
           importPlottr();
-          break;
-        case "import_scrivener":
-          importScrivener();
           break;
         case "import_markdown":
           importMarkdown();

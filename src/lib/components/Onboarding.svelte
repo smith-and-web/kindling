@@ -3,7 +3,6 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import {
     ArrowDownAZ,
-    BookOpen,
     Check,
     ChevronDown,
     ChevronLeft,
@@ -45,28 +44,6 @@
         ui.setView("editor");
       } catch (e) {
         console.error("Failed to import Plottr file:", e);
-        alert(`Import failed: ${e}`);
-      } finally {
-        ui.finishImport();
-      }
-    }
-  }
-
-  async function importScrivener() {
-    const path = await open({
-      multiple: false,
-      directory: true,
-    });
-
-    if (path) {
-      ui.startImport();
-      try {
-        const project = await invoke<Project>("import_scrivener", { path });
-        currentProject.setProject(project);
-        ui.completeOnboarding();
-        ui.setView("editor");
-      } catch (e) {
-        console.error("Failed to import Scrivener project:", e);
         alert(`Import failed: ${e}`);
       } finally {
         ui.finishImport();
@@ -607,7 +584,7 @@
               <p class="text-text-secondary">Choose your outline format to get started.</p>
             </div>
 
-            <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="grid grid-cols-2 gap-4 mb-6">
               <button
                 onclick={importPlottr}
                 class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
@@ -615,15 +592,6 @@
                 <Kanban class="w-12 h-12 text-accent mb-3" />
                 <span class="text-text-primary font-medium">Plottr</span>
                 <span class="text-text-secondary text-sm">.pltr</span>
-              </button>
-
-              <button
-                onclick={importScrivener}
-                class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
-              >
-                <BookOpen class="w-12 h-12 text-accent mb-3" />
-                <span class="text-text-primary font-medium">Scrivener</span>
-                <span class="text-text-secondary text-sm">.scriv</span>
               </button>
 
               <button

@@ -4,7 +4,7 @@
 //! via Tauri's `invoke()` API. Commands are organized into submodules:
 //!
 //! - [`state`]: Application state management
-//! - [`import`]: Import commands for Plottr, Scrivener, Markdown
+//! - [`import`]: Import commands for Plottr, Markdown
 //! - [`crud`]: CRUD operations for projects, chapters, scenes, beats
 //! - [`sync`]: Sync/reimport functionality
 //! - [`archive`]: Archive and restore commands

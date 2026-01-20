@@ -6,8 +6,8 @@ Accepted
 
 ## Context
 
-Kindling imports outlines from external tools (Plottr, Scrivener, Markdown). These parsers need to:
-- Read various file formats (JSON, XML, text)
+Kindling imports outlines from external tools (Plottr, Markdown). These parsers need to:
+- Read various file formats (JSON, text)
 - Extract hierarchical structure
 - Map external data to Kindling's model
 - Handle large files efficiently
@@ -19,7 +19,6 @@ Options considered:
 
 File format details:
 - **Plottr** (`.pltr`): JSON, can be large with many timeline entries
-- **Scrivener** (`.scriv`): Package directory with XML binder
 - **Markdown**: Text with heading-based structure
 
 ## Decision
@@ -29,9 +28,8 @@ Implement all parsers in native Rust as part of the Tauri backend.
 **Reasons:**
 1. **Direct file access**: Rust can read files without webview sandboxing
 2. **Performance**: Native code for parsing large Plottr files
-3. **XML support**: `quick-xml` crate handles Scrivener's XML efficiently
-4. **Consistent model**: Parsers output directly to Rust structs
-5. **Error handling**: Rust's `Result` type for robust error handling
+3. **Consistent model**: Parsers output directly to Rust structs
+4. **Error handling**: Rust's `Result` type for robust error handling
 
 ## Consequences
 

@@ -1,7 +1,7 @@
 //! Application Menu Setup
 //!
 //! Creates the native application menu with File menu items for:
-//! - Import (Plottr, Scrivener, Markdown)
+//! - Import (Plottr, Markdown)
 //! - Export
 //! - Close Project
 //! - Project Settings
@@ -15,7 +15,6 @@ use tauri::{
 /// Menu item IDs for event handling
 pub mod menu_ids {
     pub const IMPORT_PLOTTR: &str = "import_plottr";
-    pub const IMPORT_SCRIVENER: &str = "import_scrivener";
     pub const IMPORT_MARKDOWN: &str = "import_markdown";
     pub const EXPORT: &str = "export";
     pub const CLOSE_PROJECT: &str = "close_project";
@@ -30,17 +29,12 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .id(menu_ids::IMPORT_PLOTTR)
         .build(app)?;
 
-    let import_scrivener = MenuItemBuilder::new("Scrivener (.scriv)")
-        .id(menu_ids::IMPORT_SCRIVENER)
-        .build(app)?;
-
     let import_markdown = MenuItemBuilder::new("Markdown (.md)")
         .id(menu_ids::IMPORT_MARKDOWN)
         .build(app)?;
 
     let import_submenu = SubmenuBuilder::new(app, "Import")
         .item(&import_plottr)
-        .item(&import_scrivener)
         .item(&import_markdown)
         .build()?;
 

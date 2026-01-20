@@ -1,6 +1,6 @@
 # Kindling
 
-**Kindling** is a story outlining and planning tool for writers. Import your existing outlines from Plottr, Scrivener, or Markdown and organize your story structure.
+**Kindling** is a story outlining and planning tool for writers. Import your existing outlines from Plottr or Markdown and organize your story structure.
 
 > **Note:** Kindling is currently in active development. Features and documentation may change.
 
@@ -9,7 +9,7 @@
 ### Getting Started
 
 - [Installation](Installation) - Download and install Kindling
-- [Importing Projects](Importing-Projects) - How to import from Plottr, Scrivener, and Markdown
+- [Importing Projects](Importing-Projects) - How to import from Plottr and Markdown
 
 ### Reference
 

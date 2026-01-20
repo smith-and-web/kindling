@@ -80,7 +80,10 @@ pub async fn reimport_project(
             parse_plottr_file(source_path).map_err(|e| e.to_string())?
         }
         crate::models::SourceType::Scrivener => {
-            return Err("Scrivener reimport not yet supported".to_string());
+            return Err(
+                "Scrivener import has been deprecated. This project cannot be reimported."
+                    .to_string(),
+            );
         }
         crate::models::SourceType::Markdown => {
             return Err("Markdown reimport not yet supported".to_string());
@@ -320,7 +323,9 @@ pub async fn get_sync_preview(
             parse_plottr_file(source_path).map_err(|e| e.to_string())?
         }
         crate::models::SourceType::Scrivener => {
-            return Err("Scrivener sync not yet supported".to_string());
+            return Err(
+                "Scrivener import has been deprecated. This project cannot be synced.".to_string(),
+            );
         }
         crate::models::SourceType::Markdown => {
             return Err("Markdown sync not yet supported".to_string());
@@ -556,7 +561,9 @@ pub async fn apply_sync(
             parse_plottr_file(source_path).map_err(|e| e.to_string())?
         }
         crate::models::SourceType::Scrivener => {
-            return Err("Scrivener sync not yet supported".to_string());
+            return Err(
+                "Scrivener import has been deprecated. This project cannot be synced.".to_string(),
+            );
         }
         crate::models::SourceType::Markdown => {
             return Err("Markdown sync not yet supported".to_string());
