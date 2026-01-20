@@ -93,11 +93,12 @@ pub fn run() {
             commands::restore_chapter,
             commands::restore_scene,
             commands::get_archived_items,
-            // Lock commands
+            // Lock and Part commands
             commands::lock_chapter,
             commands::unlock_chapter,
             commands::lock_scene,
             commands::unlock_scene,
+            commands::set_chapter_is_part,
             // Export commands
             commands::export_to_markdown,
             commands::export_to_docx,

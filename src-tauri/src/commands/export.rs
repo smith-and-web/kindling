@@ -1372,6 +1372,53 @@ fn create_docx_styles(
         )
 }
 
+/// Add a Part header to the document
+///
+/// SMF Part formatting:
+/// - Hard page break before Part (new page)
+/// - Part title centered ~1/3 down the page
+/// - No prose content (Parts are structural headers only)
+fn add_part_to_docx(
+    docx: Docx,
+    part: &Chapter,
+    options: &DocxExportOptions,
+    is_first: bool,
+) -> Docx {
+    let mut docx = docx;
+    let font_name = options.font_family.as_str();
+    let line_spacing_twips = options.line_spacing.as_twips();
+
+    // Page break before (except if first element after title page)
+    if !is_first && options.page_breaks_between_chapters {
+        docx = docx.add_paragraph(Paragraph::new().page_break_before(true));
+    }
+
+    // Position at ~1/3 down the page (12 blank lines)
+    for _ in 0..12 {
+        docx = docx.add_paragraph(
+            Paragraph::new().line_spacing(LineSpacing::new().line(line_spacing_twips)),
+        );
+    }
+
+    // Part title: centered, ALL CAPS, 12pt
+    // Use the Part title as-is (e.g., "PART ONE" or "Part I: The Beginning")
+    docx = docx.add_paragraph(
+        Paragraph::new()
+            .add_run(
+                Run::new()
+                    .add_text(part.title.to_uppercase())
+                    .size(24) // 12pt
+                    .fonts(RunFonts::new().ascii(font_name)),
+            )
+            .style("Heading1")
+            .align(AlignmentType::Center)
+            .line_spacing(LineSpacing::new().line(line_spacing_twips)),
+    );
+
+    // Parts have no content - just the header
+    docx
+}
+
 /// Add a chapter to the document
 ///
 /// SMF chapter formatting:
@@ -1765,34 +1812,42 @@ pub async fn export_to_docx(
             let mut is_first_chapter = true;
             let mut chapter_number = 0;
             for chapter in chapters.iter().filter(|c| !c.archived) {
-                chapter_number += 1;
+                if chapter.is_part {
+                    // Parts get their own page with special formatting, no chapter number
+                    docx = add_part_to_docx(docx, chapter, &options, is_first_chapter);
+                    chapters_exported += 1;
+                    is_first_chapter = false;
+                } else {
+                    // Regular chapters get numbered
+                    chapter_number += 1;
 
-                let scenes =
-                    db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
-                let active_scenes: Vec<Scene> =
-                    scenes.into_iter().filter(|s| !s.archived).collect();
+                    let scenes =
+                        db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
+                    let active_scenes: Vec<Scene> =
+                        scenes.into_iter().filter(|s| !s.archived).collect();
 
-                // Fetch beats for each scene
-                for scene in &active_scenes {
-                    let beats =
-                        db::queries::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
-                    beats_by_scene.insert(scene.id, beats);
+                    // Fetch beats for each scene
+                    for scene in &active_scenes {
+                        let beats =
+                            db::queries::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
+                        beats_by_scene.insert(scene.id, beats);
+                    }
+
+                    scenes_exported += active_scenes.len();
+
+                    docx = add_chapter_to_docx(
+                        docx,
+                        chapter,
+                        chapter_number,
+                        &active_scenes,
+                        &beats_by_scene,
+                        &options,
+                        is_first_chapter,
+                    );
+
+                    chapters_exported += 1;
+                    is_first_chapter = false;
                 }
-
-                scenes_exported += active_scenes.len();
-
-                docx = add_chapter_to_docx(
-                    docx,
-                    chapter,
-                    chapter_number,
-                    &active_scenes,
-                    &beats_by_scene,
-                    &options,
-                    is_first_chapter,
-                );
-
-                chapters_exported += 1;
-                is_first_chapter = false;
             }
         }
         ExportScope::Chapter(chapter_id) => {
@@ -1802,11 +1857,12 @@ pub async fn export_to_docx(
                 .ok_or_else(|| format!("Chapter not found: {}", chapter_id))?;
 
             // Get all chapters to determine this chapter's position number
+            // Skip Parts when counting chapter numbers
             let all_chapters =
                 db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
             let chapter_number = all_chapters
                 .iter()
-                .filter(|c| !c.archived)
+                .filter(|c| !c.archived && !c.is_part)
                 .position(|c| c.id == chapter_uuid)
                 .map(|pos| pos + 1) // Convert 0-indexed to 1-indexed
                 .unwrap_or(1);

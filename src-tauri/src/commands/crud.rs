@@ -112,14 +112,32 @@ pub async fn get_chapters(
 pub async fn create_chapter(
     project_id: String,
     title: String,
+    is_part: Option<bool>,
+    after_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Chapter, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
-    // Get next position
-    let position =
-        db::get_max_chapter_position(&conn, &project_uuid).map_err(|e| e.to_string())? + 1;
+    // Determine position based on after_id or append to end
+    let position = if let Some(ref after_chapter_id) = after_id {
+        let after_uuid = Uuid::parse_str(after_chapter_id).map_err(|e| e.to_string())?;
+        let after_chapter = db::get_chapter_by_id(&conn, &after_uuid)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| format!("Chapter not found: {}", after_chapter_id))?;
+
+        // Insert after the specified chapter
+        let new_position = after_chapter.position + 1;
+
+        // Shift all chapters at or after this position
+        db::shift_chapters_after_position(&conn, &project_uuid, new_position)
+            .map_err(|e| e.to_string())?;
+
+        new_position
+    } else {
+        // Append to end
+        db::get_max_chapter_position(&conn, &project_uuid).map_err(|e| e.to_string())? + 1
+    };
 
     let chapter = Chapter {
         id: Uuid::new_v4(),
@@ -129,7 +147,7 @@ pub async fn create_chapter(
         source_id: None,
         archived: false,
         locked: false,
-        is_part: false,
+        is_part: is_part.unwrap_or(false),
     };
 
     db::insert_chapter(&conn, &chapter).map_err(|e| e.to_string())?;

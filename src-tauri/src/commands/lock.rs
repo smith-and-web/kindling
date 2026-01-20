@@ -1,6 +1,6 @@
-//! Lock Commands
+//! Lock and Part Commands
 //!
-//! Handles locking and unlocking chapters and scenes to prevent editing.
+//! Handles locking/unlocking chapters and scenes, and toggling Part status.
 
 use tauri::State;
 use uuid::Uuid;
@@ -63,6 +63,25 @@ pub async fn unlock_scene(scene_id: String, state: State<'_, AppState>) -> Resul
 
     // Update project modified time
     if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_chapter_is_part(
+    chapter_id: String,
+    is_part: bool,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    db::set_chapter_is_part(&conn, &uuid, is_part).map_err(|e| e.to_string())?;
+
+    // Update project modified time
+    if let Some(project_id) = db::get_chapter_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
         db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
     }
 
