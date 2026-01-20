@@ -1313,7 +1313,7 @@
           </div>
         {:else}
           <!-- Split button: New Chapter (default) with dropdown for New Part -->
-          <div class="relative px-1" bind:this={newButtonRef}>
+          <div class="relative mt-2" bind:this={newButtonRef}>
             <div
               class="flex items-stretch rounded-lg bg-bg-card border border-bg-card hover:border-accent/50 transition-colors"
             >
@@ -1340,7 +1340,7 @@
             <!-- Dropdown menu -->
             {#if showNewDropdown}
               <div
-                class="absolute left-1 right-1 mt-1 bg-bg-panel border border-bg-card rounded-lg shadow-lg py-1 z-50"
+                class="absolute left-0 right-0 mt-1 bg-bg-panel border border-bg-card rounded-lg shadow-lg py-1 z-50"
               >
                 <button
                   data-testid="dropdown-new-chapter"
