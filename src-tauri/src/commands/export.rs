@@ -1057,20 +1057,23 @@ fn add_scene_to_docx(
 ) -> Docx {
     let mut docx = docx;
 
-    // Scene title as Heading 2 with spacing
-    // SMF: Scene titles are typically not included in manuscript, but if included, use same formatting
-    docx = docx.add_paragraph(
-        Paragraph::new()
-            .add_run(
-                Run::new()
-                    .add_text(&scene.title)
-                    .size(24) // 12pt for SMF
-                    .bold()
-                    .fonts(RunFonts::new().ascii("Courier New")),
-            )
-            .style("Heading2")
-            .line_spacing(LineSpacing::new().before(480).after(240).line(480)), // Double-spaced
-    );
+    // Scene title as Heading 2 - only include if beat markers are enabled
+    // SMF: Scene titles are typically not included in manuscript submissions
+    // They're organizational tools for the author, not content for the reader
+    if options.include_beat_markers {
+        docx = docx.add_paragraph(
+            Paragraph::new()
+                .add_run(
+                    Run::new()
+                        .add_text(&scene.title)
+                        .size(24) // 12pt for SMF
+                        .bold()
+                        .fonts(RunFonts::new().ascii("Courier New")),
+                )
+                .style("Heading2")
+                .line_spacing(LineSpacing::new().before(480).after(240).line(480)), // Double-spaced
+        );
+    }
 
     // Synopsis if requested and present - italicized, indented
     if options.include_synopsis {
