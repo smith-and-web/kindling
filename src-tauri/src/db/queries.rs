@@ -139,6 +139,19 @@ pub fn reorder_chapters(conn: &Connection, project_id: &Uuid, chapter_ids: &[Uui
     Ok(())
 }
 
+/// Shift all chapters at or after the given position up by 1 to make room for insertion
+pub fn shift_chapters_after_position(
+    conn: &Connection,
+    project_id: &Uuid,
+    position: i32,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE chapters SET position = position + 1 WHERE project_id = ?1 AND position >= ?2",
+        params![project_id.to_string(), position],
+    )?;
+    Ok(())
+}
+
 pub fn get_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chapter>> {
     let mut stmt = conn.prepare(
         "SELECT id, project_id, title, position, source_id, archived, locked, is_part
@@ -945,6 +958,14 @@ pub fn unlock_chapter(conn: &Connection, chapter_id: &Uuid) -> Result<()> {
     conn.execute(
         "UPDATE chapters SET locked = 0 WHERE id = ?1",
         params![chapter_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn set_chapter_is_part(conn: &Connection, chapter_id: &Uuid, is_part: bool) -> Result<()> {
+    conn.execute(
+        "UPDATE chapters SET is_part = ?1 WHERE id = ?2",
+        params![is_part as i32, chapter_id.to_string()],
     )?;
     Ok(())
 }

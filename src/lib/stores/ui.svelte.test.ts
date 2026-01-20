@@ -1,21 +1,23 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 
 // Mock localStorage before importing ui store
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: vi.fn((key: string) => store[key] || null),
-    setItem: vi.fn((key: string, value: string) => {
-      store[key] = value;
-    }),
-    removeItem: vi.fn((key: string) => {
-      delete store[key];
-    }),
-    clear: vi.fn(() => {
-      store = {};
-    }),
-  };
-})();
+let store: Record<string, string> = {};
+const localStorageMock = {
+  getItem: vi.fn((key: string) => store[key] || null),
+  setItem: vi.fn((key: string, value: string) => {
+    store[key] = value;
+  }),
+  removeItem: vi.fn((key: string) => {
+    delete store[key];
+  }),
+  clear: vi.fn(() => {
+    store = {};
+  }),
+  // Helper to set value directly for testing initialization
+  _setStore: (newStore: Record<string, string>) => {
+    store = newStore;
+  },
+};
 
 vi.stubGlobal("localStorage", localStorageMock);
 
@@ -108,6 +110,24 @@ describe("ui store", () => {
 
       // Test persistence
       expect(localStorageMock.setItem).toHaveBeenCalled();
+    });
+
+    it("should clamp panel width on window resize", () => {
+      // Set a large width
+      ui.setReferencesPanelWidth(1000);
+
+      // Mock a smaller window that would make max width smaller
+      const originalInnerWidth = window.innerWidth;
+      Object.defineProperty(window, "innerWidth", { value: 600, writable: true });
+
+      // Trigger resize event
+      window.dispatchEvent(new Event("resize"));
+
+      // Width should be clamped to the new max
+      expect(ui.referencesPanelWidth).toBeLessThanOrEqual(ui.referencesPanelMaxWidth);
+
+      // Restore window width
+      Object.defineProperty(window, "innerWidth", { value: originalInnerWidth, writable: true });
     });
   });
 
@@ -275,5 +295,59 @@ describe("ui store", () => {
       expect(ui.onboardingCompleted).toBe(false);
       expect(localStorageMock.removeItem).toHaveBeenCalledWith("kindling:onboardingCompleted");
     });
+  });
+});
+
+// Test initialization from localStorage (requires fresh module import)
+describe("ui store initialization", () => {
+  it("should load saved panel width from localStorage on initialization", async () => {
+    // Set localStorage value before creating new store
+    store["kindling:referencesPanelWidth"] = "400";
+
+    // Reset modules to get a fresh import
+    vi.resetModules();
+
+    // Re-import to trigger constructor with pre-set localStorage
+    const { ui: freshUi } = await import("./ui.svelte");
+
+    // The width should be loaded from localStorage
+    expect(freshUi.referencesPanelWidth).toBe(400);
+
+    // Cleanup
+    store = {};
+  });
+
+  it("should ignore invalid saved panel width from localStorage", async () => {
+    // Set invalid localStorage value (below min width)
+    store["kindling:referencesPanelWidth"] = "50";
+
+    // Reset modules to get a fresh import
+    vi.resetModules();
+
+    // Re-import to trigger constructor
+    const { ui: freshUi } = await import("./ui.svelte");
+
+    // Should use default width since 50 is below min (200)
+    expect(freshUi.referencesPanelWidth).toBe(288); // default
+
+    // Cleanup
+    store = {};
+  });
+
+  it("should ignore NaN saved panel width from localStorage", async () => {
+    // Set NaN localStorage value
+    store["kindling:referencesPanelWidth"] = "not-a-number";
+
+    // Reset modules to get a fresh import
+    vi.resetModules();
+
+    // Re-import to trigger constructor
+    const { ui: freshUi } = await import("./ui.svelte");
+
+    // Should use default width since value is NaN
+    expect(freshUi.referencesPanelWidth).toBe(288); // default
+
+    // Cleanup
+    store = {};
   });
 });

@@ -44,7 +44,20 @@ class ProjectStore {
     this.chapters = chapters;
   }
 
-  addChapter(chapter: Chapter) {
+  addChapter(chapter: Chapter, afterId?: string | null) {
+    if (afterId) {
+      // Insert after the specified chapter
+      const afterIndex = this.chapters.findIndex((c) => c.id === afterId);
+      if (afterIndex !== -1) {
+        this.chapters = [
+          ...this.chapters.slice(0, afterIndex + 1),
+          chapter,
+          ...this.chapters.slice(afterIndex + 1),
+        ];
+        return;
+      }
+    }
+    // Append to end if no afterId or afterId not found
     this.chapters = [...this.chapters, chapter];
   }
 

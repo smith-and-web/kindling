@@ -11,6 +11,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { SvelteSet } from "svelte/reactivity";
   import {
+    ChevronDown,
     ChevronRight,
     ChevronsLeft,
     ChevronsRight,
@@ -45,6 +46,7 @@
   import ArchivePanel from "./ArchivePanel.svelte";
   import ProjectSettingsDialog from "./ProjectSettingsDialog.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
+  import PartDeleteDialog from "./PartDeleteDialog.svelte";
   import ContextMenu from "./ContextMenu.svelte";
   import RenameDialog from "./RenameDialog.svelte";
   import SyncDialog from "./SyncDialog.svelte";
@@ -68,11 +70,49 @@
 
   let loading = $state(false);
   let expandedChapters = new SvelteSet<string>();
+  let expandedParts = new SvelteSet<string>();
+
+  // Group chapters under their preceding Parts
+  interface PartGroup {
+    part: Chapter | null; // null for chapters before first Part
+    chapters: Chapter[];
+  }
+
+  const partGroups = $derived.by(() => {
+    const chapters = currentProject.chapters.filter((c) => !c.archived);
+    const groups: PartGroup[] = [];
+    let currentGroup: PartGroup = { part: null, chapters: [] };
+
+    for (const chapter of chapters) {
+      if (chapter.is_part) {
+        // Save previous group if it has content
+        if (currentGroup.part !== null || currentGroup.chapters.length > 0) {
+          groups.push(currentGroup);
+        }
+        // Start new group with this Part
+        currentGroup = { part: chapter, chapters: [] };
+      } else {
+        currentGroup.chapters.push(chapter);
+      }
+    }
+
+    // Push final group
+    if (currentGroup.part !== null || currentGroup.chapters.length > 0) {
+      groups.push(currentGroup);
+    }
+
+    return groups;
+  });
 
   // Create new content state
   let creatingChapter = $state(false);
+  let creatingPart = $state(false);
   let creatingScene = $state(false);
   let newTitle = $state("");
+
+  // Split button dropdown state
+  let showNewDropdown = $state(false);
+  let newButtonRef: HTMLElement | null = $state(null);
 
   // Delete confirmation state
   let deleteDialog: {
@@ -80,6 +120,13 @@
     id: string;
     title: string;
     message: string;
+  } | null = $state(null);
+
+  // Part delete dialog state (separate because it has options)
+  let partDeleteDialog: {
+    partId: string;
+    partTitle: string;
+    childChapterIds: string[];
   } | null = $state(null);
 
   // Drag-and-drop state (using pointer events, more reliable than HTML5 drag API in webviews)
@@ -142,11 +189,21 @@
         projectId: currentProject.value.id,
       });
       currentProject.setChapters(chapters);
-      // Auto-expand first chapter if any exist
-      if (chapters.length > 0) {
+
+      // Auto-expand all Parts
+      expandedParts.clear();
+      for (const chapter of chapters) {
+        if (chapter.is_part) {
+          expandedParts.add(chapter.id);
+        }
+      }
+
+      // Auto-expand first non-Part chapter if any exist
+      const firstChapter = chapters.find((c) => !c.is_part);
+      if (firstChapter) {
         expandedChapters.clear();
-        expandedChapters.add(chapters[0].id);
-        await loadScenes(chapters[0]);
+        expandedChapters.add(firstChapter.id);
+        await loadScenes(firstChapter);
       }
     } catch (e) {
       console.error("Failed to load chapters:", e);
@@ -208,39 +265,92 @@
     return expandedChapters.has(chapterId);
   }
 
-  // === Create Chapter/Scene ===
+  function checkPartExpanded(partId: string): boolean {
+    return expandedParts.has(partId);
+  }
+
+  function togglePartExpanded(partId: string) {
+    if (expandedParts.has(partId)) {
+      expandedParts.delete(partId);
+    } else {
+      // Multiple Parts can be expanded simultaneously
+      expandedParts.add(partId);
+    }
+  }
+
+  // === Create Chapter/Part/Scene ===
   function startCreatingChapter() {
     creatingChapter = true;
+    creatingPart = false;
     creatingScene = false;
+    showNewDropdown = false;
+    newTitle = "";
+  }
+
+  function startCreatingPart() {
+    creatingPart = true;
+    creatingChapter = false;
+    creatingScene = false;
+    showNewDropdown = false;
     newTitle = "";
   }
 
   function startCreatingScene() {
     creatingScene = true;
     creatingChapter = false;
+    creatingPart = false;
     newTitle = "";
   }
 
   function cancelCreate() {
     creatingChapter = false;
+    creatingPart = false;
     creatingScene = false;
     newTitle = "";
+  }
+
+  // Get the insertion point for new chapters/parts (after current selection, or null for end)
+  function getInsertionPoint(): string | null {
+    if (currentProject.currentChapter) {
+      return currentProject.currentChapter.id;
+    }
+    return null;
   }
 
   async function createChapter() {
     if (!newTitle.trim() || !currentProject.value) return;
     try {
+      const afterId = getInsertionPoint();
       const chapter = await invoke<Chapter>("create_chapter", {
         projectId: currentProject.value.id,
         title: newTitle.trim(),
+        isPart: false,
+        afterId,
       });
-      currentProject.addChapter(chapter);
+      currentProject.addChapter(chapter, afterId);
       expandedChapters.clear();
       expandedChapters.add(chapter.id);
       await loadScenes(chapter);
       cancelCreate();
     } catch (e) {
       console.error("Failed to create chapter:", e);
+    }
+  }
+
+  async function createPart() {
+    if (!newTitle.trim() || !currentProject.value) return;
+    try {
+      const afterId = getInsertionPoint();
+      const part = await invoke<Chapter>("create_chapter", {
+        projectId: currentProject.value.id,
+        title: newTitle.trim(),
+        isPart: true,
+        afterId,
+      });
+      currentProject.addChapter(part, afterId);
+      cancelCreate();
+    } catch (e) {
+      console.error("Failed to create part:", e);
     }
   }
 
@@ -262,15 +372,42 @@
   function handleCreateKeydown(e: KeyboardEvent) {
     if (e.key === "Enter") {
       if (creatingChapter) createChapter();
+      else if (creatingPart) createPart();
       else if (creatingScene) createScene();
     } else if (e.key === "Escape") {
       cancelCreate();
     }
   }
 
+  function handleClickOutsideDropdown(event: MouseEvent) {
+    if (
+      showNewDropdown &&
+      newButtonRef &&
+      !newButtonRef.contains(event.target as globalThis.Node)
+    ) {
+      showNewDropdown = false;
+    }
+  }
+
   // === Delete Chapter/Scene ===
   async function confirmDeleteChapter(chapter: Chapter) {
     try {
+      // Check if this is a Part with child chapters
+      if (chapter.is_part) {
+        // Find child chapters (chapters between this Part and the next Part)
+        const childChapterIds = getChildChaptersForPart(chapter.id);
+        if (childChapterIds.length > 0) {
+          // Show Part delete dialog with options
+          partDeleteDialog = {
+            partId: chapter.id,
+            partTitle: chapter.title,
+            childChapterIds,
+          };
+          return;
+        }
+      }
+
+      // Regular chapter or Part with no children - show standard delete dialog
       const counts = await invoke<{ scene_count: number; beat_count: number }>(
         "get_chapter_content_counts",
         { chapterId: chapter.id }
@@ -284,6 +421,20 @@
     } catch (e) {
       console.error("Failed to get content counts:", e);
     }
+  }
+
+  // Get IDs of chapters that belong to a Part (chapters between this Part and the next Part)
+  function getChildChaptersForPart(partId: string): string[] {
+    const chapters = currentProject.chapters;
+    const partIndex = chapters.findIndex((c) => c.id === partId);
+    if (partIndex === -1) return [];
+
+    const childIds: string[] = [];
+    for (let i = partIndex + 1; i < chapters.length; i++) {
+      if (chapters[i].is_part) break; // Stop at next Part
+      childIds.push(chapters[i].id);
+    }
+    return childIds;
   }
 
   async function confirmDeleteScene(scene: Scene) {
@@ -327,6 +478,45 @@
       console.error("Failed to delete:", e);
     } finally {
       deleteDialog = null;
+    }
+  }
+
+  // Delete Part only, keeping child chapters
+  async function executeDeletePartOnly() {
+    if (!partDeleteDialog) return;
+    try {
+      await invoke("delete_chapter", { chapterId: partDeleteDialog.partId });
+      currentProject.removeChapter(partDeleteDialog.partId);
+    } catch (e) {
+      console.error("Failed to delete part:", e);
+    } finally {
+      partDeleteDialog = null;
+    }
+  }
+
+  // Delete Part and all its child chapters
+  async function executeDeletePartAndChapters() {
+    if (!partDeleteDialog) return;
+    try {
+      // Delete child chapters first (in reverse order to avoid index issues)
+      for (const chapterId of [...partDeleteDialog.childChapterIds].reverse()) {
+        await invoke("delete_chapter", { chapterId });
+        currentProject.removeChapter(chapterId);
+        // Clear selection if we deleted the current chapter
+        if (currentProject.currentChapter?.id === chapterId) {
+          currentProject.setCurrentChapter(null);
+          currentProject.setScenes([]);
+          currentProject.setCurrentScene(null);
+          currentProject.setBeats([]);
+        }
+      }
+      // Then delete the Part itself
+      await invoke("delete_chapter", { chapterId: partDeleteDialog.partId });
+      currentProject.removeChapter(partDeleteDialog.partId);
+    } catch (e) {
+      console.error("Failed to delete part and chapters:", e);
+    } finally {
+      partDeleteDialog = null;
     }
   }
 
@@ -520,6 +710,7 @@
 
   function getContextMenuItems(type: "chapter" | "scene", item: Chapter | Scene): MenuItem[] {
     const isLocked = "locked" in item && item.locked;
+    const isPart = type === "chapter" && "is_part" in item && (item as Chapter).is_part;
 
     return [
       {
@@ -539,6 +730,17 @@
         icon: Copy,
         action: () => handleDuplicate(type, item.id),
       },
+      // Convert to Part/Chapter option (only for chapters)
+      ...(type === "chapter"
+        ? [
+            {
+              label: isPart ? "Convert to Chapter" : "Convert to Part",
+              icon: BookOpen,
+              action: () => handleTogglePart(item.id, !isPart),
+              disabled: isLocked,
+            },
+          ]
+        : []),
       { divider: true, label: "", action: () => {} },
       {
         label: isLocked ? "Unlock" : "Lock",
@@ -609,6 +811,15 @@
     }
   }
 
+  async function handleTogglePart(chapterId: string, isPart: boolean) {
+    try {
+      await invoke("set_chapter_is_part", { chapterId, isPart });
+      currentProject.updateChapter(chapterId, { is_part: isPart });
+    } catch (e) {
+      console.error("Failed to toggle part status:", e);
+    }
+  }
+
   async function handleArchive(type: "chapter" | "scene", id: string) {
     try {
       if (type === "chapter") {
@@ -658,6 +869,16 @@
 
     if (project && !importing && !chaptersLoaded) {
       loadChapters();
+    }
+  });
+
+  // Close dropdown when clicking outside
+  $effect(() => {
+    if (showNewDropdown) {
+      document.addEventListener("click", handleClickOutsideDropdown);
+      return () => {
+        document.removeEventListener("click", handleClickOutsideDropdown);
+      };
     }
   });
 </script>
@@ -820,202 +1041,264 @@
       </div>
     {:else}
       <nav class="space-y-1" aria-label="Project outline">
-        {#each currentProject.chapters as chapter (chapter.id)}
-          {@const isExpanded = isChapterExpanded(chapter.id)}
-          {@const isPart = chapter.is_part}
-          <div
-            data-testid={isPart ? "part-item" : "chapter-item"}
-            data-drag-chapter={chapter.id}
-            class="select-none relative rounded-lg"
-            class:ring-2={dragOverId === chapter.id}
-            class:ring-accent={dragOverId === chapter.id}
-            class:mt-4={isPart}
-            onmouseenter={() => (hoveredChapterId = chapter.id)}
-            onmouseleave={() => (hoveredChapterId = null)}
-          >
-            <!-- Part/Chapter row -->
+        {#each partGroups as group, groupIndex (group.part?.id ?? `orphan-${groupIndex}`)}
+          <!-- Part header (if this group has a Part) -->
+          {#if group.part}
+            {@const part = group.part}
+            {@const isPartExpanded = checkPartExpanded(part.id)}
             <div
-              class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group {isPart
-                ? 'bg-accent/10 border-l-2 border-accent'
-                : ''}"
-              class:bg-bg-card={isExpanded && !isPart}
-              class:hover:bg-bg-card={!isExpanded && !isPart}
-              oncontextmenu={(e) => openContextMenu(e, "chapter", chapter)}
+              data-testid="part-item"
+              data-drag-chapter={part.id}
+              class="select-none relative rounded-lg mt-4"
+              class:ring-2={dragOverId === part.id}
+              class:ring-accent={dragOverId === part.id}
+              onmouseenter={() => (hoveredChapterId = part.id)}
+              onmouseleave={() => (hoveredChapterId = null)}
             >
-              <!-- Drag handle -->
+              <!-- Part row -->
               <div
-                data-testid="drag-handle"
-                onmousedown={(e) => onDragHandleMouseDown(e, "chapter", chapter.id)}
-                class="cursor-grab active:cursor-grabbing p-0.5 text-text-secondary hover:text-text-primary transition-opacity"
-                class:opacity-0={hoveredChapterId !== chapter.id}
-                class:opacity-100={hoveredChapterId === chapter.id}
-                role="button"
-                tabindex="-1"
-                aria-label="Drag to reorder"
+                class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group bg-accent/10 border-l-2 border-accent"
+                oncontextmenu={(e) => openContextMenu(e, "chapter", part)}
               >
-                <GripVertical class="w-3.5 h-3.5" />
-              </div>
+                <!-- Drag handle -->
+                <div
+                  data-testid="drag-handle"
+                  onmousedown={(e) => onDragHandleMouseDown(e, "chapter", part.id)}
+                  class="cursor-grab active:cursor-grabbing p-0.5 text-text-secondary hover:text-text-primary transition-opacity"
+                  class:opacity-0={hoveredChapterId !== part.id}
+                  class:opacity-100={hoveredChapterId === part.id}
+                  role="button"
+                  tabindex="-1"
+                  aria-label="Drag to reorder"
+                >
+                  <GripVertical class="w-3.5 h-3.5" />
+                </div>
 
-              <button
-                onclick={() => toggleChapter(chapter)}
-                class="flex-1 flex items-center gap-2 text-left min-w-0"
-                aria-expanded={isExpanded}
-              >
-                <!-- Expand/collapse chevron (only for regular chapters) -->
-                {#if !isPart}
+                <button
+                  onclick={() => togglePartExpanded(part.id)}
+                  class="flex-1 flex items-center gap-2 text-left min-w-0"
+                  aria-expanded={isPartExpanded}
+                >
+                  <!-- Part expand/collapse chevron -->
                   <ChevronRight
-                    class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0 {isExpanded
+                    class="w-4 h-4 text-accent transition-transform flex-shrink-0 {isPartExpanded
                       ? 'rotate-90'
                       : ''}"
                   />
-                {/if}
-                <!-- Part or Chapter icon -->
-                {#if isPart}
                   <BookOpen class="w-4 h-4 text-accent flex-shrink-0" />
-                {:else}
-                  <Folder class="w-4 h-4 text-text-secondary flex-shrink-0" />
-                {/if}
-                <!-- Lock indicator -->
-                {#if chapter.locked}
-                  <Lock class="w-3 h-3 text-amber-500 flex-shrink-0" />
-                {/if}
-                <span
-                  data-testid={isPart ? "part-title" : "chapter-title"}
-                  class="font-medium text-sm truncate"
-                  class:text-accent={isPart}
-                  class:font-semibold={isPart}
-                  class:uppercase={isPart}
-                  class:tracking-wider={isPart}
-                  class:text-xs={isPart}
-                  class:text-text-primary={!isPart}
-                  class:opacity-60={chapter.locked}>{chapter.title}</span
-                >
-              </button>
-
-              <!-- Three-dot menu button -->
-              <button
-                data-testid="menu-button"
-                onclick={(e) => openContextMenu(e, "chapter", chapter)}
-                class="p-1 text-text-secondary hover:text-text-primary transition-opacity flex-shrink-0"
-                class:opacity-0={hoveredChapterId !== chapter.id}
-                class:opacity-100={hoveredChapterId === chapter.id}
-                aria-label="{isPart ? 'Part' : 'Chapter'} menu"
-              >
-                <MoreVertical class="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <!-- Scenes (collapsible) -->
-            {#if isExpanded && currentProject.currentChapter?.id === chapter.id}
-              <div class="ml-6 mt-1 space-y-0.5 border-l border-bg-card pl-2">
-                {#each currentProject.scenes as scene (scene.id)}
-                  {@const isSelected = currentProject.currentScene?.id === scene.id}
-                  {@const isLocked = scene.locked || chapter.locked}
-                  <div
-                    data-drag-scene={scene.id}
-                    data-testid="scene-item"
-                    class="relative flex items-center gap-1 py-0.5"
-                    class:ring-2={dragOverId === scene.id}
-                    class:ring-accent={dragOverId === scene.id}
-                    onmouseenter={() => (hoveredSceneId = scene.id)}
-                    onmouseleave={() => (hoveredSceneId = null)}
-                    oncontextmenu={(e) => openContextMenu(e, "scene", scene)}
+                  {#if part.locked}
+                    <Lock class="w-3 h-3 text-amber-500 flex-shrink-0" />
+                  {/if}
+                  <span
+                    data-testid="part-title"
+                    class="font-semibold text-xs uppercase tracking-wider truncate text-accent"
+                    class:opacity-60={part.locked}>{part.title}</span
                   >
-                    <!-- Scene drag handle -->
+                </button>
+
+                <!-- Three-dot menu button -->
+                <button
+                  data-testid="menu-button"
+                  onclick={(e) => openContextMenu(e, "chapter", part)}
+                  class="p-1 text-text-secondary hover:text-text-primary transition-opacity flex-shrink-0"
+                  class:opacity-0={hoveredChapterId !== part.id}
+                  class:opacity-100={hoveredChapterId === part.id}
+                  aria-label="Part menu"
+                >
+                  <MoreVertical class="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          {/if}
+
+          <!-- Chapters in this group (collapsible under Part) -->
+          {#if !group.part || checkPartExpanded(group.part.id)}
+            <div class={group.part ? "ml-2" : ""}>
+              {#each group.chapters as chapter (chapter.id)}
+                {@const isExpanded = isChapterExpanded(chapter.id)}
+                <div
+                  data-testid="chapter-item"
+                  data-drag-chapter={chapter.id}
+                  class="select-none relative rounded-lg"
+                  class:ring-2={dragOverId === chapter.id}
+                  class:ring-accent={dragOverId === chapter.id}
+                  onmouseenter={() => (hoveredChapterId = chapter.id)}
+                  onmouseleave={() => (hoveredChapterId = null)}
+                >
+                  <!-- Chapter row -->
+                  <div
+                    class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group"
+                    class:bg-bg-card={isExpanded}
+                    class:hover:bg-bg-card={!isExpanded}
+                    oncontextmenu={(e) => openContextMenu(e, "chapter", chapter)}
+                  >
+                    <!-- Drag handle -->
                     <div
                       data-testid="drag-handle"
-                      onmousedown={(e) => onDragHandleMouseDown(e, "scene", scene.id)}
-                      class="cursor-grab active:cursor-grabbing p-0.5 transition-opacity flex-shrink-0"
-                      class:text-white={isSelected}
-                      class:text-text-secondary={!isSelected}
-                      class:opacity-0={hoveredSceneId !== scene.id}
-                      class:opacity-100={hoveredSceneId === scene.id}
+                      onmousedown={(e) => onDragHandleMouseDown(e, "chapter", chapter.id)}
+                      class="cursor-grab active:cursor-grabbing p-0.5 text-text-secondary hover:text-text-primary transition-opacity"
+                      class:opacity-0={hoveredChapterId !== chapter.id}
+                      class:opacity-100={hoveredChapterId === chapter.id}
                       role="button"
                       tabindex="-1"
                       aria-label="Drag to reorder"
                     >
-                      <GripVertical class="w-3 h-3" />
+                      <GripVertical class="w-3.5 h-3.5" />
                     </div>
 
                     <button
-                      onclick={() => selectScene(scene)}
-                      class="flex-1 flex items-center gap-2 text-left px-2 py-1 rounded text-sm transition-colors min-w-0"
-                      class:bg-accent={isSelected}
-                      class:text-white={isSelected}
-                      class:text-text-secondary={!isSelected}
-                      class:hover:bg-bg-card={!isSelected}
-                      class:hover:text-text-primary={!isSelected}
+                      onclick={() => toggleChapter(chapter)}
+                      class="flex-1 flex items-center gap-2 text-left min-w-0"
+                      aria-expanded={isExpanded}
                     >
-                      <!-- Scene icon -->
-                      <FileText
-                        class="w-3.5 h-3.5 flex-shrink-0 {isSelected
-                          ? 'text-white'
-                          : 'text-text-secondary'}"
+                      <!-- Expand/collapse chevron -->
+                      <ChevronRight
+                        class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0 {isExpanded
+                          ? 'rotate-90'
+                          : ''}"
                       />
-                      <!-- Lock indicator -->
-                      {#if isLocked}
-                        <Lock
-                          class="w-3 h-3 flex-shrink-0 {isSelected
-                            ? 'text-white'
-                            : 'text-amber-500'}"
-                        />
+                      <Folder class="w-4 h-4 text-text-secondary flex-shrink-0" />
+                      {#if chapter.locked}
+                        <Lock class="w-3 h-3 text-amber-500 flex-shrink-0" />
                       {/if}
-                      <span data-testid="scene-title" class="truncate" class:opacity-60={isLocked}
-                        >{scene.title}</span
+                      <span
+                        data-testid="chapter-title"
+                        class="font-medium text-sm truncate text-text-primary"
+                        class:opacity-60={chapter.locked}>{chapter.title}</span
                       >
                     </button>
 
-                    <!-- Scene menu button -->
+                    <!-- Three-dot menu button -->
                     <button
                       data-testid="menu-button"
-                      onclick={(e) => openContextMenu(e, "scene", scene)}
-                      class="p-0.5 transition-opacity flex-shrink-0"
-                      class:text-white={isSelected}
-                      class:text-text-secondary={!isSelected}
-                      class:opacity-0={hoveredSceneId !== scene.id}
-                      class:opacity-100={hoveredSceneId === scene.id}
-                      aria-label="Scene menu"
+                      onclick={(e) => openContextMenu(e, "chapter", chapter)}
+                      class="p-1 text-text-secondary hover:text-text-primary transition-opacity flex-shrink-0"
+                      class:opacity-0={hoveredChapterId !== chapter.id}
+                      class:opacity-100={hoveredChapterId === chapter.id}
+                      aria-label="Chapter menu"
                     >
-                      <MoreVertical class="w-3 h-3" />
+                      <MoreVertical class="w-3.5 h-3.5" />
                     </button>
                   </div>
-                {/each}
 
-                <!-- New Scene Button or Input -->
-                {#if creatingScene}
-                  <div class="px-2 py-1">
-                    <input
-                      data-testid="title-input"
-                      type="text"
-                      bind:value={newTitle}
-                      onkeydown={handleCreateKeydown}
-                      onblur={cancelCreate}
-                      placeholder="Scene title..."
-                      class="w-full px-2 py-1 text-sm bg-bg-card border border-accent rounded focus:outline-none text-text-primary"
-                      autofocus
-                    />
-                  </div>
-                {:else}
-                  <button
-                    data-testid="new-scene-button"
-                    onclick={startCreatingScene}
-                    class="w-full flex items-center gap-2 px-2 py-1 rounded text-xs text-text-secondary hover:text-text-primary hover:bg-bg-card transition-colors"
-                  >
-                    <Plus class="w-3 h-3" />
-                    New Scene
-                  </button>
-                {/if}
+                  <!-- Scenes (collapsible) -->
+                  {#if isExpanded && currentProject.currentChapter?.id === chapter.id}
+                    <div class="ml-6 mt-1 space-y-0.5 border-l border-bg-card pl-2">
+                      {#each currentProject.scenes as scene (scene.id)}
+                        {@const isSelected = currentProject.currentScene?.id === scene.id}
+                        {@const isLocked = scene.locked || chapter.locked}
+                        <div
+                          data-drag-scene={scene.id}
+                          data-testid="scene-item"
+                          class="relative flex items-center gap-1 py-0.5"
+                          class:ring-2={dragOverId === scene.id}
+                          class:ring-accent={dragOverId === scene.id}
+                          onmouseenter={() => (hoveredSceneId = scene.id)}
+                          onmouseleave={() => (hoveredSceneId = null)}
+                          oncontextmenu={(e) => openContextMenu(e, "scene", scene)}
+                        >
+                          <!-- Scene drag handle -->
+                          <div
+                            data-testid="drag-handle"
+                            onmousedown={(e) => onDragHandleMouseDown(e, "scene", scene.id)}
+                            class="cursor-grab active:cursor-grabbing p-0.5 transition-opacity flex-shrink-0"
+                            class:text-white={isSelected}
+                            class:text-text-secondary={!isSelected}
+                            class:opacity-0={hoveredSceneId !== scene.id}
+                            class:opacity-100={hoveredSceneId === scene.id}
+                            role="button"
+                            tabindex="-1"
+                            aria-label="Drag to reorder"
+                          >
+                            <GripVertical class="w-3 h-3" />
+                          </div>
 
-                {#if currentProject.scenes.length === 0 && !creatingScene}
-                  <span class="text-text-secondary text-xs px-2 py-1 italic">No scenes yet</span>
-                {/if}
-              </div>
-            {/if}
-          </div>
+                          <button
+                            onclick={() => selectScene(scene)}
+                            class="flex-1 flex items-center gap-2 text-left px-2 py-1 rounded text-sm transition-colors min-w-0"
+                            class:bg-accent={isSelected}
+                            class:text-white={isSelected}
+                            class:text-text-secondary={!isSelected}
+                            class:hover:bg-bg-card={!isSelected}
+                            class:hover:text-text-primary={!isSelected}
+                          >
+                            <!-- Scene icon -->
+                            <FileText
+                              class="w-3.5 h-3.5 flex-shrink-0 {isSelected
+                                ? 'text-white'
+                                : 'text-text-secondary'}"
+                            />
+                            <!-- Lock indicator -->
+                            {#if isLocked}
+                              <Lock
+                                class="w-3 h-3 flex-shrink-0 {isSelected
+                                  ? 'text-white'
+                                  : 'text-amber-500'}"
+                              />
+                            {/if}
+                            <span
+                              data-testid="scene-title"
+                              class="truncate"
+                              class:opacity-60={isLocked}>{scene.title}</span
+                            >
+                          </button>
+
+                          <!-- Scene menu button -->
+                          <button
+                            data-testid="menu-button"
+                            onclick={(e) => openContextMenu(e, "scene", scene)}
+                            class="p-0.5 transition-opacity flex-shrink-0"
+                            class:text-white={isSelected}
+                            class:text-text-secondary={!isSelected}
+                            class:opacity-0={hoveredSceneId !== scene.id}
+                            class:opacity-100={hoveredSceneId === scene.id}
+                            aria-label="Scene menu"
+                          >
+                            <MoreVertical class="w-3 h-3" />
+                          </button>
+                        </div>
+                      {/each}
+
+                      <!-- New Scene Button or Input -->
+                      {#if creatingScene}
+                        <div class="px-2 py-1">
+                          <input
+                            data-testid="title-input"
+                            type="text"
+                            bind:value={newTitle}
+                            onkeydown={handleCreateKeydown}
+                            onblur={cancelCreate}
+                            placeholder="Scene title..."
+                            class="w-full px-2 py-1 text-sm bg-bg-card border border-accent rounded focus:outline-none text-text-primary"
+                            autofocus
+                          />
+                        </div>
+                      {:else}
+                        <button
+                          data-testid="new-scene-button"
+                          onclick={startCreatingScene}
+                          class="w-full flex items-center gap-2 px-2 py-1 rounded text-xs text-text-secondary hover:text-text-primary hover:bg-bg-card transition-colors"
+                        >
+                          <Plus class="w-3 h-3" />
+                          New Scene
+                        </button>
+                      {/if}
+
+                      {#if currentProject.scenes.length === 0 && !creatingScene}
+                        <span class="text-text-secondary text-xs px-2 py-1 italic"
+                          >No scenes yet</span
+                        >
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
         {/each}
 
-        <!-- New Chapter Button or Input -->
-        {#if creatingChapter}
+        <!-- New Chapter/Part Button or Input -->
+        {#if creatingChapter || creatingPart}
           <div class="px-2 py-1">
             <input
               data-testid="title-input"
@@ -1023,20 +1306,61 @@
               bind:value={newTitle}
               onkeydown={handleCreateKeydown}
               onblur={cancelCreate}
-              placeholder="Chapter title..."
+              placeholder={creatingPart ? "Part title..." : "Chapter title..."}
               class="w-full px-2 py-1 text-sm bg-bg-card border border-accent rounded focus:outline-none text-text-primary"
               autofocus
             />
           </div>
         {:else}
-          <button
-            data-testid="new-chapter-button"
-            onclick={startCreatingChapter}
-            class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-bg-card transition-colors"
-          >
-            <Plus class="w-4 h-4" />
-            New Chapter
-          </button>
+          <!-- Split button: New Chapter (default) with dropdown for New Part -->
+          <div class="relative mt-2" bind:this={newButtonRef}>
+            <div
+              class="flex items-stretch rounded-lg bg-bg-card border border-bg-card hover:border-accent/50 transition-colors"
+            >
+              <!-- Main action: New Chapter -->
+              <button
+                data-testid="new-chapter-button"
+                onclick={startCreatingChapter}
+                class="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors rounded-l-lg"
+              >
+                <Plus class="w-4 h-4" />
+                New Chapter
+              </button>
+              <!-- Dropdown trigger -->
+              <button
+                data-testid="new-dropdown-button"
+                onclick={() => (showNewDropdown = !showNewDropdown)}
+                class="px-2 py-2 text-text-secondary hover:text-text-primary transition-colors border-l border-bg-panel hover:bg-bg-panel rounded-r-lg"
+                aria-label="More options"
+              >
+                <ChevronDown class="w-4 h-4" />
+              </button>
+            </div>
+
+            <!-- Dropdown menu -->
+            {#if showNewDropdown}
+              <div
+                class="absolute left-0 right-0 mt-1 bg-bg-panel border border-bg-card rounded-lg shadow-lg py-1 z-50"
+              >
+                <button
+                  data-testid="dropdown-new-chapter"
+                  onclick={startCreatingChapter}
+                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-card transition-colors"
+                >
+                  <Folder class="w-4 h-4" />
+                  New Chapter
+                </button>
+                <button
+                  data-testid="dropdown-new-part"
+                  onclick={startCreatingPart}
+                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-card transition-colors"
+                >
+                  <BookOpen class="w-4 h-4" />
+                  New Part
+                </button>
+              </div>
+            {/if}
+          </div>
         {/if}
       </nav>
     {/if}
@@ -1073,6 +1397,17 @@
     message={deleteDialog.message}
     onConfirm={executeDelete}
     onCancel={() => (deleteDialog = null)}
+  />
+{/if}
+
+<!-- Part Delete Dialog (with options) -->
+{#if partDeleteDialog}
+  <PartDeleteDialog
+    partTitle={partDeleteDialog.partTitle}
+    childChapterCount={partDeleteDialog.childChapterIds.length}
+    onDeletePartOnly={executeDeletePartOnly}
+    onDeletePartAndChapters={executeDeletePartAndChapters}
+    onCancel={() => (partDeleteDialog = null)}
   />
 {/if}
 
