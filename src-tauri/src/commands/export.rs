@@ -1646,7 +1646,8 @@ fn add_beat_to_docx(
 
             para = para
                 .style("BodyText")
-                .line_spacing(LineSpacing::new().line(line_spacing_twips));
+                .line_spacing(LineSpacing::new().line(line_spacing_twips))
+                .widow_control(true);
 
             // Apply styling based on paragraph type
             match formatted_para.paragraph_type {
