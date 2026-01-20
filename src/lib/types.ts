@@ -199,6 +199,15 @@ export type ChapterHeadingStyle =
   | "number_arabic"
   | "number_arabic_and_title";
 
+/** Scene break marker style for DOCX export */
+export type SceneBreakStyle = "hash" | "asterisks" | "asterism" | "blank_line";
+
+/** Font family for DOCX export */
+export type FontFamily = "courier_new" | "times_new_roman";
+
+/** Line spacing option for DOCX export */
+export type LineSpacingOption = "single" | "one_and_half" | "double";
+
 /** Options for DOCX export */
 export interface DocxExportOptions {
   /** What to export (project, chapter, or scene) */
@@ -217,6 +226,12 @@ export interface DocxExportOptions {
   include_title_page?: boolean;
   /** Chapter heading style */
   chapter_heading_style?: ChapterHeadingStyle;
+  /** Scene break marker style */
+  scene_break_style?: SceneBreakStyle;
+  /** Font family for body text */
+  font_family?: FontFamily;
+  /** Line spacing for body text */
+  line_spacing?: LineSpacingOption;
 }
 
 /** Result of an export operation */

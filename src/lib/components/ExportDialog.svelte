@@ -19,6 +19,9 @@
     DocxExportOptions,
     ExportScope,
     ChapterHeadingStyle,
+    SceneBreakStyle,
+    FontFamily,
+    LineSpacingOption,
   } from "../types";
   import Tooltip from "./Tooltip.svelte";
 
@@ -39,11 +42,14 @@
   } = $props();
 
   let exportFormat = $state<"markdown" | "docx">("docx");
-  let includeBeatMarkers = $state(true);
-  let includeSynopsis = $state(true);
+  let includeBeatMarkers = $state(false);
+  let includeSynopsis = $state(false);
   let pageBreaksBetweenChapters = $state(true);
   let includeTitlePage = $state(true);
   let chapterHeadingStyle = $state<ChapterHeadingStyle>("number_only");
+  let sceneBreakStyle = $state<SceneBreakStyle>("hash");
+  let fontFamily = $state<FontFamily>("courier_new");
+  let lineSpacing = $state<LineSpacingOption>("double");
   let deleteExisting = $state(false);
   let createSnapshot = $state(false);
   let outputPath = $state("");
@@ -63,6 +69,27 @@
       label: "Arabic and Title",
       example: "CHAPTER 1: THE BEGINNING",
     },
+  ];
+
+  // Scene break style options
+  const sceneBreakStyles: { value: SceneBreakStyle; label: string; example: string }[] = [
+    { value: "hash", label: "Hash Mark", example: "#" },
+    { value: "asterisks", label: "Three Asterisks", example: "* * *" },
+    { value: "asterism", label: "Asterism", example: "⁂" },
+    { value: "blank_line", label: "Blank Line", example: "(blank)" },
+  ];
+
+  // Font family options
+  const fontFamilies: { value: FontFamily; label: string }[] = [
+    { value: "courier_new", label: "Courier New" },
+    { value: "times_new_roman", label: "Times New Roman" },
+  ];
+
+  // Line spacing options
+  const lineSpacingOptions: { value: LineSpacingOption; label: string }[] = [
+    { value: "single", label: "Single" },
+    { value: "one_and_half", label: "1.5 Lines" },
+    { value: "double", label: "Double" },
   ];
 
   // Initialize export name from project name
@@ -164,6 +191,9 @@
           page_breaks_between_chapters: pageBreaksBetweenChapters,
           include_title_page: includeTitlePage,
           chapter_heading_style: chapterHeadingStyle,
+          scene_break_style: sceneBreakStyle,
+          font_family: fontFamily,
+          line_spacing: lineSpacing,
         };
 
         result = await invoke<ExportResult>("export_to_docx", {
@@ -309,6 +339,55 @@
                 Example: {chapterHeadingStyles.find((s) => s.value === chapterHeadingStyle)
                   ?.example}
               </p>
+            </div>
+
+            <!-- Scene Break Style -->
+            <div class="pt-2">
+              <label for="scene-break-style" class="block text-sm text-text-secondary mb-1">
+                Scene Break Style
+              </label>
+              <select
+                id="scene-break-style"
+                bind:value={sceneBreakStyle}
+                class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
+              >
+                {#each sceneBreakStyles as style}
+                  <option value={style.value}>{style.label}</option>
+                {/each}
+              </select>
+              <p class="text-xs text-text-secondary mt-1">
+                Example: {sceneBreakStyles.find((s) => s.value === sceneBreakStyle)?.example}
+              </p>
+            </div>
+
+            <!-- Font Family -->
+            <div class="pt-2">
+              <label for="font-family" class="block text-sm text-text-secondary mb-1"> Font </label>
+              <select
+                id="font-family"
+                bind:value={fontFamily}
+                class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
+              >
+                {#each fontFamilies as font}
+                  <option value={font.value}>{font.label}</option>
+                {/each}
+              </select>
+            </div>
+
+            <!-- Line Spacing -->
+            <div class="pt-2">
+              <label for="line-spacing" class="block text-sm text-text-secondary mb-1">
+                Line Spacing
+              </label>
+              <select
+                id="line-spacing"
+                bind:value={lineSpacing}
+                class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
+              >
+                {#each lineSpacingOptions as spacing}
+                  <option value={spacing.value}>{spacing.label}</option>
+                {/each}
+              </select>
             </div>
           {/if}
           {#if exportFormat === "markdown"}
