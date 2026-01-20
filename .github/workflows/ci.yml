@@ -3,8 +3,18 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "*.md"
+      - "docs/**"
+      - ".github/*.md"
+      - "LICENSE"
   pull_request:
     branches: [main]
+    paths-ignore:
+      - "*.md"
+      - "docs/**"
+      - ".github/*.md"
+      - "LICENSE"
   schedule:
     # Weekly build verification (Sundays at midnight UTC)
     - cron: "0 0 * * 0"

@@ -3,8 +3,18 @@ name: E2E Tests
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "*.md"
+      - "docs/**"
+      - ".github/*.md"
+      - "LICENSE"
   pull_request:
     branches: [main]
+    paths-ignore:
+      - "*.md"
+      - "docs/**"
+      - ".github/*.md"
+      - "LICENSE"
   # Allow manual trigger
   workflow_dispatch:
 
