@@ -11,7 +11,17 @@
   /* eslint-disable no-undef */
   import { invoke } from "@tauri-apps/api/core";
   import { open, save } from "@tauri-apps/plugin-dialog";
-  import { X, Loader2, FolderOpen, FileText } from "lucide-svelte";
+  import {
+    X,
+    Loader2,
+    FolderOpen,
+    FileText,
+    FileDown,
+    Type,
+    AlignLeft,
+    BookOpen,
+    ChevronDown,
+  } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import type {
     ExportResult,
@@ -19,6 +29,9 @@
     DocxExportOptions,
     ExportScope,
     ChapterHeadingStyle,
+    SceneBreakStyle,
+    FontFamily,
+    LineSpacingOption,
   } from "../types";
   import Tooltip from "./Tooltip.svelte";
 
@@ -39,11 +52,14 @@
   } = $props();
 
   let exportFormat = $state<"markdown" | "docx">("docx");
-  let includeBeatMarkers = $state(true);
-  let includeSynopsis = $state(true);
+  let includeBeatMarkers = $state(false);
+  let includeSynopsis = $state(false);
   let pageBreaksBetweenChapters = $state(true);
   let includeTitlePage = $state(true);
   let chapterHeadingStyle = $state<ChapterHeadingStyle>("number_only");
+  let sceneBreakStyle = $state<SceneBreakStyle>("hash");
+  let fontFamily = $state<FontFamily>("courier_new");
+  let lineSpacing = $state<LineSpacingOption>("double");
   let deleteExisting = $state(false);
   let createSnapshot = $state(false);
   let outputPath = $state("");
@@ -63,6 +79,27 @@
       label: "Arabic and Title",
       example: "CHAPTER 1: THE BEGINNING",
     },
+  ];
+
+  // Scene break style options
+  const sceneBreakStyles: { value: SceneBreakStyle; label: string; example: string }[] = [
+    { value: "hash", label: "Hash Mark", example: "#" },
+    { value: "asterisks", label: "Three Asterisks", example: "* * *" },
+    { value: "asterism", label: "Asterism", example: "⁂" },
+    { value: "blank_line", label: "Blank Line", example: "(blank)" },
+  ];
+
+  // Font family options
+  const fontFamilies: { value: FontFamily; label: string }[] = [
+    { value: "courier_new", label: "Courier New" },
+    { value: "times_new_roman", label: "Times New Roman" },
+  ];
+
+  // Line spacing options
+  const lineSpacingOptions: { value: LineSpacingOption; label: string }[] = [
+    { value: "single", label: "Single" },
+    { value: "one_and_half", label: "1.5 Lines" },
+    { value: "double", label: "Double" },
   ];
 
   // Initialize export name from project name
@@ -164,6 +201,9 @@
           page_breaks_between_chapters: pageBreaksBetweenChapters,
           include_title_page: includeTitlePage,
           chapter_heading_style: chapterHeadingStyle,
+          scene_break_style: sceneBreakStyle,
+          font_family: fontFamily,
+          line_spacing: lineSpacing,
         };
 
         result = await invoke<ExportResult>("export_to_docx", {
@@ -206,17 +246,27 @@
   aria-labelledby="export-dialog-title"
 >
   <!-- Dialog -->
-  <div class="bg-bg-panel rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
+  <div
+    class="bg-bg-panel rounded-lg shadow-xl w-full max-w-lg mx-4 overflow-hidden max-h-[90vh] flex flex-col"
+  >
     <!-- Header -->
-    <div class="flex items-center justify-between px-4 py-3 border-b border-bg-card">
-      <h2 id="export-dialog-title" class="text-lg font-medium text-text-primary">
-        Export {scopeTitle}
-      </h2>
+    <div class="flex items-center justify-between px-5 py-4 border-b border-bg-card flex-shrink-0">
+      <div class="flex items-center gap-3">
+        <div class="p-2 bg-accent/10 rounded-lg">
+          <FileDown class="w-5 h-5 text-accent" />
+        </div>
+        <div>
+          <h2 id="export-dialog-title" class="text-lg font-medium text-text-primary">
+            Export {scopeTitle}
+          </h2>
+          <p class="text-xs text-text-secondary">Choose format and configure options</p>
+        </div>
+      </div>
       <Tooltip text="Close" position="left">
         <button
           type="button"
           onclick={onClose}
-          class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
+          class="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-card transition-colors rounded-lg"
           aria-label="Close"
         >
           <X class="w-5 h-5" />
@@ -225,115 +275,318 @@
     </div>
 
     <!-- Content -->
-    <div class="p-4 space-y-4">
-      <!-- Format Selection -->
+    <div class="p-5 space-y-5 overflow-y-auto flex-1">
+      <!-- Format Selection - Card Style -->
       <fieldset>
-        <legend class="block text-sm font-medium text-text-secondary mb-2">Format</legend>
-        <div class="space-y-2">
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input
-              type="radio"
-              name="format"
-              value="markdown"
-              bind:group={exportFormat}
-              class="w-4 h-4 text-accent bg-bg-card border-bg-card focus:ring-accent"
-            />
-            <span class="text-text-primary">Markdown (.md files)</span>
-          </label>
-          <label class="flex items-center gap-2 cursor-pointer">
+        <legend class="block text-sm font-medium text-text-secondary mb-3">Export Format</legend>
+        <div class="grid grid-cols-2 gap-3">
+          <label
+            class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
+            'docx'
+              ? 'border-accent bg-accent/5'
+              : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+          >
             <input
               type="radio"
               name="format"
               value="docx"
               bind:group={exportFormat}
-              class="w-4 h-4 text-accent bg-bg-card border-bg-card focus:ring-accent"
+              class="sr-only"
             />
-            <span class="text-text-primary">Word Document (.docx)</span>
+            <FileText
+              class="w-8 h-8 mb-2 {exportFormat === 'docx' ? 'text-accent' : 'text-text-secondary'}"
+            />
+            <span
+              class="text-sm font-medium {exportFormat === 'docx'
+                ? 'text-text-primary'
+                : 'text-text-secondary'}">Word Document</span
+            >
+            <span class="text-xs text-text-secondary mt-0.5">.docx</span>
+            {#if exportFormat === "docx"}
+              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
+            {/if}
+          </label>
+
+          <label
+            class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
+            'markdown'
+              ? 'border-accent bg-accent/5'
+              : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+          >
+            <input
+              type="radio"
+              name="format"
+              value="markdown"
+              bind:group={exportFormat}
+              class="sr-only"
+            />
+            <BookOpen
+              class="w-8 h-8 mb-2 {exportFormat === 'markdown'
+                ? 'text-accent'
+                : 'text-text-secondary'}"
+            />
+            <span
+              class="text-sm font-medium {exportFormat === 'markdown'
+                ? 'text-text-primary'
+                : 'text-text-secondary'}">Markdown</span
+            >
+            <span class="text-xs text-text-secondary mt-0.5">.md files</span>
+            {#if exportFormat === "markdown"}
+              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
+            {/if}
           </label>
         </div>
       </fieldset>
 
-      <!-- Options -->
-      <fieldset>
-        <legend class="block text-sm font-medium text-text-secondary mb-2">Options</legend>
-        <div class="space-y-2">
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              bind:checked={includeBeatMarkers}
-              class="w-4 h-4 text-accent bg-bg-card border-bg-card rounded focus:ring-accent"
-            />
-            <span class="text-text-primary">Include beat markers as headings</span>
-          </label>
-          {#if exportFormat === "docx"}
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                bind:checked={includeTitlePage}
-                class="w-4 h-4 text-accent bg-bg-card border-bg-card rounded focus:ring-accent"
-              />
-              <span class="text-text-primary">Include title page</span>
-            </label>
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                bind:checked={includeSynopsis}
-                class="w-4 h-4 text-accent bg-bg-card border-bg-card rounded focus:ring-accent"
-              />
-              <span class="text-text-primary">Include scene synopses</span>
-            </label>
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                bind:checked={pageBreaksBetweenChapters}
-                class="w-4 h-4 text-accent bg-bg-card border-bg-card rounded focus:ring-accent"
-              />
-              <span class="text-text-primary">Page breaks between chapters</span>
+      {#if exportFormat === "docx"}
+        <!-- DOCX Options Section -->
+        <fieldset>
+          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+            <Type class="w-4 h-4" />
+            Document Structure
+          </legend>
+
+          <!-- Toggle Options -->
+          <div class="space-y-2 mb-4">
+            <label
+              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors group"
+            >
+              <div class="flex items-center gap-3">
+                <span class="text-sm text-text-primary">Include title page</span>
+              </div>
+              <div class="relative">
+                <input type="checkbox" bind:checked={includeTitlePage} class="peer sr-only" />
+                <div
+                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                ></div>
+                <div
+                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                ></div>
+              </div>
             </label>
 
+            <label
+              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+            >
+              <span class="text-sm text-text-primary">Page breaks between chapters</span>
+              <div class="relative">
+                <input
+                  type="checkbox"
+                  bind:checked={pageBreaksBetweenChapters}
+                  class="peer sr-only"
+                />
+                <div
+                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                ></div>
+                <div
+                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                ></div>
+              </div>
+            </label>
+
+            <label
+              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+            >
+              <span class="text-sm text-text-primary">Include beat markers as headings</span>
+              <div class="relative">
+                <input type="checkbox" bind:checked={includeBeatMarkers} class="peer sr-only" />
+                <div
+                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                ></div>
+                <div
+                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                ></div>
+              </div>
+            </label>
+
+            <label
+              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+            >
+              <span class="text-sm text-text-primary">Include scene synopses</span>
+              <div class="relative">
+                <input type="checkbox" bind:checked={includeSynopsis} class="peer sr-only" />
+                <div
+                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                ></div>
+                <div
+                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                ></div>
+              </div>
+            </label>
+          </div>
+
+          <!-- Dropdown Selects -->
+          <div class="grid grid-cols-2 gap-3">
             <!-- Chapter Heading Style -->
-            <div class="pt-2">
-              <label for="chapter-heading-style" class="block text-sm text-text-secondary mb-1">
-                Chapter Heading Style
+            <div>
+              <label for="chapter-heading-style" class="block text-xs text-text-secondary mb-1.5">
+                Chapter Heading
               </label>
-              <select
-                id="chapter-heading-style"
-                bind:value={chapterHeadingStyle}
-                class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
-              >
-                {#each chapterHeadingStyles as style}
-                  <option value={style.value}>{style.label}</option>
-                {/each}
-              </select>
-              <p class="text-xs text-text-secondary mt-1">
-                Example: {chapterHeadingStyles.find((s) => s.value === chapterHeadingStyle)
-                  ?.example}
+              <div class="relative">
+                <select
+                  id="chapter-heading-style"
+                  bind:value={chapterHeadingStyle}
+                  class="w-full appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer"
+                >
+                  {#each chapterHeadingStyles as style}
+                    <option value={style.value}>{style.label}</option>
+                  {/each}
+                </select>
+                <ChevronDown
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                />
+              </div>
+              <p class="text-xs text-text-secondary/70 mt-1 truncate">
+                {chapterHeadingStyles.find((s) => s.value === chapterHeadingStyle)?.example}
               </p>
             </div>
-          {/if}
-          {#if exportFormat === "markdown"}
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                bind:checked={deleteExisting}
-                class="w-4 h-4 text-accent bg-bg-card border-bg-card rounded focus:ring-accent"
-              />
-              <span class="text-text-primary">Delete existing export folder</span>
-            </label>
-          {/if}
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              bind:checked={createSnapshot}
-              class="w-4 h-4 text-accent bg-bg-card border-bg-card rounded focus:ring-accent"
-            />
-            <span class="text-text-primary">Create snapshot before exporting</span>
-          </label>
-        </div>
-      </fieldset>
 
-      {#if exportFormat === "markdown"}
-        <!-- Export Name (Markdown only) -->
+            <!-- Scene Break Style -->
+            <div>
+              <label for="scene-break-style" class="block text-xs text-text-secondary mb-1.5">
+                Scene Break
+              </label>
+              <div class="relative">
+                <select
+                  id="scene-break-style"
+                  bind:value={sceneBreakStyle}
+                  class="w-full appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer"
+                >
+                  {#each sceneBreakStyles as style}
+                    <option value={style.value}>{style.label}</option>
+                  {/each}
+                </select>
+                <ChevronDown
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                />
+              </div>
+              <p class="text-xs text-text-secondary/70 mt-1">
+                {sceneBreakStyles.find((s) => s.value === sceneBreakStyle)?.example}
+              </p>
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- Typography Section -->
+        <fieldset>
+          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+            <AlignLeft class="w-4 h-4" />
+            Typography
+          </legend>
+          <div class="grid grid-cols-2 gap-3">
+            <!-- Font Family -->
+            <div>
+              <label for="font-family" class="block text-xs text-text-secondary mb-1.5">
+                Font
+              </label>
+              <div class="relative">
+                <select
+                  id="font-family"
+                  bind:value={fontFamily}
+                  class="w-full appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer"
+                >
+                  {#each fontFamilies as font}
+                    <option value={font.value}>{font.label}</option>
+                  {/each}
+                </select>
+                <ChevronDown
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                />
+              </div>
+            </div>
+
+            <!-- Line Spacing -->
+            <div>
+              <label for="line-spacing" class="block text-xs text-text-secondary mb-1.5">
+                Line Spacing
+              </label>
+              <div class="relative">
+                <select
+                  id="line-spacing"
+                  bind:value={lineSpacing}
+                  class="w-full appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer"
+                >
+                  {#each lineSpacingOptions as spacing}
+                    <option value={spacing.value}>{spacing.label}</option>
+                  {/each}
+                </select>
+                <ChevronDown
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                />
+              </div>
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- Save Location -->
+        <div>
+          <label for="docx-destination" class="block text-sm font-medium text-text-secondary mb-2">
+            Save Location
+          </label>
+          <div class="flex gap-2">
+            <input
+              id="docx-destination"
+              type="text"
+              readonly
+              value={docxFilePath}
+              placeholder="Choose where to save..."
+              class="flex-1 bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer truncate"
+              onclick={selectDocxFile}
+            />
+            <Tooltip text="Browse" position="top">
+              <button
+                type="button"
+                onclick={selectDocxFile}
+                class="px-3 py-2.5 bg-bg-card text-text-secondary rounded-lg hover:bg-beat-header hover:text-text-primary transition-colors border border-bg-card"
+                aria-label="Choose save location"
+              >
+                <FileText class="w-5 h-5" />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+      {:else}
+        <!-- Markdown Options -->
+        <fieldset>
+          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+            <Type class="w-4 h-4" />
+            Options
+          </legend>
+
+          <div class="space-y-2 mb-4">
+            <label
+              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+            >
+              <span class="text-sm text-text-primary">Include beat markers as headings</span>
+              <div class="relative">
+                <input type="checkbox" bind:checked={includeBeatMarkers} class="peer sr-only" />
+                <div
+                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                ></div>
+                <div
+                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                ></div>
+              </div>
+            </label>
+
+            <label
+              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+            >
+              <span class="text-sm text-text-primary">Delete existing export folder</span>
+              <div class="relative">
+                <input type="checkbox" bind:checked={deleteExisting} class="peer sr-only" />
+                <div
+                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                ></div>
+                <div
+                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                ></div>
+              </div>
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- Export Name -->
         <div>
           <label for="export-name" class="block text-sm font-medium text-text-secondary mb-2">
             Export Name
@@ -343,16 +596,16 @@
             type="text"
             bind:value={exportName}
             placeholder="Enter export folder name..."
-            class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
+            class="w-full bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50"
           />
-          <p class="text-xs text-text-secondary mt-1">
-            Folder will be created as: {exportName.trim() ||
-              currentProject.value?.name ||
-              "Project"}
+          <p class="text-xs text-text-secondary/70 mt-1.5">
+            Folder: <span class="text-text-secondary"
+              >{exportName.trim() || currentProject.value?.name || "Project"}</span
+            >
           </p>
         </div>
 
-        <!-- Destination Folder (Markdown) -->
+        <!-- Destination Folder -->
         <div>
           <label for="destination" class="block text-sm font-medium text-text-secondary mb-2">
             Destination Folder
@@ -364,14 +617,14 @@
               readonly
               value={outputPath}
               placeholder="Select a folder..."
-              class="flex-1 bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent cursor-pointer"
+              class="flex-1 bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer truncate"
               onclick={selectDestination}
             />
             <Tooltip text="Browse" position="top">
               <button
                 type="button"
                 onclick={selectDestination}
-                class="px-3 py-2 bg-bg-card text-text-primary rounded-lg hover:bg-beat-header transition-colors"
+                class="px-3 py-2.5 bg-bg-card text-text-secondary rounded-lg hover:bg-beat-header hover:text-text-primary transition-colors border border-bg-card"
                 aria-label="Browse for folder"
               >
                 <FolderOpen class="w-5 h-5" />
@@ -379,48 +632,45 @@
             </Tooltip>
           </div>
         </div>
-      {:else}
-        <!-- Save Location (DOCX) -->
-        <div>
-          <label for="docx-destination" class="block text-sm font-medium text-text-secondary mb-2">
-            Save As
-          </label>
-          <div class="flex gap-2">
-            <input
-              id="docx-destination"
-              type="text"
-              readonly
-              value={docxFilePath}
-              placeholder="Choose where to save..."
-              class="flex-1 bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent cursor-pointer"
-              onclick={selectDocxFile}
-            />
-            <Tooltip text="Save As" position="top">
-              <button
-                type="button"
-                onclick={selectDocxFile}
-                class="px-3 py-2 bg-bg-card text-text-primary rounded-lg hover:bg-beat-header transition-colors"
-                aria-label="Choose save location"
-              >
-                <FileText class="w-5 h-5" />
-              </button>
-            </Tooltip>
-          </div>
-        </div>
       {/if}
+
+      <!-- Snapshot Option (shown for both formats) -->
+      <div class="pt-2 border-t border-bg-card/50">
+        <label
+          class="flex items-center justify-between p-3 bg-bg-card/30 rounded-lg cursor-pointer hover:bg-bg-card/50 transition-colors"
+        >
+          <div>
+            <span class="text-sm text-text-primary">Create snapshot before exporting</span>
+            <p class="text-xs text-text-secondary/70 mt-0.5">Save a backup of your current work</p>
+          </div>
+          <div class="relative">
+            <input type="checkbox" bind:checked={createSnapshot} class="peer sr-only" />
+            <div
+              class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+            ></div>
+            <div
+              class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+            ></div>
+          </div>
+        </label>
+      </div>
 
       <!-- Error Message -->
       {#if error}
-        <p class="text-sm text-red-400">{error}</p>
+        <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+          <p class="text-sm text-red-400">{error}</p>
+        </div>
       {/if}
     </div>
 
     <!-- Footer -->
-    <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-bg-card">
+    <div
+      class="flex items-center justify-end gap-3 px-5 py-4 border-t border-bg-card flex-shrink-0 bg-bg-panel"
+    >
       <button
         type="button"
         onclick={onClose}
-        class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+        class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors rounded-lg hover:bg-bg-card"
         disabled={exporting}
       >
         Cancel
@@ -428,13 +678,14 @@
       <button
         type="button"
         onclick={handleExport}
-        class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/80 transition-colors disabled:opacity-50 flex items-center gap-2"
+        class="px-5 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-accent/20"
         disabled={!canExport || exporting}
       >
         {#if exporting}
           <Loader2 class="w-4 h-4 animate-spin" />
           Exporting...
         {:else}
+          <FileDown class="w-4 h-4" />
           Export
         {/if}
       </button>
