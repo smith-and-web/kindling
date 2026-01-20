@@ -74,6 +74,12 @@
     return attrs.notes || null;
   }
 
+  // Strip HTML tags for preview text
+  function stripHtml(html: string | null | undefined): string {
+    if (!html) return "";
+    return html.replace(/<[^>]*>/g, "").trim();
+  }
+
   function toggleReferencesPanel() {
     ui.toggleReferencesPanel();
   }
@@ -361,7 +367,9 @@
                   <div class="flex-1 min-w-0">
                     <p class="text-text-primary font-medium text-sm truncate">{character.name}</p>
                     {#if character.description}
-                      <p class="text-text-secondary text-xs truncate">{character.description}</p>
+                      <p class="text-text-secondary text-xs truncate">
+                        {stripHtml(character.description)}
+                      </p>
                     {/if}
                   </div>
                   <ChevronDown
@@ -374,8 +382,18 @@
 
               {#if isExpanded}
                 <div class="px-3 pb-3 border-t border-bg-panel">
+                  {#if character.description}
+                    <div
+                      class="text-text-primary text-sm mt-3 leading-relaxed max-w-none break-words [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
+                    >
+                      {@html character.description}
+                    </div>
+                  {/if}
+
                   {#if notes}
-                    <p class="text-text-primary text-sm mt-3 leading-relaxed">{notes}</p>
+                    <p class="text-text-primary text-sm mt-3 leading-relaxed break-words">
+                      {notes}
+                    </p>
                   {/if}
 
                   {#if attributes.length > 0}
@@ -383,13 +401,13 @@
                       {#each attributes as [key, value] (key)}
                         <div class="flex gap-2 text-xs">
                           <span class="text-text-secondary font-medium shrink-0">{key}:</span>
-                          <span class="text-text-primary">{value}</span>
+                          <span class="text-text-primary break-words">{value}</span>
                         </div>
                       {/each}
                     </div>
                   {/if}
 
-                  {#if !notes && attributes.length === 0}
+                  {#if !character.description && !notes && attributes.length === 0}
                     <p class="text-text-secondary text-sm mt-3 italic">No additional details</p>
                   {/if}
                 </div>
@@ -444,7 +462,9 @@
                   <div class="flex-1 min-w-0">
                     <p class="text-text-primary font-medium text-sm truncate">{location.name}</p>
                     {#if location.description}
-                      <p class="text-text-secondary text-xs truncate">{location.description}</p>
+                      <p class="text-text-secondary text-xs truncate">
+                        {stripHtml(location.description)}
+                      </p>
                     {/if}
                   </div>
                   <ChevronDown
@@ -457,8 +477,18 @@
 
               {#if isExpanded}
                 <div class="px-3 pb-3 border-t border-bg-panel">
+                  {#if location.description}
+                    <div
+                      class="text-text-primary text-sm mt-3 leading-relaxed max-w-none break-words [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
+                    >
+                      {@html location.description}
+                    </div>
+                  {/if}
+
                   {#if notes}
-                    <p class="text-text-primary text-sm mt-3 leading-relaxed">{notes}</p>
+                    <p class="text-text-primary text-sm mt-3 leading-relaxed break-words">
+                      {notes}
+                    </p>
                   {/if}
 
                   {#if attributes.length > 0}
@@ -466,13 +496,13 @@
                       {#each attributes as [key, value] (key)}
                         <div class="flex gap-2 text-xs">
                           <span class="text-text-secondary font-medium shrink-0">{key}:</span>
-                          <span class="text-text-primary">{value}</span>
+                          <span class="text-text-primary break-words">{value}</span>
                         </div>
                       {/each}
                     </div>
                   {/if}
 
-                  {#if !notes && attributes.length === 0}
+                  {#if !location.description && !notes && attributes.length === 0}
                     <p class="text-text-secondary text-sm mt-3 italic">No additional details</p>
                   {/if}
                 </div>
