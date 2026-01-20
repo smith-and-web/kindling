@@ -21,6 +21,7 @@
     AlignLeft,
     BookOpen,
     ChevronDown,
+    Hash,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import type {
@@ -67,6 +68,8 @@
   let exportName = $state("");
   let exporting = $state(false);
   let error = $state<string | null>(null);
+  let wordCount = $state<number | null>(null);
+  let loadingWordCount = $state(false);
 
   // Chapter heading style options for the dropdown
   const chapterHeadingStyles: { value: ChapterHeadingStyle; label: string; example: string }[] = [
@@ -115,6 +118,33 @@
     if (savedPath && !outputPath) {
       outputPath = savedPath;
     }
+  });
+
+  // Fetch word count when dialog opens (for project-level export)
+  $effect(() => {
+    if (currentProject.value && scope === "project") {
+      loadingWordCount = true;
+      invoke<number>("get_project_word_count", {
+        projectId: currentProject.value.id,
+      })
+        .then((count) => {
+          wordCount = count;
+        })
+        .catch(() => {
+          wordCount = null;
+        })
+        .finally(() => {
+          loadingWordCount = false;
+        });
+    }
+  });
+
+  // Format word count for display (rounded to nearest 1000)
+  const formattedWordCount = $derived(() => {
+    if (wordCount === null) return null;
+    if (wordCount < 1000) return `${wordCount} words`;
+    const rounded = Math.round(wordCount / 1000) * 1000;
+    return `~${rounded.toLocaleString()} words`;
   });
 
   const canExport = $derived(
@@ -262,16 +292,28 @@
           <p class="text-xs text-text-secondary">Choose format and configure options</p>
         </div>
       </div>
-      <Tooltip text="Close" position="left">
-        <button
-          type="button"
-          onclick={onClose}
-          class="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-card transition-colors rounded-lg"
-          aria-label="Close"
-        >
-          <X class="w-5 h-5" />
-        </button>
-      </Tooltip>
+      <div class="flex items-center gap-2">
+        {#if scope === "project"}
+          <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-bg-card/50 rounded-lg">
+            <Hash class="w-3.5 h-3.5 text-text-secondary" />
+            {#if loadingWordCount}
+              <span class="text-xs text-text-secondary">...</span>
+            {:else if formattedWordCount()}
+              <span class="text-xs text-text-secondary">{formattedWordCount()}</span>
+            {/if}
+          </div>
+        {/if}
+        <Tooltip text="Close" position="left">
+          <button
+            type="button"
+            onclick={onClose}
+            class="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-card transition-colors rounded-lg"
+            aria-label="Close"
+          >
+            <X class="w-5 h-5" />
+          </button>
+        </Tooltip>
+      </div>
     </div>
 
     <!-- Content -->

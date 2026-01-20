@@ -100,6 +100,7 @@ pub fn run() {
             // Export commands
             commands::export_to_markdown,
             commands::export_to_docx,
+            commands::get_project_word_count,
             // Snapshot commands
             commands::create_snapshot,
             commands::list_snapshots,

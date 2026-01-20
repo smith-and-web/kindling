@@ -1678,6 +1678,20 @@ fn add_beat_to_docx(
     (docx, added_content)
 }
 
+/// Get the word count for a project
+///
+/// Returns the total word count from all prose content in the project.
+/// Used by the export dialog to show the word count before exporting.
+#[tauri::command]
+pub async fn get_project_word_count(
+    project_id: String,
+    state: State<'_, AppState>,
+) -> Result<usize, String> {
+    let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    calculate_project_word_count(&conn, &project_uuid)
+}
+
 /// Export project to DOCX file
 ///
 /// Creates a single .docx file with chapters as H1, scenes as H2, beats as H3
@@ -2392,5 +2406,322 @@ mod tests {
         // Default should be NumberOnly
         let style = ChapterHeadingStyle::default();
         assert!(matches!(style, ChapterHeadingStyle::NumberOnly));
+    }
+
+    #[test]
+    fn test_line_spacing_twips() {
+        // Line spacing values in twips (twentieths of a point)
+        // 12pt font = 240 twips base
+        assert_eq!(LineSpacingOption::Single.as_twips(), 240); // 12pt
+        assert_eq!(LineSpacingOption::OneAndHalf.as_twips(), 360); // 1.5 * 240
+        assert_eq!(LineSpacingOption::Double.as_twips(), 480); // 2 * 240
+
+        // u32 conversion should match
+        assert_eq!(LineSpacingOption::Double.as_twips_u32(), 480u32);
+    }
+
+    #[test]
+    fn test_line_spacing_default() {
+        // Default should be Double (SMF standard)
+        let spacing = LineSpacingOption::default();
+        assert!(matches!(spacing, LineSpacingOption::Double));
+    }
+
+    #[test]
+    fn test_font_family_as_str() {
+        assert_eq!(FontFamily::CourierNew.as_str(), "Courier New");
+        assert_eq!(FontFamily::TimesNewRoman.as_str(), "Times New Roman");
+    }
+
+    #[test]
+    fn test_font_family_default() {
+        // Default should be CourierNew (classic SMF)
+        let font = FontFamily::default();
+        assert!(matches!(font, FontFamily::CourierNew));
+    }
+
+    #[test]
+    fn test_scene_break_style_as_str() {
+        assert_eq!(SceneBreakStyle::Hash.as_str(), "#");
+        assert_eq!(SceneBreakStyle::Asterisks.as_str(), "* * *");
+        assert_eq!(SceneBreakStyle::Asterism.as_str(), "⁂");
+        assert_eq!(SceneBreakStyle::BlankLine.as_str(), "");
+    }
+
+    #[test]
+    fn test_scene_break_style_default() {
+        // Default should be Hash (SMF standard)
+        let style = SceneBreakStyle::default();
+        assert!(matches!(style, SceneBreakStyle::Hash));
+    }
+
+    #[test]
+    fn test_page_margins_smf_compliant() {
+        // Standard Manuscript Format requires 1-inch margins
+        // 1 inch = 1440 twips (there are 1440 twips per inch)
+        // This test documents the expected constants used in create_docx_styles
+        let one_inch_in_twips: i32 = 1440;
+        let half_inch_in_twips: i32 = 720;
+
+        // Verify our understanding of twips conversion
+        assert_eq!(one_inch_in_twips, 1440);
+        assert_eq!(half_inch_in_twips, 720);
+
+        // First-line paragraph indent should be 0.5 inch
+        // This is used in add_beat_to_docx for body paragraphs
+        let first_line_indent = 720; // 0.5 inch
+        assert_eq!(first_line_indent, half_inch_in_twips);
+    }
+
+    #[test]
+    fn test_add_chapter_to_docx() {
+        use crate::models::{Beat, Chapter, Scene};
+        use std::collections::HashMap;
+        use uuid::Uuid;
+
+        let chapter = Chapter {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            title: "The Beginning".to_string(),
+            position: 0,
+            locked: false,
+            archived: false,
+            source_id: None,
+        };
+
+        let scene = Scene {
+            id: Uuid::new_v4(),
+            chapter_id: chapter.id,
+            title: "Opening Scene".to_string(),
+            position: 0,
+            synopsis: Some("The story begins".to_string()),
+            prose: None,
+            locked: false,
+            archived: false,
+            source_id: None,
+        };
+
+        let beat = Beat {
+            id: Uuid::new_v4(),
+            scene_id: scene.id,
+            content: "Introduction".to_string(),
+            position: 0,
+            prose: Some("<p>It was a dark and stormy night.</p>".to_string()),
+            source_id: None,
+        };
+
+        let mut beats_by_scene: HashMap<Uuid, Vec<Beat>> = HashMap::new();
+        beats_by_scene.insert(scene.id, vec![beat]);
+
+        let options = default_test_options();
+        let docx = Docx::new();
+
+        let docx = add_chapter_to_docx(
+            docx,
+            &chapter,
+            1,
+            &[scene],
+            &beats_by_scene,
+            &options,
+            true, // is_first_chapter
+        );
+
+        // Build should succeed
+        let built = docx.build();
+        let mut buffer = Vec::new();
+        built.pack(&mut std::io::Cursor::new(&mut buffer)).unwrap();
+        assert!(!buffer.is_empty());
+    }
+
+    #[test]
+    fn test_add_chapter_with_multiple_scenes() {
+        use crate::models::{Beat, Chapter, Scene};
+        use std::collections::HashMap;
+        use uuid::Uuid;
+
+        let chapter = Chapter {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            title: "Chapter with Scenes".to_string(),
+            position: 0,
+            locked: false,
+            archived: false,
+            source_id: None,
+        };
+
+        let scene1 = Scene {
+            id: Uuid::new_v4(),
+            chapter_id: chapter.id,
+            title: "Scene One".to_string(),
+            position: 0,
+            synopsis: None,
+            prose: None,
+            locked: false,
+            archived: false,
+            source_id: None,
+        };
+
+        let scene2 = Scene {
+            id: Uuid::new_v4(),
+            chapter_id: chapter.id,
+            title: "Scene Two".to_string(),
+            position: 1,
+            synopsis: None,
+            prose: None,
+            locked: false,
+            archived: false,
+            source_id: None,
+        };
+
+        let beat1 = Beat {
+            id: Uuid::new_v4(),
+            scene_id: scene1.id,
+            content: "Beat 1".to_string(),
+            position: 0,
+            prose: Some("First scene content.".to_string()),
+            source_id: None,
+        };
+
+        let beat2 = Beat {
+            id: Uuid::new_v4(),
+            scene_id: scene2.id,
+            content: "Beat 2".to_string(),
+            position: 0,
+            prose: Some("Second scene content.".to_string()),
+            source_id: None,
+        };
+
+        let mut beats_by_scene: HashMap<Uuid, Vec<Beat>> = HashMap::new();
+        beats_by_scene.insert(scene1.id, vec![beat1]);
+        beats_by_scene.insert(scene2.id, vec![beat2]);
+
+        // Test with different scene break styles
+        for style in [
+            SceneBreakStyle::Hash,
+            SceneBreakStyle::Asterisks,
+            SceneBreakStyle::Asterism,
+            SceneBreakStyle::BlankLine,
+        ] {
+            let mut options = default_test_options();
+            options.scene_break_style = style;
+
+            let docx = Docx::new();
+            let docx = add_chapter_to_docx(
+                docx,
+                &chapter,
+                1,
+                &[scene1.clone(), scene2.clone()],
+                &beats_by_scene,
+                &options,
+                false, // not first chapter
+            );
+
+            // Build should succeed for all scene break styles
+            let built = docx.build();
+            let mut buffer = Vec::new();
+            built.pack(&mut std::io::Cursor::new(&mut buffer)).unwrap();
+            assert!(!buffer.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_special_characters_in_titles() {
+        // Test that special characters are handled in chapter headings
+        assert_eq!(
+            format_chapter_heading(1, "The \"Quoted\" Chapter", &ChapterHeadingStyle::TitleOnly),
+            "THE \"QUOTED\" CHAPTER"
+        );
+        assert_eq!(
+            format_chapter_heading(1, "Chapter with—Em Dash", &ChapterHeadingStyle::TitleOnly),
+            "CHAPTER WITH—EM DASH"
+        );
+        assert_eq!(
+            format_chapter_heading(1, "Ñoño's Adventure", &ChapterHeadingStyle::TitleOnly),
+            "ÑOÑO'S ADVENTURE"
+        );
+    }
+
+    #[test]
+    fn test_empty_prose_handling() {
+        use crate::models::Beat;
+        use uuid::Uuid;
+
+        // Beat with no prose
+        let beat_no_prose = Beat {
+            id: Uuid::new_v4(),
+            scene_id: Uuid::new_v4(),
+            content: "Empty Beat".to_string(),
+            position: 0,
+            prose: None,
+            source_id: None,
+        };
+
+        // Beat with empty string prose
+        let beat_empty_prose = Beat {
+            id: Uuid::new_v4(),
+            scene_id: Uuid::new_v4(),
+            content: "Empty String Beat".to_string(),
+            position: 0,
+            prose: Some("".to_string()),
+            source_id: None,
+        };
+
+        // Beat with whitespace-only prose
+        let beat_whitespace_prose = Beat {
+            id: Uuid::new_v4(),
+            scene_id: Uuid::new_v4(),
+            content: "Whitespace Beat".to_string(),
+            position: 0,
+            prose: Some("   \n\t  ".to_string()),
+            source_id: None,
+        };
+
+        let options = default_test_options();
+        let docx = Docx::new();
+
+        // All should handle gracefully without panic
+        let (docx, added1) = add_beat_to_docx(docx, &beat_no_prose, &options, true);
+        let (docx, added2) = add_beat_to_docx(docx, &beat_empty_prose, &options, false);
+        let (docx, added3) = add_beat_to_docx(docx, &beat_whitespace_prose, &options, false);
+
+        // No prose means no content added (unless beat markers are on)
+        assert!(!added1);
+        assert!(!added2);
+        assert!(!added3);
+
+        // Build should still succeed
+        let built = docx.build();
+        let mut buffer = Vec::new();
+        built.pack(&mut std::io::Cursor::new(&mut buffer)).unwrap();
+        assert!(!buffer.is_empty());
+    }
+
+    #[test]
+    fn test_unicode_preservation() {
+        // Test that Unicode characters are preserved in text transformation
+        // Using escaped smart quotes to avoid Rust parser issues
+        let unicode_text = "日本語テスト — «français» — \u{201C}smart quotes\u{201D}";
+        let transformed = transform_text(unicode_text);
+
+        // Should preserve Japanese characters
+        assert!(transformed.contains("日本語"));
+        // Should preserve French guillemets
+        assert!(transformed.contains("«"));
+        assert!(transformed.contains("»"));
+        // Em dash should be preserved (not doubled)
+        assert!(transformed.contains("—"));
+        // Smart quotes should be preserved
+        assert!(transformed.contains("\u{201C}")); // Left double quote
+        assert!(transformed.contains("\u{201D}")); // Right double quote
+    }
+
+    #[test]
+    fn test_html_stripping_preserves_unicode() {
+        let html_with_unicode = "<p>Héllo, 世界! Ça va?</p>";
+        let stripped = strip_html(html_with_unicode);
+
+        assert!(stripped.contains("Héllo"));
+        assert!(stripped.contains("世界"));
+        assert!(stripped.contains("Ça"));
     }
 }

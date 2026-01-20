@@ -123,7 +123,20 @@
       unlisten.then((fn) => fn());
     };
   });
+
+  // Global keyboard shortcuts
+  function handleKeydown(event: KeyboardEvent) {
+    // Cmd/Ctrl+E: Open export dialog
+    if ((event.metaKey || event.ctrlKey) && event.key === "e") {
+      event.preventDefault();
+      if (currentProject.value && !showExportDialog) {
+        showExportDialog = true;
+      }
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <main class="flex h-screen w-screen overflow-hidden bg-bg-primary">
   {#if currentProject.value}
