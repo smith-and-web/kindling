@@ -129,6 +129,7 @@ pub async fn create_chapter(
         source_id: None,
         archived: false,
         locked: false,
+        is_part: false,
     };
 
     db::insert_chapter(&conn, &chapter).map_err(|e| e.to_string())?;
@@ -187,6 +188,7 @@ pub async fn duplicate_chapter(
         source_id: None, // Don't copy source_id
         archived: false,
         locked: false,
+        is_part: original.is_part,
     };
 
     db::insert_chapter(&conn, &new_chapter).map_err(|e| e.to_string())?;

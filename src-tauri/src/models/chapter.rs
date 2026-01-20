@@ -13,6 +13,10 @@ pub struct Chapter {
     pub archived: bool,
     #[serde(default)]
     pub locked: bool,
+    /// True if this chapter is a Part header (section heading).
+    /// Part chapters group subsequent chapters until the next Part.
+    #[serde(default)]
+    pub is_part: bool,
 }
 
 impl Chapter {
@@ -25,11 +29,17 @@ impl Chapter {
             source_id: None,
             archived: false,
             locked: false,
+            is_part: false,
         }
     }
 
     pub fn with_source_id(mut self, source_id: Option<String>) -> Self {
         self.source_id = source_id;
+        self
+    }
+
+    pub fn with_is_part(mut self, is_part: bool) -> Self {
+        self.is_part = is_part;
         self
     }
 }

@@ -84,6 +84,27 @@
     }
   }
 
+  async function importYWriter() {
+    const path = await open({
+      multiple: false,
+      filters: [{ name: "yWriter 7", extensions: ["yw7"] }],
+    });
+
+    if (path) {
+      ui.startImport();
+      try {
+        const project = await invoke<Project>("import_ywriter", { path });
+        currentProject.setProject(project);
+        ui.setView("editor");
+      } catch (e) {
+        console.error("Failed to import yWriter file:", e);
+        alert(`Import failed: ${e}`);
+      } finally {
+        ui.finishImport();
+      }
+    }
+  }
+
   function closeProject() {
     currentProject.setProject(null);
   }
@@ -96,6 +117,9 @@
       switch (menuId) {
         case "import_plottr":
           importPlottr();
+          break;
+        case "import_ywriter":
+          importYWriter();
           break;
         case "import_markdown":
           importMarkdown();

@@ -380,6 +380,7 @@ fn restore_create_new(
             source_id: chapter.source_id.clone(),
             archived: chapter.archived,
             locked: chapter.locked,
+            is_part: chapter.is_part,
         };
         if let Err(e) = db::insert_chapter(conn, &new_chapter) {
             conn.execute("ROLLBACK", []).ok();

@@ -104,8 +104,8 @@ pub fn delete_project(conn: &Connection, id: &Uuid) -> Result<()> {
 
 pub fn insert_chapter(conn: &Connection, chapter: &Chapter) -> Result<()> {
     conn.execute(
-        "INSERT INTO chapters (id, project_id, title, position, source_id, archived, locked)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO chapters (id, project_id, title, position, source_id, archived, locked, is_part)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             chapter.id.to_string(),
             chapter.project_id.to_string(),
@@ -114,6 +114,7 @@ pub fn insert_chapter(conn: &Connection, chapter: &Chapter) -> Result<()> {
             chapter.source_id,
             chapter.archived as i32,
             chapter.locked as i32,
+            chapter.is_part as i32,
         ],
     )?;
     Ok(())
@@ -140,7 +141,7 @@ pub fn reorder_chapters(conn: &Connection, project_id: &Uuid, chapter_ids: &[Uui
 
 pub fn get_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chapter>> {
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, title, position, source_id, archived, locked
+        "SELECT id, project_id, title, position, source_id, archived, locked, is_part
          FROM chapters WHERE project_id = ?1 AND archived = 0 ORDER BY position",
     )?;
 
@@ -154,6 +155,7 @@ pub fn get_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chapter>
                 source_id: row.get(4)?,
                 archived: row.get::<_, i32>(5)? != 0,
                 locked: row.get::<_, i32>(6)? != 0,
+                is_part: row.get::<_, i32>(7).unwrap_or(0) != 0,
             })
         })?
         .filter_map(|r| r.ok())
@@ -657,7 +659,7 @@ pub fn find_chapter_by_source_id(
     source_id: &str,
 ) -> Result<Option<Chapter>> {
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, title, position, source_id, archived, locked
+        "SELECT id, project_id, title, position, source_id, archived, locked, is_part
          FROM chapters WHERE project_id = ?1 AND source_id = ?2",
     )?;
 
@@ -672,6 +674,7 @@ pub fn find_chapter_by_source_id(
             source_id: row.get(4)?,
             archived: row.get::<_, i32>(5)? != 0,
             locked: row.get::<_, i32>(6)? != 0,
+            is_part: row.get::<_, i32>(7).unwrap_or(0) != 0,
         }))
     } else {
         Ok(None)
@@ -874,7 +877,7 @@ pub fn restore_scene(conn: &Connection, scene_id: &Uuid) -> Result<()> {
 
 pub fn get_archived_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chapter>> {
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, title, position, source_id, archived, locked
+        "SELECT id, project_id, title, position, source_id, archived, locked, is_part
          FROM chapters WHERE project_id = ?1 AND archived = 1 ORDER BY position",
     )?;
 
@@ -888,6 +891,7 @@ pub fn get_archived_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec
                 source_id: row.get(4)?,
                 archived: row.get::<_, i32>(5)? != 0,
                 locked: row.get::<_, i32>(6)? != 0,
+                is_part: row.get::<_, i32>(7).unwrap_or(0) != 0,
             })
         })?
         .filter_map(|r| r.ok())
@@ -1006,7 +1010,7 @@ pub fn rename_scene(conn: &Connection, scene_id: &Uuid, title: &str) -> Result<(
 
 pub fn get_chapter_by_id(conn: &Connection, chapter_id: &Uuid) -> Result<Option<Chapter>> {
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, title, position, source_id, archived, locked
+        "SELECT id, project_id, title, position, source_id, archived, locked, is_part
          FROM chapters WHERE id = ?1",
     )?;
 
@@ -1020,6 +1024,7 @@ pub fn get_chapter_by_id(conn: &Connection, chapter_id: &Uuid) -> Result<Option<
                 source_id: row.get(4)?,
                 archived: row.get::<_, i32>(5)? != 0,
                 locked: row.get::<_, i32>(6)? != 0,
+                is_part: row.get::<_, i32>(7).unwrap_or(0) != 0,
             })
         })
         .optional()?;
@@ -1215,7 +1220,7 @@ pub fn get_all_chapters_including_archived(
     project_id: &Uuid,
 ) -> Result<Vec<Chapter>> {
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, title, position, source_id, archived, locked
+        "SELECT id, project_id, title, position, source_id, archived, locked, is_part
          FROM chapters WHERE project_id = ?1 ORDER BY position",
     )?;
 
@@ -1229,6 +1234,7 @@ pub fn get_all_chapters_including_archived(
                 source_id: row.get(4)?,
                 archived: row.get::<_, i32>(5)? != 0,
                 locked: row.get::<_, i32>(6)? != 0,
+                is_part: row.get::<_, i32>(7).unwrap_or(0) != 0,
             })
         })?
         .filter_map(|r| r.ok())
@@ -1418,6 +1424,7 @@ mod tests {
             source_id: None,
             archived: false,
             locked: false,
+            is_part: false,
         };
         insert_chapter(conn, &chapter).unwrap();
         chapter
@@ -1528,6 +1535,7 @@ mod tests {
             source_id: None,
             archived: false,
             locked: false,
+            is_part: false,
         };
         let ch2 = Chapter {
             id: Uuid::new_v4(),
@@ -1537,6 +1545,7 @@ mod tests {
             source_id: None,
             archived: false,
             locked: false,
+            is_part: false,
         };
         insert_chapter(&conn, &ch1).unwrap();
         insert_chapter(&conn, &ch2).unwrap();
@@ -1630,6 +1639,7 @@ mod tests {
             source_id: None,
             archived: false,
             locked: false,
+            is_part: false,
         };
         insert_chapter(&conn, &chapter2).unwrap();
 

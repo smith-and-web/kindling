@@ -54,6 +54,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::import_plottr,
+            commands::import_ywriter,
             commands::import_markdown,
             commands::get_project,
             commands::get_recent_projects,
