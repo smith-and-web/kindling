@@ -191,6 +191,14 @@ export interface MarkdownExportOptions {
   create_snapshot?: boolean;
 }
 
+/** Chapter heading style for DOCX export */
+export type ChapterHeadingStyle =
+  | "number_only"
+  | "number_and_title"
+  | "title_only"
+  | "number_arabic"
+  | "number_arabic_and_title";
+
 /** Options for DOCX export */
 export interface DocxExportOptions {
   /** What to export (project, chapter, or scene) */
@@ -207,6 +215,8 @@ export interface DocxExportOptions {
   page_breaks_between_chapters?: boolean;
   /** Include a Standard Manuscript Format title page */
   include_title_page?: boolean;
+  /** Chapter heading style */
+  chapter_heading_style?: ChapterHeadingStyle;
 }
 
 /** Result of an export operation */

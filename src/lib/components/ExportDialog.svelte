@@ -18,6 +18,7 @@
     MarkdownExportOptions,
     DocxExportOptions,
     ExportScope,
+    ChapterHeadingStyle,
   } from "../types";
   import Tooltip from "./Tooltip.svelte";
 
@@ -37,11 +38,12 @@
     onSuccess: (result: ExportResult) => void;
   } = $props();
 
-  let exportFormat = $state<"markdown" | "docx">("markdown");
+  let exportFormat = $state<"markdown" | "docx">("docx");
   let includeBeatMarkers = $state(true);
   let includeSynopsis = $state(true);
   let pageBreaksBetweenChapters = $state(true);
   let includeTitlePage = $state(true);
+  let chapterHeadingStyle = $state<ChapterHeadingStyle>("number_only");
   let deleteExisting = $state(false);
   let createSnapshot = $state(false);
   let outputPath = $state("");
@@ -49,6 +51,19 @@
   let exportName = $state("");
   let exporting = $state(false);
   let error = $state<string | null>(null);
+
+  // Chapter heading style options for the dropdown
+  const chapterHeadingStyles: { value: ChapterHeadingStyle; label: string; example: string }[] = [
+    { value: "number_only", label: "Number Only", example: "CHAPTER ONE" },
+    { value: "number_and_title", label: "Number and Title", example: "CHAPTER ONE: THE BEGINNING" },
+    { value: "title_only", label: "Title Only", example: "THE BEGINNING" },
+    { value: "number_arabic", label: "Arabic Numeral", example: "CHAPTER 1" },
+    {
+      value: "number_arabic_and_title",
+      label: "Arabic and Title",
+      example: "CHAPTER 1: THE BEGINNING",
+    },
+  ];
 
   // Initialize export name from project name
   $effect(() => {
@@ -148,6 +163,7 @@
           create_snapshot: createSnapshot,
           page_breaks_between_chapters: pageBreaksBetweenChapters,
           include_title_page: includeTitlePage,
+          chapter_heading_style: chapterHeadingStyle,
         };
 
         result = await invoke<ExportResult>("export_to_docx", {
@@ -274,6 +290,26 @@
               />
               <span class="text-text-primary">Page breaks between chapters</span>
             </label>
+
+            <!-- Chapter Heading Style -->
+            <div class="pt-2">
+              <label for="chapter-heading-style" class="block text-sm text-text-secondary mb-1">
+                Chapter Heading Style
+              </label>
+              <select
+                id="chapter-heading-style"
+                bind:value={chapterHeadingStyle}
+                class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
+              >
+                {#each chapterHeadingStyles as style}
+                  <option value={style.value}>{style.label}</option>
+                {/each}
+              </select>
+              <p class="text-xs text-text-secondary mt-1">
+                Example: {chapterHeadingStyles.find((s) => s.value === chapterHeadingStyle)
+                  ?.example}
+              </p>
+            </div>
           {/if}
           {#if exportFormat === "markdown"}
             <label class="flex items-center gap-2 cursor-pointer">
