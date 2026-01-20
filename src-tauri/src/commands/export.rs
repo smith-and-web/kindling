@@ -388,10 +388,19 @@ struct FormattedRun {
     italic: bool,
 }
 
+/// Type of paragraph for styling purposes
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum ParagraphType {
+    #[default]
+    Normal,
+    Blockquote,
+}
+
 /// A paragraph containing formatted runs, for DOCX export
 #[derive(Debug, Clone)]
 struct FormattedParagraph {
     runs: Vec<FormattedRun>,
+    paragraph_type: ParagraphType,
 }
 
 /// Convert straight quotes to typographic (curly/smart) quotes
@@ -512,6 +521,8 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
     let mut current_runs: Vec<FormattedRun> = Vec::new();
     let mut bold_depth: u32 = 0;
     let mut italic_depth: u32 = 0;
+    let mut blockquote_depth: u32 = 0;
+    let mut current_para_type = ParagraphType::Normal;
 
     let mut reader = Reader::from_str(html);
     reader.config_mut().trim_text(false);
@@ -525,13 +536,31 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                 match tag_name.as_str() {
                     "strong" | "b" => bold_depth += 1,
                     "em" | "i" => italic_depth += 1,
+                    "blockquote" => {
+                        // Start of blockquote - save current runs if any
+                        if !current_runs.is_empty() {
+                            paragraphs.push(FormattedParagraph {
+                                runs: std::mem::take(&mut current_runs),
+                                paragraph_type: current_para_type,
+                            });
+                        }
+                        blockquote_depth += 1;
+                        current_para_type = ParagraphType::Blockquote;
+                    }
                     "p" => {
                         // Start of a new paragraph - save current runs if any
                         if !current_runs.is_empty() {
                             paragraphs.push(FormattedParagraph {
                                 runs: std::mem::take(&mut current_runs),
+                                paragraph_type: current_para_type,
                             });
                         }
+                        // Set paragraph type based on whether we're in a blockquote
+                        current_para_type = if blockquote_depth > 0 {
+                            ParagraphType::Blockquote
+                        } else {
+                            ParagraphType::Normal
+                        };
                     }
                     _ => {}
                 }
@@ -541,11 +570,27 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                 match tag_name.as_str() {
                     "strong" | "b" => bold_depth = bold_depth.saturating_sub(1),
                     "em" | "i" => italic_depth = italic_depth.saturating_sub(1),
+                    "blockquote" => {
+                        // End of blockquote - save current runs if any
+                        if !current_runs.is_empty() {
+                            paragraphs.push(FormattedParagraph {
+                                runs: std::mem::take(&mut current_runs),
+                                paragraph_type: current_para_type,
+                            });
+                        }
+                        blockquote_depth = blockquote_depth.saturating_sub(1);
+                        current_para_type = if blockquote_depth > 0 {
+                            ParagraphType::Blockquote
+                        } else {
+                            ParagraphType::Normal
+                        };
+                    }
                     "p" => {
                         // End of paragraph - save current runs
                         if !current_runs.is_empty() {
                             paragraphs.push(FormattedParagraph {
                                 runs: std::mem::take(&mut current_runs),
+                                paragraph_type: current_para_type,
                             });
                         }
                     }
@@ -614,6 +659,7 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                             bold: false,
                             italic: false,
                         }],
+                        paragraph_type: ParagraphType::Normal,
                     }];
                 }
                 return vec![];
@@ -625,7 +671,10 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
 
     // Don't forget any remaining runs
     if !current_runs.is_empty() {
-        paragraphs.push(FormattedParagraph { runs: current_runs });
+        paragraphs.push(FormattedParagraph {
+            runs: current_runs,
+            paragraph_type: current_para_type,
+        });
     }
 
     // Filter out empty paragraphs and merge adjacent runs with same formatting
@@ -633,6 +682,7 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
         .into_iter()
         .map(|p| FormattedParagraph {
             runs: merge_adjacent_runs(p.runs),
+            paragraph_type: p.paragraph_type,
         })
         .filter(|p| !p.runs.is_empty() && p.runs.iter().any(|r| !r.text.trim().is_empty()))
         .collect()
@@ -1560,21 +1610,20 @@ fn add_beat_to_docx(
         );
     }
 
-    // Beat prose - parse HTML and preserve formatting (bold, italic)
+    // Beat prose - parse HTML and preserve formatting (bold, italic, blockquotes)
     if let Some(ref prose) = beat.prose {
         let formatted_paragraphs = parse_html_to_paragraphs(prose);
 
-        for (i, formatted_para) in formatted_paragraphs.iter().enumerate() {
+        // Track the index of regular (non-blockquote) paragraphs for first-line indent logic
+        let mut regular_para_index = 0;
+
+        for formatted_para in formatted_paragraphs.iter() {
             // Skip empty paragraphs
             if formatted_para.runs.is_empty()
                 || formatted_para.runs.iter().all(|r| r.text.trim().is_empty())
             {
                 continue;
             }
-
-            // SMF: First paragraph after chapter heading or scene break has no indent
-            // Subsequent paragraphs have 0.5" first-line indent
-            let needs_indent = !(is_first_para_in_section && i == 0);
 
             // Build the paragraph with all formatted runs
             let mut para = Paragraph::new();
@@ -1599,9 +1648,25 @@ fn add_beat_to_docx(
                 .style("BodyText")
                 .line_spacing(LineSpacing::new().line(line_spacing_twips));
 
-            if needs_indent {
-                // 720 twips = 0.5 inch first-line indent
-                para = para.indent(None, None, Some(720), None);
+            // Apply styling based on paragraph type
+            match formatted_para.paragraph_type {
+                ParagraphType::Blockquote => {
+                    // Blockquotes: left margin (720 twips = 0.5"), no first-line indent
+                    // The third parameter is end/right indent
+                    para = para.indent(Some(720), None, Some(720), None);
+                }
+                ParagraphType::Normal => {
+                    // SMF: First paragraph after chapter heading or scene break has no indent
+                    // Subsequent paragraphs have 0.5" first-line indent
+                    let needs_indent = !(is_first_para_in_section && regular_para_index == 0);
+
+                    if needs_indent {
+                        // 720 twips = 0.5 inch first-line indent
+                        para = para.indent(None, None, Some(720), None);
+                    }
+
+                    regular_para_index += 1;
+                }
             }
 
             docx = docx.add_paragraph(para);
@@ -1955,6 +2020,37 @@ mod tests {
         assert!(output.contains('\u{201D}')); // Closing quote
         assert!(output.contains('\u{2014}')); // Em dash
         assert!(output.contains('\u{2019}')); // Apostrophe
+    }
+
+    #[test]
+    fn test_parse_html_to_paragraphs_blockquote() {
+        let html =
+            "<p>Normal text</p><blockquote><p>Quoted text</p></blockquote><p>More normal</p>";
+        let paragraphs = parse_html_to_paragraphs(html);
+        assert_eq!(paragraphs.len(), 3);
+
+        // First paragraph should be normal
+        assert_eq!(paragraphs[0].paragraph_type, ParagraphType::Normal);
+        assert!(paragraphs[0].runs[0].text.contains("Normal"));
+
+        // Second paragraph should be blockquote
+        assert_eq!(paragraphs[1].paragraph_type, ParagraphType::Blockquote);
+        assert!(paragraphs[1].runs[0].text.contains("Quoted"));
+
+        // Third paragraph should be normal again
+        assert_eq!(paragraphs[2].paragraph_type, ParagraphType::Normal);
+        assert!(paragraphs[2].runs[0].text.contains("normal"));
+    }
+
+    #[test]
+    fn test_parse_html_to_paragraphs_blockquote_multiline() {
+        let html = "<blockquote><p>First quoted line</p><p>Second quoted line</p></blockquote>";
+        let paragraphs = parse_html_to_paragraphs(html);
+        assert_eq!(paragraphs.len(), 2);
+
+        // Both paragraphs should be blockquotes
+        assert_eq!(paragraphs[0].paragraph_type, ParagraphType::Blockquote);
+        assert_eq!(paragraphs[1].paragraph_type, ParagraphType::Blockquote);
     }
 
     /// Create default DOCX export options for tests
