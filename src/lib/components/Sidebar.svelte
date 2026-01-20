@@ -1314,12 +1314,14 @@
         {:else}
           <!-- Split button: New Chapter (default) with dropdown for New Part -->
           <div class="relative px-1" bind:this={newButtonRef}>
-            <div class="flex items-stretch rounded-lg hover:bg-bg-card transition-colors">
+            <div
+              class="flex items-stretch rounded-lg bg-bg-card border border-bg-card hover:border-accent/50 transition-colors"
+            >
               <!-- Main action: New Chapter -->
               <button
                 data-testid="new-chapter-button"
                 onclick={startCreatingChapter}
-                class="flex-1 flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors rounded-l-lg"
+                class="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors rounded-l-lg"
               >
                 <Plus class="w-4 h-4" />
                 New Chapter
@@ -1328,7 +1330,7 @@
               <button
                 data-testid="new-dropdown-button"
                 onclick={() => (showNewDropdown = !showNewDropdown)}
-                class="px-2 py-2 text-text-secondary hover:text-text-primary transition-colors border-l border-bg-card rounded-r-lg"
+                class="px-2 py-2 text-text-secondary hover:text-text-primary transition-colors border-l border-bg-panel hover:bg-bg-panel rounded-r-lg"
                 aria-label="More options"
               >
                 <ChevronDown class="w-4 h-4" />
