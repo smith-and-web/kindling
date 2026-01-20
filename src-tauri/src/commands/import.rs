@@ -1,12 +1,12 @@
 //! Import Commands
 //!
-//! Handles importing projects from external formats (Plottr, Scrivener, Markdown).
+//! Handles importing projects from external formats (Plottr, Markdown).
 
 use tauri::State;
 
 use crate::db;
 use crate::models::Project;
-use crate::parsers::{parse_markdown_outline, parse_plottr_file, parse_scrivener_project};
+use crate::parsers::{parse_markdown_outline, parse_plottr_file};
 
 use super::AppState;
 
@@ -76,60 +76,6 @@ pub async fn import_plottr(path: String, state: State<'_, AppState>) -> Result<P
 
     for (scene_id, location_id) in &parsed.scene_location_refs {
         db::add_scene_location_ref(&conn, scene_id, location_id).map_err(|e| {
-            let _ = conn.execute("ROLLBACK", []);
-            e.to_string()
-        })?;
-    }
-
-    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
-
-    Ok(parsed.project)
-}
-
-#[tauri::command]
-pub async fn import_scrivener(path: String, state: State<'_, AppState>) -> Result<Project, String> {
-    let parsed = parse_scrivener_project(&path).map_err(|e| e.to_string())?;
-
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-
-    conn.execute("BEGIN TRANSACTION", [])
-        .map_err(|e| e.to_string())?;
-
-    db::insert_project(&conn, &parsed.project).map_err(|e| {
-        let _ = conn.execute("ROLLBACK", []);
-        e.to_string()
-    })?;
-
-    for chapter in &parsed.chapters {
-        db::insert_chapter(&conn, chapter).map_err(|e| {
-            let _ = conn.execute("ROLLBACK", []);
-            e.to_string()
-        })?;
-    }
-
-    for scene in &parsed.scenes {
-        db::insert_scene(&conn, scene).map_err(|e| {
-            let _ = conn.execute("ROLLBACK", []);
-            e.to_string()
-        })?;
-    }
-
-    for beat in &parsed.beats {
-        db::insert_beat(&conn, beat).map_err(|e| {
-            let _ = conn.execute("ROLLBACK", []);
-            e.to_string()
-        })?;
-    }
-
-    for character in &parsed.characters {
-        db::insert_character(&conn, character).map_err(|e| {
-            let _ = conn.execute("ROLLBACK", []);
-            e.to_string()
-        })?;
-    }
-
-    for location in &parsed.locations {
-        db::insert_location(&conn, location).map_err(|e| {
             let _ = conn.execute("ROLLBACK", []);
             e.to_string()
         })?;

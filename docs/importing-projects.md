@@ -7,7 +7,6 @@ Kindling supports importing story outlines from multiple sources. This guide exp
 | Format | Extension | Description |
 |--------|-----------|-------------|
 | [Plottr](#plottr-pltr) | `.pltr` | Plottr project files |
-| [Scrivener](#scrivener-scriv) | `.scriv` | Scrivener 3 project packages |
 | [Markdown](#markdown-md) | `.md` | Plain text markdown outlines |
 
 ---
@@ -37,67 +36,6 @@ Plottr is a visual story planning tool. Kindling imports the full project struct
 - Custom character/location attributes are preserved
 - Scene card descriptions become beat content
 - Tags are read but not yet displayed in the UI
-
----
-
-## Scrivener (.scriv)
-
-Scrivener is a popular writing application. Kindling imports the binder structure and synopsis content from Scrivener 3 projects.
-
-### What Gets Imported
-
-- **Project name** - Derived from the `.scriv` folder name
-- **Chapters** - Folders in the Draft/Manuscript become chapters
-- **Scenes** - Text documents within chapter folders become scenes
-- **Beats** - Synopsis text for each scene becomes beat content
-- **Characters** - Character sheets from the Research folder
-- **Locations** - Location/Setting sheets from the Research folder
-
-### File Requirements
-
-- Must be a Scrivener 3 project (`.scriv` package/folder)
-- The project must contain a `.scrivx` index file inside
-- Scrivener 2 projects should be upgraded to Scrivener 3 first
-
-### Project Structure
-
-Kindling expects your Scrivener project to follow this structure:
-
-```
-MyNovel.scriv/
-├── MyNovel.scrivx          <- Project index file (required)
-└── Files/
-    └── Data/
-        ├── [uuid]/
-        │   └── synopsis.txt  <- Scene synopsis (optional)
-        └── ...
-```
-
-### How the Draft Folder Maps to Kindling
-
-```
-Draft (or Manuscript)
-├── Chapter 1 (Folder)      -> Chapter
-│   ├── Scene 1 (Text)      -> Scene + Beat (from synopsis)
-│   └── Scene 2 (Text)      -> Scene + Beat
-├── Chapter 2 (Folder)      -> Chapter
-│   └── Scene 3 (Text)      -> Scene + Beat
-└── Standalone Scene (Text) -> Creates its own Chapter + Scene
-```
-
-### Tips for Best Results
-
-1. **Use Folders for Chapters** - Each folder directly under Draft becomes a chapter
-2. **Use Text Documents for Scenes** - Each text document becomes a scene
-3. **Write Synopsis** - The synopsis field (in the Inspector) becomes the beat content
-4. **Use Character/Location Sheets** - These are found in the Research folder and will be imported
-
-### Notes
-
-- Only content in the Draft/Manuscript folder is imported as story structure
-- Research folder items are scanned for Character Sheets and Location Sheets
-- Actual manuscript text is not imported (only synopsis/outline content)
-- Nested folders beyond one level are flattened
 
 ---
 
@@ -194,12 +132,10 @@ The parser handles special characters correctly:
 ### "Could not read file"
 
 - Check that the file exists and you have read permissions
-- For Scrivener, ensure you're selecting the `.scriv` folder, not a file inside it
 
 ### "Invalid file structure"
 
 - **Plottr**: Ensure the file is valid JSON (not corrupted)
-- **Scrivener**: Ensure the `.scrivx` file exists inside the `.scriv` package
 - **Markdown**: Check for encoding issues (should be UTF-8)
 
 ### Missing Content After Import
@@ -207,25 +143,24 @@ The parser handles special characters correctly:
 - **No chapters**: Make sure your file has the expected structure markers
 - **No scenes**: Scenes require a parent chapter to exist first
 - **No beats**: Beats require a parent scene to exist first
-- **No characters/locations**: These are only imported from Plottr and Scrivener
+- **No characters/locations**: These are only imported from Plottr
 
 ### Characters or Locations Not Appearing
 
 - **Plottr**: Characters/places must be defined in the Plottr file
-- **Scrivener**: Characters must use the "Character Sheet" template; locations must use "Setting Sheet"
 - **Markdown**: Character and location import is not supported (outline only)
 
 ---
 
 ## Format Comparison
 
-| Feature | Plottr | Scrivener | Markdown |
-|---------|--------|-----------|----------|
-| Chapters | Yes (from beats) | Yes (from folders) | Yes (H1) |
-| Scenes | Yes (from cards) | Yes (from text docs) | Yes (H2) |
-| Beats | Yes (from descriptions) | Yes (from synopsis) | Yes (lists/paragraphs) |
-| Characters | Yes | Yes (Character Sheets) | No |
-| Locations | Yes | Yes (Setting Sheets) | No |
-| Custom Attributes | Yes | No | No |
-| Scene-Character Links | Yes | No | No |
-| Scene-Location Links | Yes | No | No |
+| Feature | Plottr | Markdown |
+|---------|--------|----------|
+| Chapters | Yes (from beats) | Yes (H1) |
+| Scenes | Yes (from cards) | Yes (H2) |
+| Beats | Yes (from descriptions) | Yes (lists/paragraphs) |
+| Characters | Yes | No |
+| Locations | Yes | No |
+| Custom Attributes | Yes | No |
+| Scene-Character Links | Yes | No |
+| Scene-Location Links | Yes | No |

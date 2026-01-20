@@ -14,7 +14,7 @@ if [ $? -ne 0 ]; then
     echo "Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
     echo ""
     echo "Examples:"
-    echo "  feat(import): add support for Scrivener 3 projects"
+    echo "  feat(export): add support for Obsidian/Longform export"
     echo "  fix(editor): resolve cursor position issue on paste"
     echo "  docs(readme): update installation instructions"
     echo ""

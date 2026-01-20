@@ -8,7 +8,7 @@
  */
 
 /** Supported outline import formats */
-export type SourceType = "Scrivener" | "Plottr" | "Markdown";
+export type SourceType = "Plottr" | "Markdown";
 
 /** Top-level container for a writing project */
 export interface Project {

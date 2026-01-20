@@ -37,7 +37,7 @@ body:
       label: Feature Area
       description: Which part of Kindling does this relate to?
       options:
-        - Import (Plottr, Scrivener, Markdown)
+        - Import (Plottr, Markdown)
         - Outline View
         - Writing/Prose Editor
         - Beat Sheet

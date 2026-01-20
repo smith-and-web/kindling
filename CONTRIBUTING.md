@@ -281,7 +281,7 @@ We enforce [Conventional Commits](https://www.conventionalcommits.org/) via auto
 
 ```bash
 # Feature with scope
-feat(import): add support for Scrivener 3 projects
+feat(export): add support for Obsidian/Longform export
 
 # Bug fix
 fix(editor): resolve cursor position issue on paste
@@ -341,7 +341,7 @@ The changelog is typically updated as part of the release process, not with ever
 Use the same format as commit messages:
 
 ```
-feat(import): add support for Scrivener 3 projects
+feat(export): add support for Obsidian/Longform export
 ```
 
 ### Review Process

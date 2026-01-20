@@ -54,7 +54,7 @@ While not enforced by GitHub, contributors should follow these branch naming con
 
 | Pattern | Purpose | Example |
 |---------|---------|---------|
-| `feature/*` | New features | `feature/scrivener-import` |
+| `feature/*` | New features | `feature/obsidian-export` |
 | `fix/*` | Bug fixes | `fix/cursor-position` |
 | `docs/*` | Documentation | `docs/api-reference` |
 | `refactor/*` | Code refactoring | `refactor/sidebar-components` |
