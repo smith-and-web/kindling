@@ -510,3 +510,46 @@ pub async fn preview_snapshot(
         project_name: data.project.name,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::SourceType;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_generate_snapshot_filename_includes_trigger() {
+        let filename = generate_snapshot_filename(&SnapshotTrigger::Manual);
+        assert!(filename.ends_with("_manual.json.gz"));
+        let parts: Vec<&str> = filename.split('_').collect();
+        assert_eq!(parts.len(), 3);
+        assert_eq!(parts[2], "manual.json.gz");
+    }
+
+    #[test]
+    fn test_serialize_and_decompress_roundtrip() {
+        let project = Project::new("Snapshot Test".to_string(), SourceType::Markdown, None);
+        let data = SnapshotData::new(
+            project.clone(),
+            vec![],
+            vec![],
+            vec![],
+            vec![],
+            vec![],
+            vec![],
+            vec![],
+        );
+
+        let dir = tempdir().expect("temp dir");
+        let file_path = dir.path().join("snapshot.json.gz");
+
+        let (file_size, uncompressed_size) = serialize_and_compress(&data, &file_path).unwrap();
+        assert!(file_size > 0);
+        assert!(uncompressed_size > 0);
+        assert!(file_path.exists());
+
+        let restored = decompress_and_deserialize(&file_path).unwrap();
+        assert_eq!(restored.project.id, data.project.id);
+        assert_eq!(restored.project.name, data.project.name);
+    }
+}

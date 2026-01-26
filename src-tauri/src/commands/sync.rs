@@ -871,3 +871,26 @@ pub async fn apply_sync(
 
     Ok(summary)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::truncate_string;
+
+    #[test]
+    fn test_truncate_string_shorter_than_limit() {
+        let input = "Short text";
+        assert_eq!(truncate_string(input, 20), "Short text");
+    }
+
+    #[test]
+    fn test_truncate_string_exact_limit() {
+        let input = "Exact";
+        assert_eq!(truncate_string(input, 5), "Exact");
+    }
+
+    #[test]
+    fn test_truncate_string_longer_than_limit() {
+        let input = "This is a longer string";
+        assert_eq!(truncate_string(input, 4), "This...");
+    }
+}

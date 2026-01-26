@@ -2782,4 +2782,79 @@ mod tests {
         assert!(stripped.contains("世界"));
         assert!(stripped.contains("Ça"));
     }
+
+    #[test]
+    fn test_merge_adjacent_runs() {
+        let runs = vec![
+            FormattedRun {
+                text: "Hello".to_string(),
+                bold: false,
+                italic: false,
+            },
+            FormattedRun {
+                text: " ".to_string(),
+                bold: false,
+                italic: false,
+            },
+            FormattedRun {
+                text: "World".to_string(),
+                bold: false,
+                italic: false,
+            },
+            FormattedRun {
+                text: "!".to_string(),
+                bold: true,
+                italic: false,
+            },
+            FormattedRun {
+                text: "!".to_string(),
+                bold: true,
+                italic: false,
+            },
+            FormattedRun {
+                text: "?".to_string(),
+                bold: false,
+                italic: true,
+            },
+        ];
+
+        let merged = merge_adjacent_runs(runs);
+        assert_eq!(merged.len(), 3);
+        assert_eq!(merged[0].text, "Hello World");
+        assert!(!merged[0].bold);
+        assert!(!merged[0].italic);
+        assert_eq!(merged[1].text, "!!");
+        assert!(merged[1].bold);
+        assert!(!merged[1].italic);
+        assert_eq!(merged[2].text, "?");
+        assert!(!merged[2].bold);
+        assert!(merged[2].italic);
+    }
+
+    #[test]
+    fn test_generate_scene_markdown() {
+        let chapter_id = Uuid::new_v4();
+        let mut scene = Scene::new(
+            chapter_id,
+            "Scene One".to_string(),
+            Some("First line\nSecond line".to_string()),
+            0,
+        );
+        scene.id = Uuid::new_v4();
+
+        let mut beat_one = Beat::new(scene.id, "Beat One".to_string(), 0);
+        beat_one.prose = Some("<p>Hello there.</p>".to_string());
+
+        let beat_two = Beat::new(scene.id, "Beat Two".to_string(), 1);
+
+        let markdown = generate_scene_markdown(&scene, &[beat_one, beat_two], true);
+        assert!(markdown.starts_with("# Scene One\n\n"));
+        assert!(markdown.contains("> First line\n> Second line\n\n"));
+        assert!(markdown.contains("## Beat One\n\n"));
+        assert!(markdown.contains("Hello there.\n\n"));
+        assert!(markdown.contains("## Beat Two\n\n"));
+
+        let no_markers = generate_scene_markdown(&scene, &[], false);
+        assert!(!no_markers.contains("## "));
+    }
 }
