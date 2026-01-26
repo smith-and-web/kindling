@@ -271,9 +271,11 @@
 <div
   class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
   onclick={handleBackdropClick}
+  onkeydown={handleKeydown}
   role="dialog"
   aria-modal="true"
   aria-labelledby="export-dialog-title"
+  tabindex="-1"
 >
   <!-- Dialog -->
   <div
@@ -470,7 +472,7 @@
                   bind:value={chapterHeadingStyle}
                   class="w-full appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer"
                 >
-                  {#each chapterHeadingStyles as style}
+                  {#each chapterHeadingStyles as style (style.value)}
                     <option value={style.value}>{style.label}</option>
                   {/each}
                 </select>
@@ -494,7 +496,7 @@
                   bind:value={sceneBreakStyle}
                   class="w-full appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer"
                 >
-                  {#each sceneBreakStyles as style}
+                  {#each sceneBreakStyles as style (style.value)}
                     <option value={style.value}>{style.label}</option>
                   {/each}
                 </select>
@@ -527,7 +529,7 @@
                   bind:value={fontFamily}
                   class="w-full appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer"
                 >
-                  {#each fontFamilies as font}
+                  {#each fontFamilies as font (font.value)}
                     <option value={font.value}>{font.label}</option>
                   {/each}
                 </select>
@@ -548,7 +550,7 @@
                   bind:value={lineSpacing}
                   class="w-full appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer"
                 >
-                  {#each lineSpacingOptions as spacing}
+                  {#each lineSpacingOptions as spacing (spacing.value)}
                     <option value={spacing.value}>{spacing.label}</option>
                   {/each}
                 </select>

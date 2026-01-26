@@ -1,7 +1,7 @@
 <script lang="ts">
   import { FileText, ChevronRight, ChevronDown, Loader2, Plus, Pencil, Lock } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { tick } from "svelte";
+  import { onDestroy, tick } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
@@ -28,6 +28,7 @@
   }
 
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  let pendingSaveBeatId: string | null = null;
   let synopsisSaveTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Synopsis editing state
@@ -40,23 +41,41 @@
   let newBeatContent = $state("");
   let creatingBeat = $state(false);
 
+  function syncPendingProse(beatId: string) {
+    const pendingProse = pendingProseUpdates.get(beatId);
+    if (pendingProse !== undefined) {
+      currentProject.updateBeatProse(beatId, pendingProse);
+      pendingProseUpdates.delete(beatId);
+    }
+  }
+
+  function flushPendingSave(beatId?: string) {
+    const targetBeatId = beatId ?? pendingSaveBeatId;
+    if (!targetBeatId) return;
+
+    if (saveTimeout && pendingSaveBeatId === targetBeatId) {
+      clearTimeout(saveTimeout);
+      saveTimeout = null;
+      pendingSaveBeatId = null;
+    }
+
+    const draft = draftProse.get(targetBeatId);
+    if (draft !== undefined) {
+      saveBeatProse(targetBeatId, draft);
+    }
+  }
+
   async function toggleBeat(beatId: string) {
     if (ui.expandedBeatId === beatId) {
+      flushPendingSave(beatId);
       // Collapsing - sync any pending prose updates to the store
-      const pendingProse = pendingProseUpdates.get(beatId);
-      if (pendingProse !== undefined) {
-        currentProject.updateBeatProse(beatId, pendingProse);
-        pendingProseUpdates.delete(beatId);
-      }
+      syncPendingProse(beatId);
       ui.setExpandedBeat(null);
     } else {
       // If we're switching from another beat, sync its pending updates first
       if (ui.expandedBeatId) {
-        const pendingProse = pendingProseUpdates.get(ui.expandedBeatId);
-        if (pendingProse !== undefined) {
-          currentProject.updateBeatProse(ui.expandedBeatId, pendingProse);
-          pendingProseUpdates.delete(ui.expandedBeatId);
-        }
+        flushPendingSave(ui.expandedBeatId);
+        syncPendingProse(ui.expandedBeatId);
       }
       ui.setExpandedBeat(beatId);
       // Wait for DOM to update, then scroll the beat into view
@@ -70,6 +89,7 @@
 
   // Track pending prose updates to sync to store when beat is collapsed
   let pendingProseUpdates = new SvelteMap<string, string>();
+  let draftProse = new SvelteMap<string, string>();
 
   // Local save status to avoid global store updates causing re-renders
   let localSaveStatus = $state<"idle" | "saving" | "error">("idle");
@@ -78,9 +98,20 @@
     localSaveStatus = "saving";
     try {
       await invoke("save_beat_prose", { beatId, prose });
+      if (!currentProject.beats.some((beat) => beat.id === beatId)) {
+        draftProse.delete(beatId);
+        localSaveStatus = "idle";
+        return;
+      }
       // Don't update the store while editing - it causes re-renders and flashing
       // Instead, track the update and sync when the beat is collapsed
       pendingProseUpdates.set(beatId, prose);
+      draftProse.delete(beatId);
+
+      if (ui.expandedBeatId !== beatId) {
+        currentProject.updateBeatProse(beatId, prose);
+        pendingProseUpdates.delete(beatId);
+      }
       // Keep showing "saving" for 1 more second so user sees the indicator
       setTimeout(() => {
         localSaveStatus = "idle";
@@ -93,11 +124,18 @@
 
   function handleProseInput(beatId: string, value: string) {
     // Debounce save by 500ms
+    draftProse.set(beatId, value);
     if (saveTimeout) {
       clearTimeout(saveTimeout);
     }
+    pendingSaveBeatId = beatId;
     saveTimeout = setTimeout(() => {
-      saveBeatProse(beatId, value);
+      saveTimeout = null;
+      pendingSaveBeatId = null;
+      const draft = draftProse.get(beatId);
+      if (draft !== undefined) {
+        saveBeatProse(beatId, draft);
+      }
     }, 500);
   }
 
@@ -110,6 +148,8 @@
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") {
       if (ui.expandedBeatId) {
+        flushPendingSave(ui.expandedBeatId);
+        syncPendingProse(ui.expandedBeatId);
         ui.setExpandedBeat(null);
       }
       if (editingSynopsis) {
@@ -194,6 +234,28 @@
   function stripHtml(html: string): string {
     return html.replace(/<[^>]*>/g, "").trim();
   }
+
+  let lastSceneId: string | null = null;
+  $effect(() => {
+    const sceneId = currentProject.currentScene?.id ?? null;
+    if (lastSceneId && sceneId !== lastSceneId) {
+      flushPendingSave(ui.expandedBeatId ?? undefined);
+      if (ui.expandedBeatId) {
+        syncPendingProse(ui.expandedBeatId);
+      }
+      pendingProseUpdates.clear();
+      draftProse.clear();
+      ui.setExpandedBeat(null);
+    }
+    lastSceneId = sceneId;
+  });
+
+  onDestroy(() => {
+    flushPendingSave(ui.expandedBeatId ?? undefined);
+    if (ui.expandedBeatId) {
+      syncPendingProse(ui.expandedBeatId);
+    }
+  });
 </script>
 
 <svelte:window on:keydown={handleKeydown} />

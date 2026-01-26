@@ -8,7 +8,6 @@
   - Phone and email
 -->
 <script lang="ts">
-  /* eslint-disable no-undef */
   import { invoke } from "@tauri-apps/api/core";
   import { X, Loader2, Settings, User } from "lucide-svelte";
   import type { AppSettings } from "../types";

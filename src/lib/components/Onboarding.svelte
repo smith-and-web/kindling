@@ -44,7 +44,7 @@
         ui.setView("editor");
       } catch (e) {
         console.error("Failed to import Plottr file:", e);
-        alert(`Import failed: ${e}`);
+        ui.showError(`Import failed: ${e}`);
       } finally {
         ui.finishImport();
       }
@@ -66,7 +66,7 @@
         ui.setView("editor");
       } catch (e) {
         console.error("Failed to import Markdown file:", e);
-        alert(`Import failed: ${e}`);
+        ui.showError(`Import failed: ${e}`);
       } finally {
         ui.finishImport();
       }
