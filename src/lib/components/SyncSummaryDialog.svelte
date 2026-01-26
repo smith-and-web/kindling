@@ -29,6 +29,7 @@
   class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
   role="dialog"
   aria-modal="true"
+  tabindex="-1"
 >
   <div class="bg-bg-panel rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
     <h3 class="text-lg font-heading font-medium text-text-primary mb-4">Sync Complete</h3>

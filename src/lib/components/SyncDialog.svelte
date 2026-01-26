@@ -93,6 +93,7 @@
   class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-6 md:p-10"
   role="dialog"
   aria-modal="true"
+  tabindex="-1"
 >
   <div
     class="bg-bg-panel rounded-2xl w-full h-full max-w-7xl flex flex-col shadow-2xl border border-white/5 overflow-hidden"

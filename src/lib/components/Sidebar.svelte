@@ -1062,6 +1062,7 @@
           {#if group.part}
             {@const part = group.part}
             {@const isPartExpanded = checkPartExpanded(part.id)}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               data-testid="part-item"
               data-drag-chapter={part.id}
@@ -1072,6 +1073,7 @@
               onmouseleave={() => (hoveredChapterId = null)}
             >
               <!-- Part row -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group bg-accent/10 border-l-2 border-accent"
                 oncontextmenu={(e) => openContextMenu(e, "chapter", part)}
@@ -1132,6 +1134,7 @@
             <div class={group.part ? "ml-2" : ""}>
               {#each group.chapters as chapter (chapter.id)}
                 {@const isExpanded = isChapterExpanded(chapter.id)}
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
                   data-testid="chapter-item"
                   data-drag-chapter={chapter.id}
@@ -1142,6 +1145,7 @@
                   onmouseleave={() => (hoveredChapterId = null)}
                 >
                   <!-- Chapter row -->
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
                   <div
                     class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group"
                     class:bg-bg-card={isExpanded}
@@ -1203,6 +1207,7 @@
                       {#each currentProject.scenes as scene (scene.id)}
                         {@const isSelected = currentProject.currentScene?.id === scene.id}
                         {@const isLocked = scene.locked || chapter.locked}
+                        <!-- svelte-ignore a11y_no_static_element_interactions -->
                         <div
                           data-drag-scene={scene.id}
                           data-testid="scene-item"
@@ -1278,6 +1283,7 @@
                       <!-- New Scene Button or Input -->
                       {#if creatingScene}
                         <div class="px-2 py-1">
+                          <!-- svelte-ignore a11y_autofocus -->
                           <input
                             data-testid="title-input"
                             type="text"
@@ -1316,6 +1322,7 @@
         <!-- New Chapter/Part Button or Input -->
         {#if creatingChapter || creatingPart}
           <div class="px-2 py-1">
+            <!-- svelte-ignore a11y_autofocus -->
             <input
               data-testid="title-input"
               type="text"
