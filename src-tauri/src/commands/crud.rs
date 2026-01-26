@@ -358,8 +358,7 @@ pub async fn save_scene_prose(
     db::update_scene_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())?;
 
     // Update project modified time
-    if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())?
-    {
+    if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
         let _ = db::update_project_modified(&conn, &project_id);
     }
 
