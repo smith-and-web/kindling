@@ -239,7 +239,8 @@
 >
   <!-- Resize handle -->
   {#if !ui.referencesPanelCollapsed}
-    <!-- svelte-ignore a11y_no_noninteractive_tabindex a11y_no_noninteractive_element_interactions -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
       class="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-accent/50 active:bg-accent transition-colors z-10 focus:outline-none focus:bg-accent"
       onmousedown={startResize}
