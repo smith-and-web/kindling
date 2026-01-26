@@ -78,7 +78,7 @@ async function closeAllDialogs() {
 async function waitForSyncButtonClickable() {
   await browser.waitUntil(
     async () => {
-      const syncButton = await $('[data-testid="reimport-button"]');
+      const syncButton = await $('[data-testid="sync-button"]');
       if (!(await syncButton.isExisting())) return false;
       if (!(await syncButton.isDisplayed())) return false;
       return await syncButton.isClickable();
@@ -93,7 +93,7 @@ async function waitForSyncButtonClickable() {
 async function clickSyncButton() {
   await closeAllDialogs();
   await waitForSyncButtonClickable();
-  const syncButton = await $('[data-testid="reimport-button"]');
+  const syncButton = await $('[data-testid="sync-button"]');
   await syncButton.click();
 }
 
@@ -116,7 +116,7 @@ describe("Re-import to Update Project (#40)", () => {
   describe("Sync Button Visibility", () => {
     it("should show sync button for imported projects", async () => {
       // Assumes we're on an imported project (has source_path)
-      const syncButton = await $('[data-testid="reimport-button"]');
+      const syncButton = await $('[data-testid="sync-button"]');
       expect(await syncButton.isExisting()).toBe(true);
     });
 
@@ -289,7 +289,7 @@ describe("Re-import to Update Project (#40)", () => {
 
       // For now, verify the sync button is accessible
       await waitForSyncButtonClickable();
-      const syncButton = await $('[data-testid="reimport-button"]');
+      const syncButton = await $('[data-testid="sync-button"]');
       expect(await syncButton.isExisting()).toBe(true);
     });
 

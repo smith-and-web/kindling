@@ -1,0 +1,35 @@
+services:
+  e2e:
+    build:
+      context: ..
+      dockerfile: e2e/Dockerfile
+    working_dir: /app
+    volumes:
+      - ..:/app
+      - node-modules:/app/node_modules
+      - e2e-node-modules:/app/e2e/node_modules
+      - cargo-registry:/root/.cargo/registry
+      - cargo-git:/root/.cargo/git
+      - npm-cache:/root/.npm
+      - tauri-target:/app/src-tauri/target
+    environment:
+      DISPLAY: ":99"
+      TAURI_SIGNING_PRIVATE_KEY: ""
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+      TAURI_BUNDLER_DISABLE_APPIMAGE: "1"
+    command: >
+      sh -c "npm ci &&
+             npm run tauri build -- --no-bundle &&
+             npm ci --prefix e2e --include=dev &&
+             (Xvfb :99 -screen 0 1920x1080x24 &) &&
+             sleep 2 &&
+             npm run test:ci --prefix e2e"
+
+volumes:
+  node-modules:
+  e2e-node-modules:
+  cargo-registry:
+  cargo-git:
+  npm-cache:
+  tauri-target:

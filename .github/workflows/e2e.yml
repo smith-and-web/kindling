@@ -86,8 +86,8 @@ jobs:
         working-directory: e2e
         run: npm ci
 
-      - name: Build Tauri app (release)
-        run: npm run tauri build
+      - name: Build Tauri app (release, no bundle)
+        run: npm run tauri build -- --no-bundle
         env:
           TAURI_SIGNING_PRIVATE_KEY: ""
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
