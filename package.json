@@ -53,6 +53,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "@wdio/cli": "^9.23.0",
     "conventional-changelog-cli": "^5.0.0",
+    "conventional-commits-parser": "^6.2.1",
     "eslint": "^9.39.2",
     "eslint-plugin-svelte": "^3.14.0",
     "jsdom": "^27.4.0",
