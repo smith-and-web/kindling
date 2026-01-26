@@ -8,15 +8,28 @@ End-to-end tests for Kindling using [WebdriverIO](https://webdriver.io/) and [Ta
 |----------|--------|-------|
 | Linux | ✅ Supported | Uses `WebKitWebDriver` |
 | Windows | ✅ Supported | Uses `msedgedriver` |
-| macOS | ❌ Not supported | No WKWebView WebDriver |
+| macOS | ⚠️ Docker only | Use Docker to run Linux tests |
+| Docker | ✅ Supported | Linux container matching CI |
 
-**Note:** macOS does not have a WebDriver for WKWebView, so E2E tests cannot run locally on macOS. Tests run in CI on Linux instead.
+**Note:** macOS does not have a WebDriver for WKWebView, so E2E tests cannot run locally on macOS. Use Docker (below) or CI on Linux instead.
 
 ## Running Tests
 
 ### In CI (Recommended)
 
 E2E tests run automatically in GitHub Actions on Linux runners. See `.github/workflows/e2e.yml`.
+
+### In Docker (Recommended on macOS/Windows)
+
+```bash
+# From project root
+npm run test:e2e:docker
+```
+
+This builds a Linux container with the same dependencies as CI, builds the Tauri app,
+and runs the E2E tests with Xvfb.
+
+The E2E fixtures live in `test-data/` (for example `test-data/simple-story.pltr`).
 
 ### Locally on Linux
 
@@ -114,7 +127,7 @@ For tests to work, add these `data-testid` attributes to components:
 - `title-input` - Inline title input for creating items
 - `drag-handle` - Drag grip icon
 - `delete-button` - Trash icon button
-- `reimport-button` - Refresh/reimport button
+- `sync-button` - Refresh/reimport button
 
 ### Scene Panel
 - `scene-panel` - Main scene content area
@@ -173,6 +186,10 @@ cargo install tauri-driver
 cargo install tauri-driver
 ```
 
+### Docker
+
+Install Docker Desktop (macOS/Windows) or Docker Engine (Linux) with Compose support.
+
 ## Troubleshooting
 
 ### "Could not find Tauri binary"
@@ -218,7 +235,7 @@ Make sure `~/.cargo/bin` is in your PATH.
 This is expected. macOS lacks a WebDriver for WKWebView. Run E2E tests:
 - In CI (automatically runs on Linux)
 - On a Linux machine or VM
-- Using Docker (experimental)
+- Using Docker
 
 ### Test flakiness
 
@@ -249,4 +266,7 @@ npm run test:e2e
 
 # For CI/headless mode
 npm run test:e2e:ci
+
+# Docker (Linux container, recommended for macOS/Windows)
+npm run test:e2e:docker
 ```
