@@ -69,6 +69,9 @@
   }
 
   let loading = $state(false);
+  let chaptersRequestId = 0;
+  let scenesRequestId = 0;
+  let beatsRequestId = 0;
   let expandedChapters = new SvelteSet<string>();
   let expandedParts = new SvelteSet<string>();
 
@@ -182,12 +185,16 @@
 
   async function loadChapters() {
     if (!currentProject.value) return;
+    const projectId = currentProject.value.id;
+    const requestId = ++chaptersRequestId;
 
     loading = true;
     try {
       const chapters = await invoke<Chapter[]>("get_chapters", {
-        projectId: currentProject.value.id,
+        projectId,
       });
+      if (requestId !== chaptersRequestId || currentProject.value?.id !== projectId) return;
+
       currentProject.setChapters(chapters);
 
       // Auto-expand all Parts
@@ -208,7 +215,9 @@
     } catch (e) {
       console.error("Failed to load chapters:", e);
     } finally {
-      loading = false;
+      if (requestId === chaptersRequestId) {
+        loading = false;
+      }
     }
   }
 
@@ -231,11 +240,14 @@
   }
 
   async function loadScenes(chapter: Chapter) {
+    const requestId = ++scenesRequestId;
+    const chapterId = chapter.id;
     currentProject.setCurrentChapter(chapter);
     try {
       const scenes = await invoke<Scene[]>("get_scenes", {
         chapterId: chapter.id,
       });
+      if (requestId !== scenesRequestId || currentProject.currentChapter?.id !== chapterId) return;
       currentProject.setScenes(scenes);
     } catch (e) {
       console.error("Failed to load scenes:", e);
@@ -243,9 +255,12 @@
   }
 
   async function selectScene(scene: Scene) {
+    const requestId = ++beatsRequestId;
+    const sceneId = scene.id;
     currentProject.setCurrentScene(scene);
     try {
       const beats = await invoke("get_beats", { sceneId: scene.id });
+      if (requestId !== beatsRequestId || currentProject.currentScene?.id !== sceneId) return;
       currentProject.setBeats(beats as any[]);
     } catch (e) {
       console.error("Failed to load beats:", e);

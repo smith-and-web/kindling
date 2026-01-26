@@ -12,6 +12,7 @@
   import ProjectSettingsDialog from "./lib/components/ProjectSettingsDialog.svelte";
   import ExportDialog from "./lib/components/ExportDialog.svelte";
   import ExportSuccessDialog from "./lib/components/ExportSuccessDialog.svelte";
+  import ErrorToast from "./lib/components/ErrorToast.svelte";
   import { currentProject } from "./lib/stores/project.svelte";
   import { ui } from "./lib/stores/ui.svelte";
   import type { Project, ExportResult } from "./lib/types";
@@ -56,7 +57,7 @@
         ui.setView("editor");
       } catch (e) {
         console.error("Failed to import Plottr file:", e);
-        alert(`Import failed: ${e}`);
+        ui.showError(`Import failed: ${e}`);
       } finally {
         ui.finishImport();
       }
@@ -77,7 +78,7 @@
         ui.setView("editor");
       } catch (e) {
         console.error("Failed to import Markdown file:", e);
-        alert(`Import failed: ${e}`);
+        ui.showError(`Import failed: ${e}`);
       } finally {
         ui.finishImport();
       }
@@ -98,7 +99,7 @@
         ui.setView("editor");
       } catch (e) {
         console.error("Failed to import yWriter file:", e);
-        alert(`Import failed: ${e}`);
+        ui.showError(`Import failed: ${e}`);
       } finally {
         ui.finishImport();
       }
@@ -171,6 +172,12 @@
     <StartScreen {recentProjects} />
   {/if}
 </main>
+
+{#if ui.toast}
+  {#key ui.toast.id}
+    <ErrorToast message={ui.toast.message} onDismiss={() => ui.clearToast()} />
+  {/key}
+{/if}
 
 <!-- Onboarding overlay (shown on first launch) -->
 <Onboarding />

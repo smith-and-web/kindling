@@ -42,3 +42,4 @@ npm-debug.log*
 # Test coverage
 coverage/
 coverage-rust/
+kindling-cursor-context.md

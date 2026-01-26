@@ -34,7 +34,7 @@
         ui.setView("editor");
       } catch (e) {
         console.error("Failed to import Plottr file:", e);
-        alert(`Import failed: ${e}`);
+        ui.showError(`Import failed: ${e}`);
       } finally {
         ui.finishImport();
       }
@@ -55,7 +55,7 @@
         ui.setView("editor");
       } catch (e) {
         console.error("Failed to import Markdown file:", e);
-        alert(`Import failed: ${e}`);
+        ui.showError(`Import failed: ${e}`);
       } finally {
         ui.finishImport();
       }
@@ -76,7 +76,7 @@
         ui.setView("editor");
       } catch (e) {
         console.error("Failed to import yWriter file:", e);
-        alert(`Import failed: ${e}`);
+        ui.showError(`Import failed: ${e}`);
       } finally {
         ui.finishImport();
       }
@@ -90,7 +90,7 @@
       ui.setView("editor");
     } catch (e) {
       console.error("Failed to open project:", e);
-      alert(`Failed to open project: ${e}`);
+      ui.showError(`Failed to open project: ${e}`);
     }
   }
 
@@ -111,7 +111,7 @@
       recentProjects = recentProjects.filter((p) => p.id !== project.id);
     } catch (e) {
       console.error("Failed to delete project:", e);
-      alert(`Failed to delete project: ${e}`);
+      ui.showError(`Failed to delete project: ${e}`);
     } finally {
       deletingProjectId = null;
     }
