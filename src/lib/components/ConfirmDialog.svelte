@@ -32,6 +32,7 @@
   role="dialog"
   aria-modal="true"
   aria-labelledby="dialog-title"
+  tabindex="-1"
 >
   <div class="bg-bg-panel rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
     <h3 id="dialog-title" class="text-lg font-heading font-medium text-text-primary mb-4">

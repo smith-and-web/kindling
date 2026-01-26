@@ -355,7 +355,14 @@ pub async fn save_scene_prose(
         return Err("Cannot edit a locked scene".to_string());
     }
 
-    db::update_scene_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())
+    db::update_scene_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())?;
+
+    // Update project modified time
+    if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -563,13 +570,23 @@ pub async fn save_beat_prose(
         .ok()
         .flatten();
 
-    if let Some(scene_id) = scene_id {
-        if db::is_scene_locked(&conn, &scene_id).map_err(|e| e.to_string())? {
+    if let Some(scene_id) = scene_id.as_ref() {
+        if db::is_scene_locked(&conn, scene_id).map_err(|e| e.to_string())? {
             return Err("Cannot edit beats in a locked scene".to_string());
         }
     }
 
-    db::update_beat_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())
+    db::update_beat_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())?;
+
+    if let Some(scene_id) = scene_id {
+        if let Some(project_id) =
+            db::get_scene_project_id(&conn, &scene_id).map_err(|e| e.to_string())?
+        {
+            let _ = db::update_project_modified(&conn, &project_id);
+        }
+    }
+
+    Ok(())
 }
 
 // ============================================================================
