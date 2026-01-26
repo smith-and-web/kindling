@@ -36,6 +36,7 @@
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type {
+    Beat,
     Chapter,
     Scene,
     SyncPreview,
@@ -69,6 +70,9 @@
   }
 
   let loading = $state(false);
+  let chaptersRequestId = 0;
+  let scenesRequestId = 0;
+  let beatsRequestId = 0;
   let expandedChapters = new SvelteSet<string>();
   let expandedParts = new SvelteSet<string>();
 
@@ -182,12 +186,16 @@
 
   async function loadChapters() {
     if (!currentProject.value) return;
+    const projectId = currentProject.value.id;
+    const requestId = ++chaptersRequestId;
 
     loading = true;
     try {
       const chapters = await invoke<Chapter[]>("get_chapters", {
-        projectId: currentProject.value.id,
+        projectId,
       });
+      if (requestId !== chaptersRequestId || currentProject.value?.id !== projectId) return;
+
       currentProject.setChapters(chapters);
 
       // Auto-expand all Parts
@@ -208,7 +216,9 @@
     } catch (e) {
       console.error("Failed to load chapters:", e);
     } finally {
-      loading = false;
+      if (requestId === chaptersRequestId) {
+        loading = false;
+      }
     }
   }
 
@@ -231,11 +241,14 @@
   }
 
   async function loadScenes(chapter: Chapter) {
+    const requestId = ++scenesRequestId;
+    const chapterId = chapter.id;
     currentProject.setCurrentChapter(chapter);
     try {
       const scenes = await invoke<Scene[]>("get_scenes", {
         chapterId: chapter.id,
       });
+      if (requestId !== scenesRequestId || currentProject.currentChapter?.id !== chapterId) return;
       currentProject.setScenes(scenes);
     } catch (e) {
       console.error("Failed to load scenes:", e);
@@ -243,10 +256,13 @@
   }
 
   async function selectScene(scene: Scene) {
+    const requestId = ++beatsRequestId;
+    const sceneId = scene.id;
     currentProject.setCurrentScene(scene);
     try {
-      const beats = await invoke("get_beats", { sceneId: scene.id });
-      currentProject.setBeats(beats as any[]);
+      const beats = await invoke<Beat[]>("get_beats", { sceneId: scene.id });
+      if (requestId !== beatsRequestId || currentProject.currentScene?.id !== sceneId) return;
+      currentProject.setBeats(beats);
     } catch (e) {
       console.error("Failed to load beats:", e);
     }
@@ -1046,6 +1062,7 @@
           {#if group.part}
             {@const part = group.part}
             {@const isPartExpanded = checkPartExpanded(part.id)}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               data-testid="part-item"
               data-drag-chapter={part.id}
@@ -1056,6 +1073,7 @@
               onmouseleave={() => (hoveredChapterId = null)}
             >
               <!-- Part row -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group bg-accent/10 border-l-2 border-accent"
                 oncontextmenu={(e) => openContextMenu(e, "chapter", part)}
@@ -1116,6 +1134,7 @@
             <div class={group.part ? "ml-2" : ""}>
               {#each group.chapters as chapter (chapter.id)}
                 {@const isExpanded = isChapterExpanded(chapter.id)}
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
                   data-testid="chapter-item"
                   data-drag-chapter={chapter.id}
@@ -1126,6 +1145,7 @@
                   onmouseleave={() => (hoveredChapterId = null)}
                 >
                   <!-- Chapter row -->
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
                   <div
                     class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group"
                     class:bg-bg-card={isExpanded}
@@ -1187,6 +1207,7 @@
                       {#each currentProject.scenes as scene (scene.id)}
                         {@const isSelected = currentProject.currentScene?.id === scene.id}
                         {@const isLocked = scene.locked || chapter.locked}
+                        <!-- svelte-ignore a11y_no_static_element_interactions -->
                         <div
                           data-drag-scene={scene.id}
                           data-testid="scene-item"
@@ -1262,6 +1283,7 @@
                       <!-- New Scene Button or Input -->
                       {#if creatingScene}
                         <div class="px-2 py-1">
+                          <!-- svelte-ignore a11y_autofocus -->
                           <input
                             data-testid="title-input"
                             type="text"
@@ -1300,6 +1322,7 @@
         <!-- New Chapter/Part Button or Input -->
         {#if creatingChapter || creatingPart}
           <div class="px-2 py-1">
+            <!-- svelte-ignore a11y_autofocus -->
             <input
               data-testid="title-input"
               type="text"

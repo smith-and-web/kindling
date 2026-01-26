@@ -55,6 +55,7 @@ class UIStore {
   private _isImporting = $state(false);
   private _importProgress = $state(0);
   private _importStatus = $state("");
+  private _toast = $state<{ id: number; message: string } | null>(null);
 
   // Onboarding state
   private _showOnboarding = $state(false);
@@ -158,6 +159,10 @@ class UIStore {
     return this._importStatus;
   }
 
+  get toast() {
+    return this._toast;
+  }
+
   setView(view: View) {
     this._currentView = view;
   }
@@ -201,6 +206,14 @@ class UIStore {
     this._isImporting = false;
     this._importProgress = 100;
     this._importStatus = "Import complete!";
+  }
+
+  showError(message: string) {
+    this._toast = { id: Date.now(), message };
+  }
+
+  clearToast() {
+    this._toast = null;
   }
 
   // Onboarding getters

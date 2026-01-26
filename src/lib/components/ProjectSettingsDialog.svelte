@@ -6,7 +6,6 @@
   - Genre
 -->
 <script lang="ts">
-  /* eslint-disable no-undef */
   import { invoke } from "@tauri-apps/api/core";
   import { X, Loader2, BookOpen } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";

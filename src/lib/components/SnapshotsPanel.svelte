@@ -242,9 +242,11 @@
 <div
   class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
   onclick={handleBackdropClick}
+  onkeydown={handleKeydown}
   role="dialog"
   aria-modal="true"
   aria-labelledby="snapshots-panel-title"
+  tabindex="-1"
 >
   <!-- Panel - wider for more breathing room -->
   <div
@@ -401,8 +403,10 @@
     <div
       class="fixed inset-0 z-60 flex items-center justify-center bg-black/50"
       onclick={(e) => e.target === e.currentTarget && (showCreateDialog = false)}
+      onkeydown={handleKeydown}
       role="dialog"
       aria-modal="true"
+      tabindex="-1"
     >
       <div class="bg-bg-panel rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
         <div class="flex items-center justify-between px-4 py-3 border-b border-bg-card">
@@ -475,8 +479,10 @@
     <div
       class="fixed inset-0 z-60 flex items-center justify-center bg-black/50"
       onclick={(e) => e.target === e.currentTarget && (showRestoreDialog = false)}
+      onkeydown={handleKeydown}
       role="dialog"
       aria-modal="true"
+      tabindex="-1"
     >
       <div class="bg-bg-panel rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
         <div class="flex items-center justify-between px-4 py-3 border-b border-bg-card">
