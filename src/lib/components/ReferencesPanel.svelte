@@ -239,6 +239,7 @@
 >
   <!-- Resize handle -->
   {#if !ui.referencesPanelCollapsed}
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex a11y_no_noninteractive_element_interactions -->
     <div
       class="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-accent/50 active:bg-accent transition-colors z-10 focus:outline-none focus:bg-accent"
       onmousedown={startResize}
@@ -386,6 +387,7 @@
                     <div
                       class="text-text-primary text-sm mt-3 leading-relaxed max-w-none break-words [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
                     >
+                      <!-- eslint-disable-next-line svelte/no-at-html-tags -->
                       {@html character.description}
                     </div>
                   {/if}
@@ -481,6 +483,7 @@
                     <div
                       class="text-text-primary text-sm mt-3 leading-relaxed max-w-none break-words [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
                     >
+                      <!-- eslint-disable-next-line svelte/no-at-html-tags -->
                       {@html location.description}
                     </div>
                   {/if}

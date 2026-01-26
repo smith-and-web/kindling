@@ -36,6 +36,7 @@
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type {
+    Beat,
     Chapter,
     Scene,
     SyncPreview,
@@ -259,9 +260,9 @@
     const sceneId = scene.id;
     currentProject.setCurrentScene(scene);
     try {
-      const beats = await invoke("get_beats", { sceneId: scene.id });
+      const beats = await invoke<Beat[]>("get_beats", { sceneId: scene.id });
       if (requestId !== beatsRequestId || currentProject.currentScene?.id !== sceneId) return;
-      currentProject.setBeats(beats as any[]);
+      currentProject.setBeats(beats);
     } catch (e) {
       console.error("Failed to load beats:", e);
     }

@@ -134,6 +134,7 @@
   role="dialog"
   aria-modal="true"
   aria-labelledby="archive-panel-title"
+  tabindex="-1"
 >
   <!-- Panel -->
   <div

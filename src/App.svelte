@@ -17,7 +17,7 @@
   import { ui } from "./lib/stores/ui.svelte";
   import type { Project, ExportResult } from "./lib/types";
 
-  let recentProjects = $state<any[]>([]);
+  let recentProjects = $state<Project[]>([]);
 
   // Dialog states triggered by menu
   let showKindlingSettings = $state(false);
