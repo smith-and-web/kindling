@@ -13,13 +13,15 @@
 
   let { summary, onClose }: Props = $props();
 
-  const hasChanges =
-    summary.chapters_added > 0 ||
-    summary.chapters_updated > 0 ||
-    summary.scenes_added > 0 ||
-    summary.scenes_updated > 0 ||
-    summary.beats_added > 0 ||
-    summary.beats_updated > 0;
+  const hasChanges = $derived.by(
+    () =>
+      summary.chapters_added > 0 ||
+      summary.chapters_updated > 0 ||
+      summary.scenes_added > 0 ||
+      summary.scenes_updated > 0 ||
+      summary.beats_added > 0 ||
+      summary.beats_updated > 0
+  );
 </script>
 
 <div
