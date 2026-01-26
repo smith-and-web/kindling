@@ -223,6 +223,21 @@ describe("ui store", () => {
     });
   });
 
+  describe("toast notifications", () => {
+    it("should initialize with no toast", () => {
+      expect(ui.toast).toBeNull();
+    });
+
+    it("should show and clear a toast", () => {
+      ui.showError("Something went wrong");
+      expect(ui.toast?.message).toBe("Something went wrong");
+      expect(typeof ui.toast?.id).toBe("number");
+
+      ui.clearToast();
+      expect(ui.toast).toBeNull();
+    });
+  });
+
   describe("onboarding", () => {
     it("should return onboarding completed status", () => {
       expect(typeof ui.onboardingCompleted).toBe("boolean");
