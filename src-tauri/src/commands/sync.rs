@@ -207,6 +207,8 @@ pub async fn reimport_project(
                     &new_scene.title,
                     new_scene.synopsis.as_deref(),
                     new_scene.position,
+                    &new_scene.scene_type,
+                    &new_scene.scene_status,
                 )
                 .map_err(|e| {
                     let _ = conn.execute("ROLLBACK", []);
@@ -228,6 +230,8 @@ pub async fn reimport_project(
                     source_id: new_scene.source_id.clone(),
                     archived: false,
                     locked: false,
+                    scene_type: new_scene.scene_type,
+                    scene_status: new_scene.scene_status,
                 };
                 db::insert_scene(&conn, &scene_to_insert).map_err(|e| {
                     let _ = conn.execute("ROLLBACK", []);
@@ -751,6 +755,8 @@ pub async fn apply_sync(
                         &new_title,
                         new_synopsis.as_deref(),
                         new_scene.position,
+                        &new_scene.scene_type,
+                        &new_scene.scene_status,
                     )
                     .map_err(|e| {
                         let _ = conn.execute("ROLLBACK", []);
@@ -775,6 +781,8 @@ pub async fn apply_sync(
                         source_id: new_scene.source_id.clone(),
                         archived: false,
                         locked: false,
+                        scene_type: new_scene.scene_type,
+                        scene_status: new_scene.scene_status,
                     };
                     db::insert_scene(&conn, &scene_to_insert).map_err(|e| {
                         let _ = conn.execute("ROLLBACK", []);

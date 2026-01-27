@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { currentProject } from "./project.svelte";
-import type { Project, ReferenceTypeId } from "../types";
+import type { Project, ReferenceTypeId, Scene } from "../types";
+
+const defaultSceneMeta: Pick<Scene, "scene_type" | "scene_status"> = {
+  scene_type: "normal",
+  scene_status: "draft",
+};
 
 describe("currentProject store", () => {
   beforeEach(() => {
@@ -61,6 +66,7 @@ describe("currentProject store", () => {
         prose: null,
         archived: false,
         locked: false,
+        ...defaultSceneMeta,
       },
     ]);
     currentProject.setBeats([
@@ -223,6 +229,7 @@ describe("currentProject store", () => {
         prose: null,
         archived: false,
         locked: false,
+        ...defaultSceneMeta,
         is_part: false,
       },
     ];
@@ -241,6 +248,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      ...defaultSceneMeta,
       is_part: false,
     };
     const scene2 = {
@@ -252,6 +260,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      ...defaultSceneMeta,
       is_part: false,
     };
 
@@ -287,6 +296,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      ...defaultSceneMeta,
       is_part: false,
     };
     currentProject.setScenes([scene]);
@@ -309,6 +319,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      ...defaultSceneMeta,
       is_part: false,
     };
 
@@ -411,6 +422,7 @@ describe("currentProject store", () => {
         prose: null,
         archived: false,
         locked: false,
+        ...defaultSceneMeta,
         is_part: false,
       },
       {
@@ -422,6 +434,7 @@ describe("currentProject store", () => {
         prose: null,
         archived: false,
         locked: false,
+        ...defaultSceneMeta,
         is_part: false,
       },
       {
@@ -433,6 +446,7 @@ describe("currentProject store", () => {
         prose: null,
         archived: false,
         locked: false,
+        ...defaultSceneMeta,
         is_part: false,
       },
     ];
@@ -497,6 +511,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      ...defaultSceneMeta,
       is_part: false,
     };
     const beat = { id: "b-1", scene_id: "sc-1", content: "Beat", position: 0, prose: null };
@@ -555,6 +570,7 @@ describe("currentProject store", () => {
         prose: null,
         archived: false,
         locked: false,
+        ...defaultSceneMeta,
         is_part: false,
       },
       {
@@ -566,6 +582,7 @@ describe("currentProject store", () => {
         prose: null,
         archived: false,
         locked: false,
+        ...defaultSceneMeta,
         is_part: false,
       },
     ];
@@ -587,6 +604,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      ...defaultSceneMeta,
       is_part: false,
     };
     const beat = { id: "b-1", scene_id: "sc-1", content: "Beat", position: 0, prose: null };
@@ -703,6 +721,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      ...defaultSceneMeta,
       is_part: false,
     };
     currentProject.setScenes([scene]);
@@ -722,6 +741,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      ...defaultSceneMeta,
       is_part: false,
     };
     currentProject.setScenes([scene]);
@@ -743,6 +763,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      ...defaultSceneMeta,
       is_part: false,
     };
     currentProject.setScenes([scene]);
@@ -828,6 +849,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      ...defaultSceneMeta,
       is_part: false,
     };
     currentProject.setScenes([scene]);
@@ -849,6 +871,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      ...defaultSceneMeta,
       is_part: false,
     };
     currentProject.setScenes([scene]);
@@ -870,6 +893,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      ...defaultSceneMeta,
       is_part: false,
     };
     const scene2 = {
@@ -881,6 +905,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      ...defaultSceneMeta,
       is_part: false,
     };
     currentProject.setScenes([scene1, scene2]);
@@ -902,6 +927,7 @@ describe("currentProject store", () => {
       prose: null,
       archived: false,
       locked: false,
+      ...defaultSceneMeta,
       is_part: false,
     };
     currentProject.setScenes([scene]);

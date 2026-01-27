@@ -22,7 +22,8 @@ use std::path::Path;
 use thiserror::Error;
 
 use crate::models::{
-    Beat, Chapter, Character, Location, Project, ReferenceItem, Scene, SourceType,
+    Beat, Chapter, Character, Location, Project, ReferenceItem, Scene, SceneStatus, SceneType,
+    SourceType,
 };
 
 #[derive(Debug, Error)]
@@ -82,6 +83,8 @@ struct YWriterScene {
     outcome: Option<String>,
     scene_content: Option<String>,
     status: i32,
+    scene_type: i32,
+    unused: bool,
     reaction_scene: bool,
     character_ids: Vec<i32>,
     location_ids: Vec<i32>,
@@ -458,6 +461,19 @@ fn parse_ywriter_content(content: &str, path: &Path) -> Result<ParsedYWriter, YW
                         let text = read_element_text(&mut reader, &mut buf)?;
                         if let Some(ref mut sc) = current_scene {
                             sc.status = text.parse().unwrap_or(0);
+                        }
+                    }
+                    "Type" if current_scene.is_some() => {
+                        let text = read_element_text(&mut reader, &mut buf)?;
+                        if let Some(ref mut sc) = current_scene {
+                            sc.scene_type = text.parse().unwrap_or(0);
+                        }
+                    }
+                    "Unused" if current_scene.is_some() => {
+                        let text = read_element_text(&mut reader, &mut buf)?;
+                        if let Some(ref mut sc) = current_scene {
+                            let trimmed = text.trim();
+                            sc.unused = trimmed == "-1" || trimmed == "1";
                         }
                     }
                     "ReactionScene" if current_scene.is_some() => {
@@ -933,13 +949,29 @@ fn convert_to_kindling(
         // Process scenes in this chapter
         for (scene_pos, yw_scene_id) in yw_chapter.scene_ids.iter().enumerate() {
             if let Some(yw_scene) = yw_scenes.get(yw_scene_id) {
-                let scene = Scene::new(
+                let scene_type = if yw_scene.unused {
+                    SceneType::Unused
+                } else {
+                    match yw_scene.scene_type {
+                        1 => SceneType::Notes,
+                        2 => SceneType::Todo,
+                        _ => SceneType::Normal,
+                    }
+                };
+                let scene_status = match yw_scene.status {
+                    3 | 4 => SceneStatus::Revised,
+                    5 => SceneStatus::Final,
+                    _ => SceneStatus::Draft,
+                };
+                let mut scene = Scene::new(
                     chapter.id,
                     yw_scene.title.clone(),
                     yw_scene.description.clone(),
                     scene_pos as i32,
                 )
                 .with_source_id(Some(yw_scene_id.to_string()));
+                scene.scene_type = scene_type;
+                scene.scene_status = scene_status;
 
                 yw_scene_id_to_uuid.insert(*yw_scene_id, scene.id);
 
@@ -1053,6 +1085,7 @@ fn convert_to_kindling(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::{SceneStatus, SceneType};
 
     #[test]
     fn test_parse_id_list() {
@@ -1755,6 +1788,60 @@ mod tests {
 
         // All characters should still be imported
         assert_eq!(parsed.characters.len(), 3);
+    }
+
+    #[test]
+    fn test_scene_type_and_status_mapping() {
+        let xml = r#"<?xml version="1.0"?>
+<YWRITER7>
+  <PROJECT>
+    <Title>Scene Metadata Test</Title>
+  </PROJECT>
+  <CHAPTERS>
+    <CHAPTER>
+      <ID>1</ID>
+      <SortOrder>1</SortOrder>
+      <Title>Chapter One</Title>
+      <Type>0</Type>
+      <Scenes>1;2</Scenes>
+    </CHAPTER>
+  </CHAPTERS>
+  <SCENES>
+    <SCENE>
+      <ID>1</ID>
+      <Title>Notes Scene</Title>
+      <Type>1</Type>
+      <Status>3</Status>
+    </SCENE>
+    <SCENE>
+      <ID>2</ID>
+      <Title>Unused Scene</Title>
+      <Type>2</Type>
+      <Status>5</Status>
+      <Unused>-1</Unused>
+    </SCENE>
+  </SCENES>
+</YWRITER7>"#;
+
+        let result = parse_ywriter_content(xml, Path::new("test.yw7"));
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+
+        let notes_scene = parsed
+            .scenes
+            .iter()
+            .find(|s| s.title == "Notes Scene")
+            .unwrap();
+        assert_eq!(notes_scene.scene_type, SceneType::Notes);
+        assert_eq!(notes_scene.scene_status, SceneStatus::Revised);
+
+        let unused_scene = parsed
+            .scenes
+            .iter()
+            .find(|s| s.title == "Unused Scene")
+            .unwrap();
+        assert_eq!(unused_scene.scene_type, SceneType::Unused);
+        assert_eq!(unused_scene.scene_status, SceneStatus::Final);
     }
 
     // ========================================================================

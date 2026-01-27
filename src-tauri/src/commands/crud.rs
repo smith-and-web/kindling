@@ -9,7 +9,9 @@ use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 use crate::db;
-use crate::models::{Beat, Chapter, Character, Location, Project, ReferenceItem, Scene};
+use crate::models::{
+    Beat, Chapter, Character, Location, Project, ReferenceItem, Scene, SceneStatus, SceneType,
+};
 
 use super::AppState;
 
@@ -233,6 +235,8 @@ pub async fn duplicate_chapter(
             source_id: None,
             archived: false,
             locked: false,
+            scene_type: scene.scene_type,
+            scene_status: scene.scene_status,
         };
         db::insert_scene(&conn, &new_scene).map_err(|e| e.to_string())?;
 
@@ -336,6 +340,8 @@ pub async fn create_scene(
         source_id: None,
         archived: false,
         locked: false,
+        scene_type: SceneType::Normal,
+        scene_status: SceneStatus::Draft,
     };
 
     db::insert_scene(&conn, &scene).map_err(|e| e.to_string())?;
@@ -398,6 +404,40 @@ pub async fn save_scene_synopsis(
     Ok(())
 }
 
+#[derive(serde::Deserialize)]
+pub struct SceneMetadataUpdate {
+    pub scene_type: String,
+    pub scene_status: String,
+}
+
+#[tauri::command]
+pub async fn update_scene_metadata(
+    scene_id: String,
+    metadata: SceneMetadataUpdate,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Check if scene is locked
+    if db::is_scene_locked(&conn, &uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot edit a locked scene".to_string());
+    }
+
+    let scene_type = SceneType::parse(&metadata.scene_type);
+    let scene_status = SceneStatus::parse(&metadata.scene_status);
+
+    db::update_scene_metadata(&conn, &uuid, &scene_type, &scene_status)
+        .map_err(|e| e.to_string())?;
+
+    // Update project modified time
+    if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn rename_scene(
     scene_id: String,
@@ -450,6 +490,8 @@ pub async fn duplicate_scene(
         source_id: None, // Don't copy source_id
         archived: false,
         locked: false,
+        scene_type: original.scene_type,
+        scene_status: original.scene_status,
     };
 
     db::insert_scene(&conn, &new_scene).map_err(|e| e.to_string())?;

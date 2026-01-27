@@ -34,7 +34,9 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             synopsis TEXT,
             prose TEXT,
             position INTEGER NOT NULL,
-            source_id TEXT
+            source_id TEXT,
+            scene_type TEXT NOT NULL DEFAULT 'normal',
+            scene_status TEXT NOT NULL DEFAULT 'draft'
         );
 
         CREATE TABLE IF NOT EXISTS beats (
@@ -225,6 +227,18 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
     if !columns.contains(&"locked".to_string()) {
         conn.execute(
             "ALTER TABLE scenes ADD COLUMN locked INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
+    if !columns.contains(&"scene_type".to_string()) {
+        conn.execute(
+            "ALTER TABLE scenes ADD COLUMN scene_type TEXT NOT NULL DEFAULT 'normal'",
+            [],
+        )?;
+    }
+    if !columns.contains(&"scene_status".to_string()) {
+        conn.execute(
+            "ALTER TABLE scenes ADD COLUMN scene_status TEXT NOT NULL DEFAULT 'draft'",
             [],
         )?;
     }
