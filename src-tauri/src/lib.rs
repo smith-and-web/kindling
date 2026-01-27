@@ -56,6 +56,7 @@ pub fn run() {
             commands::import_plottr,
             commands::import_ywriter,
             commands::import_markdown,
+            commands::import_longform,
             commands::get_project,
             commands::get_recent_projects,
             commands::update_project_settings,
@@ -106,6 +107,7 @@ pub fn run() {
             commands::set_chapter_is_part,
             // Export commands
             commands::export_to_markdown,
+            commands::export_to_longform,
             commands::export_to_docx,
             commands::export_to_epub,
             commands::get_project_word_count,
