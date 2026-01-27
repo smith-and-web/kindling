@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -6,7 +6,9 @@ use serde::Deserialize;
 use thiserror::Error;
 use walkdir::WalkDir;
 
-use crate::models::{Beat, Chapter, Project, Scene, SceneStatus, SceneType, SourceType};
+use crate::models::{
+    Beat, Chapter, Character, Location, Project, Scene, SceneStatus, SceneType, SourceType,
+};
 
 const LONGFORM_DEFAULT_CHAPTER_SOURCE_ID: &str = "longform:default";
 const LONGFORM_BEATS_MARKER: &str = "<!-- kindling: beats -->";
@@ -30,6 +32,10 @@ pub struct ParsedLongform {
     pub chapters: Vec<Chapter>,
     pub scenes: Vec<Scene>,
     pub beats: Vec<Beat>,
+    pub characters: Vec<Character>,
+    pub locations: Vec<Location>,
+    pub scene_character_refs: Vec<(uuid::Uuid, uuid::Uuid)>,
+    pub scene_location_refs: Vec<(uuid::Uuid, uuid::Uuid)>,
 }
 
 // ============================================================================
@@ -62,6 +68,25 @@ struct LongformIndex {
 struct SceneFrontmatter {
     synopsis: Option<String>,
     status: Option<String>,
+    pov: Option<String>,
+    characters: Option<FrontmatterList>,
+    setting: Option<FrontmatterList>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum FrontmatterList {
+    Single(String),
+    List(Vec<String>),
+}
+
+impl FrontmatterList {
+    fn into_vec(self) -> Vec<String> {
+        match self {
+            FrontmatterList::Single(value) => vec![value],
+            FrontmatterList::List(values) => values,
+        }
+    }
 }
 
 // ============================================================================
@@ -79,11 +104,26 @@ struct SceneContent {
     scene_type: SceneType,
     scene_status: SceneStatus,
     beats: Vec<BeatContent>,
+    characters: Vec<String>,
+    locations: Vec<String>,
 }
 
 struct SceneEntry {
     name: String,
     _depth: usize,
+}
+
+struct SceneBuildContext<'a> {
+    index_dir: &'a Path,
+    scene_dir: &'a Path,
+    scenes: &'a mut Vec<Scene>,
+    beats: &'a mut Vec<Beat>,
+    characters: &'a mut Vec<Character>,
+    locations: &'a mut Vec<Location>,
+    scene_character_refs: &'a mut Vec<(uuid::Uuid, uuid::Uuid)>,
+    scene_location_refs: &'a mut Vec<(uuid::Uuid, uuid::Uuid)>,
+    character_index: &'a mut HashMap<String, uuid::Uuid>,
+    location_index: &'a mut HashMap<String, uuid::Uuid>,
 }
 
 // ============================================================================
@@ -274,6 +314,19 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
         if let Some(status) = frontmatter.status {
             scene_content.scene_status = parse_obsidian_status(&status);
         }
+        let mut characters: Vec<String> = Vec::new();
+        let mut locations: Vec<String> = Vec::new();
+        if let Some(list) = frontmatter.characters {
+            characters.extend(list.into_vec());
+        }
+        if let Some(pov) = frontmatter.pov {
+            characters.push(pov);
+        }
+        if let Some(list) = frontmatter.setting {
+            locations.extend(list.into_vec());
+        }
+        scene_content.characters = normalize_reference_list(characters);
+        scene_content.locations = normalize_reference_list(locations);
     }
 
     Ok(scene_content)
@@ -331,6 +384,8 @@ fn parse_scene_body(content: &str) -> SceneContent {
         scene_type,
         scene_status,
         beats,
+        characters: Vec::new(),
+        locations: Vec::new(),
     }
 }
 
@@ -445,6 +500,52 @@ fn parse_obsidian_status(raw: &str) -> SceneStatus {
     }
 }
 
+fn normalize_reference_list(values: Vec<String>) -> Vec<String> {
+    let mut normalized = Vec::new();
+    let mut seen = HashSet::new();
+
+    for value in values {
+        if let Some(name) = normalize_reference_name(&value) {
+            let key = name.to_lowercase();
+            if seen.insert(key) {
+                normalized.push(name);
+            }
+        }
+    }
+
+    normalized
+}
+
+fn normalize_reference_name(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let name = parse_wikilink_target(trimmed).unwrap_or_else(|| trimmed.to_string());
+    let cleaned = name.trim();
+    if cleaned.is_empty() {
+        None
+    } else {
+        Some(cleaned.to_string())
+    }
+}
+
+fn parse_wikilink_target(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if !trimmed.starts_with("[[") || !trimmed.ends_with("]]") {
+        return None;
+    }
+
+    let inner = &trimmed[2..trimmed.len() - 2];
+    let target = inner.split('|').next()?.trim();
+    if target.is_empty() {
+        None
+    } else {
+        Some(target.to_string())
+    }
+}
+
 fn build_longform_structure(
     project: Project,
     scene_entries: Vec<SceneEntry>,
@@ -455,6 +556,24 @@ fn build_longform_structure(
     let mut chapters = Vec::new();
     let mut scenes = Vec::new();
     let mut beats = Vec::new();
+    let mut characters = Vec::new();
+    let mut locations = Vec::new();
+    let mut scene_character_refs = Vec::new();
+    let mut scene_location_refs = Vec::new();
+    let mut character_index: HashMap<String, uuid::Uuid> = HashMap::new();
+    let mut location_index: HashMap<String, uuid::Uuid> = HashMap::new();
+    let mut build_context = SceneBuildContext {
+        index_dir,
+        scene_dir,
+        scenes: &mut scenes,
+        beats: &mut beats,
+        characters: &mut characters,
+        locations: &mut locations,
+        scene_character_refs: &mut scene_character_refs,
+        scene_location_refs: &mut scene_location_refs,
+        character_index: &mut character_index,
+        location_index: &mut location_index,
+    };
 
     let has_hierarchy = scene_entries.iter().any(|entry| entry._depth > 0);
 
@@ -467,15 +586,7 @@ fn build_longform_structure(
             if should_ignore_scene(&entry.name, ignored_patterns) {
                 continue;
             }
-            add_scene_from_entry(
-                &chapter,
-                entry,
-                scene_position,
-                index_dir,
-                scene_dir,
-                &mut scenes,
-                &mut beats,
-            )?;
+            add_scene_from_entry(&chapter, entry, scene_position, &mut build_context)?;
             scene_position += 1;
         }
 
@@ -504,15 +615,7 @@ fn build_longform_structure(
 
                 if !should_ignore_scene(&entry.name, ignored_patterns) {
                     if let Some(ref chapter) = current_chapter {
-                        add_scene_from_entry(
-                            chapter,
-                            entry,
-                            scene_position,
-                            index_dir,
-                            scene_dir,
-                            &mut scenes,
-                            &mut beats,
-                        )?;
+                        add_scene_from_entry(chapter, entry, scene_position, &mut build_context)?;
                         scene_position += 1;
                         chapter_has_scenes = true;
                     }
@@ -528,15 +631,7 @@ fn build_longform_structure(
                 }
                 if !should_ignore_scene(&entry.name, ignored_patterns) {
                     if let Some(ref chapter) = current_chapter {
-                        add_scene_from_entry(
-                            chapter,
-                            entry,
-                            scene_position,
-                            index_dir,
-                            scene_dir,
-                            &mut scenes,
-                            &mut beats,
-                        )?;
+                        add_scene_from_entry(chapter, entry, scene_position, &mut build_context)?;
                         scene_position += 1;
                         chapter_has_scenes = true;
                     }
@@ -556,6 +651,10 @@ fn build_longform_structure(
         chapters,
         scenes,
         beats,
+        characters,
+        locations,
+        scene_character_refs,
+        scene_location_refs,
     })
 }
 
@@ -563,15 +662,12 @@ fn add_scene_from_entry(
     chapter: &Chapter,
     entry: SceneEntry,
     scene_position: i32,
-    index_dir: &Path,
-    scene_dir: &Path,
-    scenes: &mut Vec<Scene>,
-    beats: &mut Vec<Beat>,
+    context: &mut SceneBuildContext<'_>,
 ) -> Result<(), LongformError> {
     let scene_name = normalize_scene_name(&entry.name);
     let scene_file_name = ensure_markdown_extension(&scene_name);
-    let scene_path = scene_dir.join(&scene_file_name);
-    let scene_source_id = build_scene_source_id(index_dir, &scene_path);
+    let scene_path = context.scene_dir.join(&scene_file_name);
+    let scene_source_id = build_scene_source_id(context.index_dir, &scene_path);
 
     let scene_content = parse_scene_file(&scene_path)?;
 
@@ -586,14 +682,79 @@ fn add_scene_from_entry(
     scene.scene_type = scene_content.scene_type;
     scene.scene_status = scene_content.scene_status;
 
+    register_scene_characters(
+        chapter.project_id,
+        scene.id,
+        &scene_content.characters,
+        context.characters,
+        context.scene_character_refs,
+        context.character_index,
+    );
+    register_scene_locations(
+        chapter.project_id,
+        scene.id,
+        &scene_content.locations,
+        context.locations,
+        context.scene_location_refs,
+        context.location_index,
+    );
+
     for (beat_position, beat) in scene_content.beats.into_iter().enumerate() {
         let mut new_beat = Beat::new(scene.id, beat.content, beat_position as i32);
         new_beat.prose = beat.prose;
-        beats.push(new_beat);
+        context.beats.push(new_beat);
     }
 
-    scenes.push(scene);
+    context.scenes.push(scene);
     Ok(())
+}
+
+fn register_scene_characters(
+    project_id: uuid::Uuid,
+    scene_id: uuid::Uuid,
+    names: &[String],
+    characters: &mut Vec<Character>,
+    scene_character_refs: &mut Vec<(uuid::Uuid, uuid::Uuid)>,
+    character_index: &mut HashMap<String, uuid::Uuid>,
+) {
+    for name in names {
+        let key = name.to_lowercase();
+        let character_id = match character_index.get(&key) {
+            Some(existing) => *existing,
+            None => {
+                let character = Character::new(project_id, name.clone(), None, None);
+                let id = character.id;
+                characters.push(character);
+                character_index.insert(key, id);
+                id
+            }
+        };
+        scene_character_refs.push((scene_id, character_id));
+    }
+}
+
+fn register_scene_locations(
+    project_id: uuid::Uuid,
+    scene_id: uuid::Uuid,
+    names: &[String],
+    locations: &mut Vec<Location>,
+    scene_location_refs: &mut Vec<(uuid::Uuid, uuid::Uuid)>,
+    location_index: &mut HashMap<String, uuid::Uuid>,
+) {
+    for name in names {
+        let key = name.to_lowercase();
+        let location_id = match location_index.get(&key) {
+            Some(existing) => *existing,
+            None => {
+                let location = Location::new(project_id, name.clone(), None, None);
+                let id = location.id;
+                locations.push(location);
+                location_index.insert(key, id);
+                id
+            }
+        };
+        scene_location_refs.push((scene_id, location_id));
+    }
 }
 
 fn parse_kindling_comment(line: &str) -> Option<HashMap<String, String>> {
@@ -881,6 +1042,42 @@ Scene prose."#;
             Some("Frontmatter synopsis")
         );
         assert_eq!(parsed.scenes[0].scene_status, SceneStatus::Revised);
+    }
+
+    #[test]
+    fn test_parse_scene_frontmatter_references() {
+        let dir = tempdir().unwrap();
+        let index_path = dir.path().join("Project.md");
+        let index_content = r#"---
+longform:
+  format: scenes
+  title: Test Project
+  workflow: Default Workflow
+  sceneFolder: /
+  scenes:
+    - reference scene
+---"#;
+        fs::write(&index_path, index_content).unwrap();
+
+        let scene_content = r#"---
+characters:
+  - "[[Sarah]]"
+  - "John"
+setting: "[[Downtown Cafe|Cafe]]"
+pov: "Sarah"
+---
+
+Scene prose."#;
+        fs::write(dir.path().join("reference scene.md"), scene_content).unwrap();
+
+        let parsed = parse_longform_index(&index_path).unwrap();
+        assert_eq!(parsed.characters.len(), 2);
+        assert!(parsed.characters.iter().any(|c| c.name == "Sarah"));
+        assert!(parsed.characters.iter().any(|c| c.name == "John"));
+        assert_eq!(parsed.locations.len(), 1);
+        assert_eq!(parsed.locations[0].name, "Downtown Cafe");
+        assert_eq!(parsed.scene_character_refs.len(), 2);
+        assert_eq!(parsed.scene_location_refs.len(), 1);
     }
 
     #[test]

@@ -161,6 +161,22 @@ pub async fn import_longform(path: String, state: State<'_, AppState>) -> Result
         db::insert_beat(&tx, beat).map_err(|e| e.to_string())?;
     }
 
+    for character in &parsed.characters {
+        db::insert_character(&tx, character).map_err(|e| e.to_string())?;
+    }
+
+    for location in &parsed.locations {
+        db::insert_location(&tx, location).map_err(|e| e.to_string())?;
+    }
+
+    for (scene_id, character_id) in &parsed.scene_character_refs {
+        db::add_scene_character_ref(&tx, scene_id, character_id).map_err(|e| e.to_string())?;
+    }
+
+    for (scene_id, location_id) in &parsed.scene_location_refs {
+        db::add_scene_location_ref(&tx, scene_id, location_id).map_err(|e| e.to_string())?;
+    }
+
     tx.commit().map_err(|e| e.to_string())?;
 
     Ok(parsed.project)
