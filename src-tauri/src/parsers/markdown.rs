@@ -1,5 +1,7 @@
 use std::fs;
 use std::path::Path;
+
+use serde::Deserialize;
 use thiserror::Error;
 
 use crate::models::{Beat, Chapter, Project, Scene, SourceType};
@@ -54,17 +56,44 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
     let path = path.as_ref();
     let content = fs::read_to_string(path)?;
 
-    let project_name = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("Untitled")
-        .to_string();
+    let (frontmatter, body) = match split_frontmatter(&content) {
+        Some((frontmatter_str, body)) => {
+            let parsed = serde_yaml::from_str::<MarkdownFrontmatter>(&frontmatter_str).ok();
+            (parsed, body)
+        }
+        None => (None, content),
+    };
 
-    let project = Project::new(
+    let project_name = frontmatter
+        .as_ref()
+        .and_then(|fm| fm.title.as_ref())
+        .map(|title| title.trim())
+        .filter(|title| !title.is_empty())
+        .map(|title| title.to_string())
+        .unwrap_or_else(|| {
+            path.file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("Untitled")
+                .to_string()
+        });
+
+    let mut project = Project::new(
         project_name,
         SourceType::Markdown,
         Some(path.to_string_lossy().to_string()),
     );
+
+    if let Some(frontmatter) = frontmatter {
+        if let Some(author) = frontmatter.author.and_then(normalize_frontmatter_text) {
+            project.author_pen_name = Some(author);
+        }
+        if let Some(description) = frontmatter.description.and_then(normalize_frontmatter_text) {
+            project.description = Some(description);
+        }
+        if let Some(word_target) = frontmatter.word_target {
+            project.word_target = Some(word_target);
+        }
+    }
 
     let mut chapters: Vec<Chapter> = Vec::new();
     let mut scenes: Vec<Scene> = Vec::new();
@@ -75,12 +104,45 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
     let mut chapter_position = 0;
     let mut scene_position = 0;
     let mut beat_position = 0;
+    let mut pending_synopsis = false;
+    let mut collecting_synopsis = false;
+    let mut synopsis_lines: Vec<String> = Vec::new();
 
-    for line in content.lines() {
+    for line in body.lines() {
         let trimmed = line.trim();
+        let trimmed_start = line.trim_start();
 
-        if let Some(stripped) = trimmed.strip_prefix("# ") {
+        if pending_synopsis {
+            if trimmed.is_empty() {
+                continue;
+            }
+            if let Some(synopsis_line) = parse_blockquote_line(trimmed_start) {
+                collecting_synopsis = true;
+                pending_synopsis = false;
+                synopsis_lines.push(synopsis_line);
+                continue;
+            }
+            pending_synopsis = false;
+        }
+
+        if collecting_synopsis {
+            if let Some(synopsis_line) = parse_blockquote_line(trimmed_start) {
+                synopsis_lines.push(synopsis_line);
+                continue;
+            }
+            if trimmed.is_empty() {
+                continue;
+            }
+            finish_synopsis(&mut current_scene, &mut synopsis_lines);
+            collecting_synopsis = false;
+        }
+
+        if let Some(stripped) = trimmed_start.strip_prefix("# ") {
             // Save previous scene and chapter if they exist
+            if collecting_synopsis {
+                finish_synopsis(&mut current_scene, &mut synopsis_lines);
+                collecting_synopsis = false;
+            }
             if let Some(scene) = current_scene.take() {
                 scenes.push(scene);
             }
@@ -94,23 +156,58 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
             chapter_position += 1;
             scene_position = 0;
             beat_position = 0;
-        } else if let Some(stripped) = trimmed.strip_prefix("## ") {
+            pending_synopsis = false;
+        } else if let Some(stripped) = trimmed_start.strip_prefix("## ") {
             // Save previous scene if it exists
+            if collecting_synopsis {
+                finish_synopsis(&mut current_scene, &mut synopsis_lines);
+                collecting_synopsis = false;
+            }
             if let Some(scene) = current_scene.take() {
                 scenes.push(scene);
             }
 
-            // New scene under current chapter
+            // New scene under current chapter (or create default chapter)
+            if current_chapter.is_none() {
+                current_chapter = Some(Chapter::new(
+                    project.id,
+                    "Chapter 1".to_string(),
+                    chapter_position,
+                ));
+                chapter_position += 1;
+            }
+
             if let Some(ref chapter) = current_chapter {
                 let title = stripped.trim().to_string();
                 current_scene = Some(Scene::new(chapter.id, title, None, scene_position));
                 scene_position += 1;
                 beat_position = 0;
+                pending_synopsis = true;
             }
-        } else if trimmed.starts_with("- ") || trimmed.starts_with("* ") {
+        } else if trimmed_start.starts_with("- ") || trimmed_start.starts_with("* ") {
             // Beat (list item with content)
+            if current_scene.is_none() {
+                if current_chapter.is_none() {
+                    current_chapter = Some(Chapter::new(
+                        project.id,
+                        "Chapter 1".to_string(),
+                        chapter_position,
+                    ));
+                    chapter_position += 1;
+                }
+                if let Some(ref chapter) = current_chapter {
+                    current_scene = Some(Scene::new(
+                        chapter.id,
+                        "Scene 1".to_string(),
+                        None,
+                        scene_position,
+                    ));
+                    scene_position += 1;
+                    beat_position = 0;
+                }
+            }
             if let Some(ref scene) = current_scene {
-                let content = trimmed[2..].trim().to_string();
+                let content = trimmed_start[2..].trim().to_string();
                 if !content.is_empty() {
                     let beat = Beat::new(scene.id, content, beat_position);
                     beats.push(beat);
@@ -120,8 +217,28 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
         } else if trimmed == "-" || trimmed == "*" {
             // Empty list item (e.g., "- " after trimming) - skip it
             continue;
-        } else if !trimmed.is_empty() && !trimmed.starts_with('#') {
+        } else if !trimmed.is_empty() && !trimmed_start.starts_with('#') {
             // Regular paragraph under a scene becomes a beat
+            if current_scene.is_none() {
+                if current_chapter.is_none() {
+                    current_chapter = Some(Chapter::new(
+                        project.id,
+                        "Chapter 1".to_string(),
+                        chapter_position,
+                    ));
+                    chapter_position += 1;
+                }
+                if let Some(ref chapter) = current_chapter {
+                    current_scene = Some(Scene::new(
+                        chapter.id,
+                        "Scene 1".to_string(),
+                        None,
+                        scene_position,
+                    ));
+                    scene_position += 1;
+                    beat_position = 0;
+                }
+            }
             if let Some(ref scene) = current_scene {
                 let beat = Beat::new(scene.id, trimmed.to_string(), beat_position);
                 beats.push(beat);
@@ -131,6 +248,9 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
     }
 
     // Don't forget the last scene and chapter
+    if collecting_synopsis {
+        finish_synopsis(&mut current_scene, &mut synopsis_lines);
+    }
     if let Some(scene) = current_scene {
         scenes.push(scene);
     }
@@ -163,6 +283,71 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
         scenes,
         beats,
     })
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct MarkdownFrontmatter {
+    title: Option<String>,
+    author: Option<String>,
+    description: Option<String>,
+    #[serde(alias = "wordTarget")]
+    word_target: Option<i32>,
+}
+
+fn normalize_frontmatter_text(value: String) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn split_frontmatter(content: &str) -> Option<(String, String)> {
+    let mut lines = content.lines();
+    let first = lines.next()?;
+    if first.trim() != "---" {
+        return None;
+    }
+
+    let mut frontmatter_lines = Vec::new();
+    let mut body_lines = Vec::new();
+    let mut in_frontmatter = true;
+
+    for line in lines {
+        if in_frontmatter && line.trim() == "---" {
+            in_frontmatter = false;
+            continue;
+        }
+
+        if in_frontmatter {
+            frontmatter_lines.push(line);
+        } else {
+            body_lines.push(line);
+        }
+    }
+
+    if in_frontmatter {
+        return None;
+    }
+
+    Some((frontmatter_lines.join("\n"), body_lines.join("\n")))
+}
+
+fn parse_blockquote_line(line: &str) -> Option<String> {
+    let trimmed = line.trim_start();
+    let rest = trimmed.strip_prefix('>')?;
+    Some(rest.trim_start().to_string())
+}
+
+fn finish_synopsis(current_scene: &mut Option<Scene>, synopsis_lines: &mut Vec<String>) {
+    if let Some(scene) = current_scene.as_mut() {
+        let synopsis = synopsis_lines.join("\n").trim().to_string();
+        if !synopsis.is_empty() {
+            scene.synopsis = Some(synopsis);
+        }
+    }
+    synopsis_lines.clear();
 }
 
 #[cfg(test)]
@@ -221,12 +406,13 @@ mod tests {
         assert_eq!(result.chapters.len(), 1);
         assert_eq!(result.chapters[0].title, "Chapter 1");
 
-        // All scenes should be orphaned to the default chapter
-        assert_eq!(result.scenes.len(), 0); // Scenes without chapters are ignored
+        // Scenes should be assigned to the default chapter
+        assert_eq!(result.scenes.len(), 5);
+        assert_eq!(result.scenes[0].title, "Opening Scene");
+        assert_eq!(result.scenes[4].title, "Resolution");
 
-        // The list items are treated as beats but there's no scene to attach them to
-        // So beats will be empty
-        assert_eq!(result.beats.len(), 0);
+        // Beats should be captured under their scenes
+        assert_eq!(result.beats.len(), 10);
     }
 
     #[test]
@@ -238,10 +424,23 @@ mod tests {
         assert_eq!(result.chapters.len(), 1);
         assert_eq!(result.chapters[0].title, "Chapter 1");
 
-        // No explicit scenes, so beats are not captured (they need a scene)
-        // beats-only.md has list items but no H1/H2 headers
-        assert_eq!(result.scenes.len(), 0);
-        assert_eq!(result.beats.len(), 0);
+        assert_eq!(result.scenes.len(), 1);
+        assert_eq!(result.scenes[0].title, "Scene 1");
+        assert_eq!(result.beats.len(), 12);
+    }
+
+    #[test]
+    fn test_parse_frontmatter_fixture() {
+        let path = fixtures_dir().join("frontmatter.md");
+        let result = parse_markdown_outline(&path).unwrap();
+
+        assert_eq!(result.project.name, "Frontmatter Project");
+        assert_eq!(result.project.author_pen_name.as_deref(), Some("Jane Doe"));
+        assert_eq!(
+            result.project.description.as_deref(),
+            Some("An example description.")
+        );
+        assert_eq!(result.project.word_target, Some(42000));
     }
 
     #[test]
@@ -355,6 +554,35 @@ mod tests {
         assert!(scene1_beats[0]
             .content
             .contains("morning sun rose over the quiet village"));
+    }
+
+    #[test]
+    fn test_parse_scene_synopsis_blockquote() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        let content = r#"# Chapter
+
+## Scene
+
+> This is a synopsis line.
+> Second line of synopsis.
+
+- Beat one
+"#;
+
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = parse_markdown_outline(file.path()).unwrap();
+
+        assert_eq!(result.scenes.len(), 1);
+        assert_eq!(
+            result.scenes[0].synopsis.as_deref(),
+            Some("This is a synopsis line.\nSecond line of synopsis.")
+        );
+        assert_eq!(result.beats.len(), 1);
+        assert_eq!(result.beats[0].content, "Beat one");
     }
 
     // ========================================================================
