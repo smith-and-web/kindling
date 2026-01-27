@@ -122,7 +122,7 @@
   }
 </script>
 
-<div class="flex-1 flex flex-col items-center justify-center p-8 relative">
+<div class="flex-1 flex flex-col items-center justify-start p-8 relative overflow-hidden">
   <!-- Settings button in corner -->
   <div class="absolute top-4 right-4">
     <Tooltip text="Kindling Settings" position="left">
@@ -136,7 +136,7 @@
     </Tooltip>
   </div>
 
-  <div class="max-w-2xl w-full">
+  <div class="max-w-2xl w-full flex flex-col flex-1 min-h-0">
     <!-- Logo & Tagline -->
     <div class="text-center mb-12">
       <div class="flex justify-center mb-4">
@@ -216,9 +216,12 @@
 
     <!-- Recent Projects -->
     {#if recentProjects.length > 0}
-      <div data-testid="recent-projects" class="bg-bg-panel rounded-lg p-6">
+      <div
+        data-testid="recent-projects"
+        class="bg-bg-panel rounded-lg p-6 flex flex-col flex-1 min-h-0"
+      >
         <h2 class="text-xl font-heading font-medium text-text-primary mb-4">Recent Projects</h2>
-        <div class="space-y-2">
+        <div class="space-y-2 overflow-y-auto pr-1 flex-1 min-h-0">
           {#each recentProjects as project (project.id)}
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
