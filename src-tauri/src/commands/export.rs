@@ -840,17 +840,23 @@ blockquote {
 "#;
 
     let theme_overrides = match theme {
-        EpubTheme::Classic => r#"
+        EpubTheme::Classic => {
+            r#"
 body { font-family: "Georgia", "Times New Roman", serif; }
-"#,
-        EpubTheme::Modern => r#"
+"#
+        }
+        EpubTheme::Modern => {
+            r#"
 body { font-family: "Helvetica Neue", "Arial", sans-serif; line-height: 1.5; }
 p { text-indent: 1em; }
-"#,
-        EpubTheme::Minimal => r#"
+"#
+        }
+        EpubTheme::Minimal => {
+            r#"
 body { font-family: serif; }
 p { text-indent: 0; margin-bottom: 1em; }
-"#,
+"#
+        }
     };
 
     format!("{}{}", base.trim_start(), theme_overrides.trim_start())
@@ -2376,8 +2382,7 @@ pub async fn export_to_epub(
                 .ok_or_else(|| format!("Chapter not found: {}", chapter_id))?;
 
             let scenes = db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
-            let active_scenes: Vec<Scene> =
-                scenes.into_iter().filter(|s| !s.archived).collect();
+            let active_scenes: Vec<Scene> = scenes.into_iter().filter(|s| !s.archived).collect();
 
             scenes_exported = active_scenes.len();
             chapters_exported = 1;
@@ -2499,8 +2504,10 @@ pub async fn export_to_epub(
         let mut is_first_scene = true;
         for scene in scenes.iter().filter(|s| !s.archived) {
             if !is_first_scene {
-                body.push_str(r#"
-  <div class="scene-break">* * *</div>"#);
+                body.push_str(
+                    r#"
+  <div class="scene-break">* * *</div>"#,
+                );
             }
 
             if options.include_beat_markers {
@@ -2514,10 +2521,7 @@ pub async fn export_to_epub(
                 if let Some(ref synopsis) = scene.synopsis {
                     if !synopsis.trim().is_empty() {
                         let synopsis_text = escape_xml(&transform_text(synopsis));
-                        body.push_str(&format!(
-                            "\n  <p class=\"synopsis\">{}</p>",
-                            synopsis_text
-                        ));
+                        body.push_str(&format!("\n  <p class=\"synopsis\">{}</p>", synopsis_text));
                     }
                 }
             }
@@ -2529,14 +2533,14 @@ pub async fn export_to_epub(
                 }
             }
 
-            let beats = beats_by_scene.get(&scene.id).map(Vec::as_slice).unwrap_or(&[]);
+            let beats = beats_by_scene
+                .get(&scene.id)
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
             for beat in beats {
                 if options.include_beat_markers && !beat.content.trim().is_empty() {
                     let beat_title = escape_xml(&transform_text(&beat.content));
-                    body.push_str(&format!(
-                        "\n  <h3 class=\"beat-title\">{}</h3>",
-                        beat_title
-                    ));
+                    body.push_str(&format!("\n  <h3 class=\"beat-title\">{}</h3>", beat_title));
                 }
 
                 if let Some(ref prose) = beat.prose {
@@ -2582,9 +2586,8 @@ pub async fn export_to_epub(
         "    <item id=\"toc\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\" />\n"
             .to_string(),
     );
-    manifest_items.push(
-        "    <item id=\"css\" href=\"styles.css\" media-type=\"text/css\" />\n".to_string(),
-    );
+    manifest_items
+        .push("    <item id=\"css\" href=\"styles.css\" media-type=\"text/css\" />\n".to_string());
 
     if options.include_cover_image {
         manifest_items.push(
@@ -2733,8 +2736,8 @@ pub async fn export_to_epub(
 
         zip.add_directory("OEBPS/images/", deflated)
             .map_err(|e| format!("Failed to add images directory: {}", e))?;
-        let cover_bytes = fs::read(cover_path)
-            .map_err(|e| format!("Failed to read cover image: {}", e))?;
+        let cover_bytes =
+            fs::read(cover_path).map_err(|e| format!("Failed to read cover image: {}", e))?;
         zip.start_file(format!("OEBPS/images/cover.{}", cover_extension), deflated)
             .map_err(|e| format!("Failed to write cover image: {}", e))?;
         zip.write_all(&cover_bytes)
