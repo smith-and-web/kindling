@@ -113,6 +113,49 @@ struct SceneEntry {
     _depth: usize,
 }
 
+#[derive(Debug)]
+struct ReferenceNote {
+    kind: ReferenceKind,
+    name: String,
+    file_stem: String,
+    description: Option<String>,
+    attributes: HashMap<String, String>,
+    source_id: Option<String>,
+}
+
+struct ReferenceNameIndex {
+    character_names: HashSet<String>,
+    location_names: HashSet<String>,
+}
+
+impl ReferenceNameIndex {
+    fn new(parsed: &ParsedLongform) -> Self {
+        Self {
+            character_names: parsed
+                .characters
+                .iter()
+                .map(|c| c.name.to_lowercase())
+                .collect(),
+            location_names: parsed
+                .locations
+                .iter()
+                .map(|l| l.name.to_lowercase())
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct NoteFrontmatter {
+    #[serde(rename = "type")]
+    note_type: Option<String>,
+    name: Option<String>,
+    description: Option<String>,
+    role: Option<String>,
+    #[serde(flatten)]
+    extra: HashMap<String, serde_yaml::Value>,
+}
+
 struct SceneBuildContext<'a> {
     index_dir: &'a Path,
     scene_dir: &'a Path,
@@ -188,13 +231,26 @@ pub fn parse_longform_index<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, L
     let index_dir = path.parent().unwrap_or_else(|| Path::new("."));
     let scene_dir = resolve_scene_dir(index_dir, &scene_folder);
 
-    build_longform_structure(
+    let mut parsed = build_longform_structure(
         project,
         scene_entries,
         &ignored_patterns,
         index_dir,
         &scene_dir,
-    )
+    )?;
+
+    let mut skip_paths = HashSet::new();
+    skip_paths.insert(path_key(path));
+    for entry in &parsed.scenes {
+        if let Some(ref source_id) = entry.source_id {
+            skip_paths.insert(path_key(&index_dir.join(source_id)));
+        }
+    }
+    let reference_names = ReferenceNameIndex::new(&parsed);
+    let notes = collect_reference_notes(index_dir, &skip_paths, &reference_names)?;
+    merge_reference_notes(&mut parsed, notes);
+
+    Ok(parsed)
 }
 
 pub fn parse_longform_path<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, LongformError> {
@@ -303,6 +359,363 @@ fn collect_scene_entries(
     Ok(())
 }
 
+fn collect_reference_notes(
+    vault_dir: &Path,
+    skip_paths: &HashSet<String>,
+    reference_names: &ReferenceNameIndex,
+) -> Result<Vec<ReferenceNote>, LongformError> {
+    let mut notes = Vec::new();
+
+    for entry in WalkDir::new(vault_dir)
+        .follow_links(true)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        if entry.path().extension().and_then(|s| s.to_str()) != Some("md") {
+            continue;
+        }
+
+        let entry_key = path_key(entry.path());
+        if skip_paths.contains(&entry_key) {
+            continue;
+        }
+
+        let content = fs::read_to_string(entry.path())?;
+        let (frontmatter, body) = match split_frontmatter(&content) {
+            Some((frontmatter_str, body)) => {
+                let parsed = serde_yaml::from_str::<NoteFrontmatter>(&frontmatter_str).ok();
+                (parsed, body)
+            }
+            None => (None, content),
+        };
+
+        let file_stem = entry
+            .path()
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+
+        let kind = resolve_note_kind(&frontmatter, entry.path(), &file_stem, reference_names);
+        let Some(kind) = kind else {
+            continue;
+        };
+
+        let (name, description, attributes) =
+            extract_note_details(&frontmatter, &file_stem, &body, kind);
+
+        let source_id = Some(build_scene_source_id(vault_dir, entry.path()));
+
+        notes.push(ReferenceNote {
+            kind,
+            name,
+            file_stem,
+            description,
+            attributes,
+            source_id,
+        });
+    }
+
+    Ok(notes)
+}
+
+fn resolve_note_kind(
+    frontmatter: &Option<NoteFrontmatter>,
+    path: &Path,
+    file_stem: &str,
+    reference_names: &ReferenceNameIndex,
+) -> Option<ReferenceKind> {
+    if let Some(frontmatter) = frontmatter {
+        if let Some(ref note_type) = frontmatter.note_type {
+            let normalized = note_type.to_lowercase();
+            if normalized.contains("character") {
+                return Some(ReferenceKind::Character);
+            }
+            if normalized.contains("location") || normalized.contains("setting") {
+                return Some(ReferenceKind::Location);
+            }
+        }
+    }
+
+    if is_character_path(path) {
+        return Some(ReferenceKind::Character);
+    }
+    if is_location_path(path) {
+        return Some(ReferenceKind::Location);
+    }
+
+    let stem_key = file_stem.to_lowercase();
+    if reference_names.character_names.contains(&stem_key) {
+        return Some(ReferenceKind::Character);
+    }
+    if reference_names.location_names.contains(&stem_key) {
+        return Some(ReferenceKind::Location);
+    }
+
+    None
+}
+
+fn extract_note_details(
+    frontmatter: &Option<NoteFrontmatter>,
+    file_stem: &str,
+    body: &str,
+    kind: ReferenceKind,
+) -> (String, Option<String>, HashMap<String, String>) {
+    let mut attributes = HashMap::new();
+    let mut name = file_stem.to_string();
+    let mut description = None;
+
+    if let Some(frontmatter) = frontmatter {
+        if let Some(ref raw_name) = frontmatter.name {
+            if let Some(cleaned) = normalize_reference_label(raw_name, kind) {
+                name = cleaned;
+            }
+        }
+
+        if let Some(ref front_desc) = frontmatter.description {
+            description = normalize_block(front_desc);
+        }
+
+        if let Some(ref front_role) = frontmatter.role {
+            if let Some(value) = normalize_block(front_role) {
+                attributes.insert("role".to_string(), value);
+            }
+        }
+
+        for (key, value) in &frontmatter.extra {
+            let normalized_key = key.trim().to_string();
+            if normalized_key.is_empty() {
+                continue;
+            }
+            if matches!(
+                normalized_key.as_str(),
+                "type" | "name" | "description" | "role"
+            ) {
+                continue;
+            }
+            if let Some(stringified) = yaml_value_to_string(value) {
+                attributes.insert(normalized_key, stringified);
+            }
+        }
+    }
+
+    if description.is_none() {
+        description = extract_first_paragraph(body);
+    }
+
+    if let Some(cleaned) = normalize_reference_label(&name, kind) {
+        name = cleaned;
+    }
+
+    (name, description, attributes)
+}
+
+fn normalize_reference_label(value: &str, kind: ReferenceKind) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if let Some((_, name)) = classify_reference(trimmed, kind) {
+        return Some(name);
+    }
+
+    normalize_reference_by_kind(trimmed, kind).map(|(_, name)| name)
+}
+
+fn yaml_value_to_string(value: &serde_yaml::Value) -> Option<String> {
+    match value {
+        serde_yaml::Value::Null => None,
+        serde_yaml::Value::Bool(b) => Some(b.to_string()),
+        serde_yaml::Value::Number(n) => Some(n.to_string()),
+        serde_yaml::Value::String(s) => normalize_block(s),
+        serde_yaml::Value::Sequence(seq) => {
+            let values: Vec<String> = seq.iter().filter_map(yaml_value_to_string).collect();
+            if values.is_empty() {
+                None
+            } else {
+                Some(values.join(", "))
+            }
+        }
+        serde_yaml::Value::Mapping(_) => serde_yaml::to_string(value)
+            .ok()
+            .and_then(|s| normalize_block(&s)),
+        _ => None,
+    }
+}
+
+fn extract_first_paragraph(body: &str) -> Option<String> {
+    let mut buffer = Vec::new();
+    let mut started = false;
+
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            if started {
+                break;
+            }
+            continue;
+        }
+        if trimmed.starts_with('#') {
+            if started {
+                break;
+            }
+            continue;
+        }
+        started = true;
+        buffer.push(trimmed.to_string());
+    }
+
+    if buffer.is_empty() {
+        None
+    } else {
+        Some(buffer.join(" "))
+    }
+}
+
+fn path_key(path: &Path) -> String {
+    fs::canonicalize(path)
+        .unwrap_or_else(|_| path.to_path_buf())
+        .to_string_lossy()
+        .to_string()
+}
+
+fn is_character_path(path: &Path) -> bool {
+    path_contains_folder(path, &["characters", "character", "people"])
+}
+
+fn is_location_path(path: &Path) -> bool {
+    path_contains_folder(
+        path,
+        &["locations", "location", "places", "settings", "setting"],
+    )
+}
+
+fn path_contains_folder(path: &Path, names: &[&str]) -> bool {
+    path.components().any(|component| {
+        let std::path::Component::Normal(value) = component else {
+            return false;
+        };
+        let Some(text) = value.to_str() else {
+            return false;
+        };
+        let text = text.to_lowercase();
+        names.iter().any(|name| text == *name)
+    })
+}
+
+fn merge_reference_notes(parsed: &mut ParsedLongform, notes: Vec<ReferenceNote>) {
+    let mut character_index: HashMap<String, usize> = parsed
+        .characters
+        .iter()
+        .enumerate()
+        .map(|(idx, character)| (character.name.to_lowercase(), idx))
+        .collect();
+    let mut location_index: HashMap<String, usize> = parsed
+        .locations
+        .iter()
+        .enumerate()
+        .map(|(idx, location)| (location.name.to_lowercase(), idx))
+        .collect();
+
+    for note in notes {
+        match note.kind {
+            ReferenceKind::Character => merge_character_note(parsed, note, &mut character_index),
+            ReferenceKind::Location => merge_location_note(parsed, note, &mut location_index),
+        }
+    }
+}
+
+fn merge_character_note(
+    parsed: &mut ParsedLongform,
+    note: ReferenceNote,
+    index: &mut HashMap<String, usize>,
+) {
+    let name_key = note.name.to_lowercase();
+    let stem_key = note.file_stem.to_lowercase();
+
+    let mut matched_idx = index.get(&name_key).copied();
+    if matched_idx.is_none() && stem_key != name_key {
+        matched_idx = index.get(&stem_key).copied();
+    }
+
+    if let Some(idx) = matched_idx {
+        let character = &mut parsed.characters[idx];
+        if character.name != note.name {
+            character.name = note.name.clone();
+            index.remove(&stem_key);
+            index.insert(name_key.clone(), idx);
+        }
+        if character.description.is_none() {
+            character.description = note.description;
+        }
+        if character.source_id.is_none() {
+            character.source_id = note.source_id;
+        }
+        for (key, value) in note.attributes {
+            character.attributes.insert(key, value);
+        }
+    } else {
+        let mut character = Character::new(
+            parsed.project.id,
+            note.name,
+            note.description,
+            note.source_id,
+        );
+        character.attributes = note.attributes;
+        let idx = parsed.characters.len();
+        parsed.characters.push(character);
+        index.insert(name_key, idx);
+    }
+}
+
+fn merge_location_note(
+    parsed: &mut ParsedLongform,
+    note: ReferenceNote,
+    index: &mut HashMap<String, usize>,
+) {
+    let name_key = note.name.to_lowercase();
+    let stem_key = note.file_stem.to_lowercase();
+
+    let mut matched_idx = index.get(&name_key).copied();
+    if matched_idx.is_none() && stem_key != name_key {
+        matched_idx = index.get(&stem_key).copied();
+    }
+
+    if let Some(idx) = matched_idx {
+        let location = &mut parsed.locations[idx];
+        if location.name != note.name {
+            location.name = note.name.clone();
+            index.remove(&stem_key);
+            index.insert(name_key.clone(), idx);
+        }
+        if location.description.is_none() {
+            location.description = note.description;
+        }
+        if location.source_id.is_none() {
+            location.source_id = note.source_id;
+        }
+        for (key, value) in note.attributes {
+            location.attributes.insert(key, value);
+        }
+    } else {
+        let mut location = Location::new(
+            parsed.project.id,
+            note.name,
+            note.description,
+            note.source_id,
+        );
+        location.attributes = note.attributes;
+        let idx = parsed.locations.len();
+        parsed.locations.push(location);
+        index.insert(name_key, idx);
+    }
+}
+
 fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
     let content = fs::read_to_string(path)?;
     let (frontmatter, body) = match split_frontmatter(&content) {
@@ -370,6 +783,7 @@ fn parse_scene_body(content: &str) -> SceneContent {
     let mut metadata_parsed = false;
     let mut status_locked = false;
     let mut synopsis_locked = false;
+    let mut skipped_heading = false;
     let mut characters = Vec::new();
     let mut locations = Vec::new();
 
@@ -430,6 +844,10 @@ fn parse_scene_body(content: &str) -> SceneContent {
                     &mut characters,
                     &mut locations,
                 );
+            }
+            if !skipped_heading && trimmed_start.starts_with("# ") {
+                skipped_heading = true;
+                continue;
             }
             body_lines.push(line);
         }
@@ -560,7 +978,7 @@ fn parse_obsidian_status(raw: &str) -> SceneStatus {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum ReferenceKind {
     Character,
     Location,
@@ -1322,6 +1740,76 @@ Scene prose with [[;Mila]] and [[~Warehouse]]."#;
         let location_names: Vec<_> = parsed.locations.iter().map(|l| l.name.as_str()).collect();
         assert!(location_names.contains(&"Dock"));
         assert!(location_names.contains(&"Warehouse"));
+    }
+
+    #[test]
+    fn test_import_reference_notes_from_vault() {
+        let dir = tempdir().unwrap();
+        let index_path = dir.path().join("Project.md");
+        let index_content = r#"---
+longform:
+  format: scenes
+  title: Test Project
+  workflow: Default Workflow
+  sceneFolder: /
+  scenes:
+    - intro scene
+---"#;
+        fs::write(&index_path, index_content).unwrap();
+
+        let scene_content = r#"---
+characters:
+  - "Sarah"
+---
+
+Scene prose."#;
+        fs::write(dir.path().join("intro scene.md"), scene_content).unwrap();
+
+        let characters_dir = dir.path().join("characters");
+        fs::create_dir_all(&characters_dir).unwrap();
+        let character_note = r#"---
+type: character
+name: Sarah Smith
+description: Lead detective.
+role: protagonist
+age: 32
+---
+
+# Sarah Smith
+
+Additional notes."#;
+        fs::write(characters_dir.join("Sarah.md"), character_note).unwrap();
+
+        let locations_dir = dir.path().join("locations");
+        fs::create_dir_all(&locations_dir).unwrap();
+        let location_note = r#"# Downtown Cafe
+
+A cozy corner cafe on Main Street."#;
+        fs::write(locations_dir.join("downtown cafe.md"), location_note).unwrap();
+
+        let parsed = parse_longform_index(&index_path).unwrap();
+        let sarah = parsed
+            .characters
+            .iter()
+            .find(|c| c.name == "Sarah Smith")
+            .unwrap();
+        assert_eq!(sarah.description.as_deref(), Some("Lead detective."));
+        assert_eq!(
+            sarah.attributes.get("role").map(|s| s.as_str()),
+            Some("protagonist")
+        );
+        assert_eq!(sarah.attributes.get("age").map(|s| s.as_str()), Some("32"));
+
+        assert!(parsed.locations.iter().any(|l| l.name == "downtown cafe"));
+        let cafe = parsed
+            .locations
+            .iter()
+            .find(|l| l.name == "downtown cafe")
+            .unwrap();
+        assert_eq!(
+            cafe.description.as_deref(),
+            Some("A cozy corner cafe on Main Street.")
+        );
     }
 
     #[test]
