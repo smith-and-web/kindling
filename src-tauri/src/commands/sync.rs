@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::db;
 use crate::models::{Beat, Chapter, Scene};
-use crate::parsers::{parse_plottr_file, parse_ywriter_file};
+use crate::parsers::{parse_longform_index, parse_plottr_file, parse_ywriter_file};
 
 use super::AppState;
 
@@ -98,6 +98,19 @@ pub async fn reimport_project(
                 "Scrivener import has been deprecated. This project cannot be reimported."
                     .to_string(),
             );
+        }
+        crate::models::SourceType::Longform => {
+            let lf_parsed = parse_longform_index(source_path).map_err(|e| e.to_string())?;
+            crate::parsers::ParsedPlottr {
+                project: lf_parsed.project,
+                chapters: lf_parsed.chapters,
+                scenes: lf_parsed.scenes,
+                beats: lf_parsed.beats,
+                characters: Vec::new(),
+                locations: Vec::new(),
+                scene_character_refs: Vec::new(),
+                scene_location_refs: Vec::new(),
+            }
         }
         crate::models::SourceType::Markdown => {
             return Err("Markdown reimport not yet supported".to_string());
@@ -359,6 +372,19 @@ pub async fn get_sync_preview(
                 "Scrivener import has been deprecated. This project cannot be synced.".to_string(),
             );
         }
+        crate::models::SourceType::Longform => {
+            let lf_parsed = parse_longform_index(source_path).map_err(|e| e.to_string())?;
+            crate::parsers::ParsedPlottr {
+                project: lf_parsed.project,
+                chapters: lf_parsed.chapters,
+                scenes: lf_parsed.scenes,
+                beats: lf_parsed.beats,
+                characters: Vec::new(),
+                locations: Vec::new(),
+                scene_character_refs: Vec::new(),
+                scene_location_refs: Vec::new(),
+            }
+        }
         crate::models::SourceType::Markdown => {
             return Err("Markdown sync not yet supported".to_string());
         }
@@ -609,6 +635,19 @@ pub async fn apply_sync(
             return Err(
                 "Scrivener import has been deprecated. This project cannot be synced.".to_string(),
             );
+        }
+        crate::models::SourceType::Longform => {
+            let lf_parsed = parse_longform_index(source_path).map_err(|e| e.to_string())?;
+            crate::parsers::ParsedPlottr {
+                project: lf_parsed.project,
+                chapters: lf_parsed.chapters,
+                scenes: lf_parsed.scenes,
+                beats: lf_parsed.beats,
+                characters: Vec::new(),
+                locations: Vec::new(),
+                scene_character_refs: Vec::new(),
+                scene_location_refs: Vec::new(),
+            }
         }
         crate::models::SourceType::Markdown => {
             return Err("Markdown sync not yet supported".to_string());

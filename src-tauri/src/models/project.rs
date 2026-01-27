@@ -7,6 +7,7 @@ pub enum SourceType {
     Plottr,
     Markdown,
     YWriter,
+    Longform,
 }
 
 impl SourceType {
@@ -16,6 +17,7 @@ impl SourceType {
             SourceType::Plottr => "plottr",
             SourceType::Markdown => "markdown",
             SourceType::YWriter => "ywriter",
+            SourceType::Longform => "longform",
         }
     }
 
@@ -25,6 +27,7 @@ impl SourceType {
             "plottr" => Some(SourceType::Plottr),
             "markdown" => Some(SourceType::Markdown),
             "ywriter" => Some(SourceType::YWriter),
+            "longform" => Some(SourceType::Longform),
             _ => None,
         }
     }
@@ -84,6 +87,7 @@ mod tests {
         assert_eq!(SourceType::Scrivener.as_str(), "scrivener");
         assert_eq!(SourceType::Plottr.as_str(), "plottr");
         assert_eq!(SourceType::Markdown.as_str(), "markdown");
+        assert_eq!(SourceType::Longform.as_str(), "longform");
     }
 
     #[test]
@@ -91,6 +95,7 @@ mod tests {
         assert_eq!(SourceType::parse("scrivener"), Some(SourceType::Scrivener));
         assert_eq!(SourceType::parse("PLOTTR"), Some(SourceType::Plottr));
         assert_eq!(SourceType::parse("Markdown"), Some(SourceType::Markdown));
+        assert_eq!(SourceType::parse("LONGFORM"), Some(SourceType::Longform));
         assert_eq!(SourceType::parse("unknown"), None);
     }
 

@@ -8,7 +8,7 @@
  */
 
 /** Supported outline import formats */
-export type SourceType = "Plottr" | "Markdown";
+export type SourceType = "Plottr" | "Markdown" | "YWriter" | "Scrivener" | "Longform";
 
 /** Top-level container for a writing project */
 export interface Project {
@@ -215,6 +215,20 @@ export interface MarkdownExportOptions {
   delete_existing: boolean;
   /** Custom name for the export folder (defaults to project name) */
   export_name?: string;
+  /** Create a snapshot before exporting */
+  create_snapshot?: boolean;
+}
+
+/** Options for Longform export */
+export interface LongformExportOptions {
+  /** What to export (project, chapter, or scene) */
+  scope: ExportScope;
+  /** Output directory path */
+  output_path: string;
+  /** Custom name for the export folder (defaults to project name) */
+  export_name?: string;
+  /** Delete existing export folder if it exists */
+  delete_existing?: boolean;
   /** Create a snapshot before exporting */
   create_snapshot?: boolean;
 }

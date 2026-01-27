@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
-  import { FileText, Kanban, Trash2, Loader2, Settings, PenTool } from "lucide-svelte";
+  import { FileText, Kanban, Trash2, Loader2, Settings, PenTool, BookOpen } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Project } from "../types";
@@ -55,6 +55,27 @@
         ui.setView("editor");
       } catch (e) {
         console.error("Failed to import Markdown file:", e);
+        ui.showError(`Import failed: ${e}`);
+      } finally {
+        ui.finishImport();
+      }
+    }
+  }
+
+  async function importLongform() {
+    const path = await open({
+      multiple: false,
+      filters: [{ name: "Longform Index", extensions: ["md", "markdown"] }],
+    });
+
+    if (path) {
+      ui.startImport();
+      try {
+        const project = await invoke<Project>("import_longform", { path });
+        currentProject.setProject(project);
+        ui.setView("editor");
+      } catch (e) {
+        console.error("Failed to import Longform index:", e);
         ui.showError(`Import failed: ${e}`);
       } finally {
         ui.finishImport();
@@ -184,7 +205,7 @@
     <!-- Import Options -->
     <div data-testid="import-section" class="bg-bg-panel rounded-lg p-6 mb-8">
       <h2 class="text-xl font-heading font-medium text-text-primary mb-4">Import Your Outline</h2>
-      <div class="grid grid-cols-3 gap-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <button
           onclick={importPlottr}
           class="flex flex-col items-center p-4 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer"
@@ -210,6 +231,15 @@
           <FileText class="w-10 h-10 text-accent mb-2" />
           <span class="text-text-primary font-medium">Markdown</span>
           <span class="text-text-secondary text-sm">.md</span>
+        </button>
+
+        <button
+          onclick={importLongform}
+          class="flex flex-col items-center p-4 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer"
+        >
+          <BookOpen class="w-10 h-10 text-accent mb-2" />
+          <span class="text-text-primary font-medium">Longform</span>
+          <span class="text-text-secondary text-sm">Index .md</span>
         </button>
       </div>
     </div>

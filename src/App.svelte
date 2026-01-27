@@ -106,6 +106,27 @@
     }
   }
 
+  async function importLongform() {
+    const path = await open({
+      multiple: false,
+      filters: [{ name: "Longform Index", extensions: ["md", "markdown"] }],
+    });
+
+    if (path) {
+      ui.startImport();
+      try {
+        const project = await invoke<Project>("import_longform", { path });
+        currentProject.setProject(project);
+        ui.setView("editor");
+      } catch (e) {
+        console.error("Failed to import Longform index:", e);
+        ui.showError(`Import failed: ${e}`);
+      } finally {
+        ui.finishImport();
+      }
+    }
+  }
+
   function closeProject() {
     currentProject.setProject(null);
   }
@@ -124,6 +145,9 @@
           break;
         case "import_markdown":
           importMarkdown();
+          break;
+        case "import_longform":
+          importLongform();
           break;
         case "export":
           if (currentProject.value) {

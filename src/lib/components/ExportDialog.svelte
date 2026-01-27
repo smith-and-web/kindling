@@ -2,7 +2,7 @@
   ExportDialog.svelte - Export configuration dialog
 
   Allows users to configure and initiate project exports:
-  - Format selection (Markdown, Word Document, or ePub)
+  - Format selection (Markdown, Longform, Word Document, or ePub)
   - Scope selection based on context (project/chapter/scene)
   - Options like beat markers, synopsis, page breaks
   - Destination folder/file picker
@@ -29,6 +29,7 @@
   import type {
     ExportResult,
     MarkdownExportOptions,
+    LongformExportOptions,
     DocxExportOptions,
     EpubExportOptions,
     ExportScope,
@@ -56,7 +57,7 @@
     onSuccess: (result: ExportResult) => void;
   } = $props();
 
-  let exportFormat = $state<"markdown" | "docx" | "epub">("docx");
+  let exportFormat = $state<"markdown" | "longform" | "docx" | "epub">("docx");
   let includeBeatMarkers = $state(false);
   let includeSynopsis = $state(false);
   let pageBreaksBetweenChapters = $state(true);
@@ -182,6 +183,7 @@
 
   const canExport = $derived(
     (exportFormat === "markdown" && outputPath.length > 0) ||
+      (exportFormat === "longform" && outputPath.length > 0) ||
       (exportFormat === "docx" && docxFilePath.length > 0) ||
       (exportFormat === "epub" &&
         epubFilePath.length > 0 &&
@@ -282,6 +284,21 @@
         });
 
         // Save the export path for next time (markdown only, since it's a folder)
+        localStorage.setItem(LAST_EXPORT_PATH_KEY, outputPath);
+      } else if (exportFormat === "longform") {
+        const options: LongformExportOptions = {
+          scope: exportScope,
+          output_path: outputPath,
+          export_name: exportName.trim() || undefined,
+          delete_existing: deleteExisting,
+          create_snapshot: createSnapshot,
+        };
+
+        result = await invoke<ExportResult>("export_to_longform", {
+          projectId: currentProject.value.id,
+          options,
+        });
+
         localStorage.setItem(LAST_EXPORT_PATH_KEY, outputPath);
       } else if (exportFormat === "docx") {
         const options: DocxExportOptions = {
@@ -407,7 +424,7 @@
       <!-- Format Selection - Card Style -->
       <fieldset>
         <legend class="block text-sm font-medium text-text-secondary mb-3">Export Format</legend>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
           <label
             class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
             'docx'
@@ -460,6 +477,35 @@
             >
             <span class="text-xs text-text-secondary mt-0.5">.md files</span>
             {#if exportFormat === "markdown"}
+              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
+            {/if}
+          </label>
+
+          <label
+            class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
+            'longform'
+              ? 'border-accent bg-accent/5'
+              : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+          >
+            <input
+              type="radio"
+              name="format"
+              value="longform"
+              bind:group={exportFormat}
+              class="sr-only"
+            />
+            <AlignLeft
+              class="w-8 h-8 mb-2 {exportFormat === 'longform'
+                ? 'text-accent'
+                : 'text-text-secondary'}"
+            />
+            <span
+              class="text-sm font-medium {exportFormat === 'longform'
+                ? 'text-text-primary'
+                : 'text-text-secondary'}">Longform</span
+            >
+            <span class="text-xs text-text-secondary mt-0.5">Index + scenes</span>
+            {#if exportFormat === "longform"}
               <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
             {/if}
           </label>
@@ -768,6 +814,88 @@
           <div class="flex gap-2">
             <input
               id="destination"
+              type="text"
+              readonly
+              value={outputPath}
+              placeholder="Select a folder..."
+              class="flex-1 bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer truncate"
+              onclick={selectDestination}
+            />
+            <Tooltip text="Browse" position="top">
+              <button
+                type="button"
+                onclick={selectDestination}
+                class="px-3 py-2.5 bg-bg-card text-text-secondary rounded-lg hover:bg-beat-header hover:text-text-primary transition-colors border border-bg-card"
+                aria-label="Browse for folder"
+              >
+                <FolderOpen class="w-5 h-5" />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+      {:else if exportFormat === "longform"}
+        <!-- Longform Options -->
+        <fieldset>
+          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+            <Type class="w-4 h-4" />
+            Options
+          </legend>
+
+          <div class="space-y-2 mb-4">
+            <label
+              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+            >
+              <span class="text-sm text-text-primary">Delete existing export folder</span>
+              <div class="relative">
+                <input type="checkbox" bind:checked={deleteExisting} class="peer sr-only" />
+                <div
+                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                ></div>
+                <div
+                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                ></div>
+              </div>
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- Export Name -->
+        <div>
+          <label
+            for="export-name-longform"
+            class="block text-sm font-medium text-text-secondary mb-2"
+          >
+            Export Name
+          </label>
+          <input
+            id="export-name-longform"
+            type="text"
+            bind:value={exportName}
+            placeholder="Enter project name..."
+            class="w-full bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50"
+          />
+          <p class="text-xs text-text-secondary/70 mt-1.5">
+            Folder: <span class="text-text-secondary"
+              >{exportName.trim() || currentProject.value?.name || "Project"}</span
+            >
+            · Index:
+            <span class="text-text-secondary"
+              >{exportName.trim() || currentProject.value?.name || "Project"}.md</span
+            >
+          </p>
+        </div>
+
+        <!-- Destination Folder -->
+        <div>
+          <label
+            for="destination-longform"
+            class="block text-sm font-medium text-text-secondary mb-2"
+          >
+            Destination Folder
+          </label>
+          <div class="flex gap-2">
+            <input
+              id="destination-longform"
               type="text"
               readonly
               value={outputPath}

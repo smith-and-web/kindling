@@ -11,6 +11,7 @@
     FileText,
     ListChevronsDownUp,
     Kanban,
+    BookOpen,
     MapPin,
     User,
     Users,
@@ -66,6 +67,28 @@
         ui.setView("editor");
       } catch (e) {
         console.error("Failed to import Markdown file:", e);
+        ui.showError(`Import failed: ${e}`);
+      } finally {
+        ui.finishImport();
+      }
+    }
+  }
+
+  async function importLongform() {
+    const path = await open({
+      multiple: false,
+      filters: [{ name: "Longform Index", extensions: ["md", "markdown"] }],
+    });
+
+    if (path) {
+      ui.startImport();
+      try {
+        const project = await invoke<Project>("import_longform", { path });
+        currentProject.setProject(project);
+        ui.completeOnboarding();
+        ui.setView("editor");
+      } catch (e) {
+        console.error("Failed to import Longform index:", e);
         ui.showError(`Import failed: ${e}`);
       } finally {
         ui.finishImport();
@@ -584,7 +607,7 @@
               <p class="text-text-secondary">Choose your outline format to get started.</p>
             </div>
 
-            <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <button
                 onclick={importPlottr}
                 class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
@@ -601,6 +624,15 @@
                 <FileText class="w-12 h-12 text-accent mb-3" />
                 <span class="text-text-primary font-medium">Markdown</span>
                 <span class="text-text-secondary text-sm">.md</span>
+              </button>
+
+              <button
+                onclick={importLongform}
+                class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
+              >
+                <BookOpen class="w-12 h-12 text-accent mb-3" />
+                <span class="text-text-primary font-medium">Longform</span>
+                <span class="text-text-secondary text-sm">Index .md</span>
               </button>
             </div>
 

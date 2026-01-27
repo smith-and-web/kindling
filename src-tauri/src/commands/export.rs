@@ -1,6 +1,6 @@
 //! Export Command Handlers
 //!
-//! Commands for exporting projects to various formats (Markdown, DOCX).
+//! Commands for exporting projects to various formats (Markdown, Longform, DOCX, EPUB).
 
 use crate::commands::{load_app_settings, AppState};
 use crate::db;
@@ -15,6 +15,8 @@ use tauri::{AppHandle, State};
 use uuid::Uuid;
 use zip::write::FileOptions;
 use zip::CompressionMethod;
+
+const LONGFORM_DEFAULT_WORKFLOW: &str = "Default Workflow";
 
 /// Export scope - what to export
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,6 +104,24 @@ pub struct MarkdownExportOptions {
     /// Custom name for the export folder (defaults to project name if not provided)
     #[serde(default)]
     pub export_name: Option<String>,
+    /// Create a snapshot before exporting
+    #[serde(default)]
+    pub create_snapshot: bool,
+}
+
+/// Export options for Longform export
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LongformExportOptions {
+    /// What to export (project, chapter, or scene)
+    pub scope: ExportScope,
+    /// Output directory path
+    pub output_path: String,
+    /// Custom name for the export folder (defaults to project name if not provided)
+    #[serde(default)]
+    pub export_name: Option<String>,
+    /// Delete existing export folder if it exists
+    #[serde(default)]
+    pub delete_existing: bool,
     /// Create a snapshot before exporting
     #[serde(default)]
     pub create_snapshot: bool,
@@ -1294,6 +1314,130 @@ fn generate_scene_markdown(scene: &Scene, beats: &[Beat], include_beat_markers: 
     content
 }
 
+fn escape_longform_attribute(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\t', "\\t")
+}
+
+fn generate_longform_scene_markdown(scene: &Scene, beats: &[Beat]) -> String {
+    let mut content = String::new();
+    let mut meta_parts = vec![
+        format!("scene_type={}", scene.scene_type.as_str()),
+        format!("scene_status={}", scene.scene_status.as_str()),
+    ];
+
+    if let Some(ref synopsis) = scene.synopsis {
+        if !synopsis.trim().is_empty() {
+            meta_parts.push(format!(
+                "synopsis=\"{}\"",
+                escape_longform_attribute(synopsis)
+            ));
+        }
+    }
+
+    content.push_str(&format!("<!-- kindling: {} -->\n\n", meta_parts.join(" ")));
+
+    if let Some(ref prose) = scene.prose {
+        let clean_prose = strip_html(prose);
+        if !clean_prose.trim().is_empty() {
+            content.push_str(clean_prose.trim());
+            content.push_str("\n\n");
+        }
+    }
+
+    if !beats.is_empty() {
+        content.push_str("<!-- kindling: beats -->\n");
+        for beat in beats {
+            content.push_str(&format!("- {}\n", beat.content.trim()));
+            if let Some(ref prose) = beat.prose {
+                let clean_prose = strip_html(prose);
+                if !clean_prose.trim().is_empty() {
+                    for line in clean_prose.lines() {
+                        content.push_str(&format!("  {}\n", line));
+                    }
+                }
+            }
+            content.push('\n');
+        }
+    }
+
+    content
+}
+
+fn generate_longform_frontmatter(
+    title: &str,
+    scene_folder: &str,
+    scenes: &[String],
+) -> Result<String, String> {
+    #[derive(Serialize)]
+    struct LongformFrontmatter<'a> {
+        longform: LongformIndex<'a>,
+    }
+
+    #[derive(Serialize)]
+    struct LongformIndex<'a> {
+        format: &'a str,
+        title: &'a str,
+        workflow: &'a str,
+        #[serde(rename = "sceneFolder")]
+        scene_folder: &'a str,
+        scenes: &'a [String],
+    }
+
+    let frontmatter = LongformFrontmatter {
+        longform: LongformIndex {
+            format: "scenes",
+            title,
+            workflow: LONGFORM_DEFAULT_WORKFLOW,
+            scene_folder,
+            scenes,
+        },
+    };
+
+    let mut yaml = serde_yaml::to_string(&frontmatter).map_err(|e| e.to_string())?;
+    if yaml.starts_with("---") {
+        yaml = yaml.trim_start_matches("---").trim_start().to_string();
+    }
+
+    Ok(format!("---\n{}---\n", yaml))
+}
+
+fn extract_longform_scene_stem(scene: &Scene) -> String {
+    if let Some(ref source_id) = scene.source_id {
+        let path = PathBuf::from(source_id);
+        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+            let stem = stem.trim();
+            if !stem.is_empty() {
+                return stem.to_string();
+            }
+        }
+    }
+
+    let sanitized = sanitize_filename(&scene.title);
+    if sanitized.trim().is_empty() {
+        "Scene".to_string()
+    } else {
+        sanitized
+    }
+}
+
+fn ensure_unique_scene_stem(
+    base: String,
+    used: &mut std::collections::HashMap<String, usize>,
+) -> String {
+    let counter = used.entry(base.clone()).or_insert(0);
+    if *counter == 0 {
+        *counter = 1;
+        return base;
+    }
+
+    *counter += 1;
+    format!("{} ({})", base, counter)
+}
+
 /// Export project to markdown files
 ///
 /// Creates a folder structure: `ProjectName/ChapterName/SceneName.md`
@@ -1563,6 +1707,150 @@ pub async fn export_to_markdown(
         files_created,
         chapters_exported,
         scenes_exported,
+    })
+}
+
+/// Export project to Longform index + scene files
+#[tauri::command]
+pub async fn export_to_longform(
+    project_id: String,
+    options: LongformExportOptions,
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ExportResult, String> {
+    let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+
+    if options.create_snapshot {
+        let snapshot_name = options
+            .export_name
+            .as_ref()
+            .filter(|s| !s.trim().is_empty())
+            .cloned()
+            .unwrap_or_else(|| "Pre-export snapshot".to_string());
+
+        let snapshot_options = super::CreateSnapshotOptions {
+            name: snapshot_name,
+            description: Some("Automatic snapshot created before Longform export".to_string()),
+            trigger_type: SnapshotTrigger::Export,
+        };
+
+        super::create_snapshot(
+            project_id.clone(),
+            snapshot_options,
+            app_handle,
+            state.clone(),
+        )
+        .await?;
+    }
+
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let project = db::queries::get_project(&conn, &project_uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Project not found: {}", project_id))?;
+
+    let output_base = PathBuf::from(&options.output_path);
+    let export_name = options
+        .export_name
+        .as_ref()
+        .filter(|s| !s.trim().is_empty())
+        .cloned()
+        .unwrap_or_else(|| project.name.clone());
+    let folder_name = sanitize_filename(&export_name);
+    let project_folder = output_base.join(&folder_name);
+
+    if options.delete_existing && project_folder.exists() {
+        fs::remove_dir_all(&project_folder)
+            .map_err(|e| format!("Failed to delete existing folder: {}", e))?;
+    }
+
+    fs::create_dir_all(&project_folder)
+        .map_err(|e| format!("Failed to create output directory: {}", e))?;
+
+    let mut scenes_to_export: Vec<(Scene, Vec<Beat>)> = Vec::new();
+    let mut chapter_ids = std::collections::HashSet::new();
+
+    match options.scope {
+        ExportScope::Project => {
+            let chapters =
+                db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+            for chapter in chapters.iter().filter(|c| !c.archived) {
+                let scenes =
+                    db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
+                for scene in scenes.into_iter().filter(|s| !s.archived) {
+                    let beats =
+                        db::queries::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
+                    chapter_ids.insert(scene.chapter_id);
+                    scenes_to_export.push((scene, beats));
+                }
+            }
+        }
+        ExportScope::Chapter(chapter_id) => {
+            let chapter_uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
+            let chapters =
+                db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+            let chapter = chapters
+                .iter()
+                .find(|c| c.id == chapter_uuid)
+                .ok_or_else(|| format!("Chapter not found: {}", chapter_id))?;
+
+            if chapter.archived {
+                return Err("Cannot export an archived chapter".to_string());
+            }
+
+            let scenes = db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
+            for scene in scenes.into_iter().filter(|s| !s.archived) {
+                let beats = db::queries::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
+                chapter_ids.insert(scene.chapter_id);
+                scenes_to_export.push((scene, beats));
+            }
+        }
+        ExportScope::Scene(scene_id) => {
+            let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+            let scene = db::queries::get_scene_by_id(&conn, &scene_uuid)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| format!("Scene not found: {}", scene_id))?;
+
+            if scene.archived {
+                return Err("Cannot export an archived scene".to_string());
+            }
+
+            let beats = db::queries::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
+            chapter_ids.insert(scene.chapter_id);
+            scenes_to_export.push((scene, beats));
+        }
+    }
+
+    let mut used_stems: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut scene_names = Vec::new();
+    let mut files_created = 0;
+
+    for (scene, beats) in &scenes_to_export {
+        let base = extract_longform_scene_stem(scene);
+        let stem = ensure_unique_scene_stem(base, &mut used_stems);
+        let scene_file = project_folder.join(format!("{}.md", stem));
+        let markdown = generate_longform_scene_markdown(scene, beats);
+        fs::write(&scene_file, markdown)
+            .map_err(|e| format!("Failed to write scene file: {}", e))?;
+        files_created += 1;
+        scene_names.push(stem);
+    }
+
+    let mut index_file_name = sanitize_filename(&export_name);
+    if !index_file_name.to_lowercase().ends_with(".md") {
+        index_file_name = format!("{}.md", index_file_name);
+    }
+    let index_file = project_folder.join(&index_file_name);
+
+    let frontmatter = generate_longform_frontmatter(&export_name, "/", &scene_names)?;
+    fs::write(&index_file, frontmatter)
+        .map_err(|e| format!("Failed to write index file: {}", e))?;
+    files_created += 1;
+
+    Ok(ExportResult {
+        output_path: project_folder.to_string_lossy().to_string(),
+        files_created,
+        chapters_exported: chapter_ids.len(),
+        scenes_exported: scene_names.len(),
     })
 }
 
@@ -3705,5 +3993,45 @@ mod tests {
 
         let no_markers = generate_scene_markdown(&scene, &[], false);
         assert!(!no_markers.contains("## "));
+    }
+
+    #[test]
+    fn test_generate_longform_frontmatter() {
+        let scenes = vec!["Scene One".to_string(), "2".to_string()];
+        let frontmatter = generate_longform_frontmatter("My Project", "/", &scenes).unwrap();
+
+        assert!(frontmatter.starts_with("---"));
+        assert!(frontmatter.contains("longform:"));
+        assert!(frontmatter.contains("format: scenes"));
+        assert!(frontmatter.contains("sceneFolder"));
+        assert!(frontmatter.contains("scenes:"));
+        assert!(frontmatter.contains("Scene One"));
+    }
+
+    #[test]
+    fn test_generate_longform_scene_markdown() {
+        use crate::models::{SceneStatus, SceneType};
+
+        let chapter_id = Uuid::new_v4();
+        let mut scene = Scene::new(
+            chapter_id,
+            "Scene Title".to_string(),
+            Some("Short synopsis".to_string()),
+            0,
+        );
+        scene.scene_type = SceneType::Notes;
+        scene.scene_status = SceneStatus::Revised;
+        scene.prose = Some("<p>Scene prose.</p>".to_string());
+
+        let mut beat = Beat::new(scene.id, "Beat One".to_string(), 0);
+        beat.prose = Some("<p>Beat prose.</p>".to_string());
+
+        let markdown = generate_longform_scene_markdown(&scene, &[beat]);
+        assert!(markdown.contains("<!-- kindling: scene_type=notes scene_status=revised"));
+        assert!(markdown.contains("synopsis=\"Short synopsis\""));
+        assert!(markdown.contains("Scene prose."));
+        assert!(markdown.contains("<!-- kindling: beats -->"));
+        assert!(markdown.contains("- Beat One"));
+        assert!(markdown.contains("Beat prose."));
     }
 }

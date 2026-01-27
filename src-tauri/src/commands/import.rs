@@ -1,12 +1,14 @@
 //! Import Commands
 //!
-//! Handles importing projects from external formats (Plottr, Markdown).
+//! Handles importing projects from external formats (Plottr, Markdown, Longform).
 
 use tauri::State;
 
 use crate::db;
 use crate::models::Project;
-use crate::parsers::{parse_markdown_outline, parse_plottr_file, parse_ywriter_file};
+use crate::parsers::{
+    parse_longform_index, parse_markdown_outline, parse_plottr_file, parse_ywriter_file,
+};
 
 use super::AppState;
 
@@ -113,6 +115,33 @@ pub async fn import_ywriter(path: String, state: State<'_, AppState>) -> Result<
 #[tauri::command]
 pub async fn import_markdown(path: String, state: State<'_, AppState>) -> Result<Project, String> {
     let parsed = parse_markdown_outline(&path).map_err(|e| e.to_string())?;
+
+    let mut conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    db::insert_project(&tx, &parsed.project).map_err(|e| e.to_string())?;
+
+    for chapter in &parsed.chapters {
+        db::insert_chapter(&tx, chapter).map_err(|e| e.to_string())?;
+    }
+
+    for scene in &parsed.scenes {
+        db::insert_scene(&tx, scene).map_err(|e| e.to_string())?;
+    }
+
+    for beat in &parsed.beats {
+        db::insert_beat(&tx, beat).map_err(|e| e.to_string())?;
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+
+    Ok(parsed.project)
+}
+
+#[tauri::command]
+pub async fn import_longform(path: String, state: State<'_, AppState>) -> Result<Project, String> {
+    let parsed = parse_longform_index(&path).map_err(|e| e.to_string())?;
 
     let mut conn = state.db.lock().map_err(|e| e.to_string())?;
 
