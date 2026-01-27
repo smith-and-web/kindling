@@ -4,6 +4,8 @@
   Allows users to configure project-specific metadata:
   - Pen name (overrides app-level author name for this project)
   - Genre
+  - Description
+  - Word target
 -->
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
@@ -23,6 +25,12 @@
   // Form fields initialized from current project
   let authorPenName = $state(currentProject.value?.author_pen_name ?? "");
   let genre = $state(currentProject.value?.genre ?? "");
+  let description = $state(currentProject.value?.description ?? "");
+  let wordTarget = $state(
+    currentProject.value?.word_target !== null && currentProject.value?.word_target !== undefined
+      ? String(currentProject.value.word_target)
+      : ""
+  );
 
   let saving = $state(false);
   let error = $state<string | null>(null);
@@ -34,10 +42,17 @@
     error = null;
 
     try {
+      const parsedWordTarget = wordTarget.trim().length ? Number(wordTarget.trim()) : null;
+      if (parsedWordTarget !== null && Number.isNaN(parsedWordTarget)) {
+        throw new Error("Word target must be a number");
+      }
+
       // Convert empty strings to null for optional fields
       const settings = {
         author_pen_name: authorPenName.trim() || null,
         genre: genre.trim() || null,
+        description: description.trim() || null,
+        word_target: parsedWordTarget,
       };
 
       const updatedProject = await invoke<Project>("update_project_settings", {
@@ -144,6 +159,38 @@
         <p class="text-xs text-text-secondary mt-1">
           Genre will be displayed on manuscript title pages.
         </p>
+      </div>
+
+      <!-- Description -->
+      <div>
+        <label for="project-description" class="block text-sm text-text-secondary mb-1">
+          Project Description <span class="text-text-secondary/60">(optional)</span>
+        </label>
+        <textarea
+          id="project-description"
+          rows="4"
+          bind:value={description}
+          placeholder="Short summary or notes about this project"
+          disabled={saving}
+          class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent disabled:opacity-50 resize-none"
+        ></textarea>
+      </div>
+
+      <!-- Word Target -->
+      <div>
+        <label for="word-target" class="block text-sm text-text-secondary mb-1">
+          Word Target <span class="text-text-secondary/60">(optional)</span>
+        </label>
+        <input
+          id="word-target"
+          type="number"
+          min="0"
+          inputmode="numeric"
+          bind:value={wordTarget}
+          placeholder="e.g., 80000"
+          disabled={saving}
+          class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent disabled:opacity-50"
+        />
       </div>
 
       <!-- Error Message -->

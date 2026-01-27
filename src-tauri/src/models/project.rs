@@ -43,6 +43,10 @@ pub struct Project {
     pub author_pen_name: Option<String>,
     /// Genre of this work
     pub genre: Option<String>,
+    /// Project description or summary
+    pub description: Option<String>,
+    /// Optional word count target for the project
+    pub word_target: Option<i32>,
 }
 
 impl Project {
@@ -57,6 +61,8 @@ impl Project {
             modified_at: now,
             author_pen_name: None,
             genre: None,
+            description: None,
+            word_target: None,
         }
     }
 }

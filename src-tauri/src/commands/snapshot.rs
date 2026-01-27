@@ -363,6 +363,8 @@ fn restore_create_new(
         // Copy project-specific metadata from snapshot
         author_pen_name: data.project.author_pen_name,
         genre: data.project.genre,
+        description: data.project.description,
+        word_target: data.project.word_target,
     };
 
     if let Err(e) = db::insert_project(conn, &new_project) {

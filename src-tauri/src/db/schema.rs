@@ -11,7 +11,11 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             source_type TEXT NOT NULL,
             source_path TEXT,
             created_at TEXT NOT NULL,
-            modified_at TEXT NOT NULL
+            modified_at TEXT NOT NULL,
+            author_pen_name TEXT,
+            genre TEXT,
+            description TEXT,
+            word_target INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS chapters (
@@ -218,6 +222,12 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
     }
     if !columns.contains(&"genre".to_string()) {
         conn.execute("ALTER TABLE projects ADD COLUMN genre TEXT", [])?;
+    }
+    if !columns.contains(&"description".to_string()) {
+        conn.execute("ALTER TABLE projects ADD COLUMN description TEXT", [])?;
+    }
+    if !columns.contains(&"word_target".to_string()) {
+        conn.execute("ALTER TABLE projects ADD COLUMN word_target INTEGER", [])?;
     }
 
     Ok(())

@@ -48,6 +48,14 @@ struct YWriterProject {
     word_target: Option<i32>,
 }
 
+#[derive(Debug, Default)]
+struct YWriterProjectNote {
+    id: i32,
+    title: String,
+    description: Option<String>,
+    sort_order: i32,
+}
+
 /// Raw yWriter chapter data
 #[derive(Debug, Default)]
 struct YWriterChapter {
@@ -264,6 +272,7 @@ fn parse_ywriter_content(content: &str, path: &Path) -> Result<ParsedYWriter, YW
     let mut characters: HashMap<i32, YWriterCharacter> = HashMap::new();
     let mut locations: HashMap<i32, YWriterLocation> = HashMap::new();
     let mut items: HashMap<i32, YWriterItem> = HashMap::new();
+    let mut project_notes: Vec<YWriterProjectNote> = Vec::new();
 
     // Current parsing context
     let mut current_chapter: Option<YWriterChapter> = None;
@@ -271,6 +280,7 @@ fn parse_ywriter_content(content: &str, path: &Path) -> Result<ParsedYWriter, YW
     let mut current_character: Option<YWriterCharacter> = None;
     let mut current_location: Option<YWriterLocation> = None;
     let mut current_item: Option<YWriterItem> = None;
+    let mut current_project_note: Option<YWriterProjectNote> = None;
     let mut in_project = false;
     let mut in_scene_characters = false;
     let mut in_scene_locations = false;
@@ -299,21 +309,56 @@ fn parse_ywriter_content(content: &str, path: &Path) -> Result<ParsedYWriter, YW
                     "ITEM" => {
                         current_item = Some(YWriterItem::default());
                     }
+                    "PROJECTNOTE" => {
+                        current_project_note = Some(YWriterProjectNote::default());
+                    }
                     // Project fields
-                    "Title" if in_project && current_chapter.is_none() => {
+                    "Title"
+                        if in_project
+                            && current_chapter.is_none()
+                            && current_project_note.is_none() =>
+                    {
                         project_data.title = Some(read_element_text(&mut reader, &mut buf)?);
                     }
                     "Author" | "AuthorName" if in_project => {
                         project_data.author = Some(read_element_text(&mut reader, &mut buf)?);
                     }
                     "Desc"
-                        if in_project && current_chapter.is_none() && current_scene.is_none() =>
+                        if in_project
+                            && current_chapter.is_none()
+                            && current_scene.is_none()
+                            && current_project_note.is_none() =>
                     {
                         project_data.description = Some(read_element_text(&mut reader, &mut buf)?);
                     }
                     "WordTarget" if in_project => {
                         let text = read_element_text(&mut reader, &mut buf)?;
                         project_data.word_target = text.parse().ok();
+                    }
+                    // Project note fields
+                    "ID" if current_project_note.is_some() => {
+                        let text = read_element_text(&mut reader, &mut buf)?;
+                        if let Some(ref mut note) = current_project_note {
+                            note.id = text.parse().unwrap_or(0);
+                        }
+                    }
+                    "Title" if current_project_note.is_some() => {
+                        let text = read_element_text(&mut reader, &mut buf)?;
+                        if let Some(ref mut note) = current_project_note {
+                            note.title = text;
+                        }
+                    }
+                    "Desc" if current_project_note.is_some() => {
+                        let text = read_element_text(&mut reader, &mut buf)?;
+                        if let Some(ref mut note) = current_project_note {
+                            note.description = Some(text);
+                        }
+                    }
+                    "SortOrder" if current_project_note.is_some() => {
+                        let text = read_element_text(&mut reader, &mut buf)?;
+                        if let Some(ref mut note) = current_project_note {
+                            note.sort_order = text.parse().unwrap_or(0);
+                        }
                     }
                     // Chapter fields
                     "ID" if current_chapter.is_some() => {
@@ -590,6 +635,11 @@ fn parse_ywriter_content(content: &str, path: &Path) -> Result<ParsedYWriter, YW
                             items.insert(item.id, item);
                         }
                     }
+                    "PROJECTNOTE" => {
+                        if let Some(note) = current_project_note.take() {
+                            project_notes.push(note);
+                        }
+                    }
                     "Characters" if current_scene.is_some() => {
                         in_scene_characters = false;
                     }
@@ -628,6 +678,7 @@ fn parse_ywriter_content(content: &str, path: &Path) -> Result<ParsedYWriter, YW
     // Convert to Kindling data model
     convert_to_kindling(
         project_data,
+        project_notes,
         chapters,
         scenes,
         characters,
@@ -641,8 +692,10 @@ fn parse_ywriter_content(content: &str, path: &Path) -> Result<ParsedYWriter, YW
 // Conversion to Kindling Model
 // ============================================================================
 
+#[allow(clippy::too_many_arguments)]
 fn convert_to_kindling(
     project_data: YWriterProject,
+    mut project_notes: Vec<YWriterProjectNote>,
     yw_chapters: Vec<YWriterChapter>,
     yw_scenes: HashMap<i32, YWriterScene>,
     yw_characters: HashMap<i32, YWriterCharacter>,
@@ -667,6 +720,48 @@ fn convert_to_kindling(
     // Set project author if available
     if let Some(author) = project_data.author {
         project.author_pen_name = Some(author);
+    }
+
+    // Set project description and notes if available
+    let mut description_parts = Vec::new();
+    if let Some(description) = project_data.description {
+        if !description.trim().is_empty() {
+            description_parts.push(description);
+        }
+    }
+
+    if !project_notes.is_empty() {
+        project_notes.sort_by_key(|note| note.sort_order);
+        let mut notes_section = Vec::new();
+        for note in project_notes {
+            let mut note_block = String::new();
+            if !note.title.trim().is_empty() {
+                note_block.push_str(note.title.trim());
+            }
+            if let Some(desc) = note.description {
+                if !desc.trim().is_empty() {
+                    if !note_block.is_empty() {
+                        note_block.push('\n');
+                    }
+                    note_block.push_str(desc.trim());
+                }
+            }
+            if !note_block.is_empty() {
+                notes_section.push(note_block);
+            }
+        }
+        if !notes_section.is_empty() {
+            description_parts.push("Project Notes:".to_string());
+            description_parts.extend(notes_section);
+        }
+    }
+
+    if !description_parts.is_empty() {
+        project.description = Some(description_parts.join("\n\n"));
+    }
+
+    if project_data.word_target.is_some() {
+        project.word_target = project_data.word_target;
     }
 
     // Build ID mappings for references
@@ -962,6 +1057,11 @@ mod tests {
             parsed.project.author_pen_name,
             Some("William Shakespeare".to_string())
         );
+        assert_eq!(
+            parsed.project.description.as_deref(),
+            Some("The Tragedy of Hamlet, Prince of Denmark")
+        );
+        assert_eq!(parsed.project.word_target, Some(80000));
 
         // Check chapters
         assert_eq!(parsed.chapters.len(), 3);
@@ -2010,6 +2110,18 @@ mod tests {
         let prose = prose_beat.prose.as_ref().unwrap();
         assert!(prose.contains("Hal Spacejock was sitting"));
         assert!(prose.contains("Black Gull's flight console"));
+    }
+
+    #[test]
+    fn test_hal_spacejock_project_notes_imported() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/hal_spacejock.yw7");
+
+        let parsed = parse_ywriter_file(&path).unwrap();
+
+        let description = parsed.project.description.as_ref().unwrap();
+        assert!(description.contains("Project Notes:"));
+        assert!(description.contains("About the sample project"));
+        assert!(description.contains("This sample project contains the outline"));
     }
 
     #[test]
