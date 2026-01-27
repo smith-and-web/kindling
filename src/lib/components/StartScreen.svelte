@@ -218,7 +218,7 @@
     {#if recentProjects.length > 0}
       <div data-testid="recent-projects" class="bg-bg-panel rounded-lg p-6">
         <h2 class="text-xl font-heading font-medium text-text-primary mb-4">Recent Projects</h2>
-        <div class="space-y-2">
+        <div class="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
           {#each recentProjects as project (project.id)}
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
