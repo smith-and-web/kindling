@@ -113,6 +113,19 @@ struct SceneEntry {
     _depth: usize,
 }
 
+struct SceneBuildContext<'a> {
+    index_dir: &'a Path,
+    scene_dir: &'a Path,
+    scenes: &'a mut Vec<Scene>,
+    beats: &'a mut Vec<Beat>,
+    characters: &'a mut Vec<Character>,
+    locations: &'a mut Vec<Location>,
+    scene_character_refs: &'a mut Vec<(uuid::Uuid, uuid::Uuid)>,
+    scene_location_refs: &'a mut Vec<(uuid::Uuid, uuid::Uuid)>,
+    character_index: &'a mut HashMap<String, uuid::Uuid>,
+    location_index: &'a mut HashMap<String, uuid::Uuid>,
+}
+
 // ============================================================================
 // Parser Implementation
 // ============================================================================
@@ -549,6 +562,18 @@ fn build_longform_structure(
     let mut scene_location_refs = Vec::new();
     let mut character_index: HashMap<String, uuid::Uuid> = HashMap::new();
     let mut location_index: HashMap<String, uuid::Uuid> = HashMap::new();
+    let mut build_context = SceneBuildContext {
+        index_dir,
+        scene_dir,
+        scenes: &mut scenes,
+        beats: &mut beats,
+        characters: &mut characters,
+        locations: &mut locations,
+        scene_character_refs: &mut scene_character_refs,
+        scene_location_refs: &mut scene_location_refs,
+        character_index: &mut character_index,
+        location_index: &mut location_index,
+    };
 
     let has_hierarchy = scene_entries.iter().any(|entry| entry._depth > 0);
 
@@ -561,21 +586,7 @@ fn build_longform_structure(
             if should_ignore_scene(&entry.name, ignored_patterns) {
                 continue;
             }
-            add_scene_from_entry(
-                &chapter,
-                entry,
-                scene_position,
-                index_dir,
-                scene_dir,
-                &mut scenes,
-                &mut beats,
-                &mut characters,
-                &mut locations,
-                &mut scene_character_refs,
-                &mut scene_location_refs,
-                &mut character_index,
-                &mut location_index,
-            )?;
+            add_scene_from_entry(&chapter, entry, scene_position, &mut build_context)?;
             scene_position += 1;
         }
 
@@ -604,21 +615,7 @@ fn build_longform_structure(
 
                 if !should_ignore_scene(&entry.name, ignored_patterns) {
                     if let Some(ref chapter) = current_chapter {
-                        add_scene_from_entry(
-                            chapter,
-                            entry,
-                            scene_position,
-                            index_dir,
-                            scene_dir,
-                            &mut scenes,
-                            &mut beats,
-                            &mut characters,
-                            &mut locations,
-                            &mut scene_character_refs,
-                            &mut scene_location_refs,
-                            &mut character_index,
-                            &mut location_index,
-                        )?;
+                        add_scene_from_entry(chapter, entry, scene_position, &mut build_context)?;
                         scene_position += 1;
                         chapter_has_scenes = true;
                     }
@@ -634,21 +631,7 @@ fn build_longform_structure(
                 }
                 if !should_ignore_scene(&entry.name, ignored_patterns) {
                     if let Some(ref chapter) = current_chapter {
-                        add_scene_from_entry(
-                            chapter,
-                            entry,
-                            scene_position,
-                            index_dir,
-                            scene_dir,
-                            &mut scenes,
-                            &mut beats,
-                            &mut characters,
-                            &mut locations,
-                            &mut scene_character_refs,
-                            &mut scene_location_refs,
-                            &mut character_index,
-                            &mut location_index,
-                        )?;
+                        add_scene_from_entry(chapter, entry, scene_position, &mut build_context)?;
                         scene_position += 1;
                         chapter_has_scenes = true;
                     }
@@ -679,21 +662,12 @@ fn add_scene_from_entry(
     chapter: &Chapter,
     entry: SceneEntry,
     scene_position: i32,
-    index_dir: &Path,
-    scene_dir: &Path,
-    scenes: &mut Vec<Scene>,
-    beats: &mut Vec<Beat>,
-    characters: &mut Vec<Character>,
-    locations: &mut Vec<Location>,
-    scene_character_refs: &mut Vec<(uuid::Uuid, uuid::Uuid)>,
-    scene_location_refs: &mut Vec<(uuid::Uuid, uuid::Uuid)>,
-    character_index: &mut HashMap<String, uuid::Uuid>,
-    location_index: &mut HashMap<String, uuid::Uuid>,
+    context: &mut SceneBuildContext<'_>,
 ) -> Result<(), LongformError> {
     let scene_name = normalize_scene_name(&entry.name);
     let scene_file_name = ensure_markdown_extension(&scene_name);
-    let scene_path = scene_dir.join(&scene_file_name);
-    let scene_source_id = build_scene_source_id(index_dir, &scene_path);
+    let scene_path = context.scene_dir.join(&scene_file_name);
+    let scene_source_id = build_scene_source_id(context.index_dir, &scene_path);
 
     let scene_content = parse_scene_file(&scene_path)?;
 
@@ -712,26 +686,26 @@ fn add_scene_from_entry(
         chapter.project_id,
         scene.id,
         &scene_content.characters,
-        characters,
-        scene_character_refs,
-        character_index,
+        context.characters,
+        context.scene_character_refs,
+        context.character_index,
     );
     register_scene_locations(
         chapter.project_id,
         scene.id,
         &scene_content.locations,
-        locations,
-        scene_location_refs,
-        location_index,
+        context.locations,
+        context.scene_location_refs,
+        context.location_index,
     );
 
     for (beat_position, beat) in scene_content.beats.into_iter().enumerate() {
         let mut new_beat = Beat::new(scene.id, beat.content, beat_position as i32);
         new_beat.prose = beat.prose;
-        beats.push(new_beat);
+        context.beats.push(new_beat);
     }
 
-    scenes.push(scene);
+    context.scenes.push(scene);
     Ok(())
 }
 
