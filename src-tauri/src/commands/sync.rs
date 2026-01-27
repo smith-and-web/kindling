@@ -106,10 +106,10 @@ pub async fn reimport_project(
                 chapters: lf_parsed.chapters,
                 scenes: lf_parsed.scenes,
                 beats: lf_parsed.beats,
-                characters: Vec::new(),
-                locations: Vec::new(),
-                scene_character_refs: Vec::new(),
-                scene_location_refs: Vec::new(),
+                characters: lf_parsed.characters,
+                locations: lf_parsed.locations,
+                scene_character_refs: lf_parsed.scene_character_refs,
+                scene_location_refs: lf_parsed.scene_location_refs,
             }
         }
         crate::models::SourceType::Markdown => {
@@ -379,10 +379,10 @@ pub async fn get_sync_preview(
                 chapters: lf_parsed.chapters,
                 scenes: lf_parsed.scenes,
                 beats: lf_parsed.beats,
-                characters: Vec::new(),
-                locations: Vec::new(),
-                scene_character_refs: Vec::new(),
-                scene_location_refs: Vec::new(),
+                characters: lf_parsed.characters,
+                locations: lf_parsed.locations,
+                scene_character_refs: lf_parsed.scene_character_refs,
+                scene_location_refs: lf_parsed.scene_location_refs,
             }
         }
         crate::models::SourceType::Markdown => {
@@ -643,10 +643,10 @@ pub async fn apply_sync(
                 chapters: lf_parsed.chapters,
                 scenes: lf_parsed.scenes,
                 beats: lf_parsed.beats,
-                characters: Vec::new(),
-                locations: Vec::new(),
-                scene_character_refs: Vec::new(),
-                scene_location_refs: Vec::new(),
+                characters: lf_parsed.characters,
+                locations: lf_parsed.locations,
+                scene_character_refs: lf_parsed.scene_character_refs,
+                scene_location_refs: lf_parsed.scene_location_refs,
             }
         }
         crate::models::SourceType::Markdown => {
