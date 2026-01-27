@@ -117,6 +117,9 @@ struct YWriterItem {
     id: i32,
     title: String,
     description: Option<String>,
+    aka: Option<String>,
+    tags: Option<String>,
+    image: Option<String>,
 }
 
 // ============================================================================
@@ -591,7 +594,7 @@ fn parse_ywriter_content(content: &str, path: &Path) -> Result<ParsedYWriter, YW
                             item.id = text.parse().unwrap_or(0);
                         }
                     }
-                    "Title" if current_item.is_some() => {
+                    "Title" | "Name" if current_item.is_some() => {
                         let text = read_element_text(&mut reader, &mut buf)?;
                         if let Some(ref mut item) = current_item {
                             item.title = text;
@@ -601,6 +604,24 @@ fn parse_ywriter_content(content: &str, path: &Path) -> Result<ParsedYWriter, YW
                         let text = read_element_text(&mut reader, &mut buf)?;
                         if let Some(ref mut item) = current_item {
                             item.description = Some(text);
+                        }
+                    }
+                    "Aka" | "AKA" if current_item.is_some() => {
+                        let text = read_element_text(&mut reader, &mut buf)?;
+                        if let Some(ref mut item) = current_item {
+                            item.aka = Some(text);
+                        }
+                    }
+                    "Tags" if current_item.is_some() => {
+                        let text = read_element_text(&mut reader, &mut buf)?;
+                        if let Some(ref mut item) = current_item {
+                            item.tags = Some(text);
+                        }
+                    }
+                    "Image" | "ImageFile" if current_item.is_some() => {
+                        let text = read_element_text(&mut reader, &mut buf)?;
+                        if let Some(ref mut item) = current_item {
+                            item.image = Some(text);
                         }
                     }
                     _ => {}
@@ -852,9 +873,29 @@ fn convert_to_kindling(
             if desc.trim().is_empty() {
                 None
             } else {
-                Some(desc.clone())
+                Some(convert_ywriter_markup(desc))
             }
         });
+
+        let mut attributes = HashMap::new();
+        if let Some(ref aka) = yw_item.aka {
+            let trimmed = aka.trim();
+            if !trimmed.is_empty() {
+                attributes.insert("aliases".to_string(), trimmed.to_string());
+            }
+        }
+        if let Some(ref tags) = yw_item.tags {
+            let trimmed = tags.trim();
+            if !trimmed.is_empty() {
+                attributes.insert("tags".to_string(), trimmed.to_string());
+            }
+        }
+        if let Some(ref image) = yw_item.image {
+            let trimmed = image.trim();
+            if !trimmed.is_empty() {
+                attributes.insert("image".to_string(), trimmed.to_string());
+            }
+        }
 
         let item = ReferenceItem::new(
             project.id,
@@ -862,7 +903,8 @@ fn convert_to_kindling(
             yw_item.title.clone(),
             description,
             Some(yw_id.to_string()),
-        );
+        )
+        .with_attributes(attributes);
         reference_items.push(item);
     }
 
@@ -1609,6 +1651,48 @@ mod tests {
             .unwrap();
         let forest_desc = forest.description.as_ref().unwrap();
         assert!(forest_desc.contains("<em>Also known as:</em> Sherwood"));
+    }
+
+    #[test]
+    fn test_item_fields_mapped_to_reference_attributes() {
+        let xml = r#"<?xml version="1.0"?>
+<YWRITER7>
+  <PROJECT>
+    <Title>Item Field Test</Title>
+  </PROJECT>
+  <ITEMS>
+    <ITEM>
+      <ID>1</ID>
+      <Title>The Key</Title>
+      <Desc>A small [i]rusty[/i] key.</Desc>
+      <Aka>The Rust Key</Aka>
+      <Tags>metal;locker</Tags>
+      <Image>items/key.png</Image>
+    </ITEM>
+  </ITEMS>
+</YWRITER7>"#;
+
+        let result = parse_ywriter_content(xml, Path::new("test.yw7"));
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+
+        assert_eq!(parsed.reference_items.len(), 1);
+        let item = &parsed.reference_items[0];
+        assert_eq!(item.name, "The Key");
+        let desc = item.description.as_ref().unwrap();
+        assert!(desc.contains("<em>rusty</em>"));
+        assert_eq!(
+            item.attributes.get("aliases").map(String::as_str),
+            Some("The Rust Key")
+        );
+        assert_eq!(
+            item.attributes.get("tags").map(String::as_str),
+            Some("metal;locker")
+        );
+        assert_eq!(
+            item.attributes.get("image").map(String::as_str),
+            Some("items/key.png")
+        );
     }
 
     #[test]
