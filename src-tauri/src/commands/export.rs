@@ -2528,7 +2528,7 @@ pub async fn export_to_epub(
 
             if let Some(ref prose) = scene.prose {
                 if !prose.trim().is_empty() {
-                    body.push_str("\n");
+                    body.push('\n');
                     body.push_str(&render_html_to_xhtml(prose));
                 }
             }
@@ -2545,7 +2545,7 @@ pub async fn export_to_epub(
 
                 if let Some(ref prose) = beat.prose {
                     if !prose.trim().is_empty() {
-                        body.push_str("\n");
+                        body.push('\n');
                         body.push_str(&render_html_to_xhtml(prose));
                     }
                 }
