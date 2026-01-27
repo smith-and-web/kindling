@@ -21,6 +21,12 @@
   import { ui, type OnboardingStep } from "../stores/ui.svelte";
   import type { Project } from "../types";
 
+  interface Props {
+    onImportLongform?: () => void;
+  }
+
+  let { onImportLongform }: Props = $props();
+
   const STEP_ORDER: OnboardingStep[] = [
     "welcome",
     "tour-sidebar",
@@ -94,6 +100,11 @@
         ui.finishImport();
       }
     }
+  }
+
+  function handleLongformImport() {
+    const handler = onImportLongform ?? importLongform;
+    handler();
   }
 
   function skipOnboarding() {
@@ -622,17 +633,17 @@
                 class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
               >
                 <FileText class="w-12 h-12 text-accent mb-3" />
-                <span class="text-text-primary font-medium">Markdown</span>
-                <span class="text-text-secondary text-sm">.md</span>
+                <span class="text-text-primary font-medium">Markdown Outline</span>
+                <span class="text-text-secondary text-sm">Single .md file</span>
               </button>
 
               <button
-                onclick={importLongform}
+                onclick={handleLongformImport}
                 class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
               >
                 <BookOpen class="w-12 h-12 text-accent mb-3" />
-                <span class="text-text-primary font-medium">Longform</span>
-                <span class="text-text-secondary text-sm">Index .md</span>
+                <span class="text-text-primary font-medium">Longform Project</span>
+                <span class="text-text-secondary text-sm">Index file or vault</span>
               </button>
             </div>
 

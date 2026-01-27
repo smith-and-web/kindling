@@ -59,6 +59,7 @@ pub fn run() {
             commands::import_longform,
             commands::get_project,
             commands::get_recent_projects,
+            commands::get_all_projects,
             commands::update_project_settings,
             commands::delete_project,
             commands::get_chapters,

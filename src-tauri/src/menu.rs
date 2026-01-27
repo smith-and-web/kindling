@@ -40,7 +40,7 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .id(menu_ids::IMPORT_MARKDOWN)
         .build(app)?;
 
-    let import_longform = MenuItemBuilder::new("Longform Index (.md)")
+    let import_longform = MenuItemBuilder::new("Longform (Index or Vault...)")
         .id(menu_ids::IMPORT_LONGFORM)
         .build(app)?;
 

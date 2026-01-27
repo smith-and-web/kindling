@@ -7,7 +7,7 @@ use tauri::State;
 use crate::db;
 use crate::models::Project;
 use crate::parsers::{
-    parse_longform_index, parse_markdown_outline, parse_plottr_file, parse_ywriter_file,
+    parse_longform_path, parse_markdown_outline, parse_plottr_file, parse_ywriter_file,
 };
 
 use super::AppState;
@@ -141,7 +141,7 @@ pub async fn import_markdown(path: String, state: State<'_, AppState>) -> Result
 
 #[tauri::command]
 pub async fn import_longform(path: String, state: State<'_, AppState>) -> Result<Project, String> {
-    let parsed = parse_longform_index(&path).map_err(|e| e.to_string())?;
+    let parsed = parse_longform_path(&path).map_err(|e| e.to_string())?;
 
     let mut conn = state.db.lock().map_err(|e| e.to_string())?;
 
