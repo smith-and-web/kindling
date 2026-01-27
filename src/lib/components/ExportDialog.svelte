@@ -232,9 +232,7 @@
   async function selectCoverImage() {
     const path = await open({
       title: "Select Cover Image",
-      filters: [
-        { name: "Images", extensions: ["jpg", "jpeg", "png", "gif", "webp"] },
-      ],
+      filters: [{ name: "Images", extensions: ["jpg", "jpeg", "png", "gif", "webp"] }],
     });
 
     if (path) {
@@ -808,7 +806,9 @@
               />
             </div>
             <div>
-              <label for="epub-author" class="block text-xs text-text-secondary mb-1.5">Author</label>
+              <label for="epub-author" class="block text-xs text-text-secondary mb-1.5"
+                >Author</label
+              >
               <input
                 id="epub-author"
                 type="text"
