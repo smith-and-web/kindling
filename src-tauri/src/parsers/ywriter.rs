@@ -692,6 +692,7 @@ fn parse_ywriter_content(content: &str, path: &Path) -> Result<ParsedYWriter, YW
 // Conversion to Kindling Model
 // ============================================================================
 
+#[allow(clippy::too_many_arguments)]
 fn convert_to_kindling(
     project_data: YWriterProject,
     mut project_notes: Vec<YWriterProjectNote>,
