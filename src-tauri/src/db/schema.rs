@@ -15,7 +15,8 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             author_pen_name TEXT,
             genre TEXT,
             description TEXT,
-            word_target INTEGER
+            word_target INTEGER,
+            reference_types TEXT
         );
 
         CREATE TABLE IF NOT EXISTS chapters (
@@ -75,6 +76,22 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             PRIMARY KEY (location_id, key)
         );
 
+        CREATE TABLE IF NOT EXISTS reference_items (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            reference_type TEXT NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT,
+            source_id TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS reference_item_attributes (
+            reference_item_id TEXT REFERENCES reference_items(id) ON DELETE CASCADE,
+            key TEXT NOT NULL,
+            value TEXT,
+            PRIMARY KEY (reference_item_id, key)
+        );
+
         CREATE TABLE IF NOT EXISTS scene_character_refs (
             scene_id TEXT REFERENCES scenes(id) ON DELETE CASCADE,
             character_id TEXT REFERENCES characters(id) ON DELETE CASCADE,
@@ -118,6 +135,8 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_beats_scene ON beats(scene_id);
         CREATE INDEX IF NOT EXISTS idx_characters_project ON characters(project_id);
         CREATE INDEX IF NOT EXISTS idx_locations_project ON locations(project_id);
+        CREATE INDEX IF NOT EXISTS idx_reference_items_project ON reference_items(project_id);
+        CREATE INDEX IF NOT EXISTS idx_reference_items_type ON reference_items(project_id, reference_type);
         CREATE INDEX IF NOT EXISTS idx_snapshots_project ON snapshots(project_id);
 
         -- Enable foreign key support
@@ -229,6 +248,9 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
     if !columns.contains(&"word_target".to_string()) {
         conn.execute("ALTER TABLE projects ADD COLUMN word_target INTEGER", [])?;
     }
+    if !columns.contains(&"reference_types".to_string()) {
+        conn.execute("ALTER TABLE projects ADD COLUMN reference_types TEXT", [])?;
+    }
 
     Ok(())
 }
@@ -257,5 +279,6 @@ mod tests {
         assert!(tables.contains(&"beats".to_string()));
         assert!(tables.contains(&"characters".to_string()));
         assert!(tables.contains(&"locations".to_string()));
+        assert!(tables.contains(&"reference_items".to_string()));
     }
 }

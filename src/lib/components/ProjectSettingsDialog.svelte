@@ -11,7 +11,12 @@
   import { invoke } from "@tauri-apps/api/core";
   import { X, Loader2, BookOpen } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
-  import type { Project } from "../types";
+  import type { Project, ReferenceTypeId } from "../types";
+  import {
+    DEFAULT_REFERENCE_TYPES,
+    REFERENCE_TYPE_OPTIONS,
+    normalizeReferenceTypes,
+  } from "../referenceTypes";
   import Tooltip from "./Tooltip.svelte";
 
   let {
@@ -30,6 +35,9 @@
     currentProject.value?.word_target !== null && currentProject.value?.word_target !== undefined
       ? String(currentProject.value.word_target)
       : ""
+  );
+  let referenceTypes = $state<ReferenceTypeId[]>(
+    normalizeReferenceTypes(currentProject.value?.reference_types ?? DEFAULT_REFERENCE_TYPES)
   );
 
   let saving = $state(false);
@@ -53,6 +61,7 @@
         genre: genre.trim() || null,
         description: description.trim() || null,
         word_target: parsedWordTarget,
+        reference_types: referenceTypes,
       };
 
       const updatedProject = await invoke<Project>("update_project_settings", {
@@ -79,6 +88,14 @@
   function handleBackdropClick(event: MouseEvent) {
     if (event.target === event.currentTarget) {
       onClose();
+    }
+  }
+
+  function toggleReferenceType(typeId: ReferenceTypeId) {
+    if (referenceTypes.includes(typeId)) {
+      referenceTypes = referenceTypes.filter((type) => type !== typeId);
+    } else {
+      referenceTypes = [...referenceTypes, typeId];
     }
   }
 </script>
@@ -192,6 +209,28 @@
           class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent disabled:opacity-50"
         />
       </div>
+
+      <!-- Reference Types -->
+      <fieldset class="space-y-2">
+        <legend class="block text-sm text-text-secondary mb-1">Reference Types</legend>
+        <div class="space-y-2">
+          {#each REFERENCE_TYPE_OPTIONS as option (option.id)}
+            <label class="flex items-center gap-2 text-sm text-text-primary">
+              <input
+                type="checkbox"
+                class="accent-accent"
+                checked={referenceTypes.includes(option.id)}
+                disabled={saving}
+                onclick={() => toggleReferenceType(option.id)}
+              />
+              <span>{option.label}</span>
+            </label>
+          {/each}
+        </div>
+        <p class="text-xs text-text-secondary">
+          Choose which reference types appear in the References panel for this project.
+        </p>
+      </fieldset>
 
       <!-- Error Message -->
       {#if error}

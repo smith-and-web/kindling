@@ -2,13 +2,14 @@
 //!
 //! Handles create, read, update, delete operations for all data types.
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 use crate::db;
-use crate::models::{Beat, Chapter, Character, Location, Project, Scene};
+use crate::models::{Beat, Chapter, Character, Location, Project, ReferenceItem, Scene};
 
 use super::AppState;
 
@@ -39,6 +40,7 @@ pub struct ProjectSettingsUpdate {
     pub genre: Option<String>,
     pub description: Option<String>,
     pub word_target: Option<i32>,
+    pub reference_types: Option<Vec<String>>,
 }
 
 #[tauri::command]
@@ -60,6 +62,9 @@ pub async fn update_project_settings(
     project.genre = settings.genre;
     project.description = settings.description;
     project.word_target = settings.word_target;
+    if let Some(reference_types) = settings.reference_types {
+        project.reference_types = reference_types;
+    }
 
     // Update modified timestamp
     project.modified_at = chrono::Utc::now().to_rfc3339();
@@ -619,6 +624,192 @@ pub async fn get_locations(
     let uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     db::get_locations(&conn, &uuid).map_err(|e| e.to_string())
+}
+
+// ============================================================================
+// Reference Commands
+// ============================================================================
+
+#[derive(serde::Deserialize)]
+pub struct ReferenceUpsert {
+    pub name: String,
+    pub description: Option<String>,
+    pub attributes: Option<HashMap<String, String>>,
+}
+
+fn character_to_reference(character: Character) -> ReferenceItem {
+    ReferenceItem {
+        id: character.id,
+        project_id: character.project_id,
+        reference_type: "characters".to_string(),
+        name: character.name,
+        description: character.description,
+        attributes: character.attributes,
+        source_id: character.source_id,
+    }
+}
+
+fn location_to_reference(location: Location) -> ReferenceItem {
+    ReferenceItem {
+        id: location.id,
+        project_id: location.project_id,
+        reference_type: "locations".to_string(),
+        name: location.name,
+        description: location.description,
+        attributes: location.attributes,
+        source_id: location.source_id,
+    }
+}
+
+#[tauri::command]
+pub async fn get_references(
+    project_id: String,
+    reference_type: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<ReferenceItem>, String> {
+    let uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    match reference_type.as_str() {
+        "characters" => db::get_characters(&conn, &uuid)
+            .map(|items| items.into_iter().map(character_to_reference).collect())
+            .map_err(|e| e.to_string()),
+        "locations" => db::get_locations(&conn, &uuid)
+            .map(|items| items.into_iter().map(location_to_reference).collect())
+            .map_err(|e| e.to_string()),
+        _ => db::get_reference_items(&conn, &uuid, &reference_type).map_err(|e| e.to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn create_reference(
+    project_id: String,
+    reference_type: String,
+    reference: ReferenceUpsert,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let attributes = reference.attributes.unwrap_or_default();
+
+    match reference_type.as_str() {
+        "characters" => {
+            let character =
+                Character::new(project_uuid, reference.name, reference.description, None)
+                    .with_attributes(attributes);
+            db::insert_character(&conn, &character).map_err(|e| e.to_string())?;
+        }
+        "locations" => {
+            let location = Location::new(project_uuid, reference.name, reference.description, None)
+                .with_attributes(attributes);
+            db::insert_location(&conn, &location).map_err(|e| e.to_string())?;
+        }
+        _ => {
+            let item = ReferenceItem::new(
+                project_uuid,
+                reference_type,
+                reference.name,
+                reference.description,
+                None,
+            )
+            .with_attributes(attributes);
+            db::insert_reference_item(&conn, &item).map_err(|e| e.to_string())?;
+        }
+    }
+
+    db::update_project_modified(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn update_reference(
+    reference_id: String,
+    reference_type: String,
+    reference: ReferenceUpsert,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let reference_uuid = Uuid::parse_str(&reference_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let attributes = reference.attributes.unwrap_or_default();
+
+    let project_id = match reference_type.as_str() {
+        "characters" => {
+            db::update_character(
+                &conn,
+                &reference_uuid,
+                &reference.name,
+                reference.description.as_deref(),
+                &attributes,
+            )
+            .map_err(|e| e.to_string())?;
+            db::get_character_project_id(&conn, &reference_uuid).map_err(|e| e.to_string())?
+        }
+        "locations" => {
+            db::update_location(
+                &conn,
+                &reference_uuid,
+                &reference.name,
+                reference.description.as_deref(),
+                &attributes,
+            )
+            .map_err(|e| e.to_string())?;
+            db::get_location_project_id(&conn, &reference_uuid).map_err(|e| e.to_string())?
+        }
+        _ => {
+            db::update_reference_item(
+                &conn,
+                &reference_uuid,
+                &reference.name,
+                reference.description.as_deref(),
+                &attributes,
+            )
+            .map_err(|e| e.to_string())?;
+            db::get_reference_item_project_id(&conn, &reference_uuid).map_err(|e| e.to_string())?
+        }
+    };
+
+    if let Some(project_id) = project_id {
+        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_reference(
+    reference_id: String,
+    reference_type: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let reference_uuid = Uuid::parse_str(&reference_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let project_id = match reference_type.as_str() {
+        "characters" => {
+            let project_id =
+                db::get_character_project_id(&conn, &reference_uuid).map_err(|e| e.to_string())?;
+            db::delete_character(&conn, &reference_uuid).map_err(|e| e.to_string())?;
+            project_id
+        }
+        "locations" => {
+            let project_id =
+                db::get_location_project_id(&conn, &reference_uuid).map_err(|e| e.to_string())?;
+            db::delete_location(&conn, &reference_uuid).map_err(|e| e.to_string())?;
+            project_id
+        }
+        _ => {
+            let project_id = db::get_reference_item_project_id(&conn, &reference_uuid)
+                .map_err(|e| e.to_string())?;
+            db::delete_reference_item(&conn, &reference_uuid).map_err(|e| e.to_string())?;
+            project_id
+        }
+    };
+
+    if let Some(project_id) = project_id {
+        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
 }
 
 // ============================================================================

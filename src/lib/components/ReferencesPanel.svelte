@@ -8,35 +8,93 @@
     ChevronsRight,
     GripVertical,
     ListChevronsDownUp,
-    MapPin,
-    User,
+    Pencil,
+    Plus,
+    Trash2,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
-  import type { Character, Location } from "../types";
+  import type { ReferenceItem, ReferenceTypeId } from "../types";
+  import {
+    DEFAULT_REFERENCE_TYPES,
+    REFERENCE_TYPE_OPTIONS,
+    type ReferenceTypeOption,
+    normalizeReferenceTypes,
+  } from "../referenceTypes";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
+  import ReferenceEditDialog from "./ReferenceEditDialog.svelte";
   import Tooltip from "./Tooltip.svelte";
 
-  type Tab = "characters" | "locations";
-
-  let activeTab = $state<Tab>("characters");
+  let activeTab = $state<ReferenceTypeId | null>(null);
   let loading = $state(false);
+  let referenceTypeOptions = $state<ReferenceTypeOption[]>([]);
+  let referencesByType = $state<Record<ReferenceTypeId, ReferenceItem[]>>(
+    {} as Record<ReferenceTypeId, ReferenceItem[]>
+  );
   let expandedIds = new SvelteSet<string>();
   let isResizing = $state(false);
   let draggedId = $state<string | null>(null);
   let dragOverId = $state<string | null>(null);
   let isDragging = $state(false);
+  let editDialog = $state<{
+    mode: "create" | "edit";
+    referenceType: ReferenceTypeOption;
+    reference?: ReferenceItem;
+  } | null>(null);
+  let deleteTarget = $state<ReferenceItem | null>(null);
+  let activeTypeOption = $derived(getReferenceTypeOption(activeTab));
+  let activeItems = $derived(activeTab ? (referencesByType[activeTab] ?? []) : []);
+  let ActiveIcon = $derived(activeTypeOption?.icon ?? null);
+  let iconBgClass = $derived(activeTypeOption?.bgClass ?? "bg-accent/20");
+  let iconTextClass = $derived(activeTypeOption?.accentClass ?? "text-accent");
 
   async function loadReferences() {
-    if (!currentProject.value) return;
+    const project = currentProject.value;
+    if (!project) return;
+
+    const enabledTypes = normalizeReferenceTypes(
+      project.reference_types ?? DEFAULT_REFERENCE_TYPES
+    );
+    referenceTypeOptions = REFERENCE_TYPE_OPTIONS.filter((option) =>
+      enabledTypes.includes(option.id)
+    );
+
+    if (!activeTab || !enabledTypes.includes(activeTab)) {
+      activeTab = enabledTypes[0] ?? null;
+    }
+
+    if (enabledTypes.length === 0) {
+      referencesByType = {} as Record<ReferenceTypeId, ReferenceItem[]>;
+      loading = false;
+      return;
+    }
 
     loading = true;
     try {
-      const [characters, locations] = await Promise.all([
-        invoke<Character[]>("get_characters", { projectId: currentProject.value.id }),
-        invoke<Location[]>("get_locations", { projectId: currentProject.value.id }),
-      ]);
-      currentProject.setCharacters(characters);
-      currentProject.setLocations(locations);
+      const results = await Promise.all(
+        enabledTypes.map(async (type) => {
+          const items = await invoke<ReferenceItem[]>("get_references", {
+            projectId: project.id,
+            referenceType: type,
+          });
+          return [type, items] as const;
+        })
+      );
+
+      const next: Record<ReferenceTypeId, ReferenceItem[]> = {
+        ...(referencesByType as Record<ReferenceTypeId, ReferenceItem[]>),
+      };
+      for (const [type, items] of results) {
+        next[type] = items;
+      }
+      referencesByType = next;
+
+      if (next.characters) {
+        currentProject.setCharacters(next.characters);
+      }
+      if (next.locations) {
+        currentProject.setLocations(next.locations);
+      }
     } catch (e) {
       console.error("Failed to load references:", e);
     } finally {
@@ -57,11 +115,13 @@
   }
 
   function sortAlphabetically() {
+    if (!activeTab) return;
+    const items = referencesByType[activeTab] ?? [];
+    const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name));
+    referencesByType = { ...referencesByType, [activeTab]: sorted };
     if (activeTab === "characters") {
-      const sorted = [...currentProject.characters].sort((a, b) => a.name.localeCompare(b.name));
       currentProject.setCharacters(sorted);
-    } else {
-      const sorted = [...currentProject.locations].sort((a, b) => a.name.localeCompare(b.name));
+    } else if (activeTab === "locations") {
       currentProject.setLocations(sorted);
     }
   }
@@ -82,6 +142,70 @@
 
   function toggleReferencesPanel() {
     ui.toggleReferencesPanel();
+  }
+
+  function getReferenceTypeOption(type: ReferenceTypeId | null) {
+    return REFERENCE_TYPE_OPTIONS.find((option) => option.id === type) ?? null;
+  }
+
+  function getReferenceCount(type: ReferenceTypeId) {
+    return referencesByType[type]?.length ?? 0;
+  }
+
+  function openCreateDialog() {
+    const typeOption = getReferenceTypeOption(activeTab);
+    if (!typeOption) return;
+    editDialog = { mode: "create", referenceType: typeOption };
+  }
+
+  function openEditDialog(reference: ReferenceItem) {
+    const typeOption = getReferenceTypeOption(reference.reference_type);
+    if (!typeOption) return;
+    editDialog = { mode: "edit", referenceType: typeOption, reference };
+  }
+
+  async function handleSaveReference(data: {
+    name: string;
+    description: string | null;
+    attributes: Record<string, string>;
+  }) {
+    if (!currentProject.value || !editDialog) return;
+
+    try {
+      if (editDialog.mode === "create") {
+        await invoke("create_reference", {
+          projectId: currentProject.value.id,
+          referenceType: editDialog.referenceType.id,
+          reference: data,
+        });
+      } else if (editDialog.reference) {
+        await invoke("update_reference", {
+          referenceId: editDialog.reference.id,
+          referenceType: editDialog.referenceType.id,
+          reference: data,
+        });
+      }
+      await loadReferences();
+    } catch (e) {
+      console.error("Failed to save reference:", e);
+      throw e;
+    }
+  }
+
+  async function handleDeleteReference() {
+    if (!deleteTarget) return;
+    try {
+      await invoke("delete_reference", {
+        referenceId: deleteTarget.id,
+        referenceType: deleteTarget.reference_type,
+      });
+      await loadReferences();
+    } catch (e) {
+      console.error("Failed to delete reference:", e);
+      ui.showError(`Failed to delete reference: ${e}`);
+    } finally {
+      deleteTarget = null;
+    }
   }
 
   // Pointer-based drag and drop (more reliable than HTML5 drag API in webviews)
@@ -153,24 +277,17 @@
       currentDragOverElement.style.outline = "";
     }
 
-    if (draggedId && dragOverId && draggedId !== dragOverId) {
-      // Perform the reorder
-      if (activeTab === "characters") {
-        const items = [...currentProject.characters];
-        const fromIndex = items.findIndex((c) => c.id === draggedId);
-        const toIndex = items.findIndex((c) => c.id === dragOverId);
-        if (fromIndex !== -1 && toIndex !== -1) {
-          const [moved] = items.splice(fromIndex, 1);
-          items.splice(toIndex, 0, moved);
+    if (draggedId && dragOverId && draggedId !== dragOverId && activeTab) {
+      const items = [...(referencesByType[activeTab] ?? [])];
+      const fromIndex = items.findIndex((item) => item.id === draggedId);
+      const toIndex = items.findIndex((item) => item.id === dragOverId);
+      if (fromIndex !== -1 && toIndex !== -1) {
+        const [moved] = items.splice(fromIndex, 1);
+        items.splice(toIndex, 0, moved);
+        referencesByType = { ...referencesByType, [activeTab]: items };
+        if (activeTab === "characters") {
           currentProject.setCharacters(items);
-        }
-      } else {
-        const items = [...currentProject.locations];
-        const fromIndex = items.findIndex((l) => l.id === draggedId);
-        const toIndex = items.findIndex((l) => l.id === dragOverId);
-        if (fromIndex !== -1 && toIndex !== -1) {
-          const [moved] = items.splice(fromIndex, 1);
-          items.splice(toIndex, 0, moved);
+        } else if (activeTab === "locations") {
           currentProject.setLocations(items);
         }
       }
@@ -259,6 +376,22 @@
     <div class="flex items-center justify-between px-4 py-2">
       <h2 class="text-sm font-heading font-medium text-text-primary">References</h2>
       <div class="flex items-center gap-1">
+        <!-- Add Reference button -->
+        <Tooltip
+          text={activeTab
+            ? `Add ${getReferenceTypeOption(activeTab)?.label ?? "Reference"}`
+            : "Add reference"}
+          position="bottom"
+        >
+          <button
+            onclick={openCreateDialog}
+            class="text-text-secondary hover:text-text-primary p-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Add reference"
+            disabled={!activeTab}
+          >
+            <Plus class="w-4 h-4" />
+          </button>
+        </Tooltip>
         <!-- Collapse All button -->
         <Tooltip text="Collapse all" position="bottom">
           <button
@@ -293,27 +426,19 @@
     </div>
 
     <!-- Tabs -->
-    <div class="flex border-t border-bg-card">
-      <button
-        onclick={() => (activeTab = "characters")}
-        class="flex-1 px-4 py-2 text-sm font-medium transition-colors"
-        class:text-accent={activeTab === "characters"}
-        class:border-b-2={activeTab === "characters"}
-        class:border-accent={activeTab === "characters"}
-        class:text-text-secondary={activeTab !== "characters"}
-      >
-        Characters ({currentProject.characters.length})
-      </button>
-      <button
-        onclick={() => (activeTab = "locations")}
-        class="flex-1 px-4 py-2 text-sm font-medium transition-colors"
-        class:text-accent={activeTab === "locations"}
-        class:border-b-2={activeTab === "locations"}
-        class:border-accent={activeTab === "locations"}
-        class:text-text-secondary={activeTab !== "locations"}
-      >
-        Locations ({currentProject.locations.length})
-      </button>
+    <div class="flex border-t border-bg-card overflow-x-auto">
+      {#each referenceTypeOptions as typeOption (typeOption.id)}
+        <button
+          onclick={() => (activeTab = typeOption.id)}
+          class="flex-1 px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap"
+          class:text-accent={activeTab === typeOption.id}
+          class:border-b-2={activeTab === typeOption.id}
+          class:border-accent={activeTab === typeOption.id}
+          class:text-text-secondary={activeTab !== typeOption.id}
+        >
+          {typeOption.label} ({getReferenceCount(typeOption.id)})
+        </button>
+      {/each}
     </div>
   </div>
 
@@ -323,198 +448,129 @@
       <div class="flex items-center justify-center p-4">
         <span class="text-text-secondary text-sm">Loading...</span>
       </div>
-    {:else if activeTab === "characters"}
-      {#if currentProject.characters.length === 0}
-        <div class="flex items-center justify-center p-4">
-          <span class="text-text-secondary text-sm">No characters</span>
-        </div>
-      {:else}
-        <div class="space-y-2">
-          {#each currentProject.characters as character (character.id)}
-            {@const isExpanded = expandedIds.has(character.id)}
-            {@const attributes = formatAttributes(character.attributes)}
-            {@const notes = getNotes(character.attributes)}
-            <div
-              class="bg-bg-card rounded-lg overflow-hidden"
-              class:ring-2={dragOverId === character.id}
-              class:ring-accent={dragOverId === character.id}
-              style:opacity={draggedId === character.id ? 0.5 : 1}
-              data-drag-item={character.id}
-              role="listitem"
-            >
+    {:else if !activeTab}
+      <div class="flex items-center justify-center p-4">
+        <span class="text-text-secondary text-sm">
+          No reference types enabled. Configure them in Project Settings.
+        </span>
+      </div>
+    {:else if activeItems.length === 0}
+      <div class="flex items-center justify-center p-4">
+        <span class="text-text-secondary text-sm">
+          No {activeTypeOption?.label.toLowerCase() ?? "references"}
+        </span>
+      </div>
+    {:else}
+      <div class="space-y-2">
+        {#each activeItems as reference (reference.id)}
+          {@const isExpanded = expandedIds.has(reference.id)}
+          {@const attributes = formatAttributes(reference.attributes)}
+          {@const notes = getNotes(reference.attributes)}
+          <div
+            class="bg-bg-card rounded-lg overflow-hidden"
+            class:ring-2={dragOverId === reference.id}
+            class:ring-accent={dragOverId === reference.id}
+            style:opacity={draggedId === reference.id ? 0.5 : 1}
+            data-drag-item={reference.id}
+            role="listitem"
+          >
+            <div class="w-full flex items-center gap-3 p-3 hover:bg-beat-header transition-colors">
+              <!-- Drag handle -->
               <div
-                class="w-full flex items-center gap-3 p-3 hover:bg-beat-header transition-colors"
+                class="text-text-secondary/50 cursor-grab active:cursor-grabbing shrink-0 hover:text-text-secondary"
+                onmousedown={(e) => onDragHandleMouseDown(e, reference.id)}
+                role="button"
+                tabindex="-1"
+                aria-label="Drag to reorder"
               >
-                <!-- Drag handle -->
-                <div
-                  class="text-text-secondary/50 cursor-grab active:cursor-grabbing flex-shrink-0 hover:text-text-secondary"
-                  onmousedown={(e) => onDragHandleMouseDown(e, character.id)}
-                  role="button"
-                  tabindex="-1"
-                  aria-label="Drag to reorder"
-                >
-                  <GripVertical class="w-4 h-4" />
-                </div>
-                <!-- Clickable area for expand/collapse -->
-                <button
-                  onclick={() => toggleExpanded(character.id)}
-                  class="flex-1 flex items-center gap-3 text-left"
-                >
-                  <!-- Character icon -->
-                  <div
-                    class="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0"
-                  >
-                    <User class="w-4 h-4 text-accent" />
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-text-primary font-medium text-sm truncate">{character.name}</p>
-                    {#if character.description}
-                      <p class="text-text-secondary text-xs truncate">
-                        {stripHtml(character.description)}
-                      </p>
-                    {/if}
-                  </div>
-                  <ChevronDown
-                    class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0 {isExpanded
-                      ? 'rotate-180'
-                      : ''}"
-                  />
-                </button>
+                <GripVertical class="w-4 h-4" />
               </div>
-
-              {#if isExpanded}
-                <div class="px-3 pb-3 border-t border-bg-panel">
-                  {#if character.description}
-                    <div
-                      class="text-text-primary text-sm mt-3 leading-relaxed max-w-none break-words [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
-                    >
-                      <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-                      {@html character.description}
-                    </div>
+              <!-- Clickable area for expand/collapse -->
+              <button
+                onclick={() => toggleExpanded(reference.id)}
+                class="flex-1 flex items-center gap-3 text-left"
+              >
+                <!-- Reference icon -->
+                <div
+                  class={`w-8 h-8 rounded-full ${iconBgClass} flex items-center justify-center shrink-0`}
+                >
+                  {#if ActiveIcon}
+                    <ActiveIcon class={`w-4 h-4 ${iconTextClass}`} />
                   {/if}
-
-                  {#if notes}
-                    <p class="text-text-primary text-sm mt-3 leading-relaxed break-words">
-                      {notes}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-text-primary font-medium text-sm truncate">{reference.name}</p>
+                  {#if reference.description}
+                    <p class="text-text-secondary text-xs truncate">
+                      {stripHtml(reference.description)}
                     </p>
                   {/if}
-
-                  {#if attributes.length > 0}
-                    <div class="mt-3 space-y-1.5">
-                      {#each attributes as [key, value] (key)}
-                        <div class="flex gap-2 text-xs">
-                          <span class="text-text-secondary font-medium shrink-0">{key}:</span>
-                          <span class="text-text-primary break-words">{value}</span>
-                        </div>
-                      {/each}
-                    </div>
-                  {/if}
-
-                  {#if !character.description && !notes && attributes.length === 0}
-                    <p class="text-text-secondary text-sm mt-3 italic">No additional details</p>
-                  {/if}
                 </div>
-              {/if}
+                <ChevronDown
+                  class="w-4 h-4 text-text-secondary transition-transform shrink-0 {isExpanded
+                    ? 'rotate-180'
+                    : ''}"
+                />
+              </button>
             </div>
-          {/each}
-        </div>
-      {/if}
-    {:else if activeTab === "locations"}
-      {#if currentProject.locations.length === 0}
-        <div class="flex items-center justify-center p-4">
-          <span class="text-text-secondary text-sm">No locations</span>
-        </div>
-      {:else}
-        <div class="space-y-2">
-          {#each currentProject.locations as location (location.id)}
-            {@const isExpanded = expandedIds.has(location.id)}
-            {@const attributes = formatAttributes(location.attributes)}
-            {@const notes = getNotes(location.attributes)}
-            <div
-              class="bg-bg-card rounded-lg overflow-hidden"
-              class:ring-2={dragOverId === location.id}
-              class:ring-accent={dragOverId === location.id}
-              style:opacity={draggedId === location.id ? 0.5 : 1}
-              data-drag-item={location.id}
-              role="listitem"
-            >
-              <div
-                class="w-full flex items-center gap-3 p-3 hover:bg-beat-header transition-colors"
-              >
-                <!-- Drag handle -->
-                <div
-                  class="text-text-secondary/50 cursor-grab active:cursor-grabbing flex-shrink-0 hover:text-text-secondary"
-                  onmousedown={(e) => onDragHandleMouseDown(e, location.id)}
-                  role="button"
-                  tabindex="-1"
-                  aria-label="Drag to reorder"
-                >
-                  <GripVertical class="w-4 h-4" />
-                </div>
-                <!-- Clickable area for expand/collapse -->
-                <button
-                  onclick={() => toggleExpanded(location.id)}
-                  class="flex-1 flex items-center gap-3 text-left"
-                >
-                  <!-- Location icon -->
+
+            {#if isExpanded}
+              <div class="px-3 pb-3 border-t border-bg-panel">
+                {#if reference.description}
                   <div
-                    class="w-8 h-8 rounded-full bg-spark-gold/20 flex items-center justify-center flex-shrink-0"
+                    class="text-text-primary text-sm mt-3 leading-relaxed max-w-none wrap-break-word [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
                   >
-                    <MapPin class="w-4 h-4 text-spark-gold" />
+                    <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+                    {@html reference.description}
                   </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-text-primary font-medium text-sm truncate">{location.name}</p>
-                    {#if location.description}
-                      <p class="text-text-secondary text-xs truncate">
-                        {stripHtml(location.description)}
-                      </p>
-                    {/if}
-                  </div>
-                  <ChevronDown
-                    class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0 {isExpanded
-                      ? 'rotate-180'
-                      : ''}"
-                  />
-                </button>
-              </div>
+                {/if}
 
-              {#if isExpanded}
-                <div class="px-3 pb-3 border-t border-bg-panel">
-                  {#if location.description}
-                    <div
-                      class="text-text-primary text-sm mt-3 leading-relaxed max-w-none break-words [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
+                {#if notes}
+                  <p class="text-text-primary text-sm mt-3 leading-relaxed wrap-break-word">
+                    {notes}
+                  </p>
+                {/if}
+
+                {#if attributes.length > 0}
+                  <div class="mt-3 space-y-1.5">
+                    {#each attributes as [key, value] (key)}
+                      <div class="flex gap-2 text-xs">
+                        <span class="text-text-secondary font-medium shrink-0">{key}:</span>
+                        <span class="text-text-primary wrap-break-word">{value}</span>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+
+                {#if !reference.description && !notes && attributes.length === 0}
+                  <p class="text-text-secondary text-sm mt-3 italic">No additional details</p>
+                {/if}
+
+                <div class="flex items-center gap-2 mt-4">
+                  <Tooltip text="Edit" position="bottom">
+                    <button
+                      onclick={() => openEditDialog(reference)}
+                      class="text-text-secondary hover:text-text-primary p-1"
+                      aria-label="Edit reference"
                     >
-                      <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-                      {@html location.description}
-                    </div>
-                  {/if}
-
-                  {#if notes}
-                    <p class="text-text-primary text-sm mt-3 leading-relaxed break-words">
-                      {notes}
-                    </p>
-                  {/if}
-
-                  {#if attributes.length > 0}
-                    <div class="mt-3 space-y-1.5">
-                      {#each attributes as [key, value] (key)}
-                        <div class="flex gap-2 text-xs">
-                          <span class="text-text-secondary font-medium shrink-0">{key}:</span>
-                          <span class="text-text-primary break-words">{value}</span>
-                        </div>
-                      {/each}
-                    </div>
-                  {/if}
-
-                  {#if !location.description && !notes && attributes.length === 0}
-                    <p class="text-text-secondary text-sm mt-3 italic">No additional details</p>
-                  {/if}
+                      <Pencil class="w-4 h-4" />
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Delete" position="bottom">
+                    <button
+                      onclick={() => (deleteTarget = reference)}
+                      class="text-text-secondary hover:text-red-400 p-1"
+                      aria-label="Delete reference"
+                    >
+                      <Trash2 class="w-4 h-4" />
+                    </button>
+                  </Tooltip>
                 </div>
-              {/if}
-            </div>
-          {/each}
-        </div>
-      {/if}
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
     {/if}
   </div>
 </aside>
@@ -530,4 +586,23 @@
       <ChevronsLeft class="w-5 h-5" />
     </button>
   </Tooltip>
+{/if}
+
+{#if editDialog}
+  <ReferenceEditDialog
+    referenceType={editDialog.referenceType}
+    reference={editDialog.reference}
+    onClose={() => (editDialog = null)}
+    onSave={handleSaveReference}
+  />
+{/if}
+
+{#if deleteTarget}
+  <ConfirmDialog
+    title="Delete reference?"
+    message={`This will permanently delete "${deleteTarget.name}".`}
+    confirmLabel="Delete"
+    onConfirm={handleDeleteReference}
+    onCancel={() => (deleteTarget = null)}
+  />
 {/if}

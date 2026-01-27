@@ -47,9 +47,16 @@ pub struct Project {
     pub description: Option<String>,
     /// Optional word count target for the project
     pub word_target: Option<i32>,
+    /// Enabled reference types for this project
+    #[serde(default = "Project::default_reference_types")]
+    pub reference_types: Vec<String>,
 }
 
 impl Project {
+    pub fn default_reference_types() -> Vec<String> {
+        vec!["characters".to_string(), "locations".to_string()]
+    }
+
     pub fn new(name: String, source_type: SourceType, source_path: Option<String>) -> Self {
         let now = chrono::Utc::now().to_rfc3339();
         Self {
@@ -63,6 +70,7 @@ impl Project {
             genre: None,
             description: None,
             word_target: None,
+            reference_types: Self::default_reference_types(),
         }
     }
 }
