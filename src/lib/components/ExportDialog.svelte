@@ -2,7 +2,7 @@
   ExportDialog.svelte - Export configuration dialog
 
   Allows users to configure and initiate project exports:
-  - Format selection (Markdown or Word Document)
+  - Format selection (Markdown, Word Document, or ePub)
   - Scope selection based on context (project/chapter/scene)
   - Options like beat markers, synopsis, page breaks
   - Destination folder/file picker
@@ -22,17 +22,21 @@
     BookOpen,
     ChevronDown,
     Hash,
+    Book,
+    Image as ImageIcon,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import type {
     ExportResult,
     MarkdownExportOptions,
     DocxExportOptions,
+    EpubExportOptions,
     ExportScope,
     ChapterHeadingStyle,
     SceneBreakStyle,
     FontFamily,
     LineSpacingOption,
+    EpubTheme,
   } from "../types";
   import Tooltip from "./Tooltip.svelte";
 
@@ -52,7 +56,7 @@
     onSuccess: (result: ExportResult) => void;
   } = $props();
 
-  let exportFormat = $state<"markdown" | "docx">("docx");
+  let exportFormat = $state<"markdown" | "docx" | "epub">("docx");
   let includeBeatMarkers = $state(false);
   let includeSynopsis = $state(false);
   let pageBreaksBetweenChapters = $state(true);
@@ -61,10 +65,18 @@
   let sceneBreakStyle = $state<SceneBreakStyle>("hash");
   let fontFamily = $state<FontFamily>("courier_new");
   let lineSpacing = $state<LineSpacingOption>("double");
+  let epubTheme = $state<EpubTheme>("classic");
+  let epubTitle = $state("");
+  let epubAuthor = $state("");
+  let epubDescription = $state("");
+  let epubLanguage = $state("en");
+  let includeCoverImage = $state(false);
+  let coverImagePath = $state("");
   let deleteExisting = $state(false);
   let createSnapshot = $state(false);
   let outputPath = $state("");
   let docxFilePath = $state("");
+  let epubFilePath = $state("");
   let exportName = $state("");
   let exporting = $state(false);
   let error = $state<string | null>(null);
@@ -105,10 +117,31 @@
     { value: "double", label: "Double" },
   ];
 
+  const epubThemeOptions: { value: EpubTheme; label: string }[] = [
+    { value: "classic", label: "Classic" },
+    { value: "modern", label: "Modern" },
+    { value: "minimal", label: "Minimal" },
+  ];
+
   // Initialize export name from project name
   $effect(() => {
     if (currentProject.value && !exportName) {
       exportName = currentProject.value.name;
+    }
+  });
+
+  // Initialize EPUB metadata defaults
+  $effect(() => {
+    if (currentProject.value) {
+      if (!epubTitle) {
+        epubTitle = currentProject.value.name;
+      }
+      if (!epubAuthor && currentProject.value.author_pen_name) {
+        epubAuthor = currentProject.value.author_pen_name;
+      }
+      if (!epubLanguage) {
+        epubLanguage = "en";
+      }
     }
   });
 
@@ -149,7 +182,10 @@
 
   const canExport = $derived(
     (exportFormat === "markdown" && outputPath.length > 0) ||
-      (exportFormat === "docx" && docxFilePath.length > 0)
+      (exportFormat === "docx" && docxFilePath.length > 0) ||
+      (exportFormat === "epub" &&
+        epubFilePath.length > 0 &&
+        (!includeCoverImage || coverImagePath.length > 0))
   );
 
   async function selectDestination() {
@@ -175,6 +211,34 @@
 
     if (path) {
       docxFilePath = path;
+      error = null;
+    }
+  }
+
+  async function selectEpubFile() {
+    const defaultName = `${epubTitle.trim() || currentProject.value?.name || "Export"}.epub`;
+    const path = await save({
+      title: "Save EPUB",
+      defaultPath: defaultName,
+      filters: [{ name: "EPUB", extensions: ["epub"] }],
+    });
+
+    if (path) {
+      epubFilePath = path;
+      error = null;
+    }
+  }
+
+  async function selectCoverImage() {
+    const path = await open({
+      title: "Select Cover Image",
+      filters: [
+        { name: "Images", extensions: ["jpg", "jpeg", "png", "gif", "webp"] },
+      ],
+    });
+
+    if (path) {
+      coverImagePath = path;
       error = null;
     }
   }
@@ -221,7 +285,7 @@
 
         // Save the export path for next time (markdown only, since it's a folder)
         localStorage.setItem(LAST_EXPORT_PATH_KEY, outputPath);
-      } else {
+      } else if (exportFormat === "docx") {
         const options: DocxExportOptions = {
           scope: exportScope,
           include_beat_markers: includeBeatMarkers,
@@ -237,6 +301,28 @@
         };
 
         result = await invoke<ExportResult>("export_to_docx", {
+          projectId: currentProject.value.id,
+          options,
+        });
+      } else {
+        const options: EpubExportOptions = {
+          scope: exportScope,
+          include_beat_markers: includeBeatMarkers,
+          include_synopsis: includeSynopsis,
+          output_path: epubFilePath,
+          create_snapshot: createSnapshot,
+          metadata: {
+            title: epubTitle.trim(),
+            author: epubAuthor.trim(),
+            description: epubDescription.trim() || undefined,
+            language: epubLanguage.trim() || "en",
+          },
+          theme: epubTheme,
+          include_cover_image: includeCoverImage,
+          cover_image_path: includeCoverImage ? coverImagePath.trim() : undefined,
+        };
+
+        result = await invoke<ExportResult>("export_to_epub", {
           projectId: currentProject.value.id,
           options,
         });
@@ -323,7 +409,7 @@
       <!-- Format Selection - Card Style -->
       <fieldset>
         <legend class="block text-sm font-medium text-text-secondary mb-3">Export Format</legend>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <label
             class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
             'docx'
@@ -376,6 +462,33 @@
             >
             <span class="text-xs text-text-secondary mt-0.5">.md files</span>
             {#if exportFormat === "markdown"}
+              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
+            {/if}
+          </label>
+
+          <label
+            class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
+            'epub'
+              ? 'border-accent bg-accent/5'
+              : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+          >
+            <input
+              type="radio"
+              name="format"
+              value="epub"
+              bind:group={exportFormat}
+              class="sr-only"
+            />
+            <Book
+              class="w-8 h-8 mb-2 {exportFormat === 'epub' ? 'text-accent' : 'text-text-secondary'}"
+            />
+            <span
+              class="text-sm font-medium {exportFormat === 'epub'
+                ? 'text-text-primary'
+                : 'text-text-secondary'}">ePub</span
+            >
+            <span class="text-xs text-text-secondary mt-0.5">.epub</span>
+            {#if exportFormat === "epub"}
               <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
             {/if}
           </label>
@@ -589,7 +702,7 @@
             </Tooltip>
           </div>
         </div>
-      {:else}
+      {:else if exportFormat === "markdown"}
         <!-- Markdown Options -->
         <fieldset>
           <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
@@ -672,6 +785,202 @@
                 aria-label="Browse for folder"
               >
                 <FolderOpen class="w-5 h-5" />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+      {:else}
+        <!-- EPUB Options -->
+        <fieldset>
+          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+            <Type class="w-4 h-4" />
+            Metadata
+          </legend>
+          <div class="space-y-3">
+            <div>
+              <label for="epub-title" class="block text-xs text-text-secondary mb-1.5">Title</label>
+              <input
+                id="epub-title"
+                type="text"
+                bind:value={epubTitle}
+                placeholder="Book title"
+                class="w-full bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50"
+              />
+            </div>
+            <div>
+              <label for="epub-author" class="block text-xs text-text-secondary mb-1.5">Author</label>
+              <input
+                id="epub-author"
+                type="text"
+                bind:value={epubAuthor}
+                placeholder="Author name"
+                class="w-full bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50"
+              />
+            </div>
+            <div>
+              <label for="epub-description" class="block text-xs text-text-secondary mb-1.5"
+                >Description</label
+              >
+              <textarea
+                id="epub-description"
+                rows="3"
+                bind:value={epubDescription}
+                placeholder="Short blurb or summary"
+                class="w-full bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 resize-none"
+              ></textarea>
+            </div>
+            <div>
+              <label for="epub-language" class="block text-xs text-text-secondary mb-1.5"
+                >Language</label
+              >
+              <input
+                id="epub-language"
+                type="text"
+                bind:value={epubLanguage}
+                placeholder="en"
+                class="w-full bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50"
+              />
+              <p class="text-xs text-text-secondary/70 mt-1">Use ISO 639-1 codes (e.g., en, es).</p>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+            <AlignLeft class="w-4 h-4" />
+            Content
+          </legend>
+          <div class="space-y-2">
+            <label
+              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+            >
+              <span class="text-sm text-text-primary">Include beat markers as headings</span>
+              <div class="relative">
+                <input type="checkbox" bind:checked={includeBeatMarkers} class="peer sr-only" />
+                <div
+                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                ></div>
+                <div
+                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                ></div>
+              </div>
+            </label>
+            <label
+              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+            >
+              <span class="text-sm text-text-primary">Include scene synopses</span>
+              <div class="relative">
+                <input type="checkbox" bind:checked={includeSynopsis} class="peer sr-only" />
+                <div
+                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                ></div>
+                <div
+                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                ></div>
+              </div>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+            <Type class="w-4 h-4" />
+            Styling
+          </legend>
+          <div>
+            <label for="epub-theme" class="block text-xs text-text-secondary mb-1.5">Theme</label>
+            <div class="relative">
+              <select
+                id="epub-theme"
+                bind:value={epubTheme}
+                class="w-full appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer"
+              >
+                {#each epubThemeOptions as theme (theme.value)}
+                  <option value={theme.value}>{theme.label}</option>
+                {/each}
+              </select>
+              <ChevronDown
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+              />
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+            <ImageIcon class="w-4 h-4" />
+            Cover
+          </legend>
+          <div class="space-y-3">
+            <label
+              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+            >
+              <span class="text-sm text-text-primary">Include cover image</span>
+              <div class="relative">
+                <input type="checkbox" bind:checked={includeCoverImage} class="peer sr-only" />
+                <div
+                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                ></div>
+                <div
+                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                ></div>
+              </div>
+            </label>
+
+            {#if includeCoverImage}
+              <div>
+                <label for="cover-image" class="block text-xs text-text-secondary mb-1.5"
+                  >Cover image</label
+                >
+                <div class="flex gap-2">
+                  <input
+                    id="cover-image"
+                    type="text"
+                    readonly
+                    value={coverImagePath}
+                    placeholder="Select an image..."
+                    class="flex-1 bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer truncate"
+                    onclick={selectCoverImage}
+                  />
+                  <Tooltip text="Browse" position="top">
+                    <button
+                      type="button"
+                      onclick={selectCoverImage}
+                      class="px-3 py-2.5 bg-bg-card text-text-secondary rounded-lg hover:bg-beat-header hover:text-text-primary transition-colors border border-bg-card"
+                      aria-label="Select cover image"
+                    >
+                      <ImageIcon class="w-5 h-5" />
+                    </button>
+                  </Tooltip>
+                </div>
+              </div>
+            {/if}
+          </div>
+        </fieldset>
+
+        <!-- Save Location -->
+        <div>
+          <label for="epub-destination" class="block text-sm font-medium text-text-secondary mb-2">
+            Save Location
+          </label>
+          <div class="flex gap-2">
+            <input
+              id="epub-destination"
+              type="text"
+              readonly
+              value={epubFilePath}
+              placeholder="Choose where to save..."
+              class="flex-1 bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer truncate"
+              onclick={selectEpubFile}
+            />
+            <Tooltip text="Browse" position="top">
+              <button
+                type="button"
+                onclick={selectEpubFile}
+                class="px-3 py-2.5 bg-bg-card text-text-secondary rounded-lg hover:bg-beat-header hover:text-text-primary transition-colors border border-bg-card"
+                aria-label="Choose save location"
+              >
+                <Book class="w-5 h-5" />
               </button>
             </Tooltip>
           </div>
