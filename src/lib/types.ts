@@ -236,6 +236,39 @@ export interface DocxExportOptions {
   line_spacing?: LineSpacingOption;
 }
 
+/** Styling themes for EPUB export */
+export type EpubTheme = "classic" | "modern" | "minimal";
+
+/** EPUB metadata fields */
+export interface EpubMetadata {
+  title: string;
+  author: string;
+  description?: string;
+  language: string;
+}
+
+/** Options for EPUB export */
+export interface EpubExportOptions {
+  /** What to export (project, chapter, or scene) */
+  scope: ExportScope;
+  /** Include beat markers as headings */
+  include_beat_markers: boolean;
+  /** Include scene synopsis as italicized paragraph */
+  include_synopsis: boolean;
+  /** Output file path */
+  output_path: string;
+  /** Create a snapshot before exporting */
+  create_snapshot?: boolean;
+  /** Metadata fields for EPUB */
+  metadata: EpubMetadata;
+  /** Theme selection for EPUB styling */
+  theme: EpubTheme;
+  /** Include cover image */
+  include_cover_image: boolean;
+  /** Cover image file path */
+  cover_image_path?: string;
+}
+
 /** Result of an export operation */
 export interface ExportResult {
   /** Path where export was saved */

@@ -5,12 +5,16 @@
 use crate::commands::{load_app_settings, AppState};
 use crate::db;
 use crate::models::{AppSettings, Beat, Chapter, Project, Scene, SnapshotTrigger};
+use chrono::Utc;
 use docx_rs::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 use tauri::{AppHandle, State};
 use uuid::Uuid;
+use zip::write::FileOptions;
+use zip::CompressionMethod;
 
 /// Export scope - what to export
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,6 +152,53 @@ pub struct DocxExportOptions {
     /// Line spacing for body text
     #[serde(default)]
     pub line_spacing: LineSpacingOption,
+}
+
+/// Styling theme for EPUB export
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EpubTheme {
+    #[default]
+    Classic,
+    Modern,
+    Minimal,
+}
+
+/// Metadata for EPUB export
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EpubMetadata {
+    pub title: String,
+    pub author: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    pub language: String,
+}
+
+/// Export options for EPUB export
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EpubExportOptions {
+    /// What to export (project, chapter, or scene)
+    pub scope: ExportScope,
+    /// Include beat markers as headings
+    pub include_beat_markers: bool,
+    /// Include scene synopsis as italicized paragraph
+    pub include_synopsis: bool,
+    /// Output file path (full path including filename)
+    pub output_path: String,
+    /// Create a snapshot before exporting
+    #[serde(default)]
+    pub create_snapshot: bool,
+    /// Metadata fields for EPUB
+    pub metadata: EpubMetadata,
+    /// Theme selection for EPUB styling
+    #[serde(default)]
+    pub theme: EpubTheme,
+    /// Include cover image
+    #[serde(default)]
+    pub include_cover_image: bool,
+    /// Cover image file path
+    #[serde(default)]
+    pub cover_image_path: Option<String>,
 }
 
 fn default_page_breaks() -> bool {
@@ -703,6 +754,298 @@ fn merge_adjacent_runs(runs: Vec<FormattedRun>) -> Vec<FormattedRun> {
     }
 
     merged
+}
+
+/// Escape XML special characters for EPUB output
+fn escape_xml(input: &str) -> String {
+    input
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
+/// Determine cover image media type based on file extension
+fn cover_media_type(path: &str) -> Result<&'static str, String> {
+    let extension = PathBuf::from(path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_lowercase())
+        .ok_or_else(|| "Cover image must have a file extension".to_string())?;
+
+    match extension.as_str() {
+        "jpg" | "jpeg" => Ok("image/jpeg"),
+        "png" => Ok("image/png"),
+        "gif" => Ok("image/gif"),
+        "webp" => Ok("image/webp"),
+        _ => Err(format!("Unsupported cover image format: {}", extension)),
+    }
+}
+
+/// Build CSS for EPUB themes
+fn build_epub_css(theme: &EpubTheme) -> String {
+    let base = r#"
+body {
+  margin: 0 8%;
+  line-height: 1.6;
+}
+p {
+  margin: 0 0 0.8em 0;
+  text-indent: 1.25em;
+}
+h1, h2, h3 {
+  font-weight: 600;
+  margin: 1.2em 0 0.6em 0;
+}
+.chapter-title {
+  text-align: center;
+  margin-top: 2em;
+}
+.part-title {
+  text-align: center;
+  margin-top: 3em;
+}
+.scene-break {
+  text-align: center;
+  margin: 1.2em 0;
+}
+.synopsis {
+  font-style: italic;
+  text-indent: 0;
+}
+.beat-title {
+  font-weight: 600;
+  text-indent: 0;
+}
+.scene-title {
+  font-weight: 600;
+  text-indent: 0;
+}
+.title-page {
+  text-align: center;
+  margin-top: 35%;
+}
+.title-page .author {
+  margin-top: 1em;
+}
+.cover {
+  text-align: center;
+  margin-top: 10%;
+}
+blockquote {
+  margin: 0 0 0.8em 1.5em;
+  text-indent: 0;
+}
+"#;
+
+    let theme_overrides = match theme {
+        EpubTheme::Classic => {
+            r#"
+body { font-family: "Georgia", "Times New Roman", serif; }
+"#
+        }
+        EpubTheme::Modern => {
+            r#"
+body { font-family: "Helvetica Neue", "Arial", sans-serif; line-height: 1.5; }
+p { text-indent: 1em; }
+"#
+        }
+        EpubTheme::Minimal => {
+            r#"
+body { font-family: serif; }
+p { text-indent: 0; margin-bottom: 1em; }
+"#
+        }
+    };
+
+    format!("{}{}", base.trim_start(), theme_overrides.trim_start())
+}
+
+/// Wrap content in a valid XHTML document
+fn build_epub_xhtml_document(title: &str, body: &str, language: &str) -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="{language}">
+  <head>
+    <title>{title}</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" type="text/css" href="styles.css" />
+  </head>
+  <body>
+{body}
+  </body>
+</html>
+"#,
+        title = escape_xml(title),
+        body = body,
+        language = escape_xml(language)
+    )
+}
+
+fn format_epub_chapter_label(chapter_number: usize, title: &str) -> String {
+    if title.trim().is_empty() {
+        format!("Chapter {}", chapter_number)
+    } else {
+        format!("Chapter {}: {}", chapter_number, title)
+    }
+}
+
+fn render_formatted_paragraphs(paragraphs: &[FormattedParagraph]) -> String {
+    let mut output = String::new();
+    for paragraph in paragraphs {
+        let mut runs_html = String::new();
+        for run in &paragraph.runs {
+            let text = escape_xml(&run.text);
+            let run_html = if run.bold && run.italic {
+                format!("<strong><em>{}</em></strong>", text)
+            } else if run.bold {
+                format!("<strong>{}</strong>", text)
+            } else if run.italic {
+                format!("<em>{}</em>", text)
+            } else {
+                text
+            };
+            runs_html.push_str(&run_html);
+        }
+
+        if runs_html.trim().is_empty() {
+            continue;
+        }
+
+        match paragraph.paragraph_type {
+            ParagraphType::Blockquote => {
+                output.push_str(&format!("<blockquote><p>{}</p></blockquote>\n", runs_html));
+            }
+            ParagraphType::Normal => {
+                output.push_str(&format!("<p>{}</p>\n", runs_html));
+            }
+        }
+    }
+    output
+}
+
+fn render_html_to_xhtml(html: &str) -> String {
+    let paragraphs = parse_html_to_paragraphs(html);
+    render_formatted_paragraphs(&paragraphs)
+}
+
+fn build_epub_container_xml() -> &'static str {
+    r#"<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+"#
+}
+
+fn build_epub_nav_xhtml(entries: &[(String, String)], language: &str) -> String {
+    let mut list_items = String::new();
+    for (title, href) in entries {
+        list_items.push_str(&format!(
+            "      <li><a href=\"{}\">{}</a></li>\n",
+            escape_xml(href),
+            escape_xml(title)
+        ));
+    }
+
+    let body = format!(
+        r#"  <nav epub:type="toc" id="toc">
+    <h1>Contents</h1>
+    <ol>
+{items}    </ol>
+  </nav>"#,
+        items = list_items
+    );
+
+    build_epub_xhtml_document("Contents", &body, language)
+}
+
+fn build_epub_toc_ncx(entries: &[(String, String)], title: &str, identifier: &str) -> String {
+    let mut nav_points = String::new();
+    for (index, (entry_title, href)) in entries.iter().enumerate() {
+        let order = index + 1;
+        nav_points.push_str(&format!(
+            r#"    <navPoint id="nav-{order}" playOrder="{order}">
+      <navLabel><text>{title}</text></navLabel>
+      <content src="{href}"/>
+    </navPoint>
+"#,
+            order = order,
+            title = escape_xml(entry_title),
+            href = escape_xml(href)
+        ));
+    }
+
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <head>
+    <meta name="dtb:uid" content="uuid:{identifier}"/>
+    <meta name="dtb:depth" content="1"/>
+    <meta name="dtb:totalPageCount" content="0"/>
+    <meta name="dtb:maxPageNumber" content="0"/>
+  </head>
+  <docTitle><text>{title}</text></docTitle>
+  <navMap>
+{nav_points}  </navMap>
+</ncx>
+"#,
+        identifier = escape_xml(identifier),
+        title = escape_xml(title),
+        nav_points = nav_points
+    )
+}
+
+fn build_epub_content_opf(
+    metadata: &EpubMetadata,
+    identifier: &str,
+    modified: &str,
+    manifest_items: &[String],
+    spine_items: &[String],
+    include_cover_meta: bool,
+) -> String {
+    let description = metadata
+        .description
+        .as_ref()
+        .filter(|d| !d.trim().is_empty())
+        .map(|d| format!("    <dc:description>{}</dc:description>\n", escape_xml(d)))
+        .unwrap_or_default();
+
+    let cover_meta = if include_cover_meta {
+        "    <meta name=\"cover\" content=\"cover-image\" />\n"
+    } else {
+        ""
+    };
+
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>{title}</dc:title>
+    <dc:creator>{author}</dc:creator>
+    <dc:language>{language}</dc:language>
+    <dc:identifier id="bookid">uuid:{identifier}</dc:identifier>
+{description}    <meta property="dcterms:modified">{modified}</meta>
+{cover_meta}  </metadata>
+  <manifest>
+{manifest_items}  </manifest>
+  <spine toc="toc">
+{spine_items}  </spine>
+</package>
+"#,
+        title = escape_xml(&metadata.title),
+        author = escape_xml(&metadata.author),
+        language = escape_xml(&metadata.language),
+        identifier = escape_xml(identifier),
+        description = description,
+        modified = escape_xml(modified),
+        cover_meta = cover_meta,
+        manifest_items = manifest_items.join(""),
+        spine_items = spine_items.join("")
+    )
 }
 
 /// Count words in text (simple whitespace split)
@@ -1921,6 +2264,498 @@ pub async fn export_to_docx(
     docx.build()
         .pack(file)
         .map_err(|e| format!("Failed to write DOCX file: {}", e))?;
+
+    Ok(ExportResult {
+        output_path: output_path.to_string_lossy().to_string(),
+        files_created: 1,
+        chapters_exported,
+        scenes_exported,
+    })
+}
+
+#[derive(Debug, Clone)]
+struct EpubXhtmlItem {
+    id: String,
+    href: String,
+    title: String,
+    content: String,
+    include_in_toc: bool,
+    linear: bool,
+}
+
+#[tauri::command]
+pub async fn export_to_epub(
+    project_id: String,
+    options: EpubExportOptions,
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ExportResult, String> {
+    let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+
+    // Create snapshot if requested (before taking the connection lock)
+    if options.create_snapshot {
+        let snapshot_options = super::CreateSnapshotOptions {
+            name: "Pre-export snapshot".to_string(),
+            description: Some("Automatic snapshot created before export".to_string()),
+            trigger_type: SnapshotTrigger::Export,
+        };
+
+        super::create_snapshot(
+            project_id.clone(),
+            snapshot_options,
+            app_handle.clone(),
+            state.clone(),
+        )
+        .await?;
+    }
+
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let project = db::queries::get_project(&conn, &project_uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Project not found: {}", project_id))?;
+
+    let app_settings = load_app_settings(&app_handle)?;
+
+    let title = if options.metadata.title.trim().is_empty() {
+        project.name.clone()
+    } else {
+        options.metadata.title.trim().to_string()
+    };
+
+    let author = if options.metadata.author.trim().is_empty() {
+        project
+            .author_pen_name
+            .as_ref()
+            .filter(|s| !s.trim().is_empty())
+            .or(app_settings.author_name.as_ref())
+            .cloned()
+            .unwrap_or_default()
+    } else {
+        options.metadata.author.trim().to_string()
+    };
+
+    let language = if options.metadata.language.trim().is_empty() {
+        "en".to_string()
+    } else {
+        options.metadata.language.trim().to_string()
+    };
+
+    let description = options
+        .metadata
+        .description
+        .as_ref()
+        .map(|d| d.trim().to_string())
+        .filter(|d| !d.is_empty());
+
+    let metadata = EpubMetadata {
+        title: title.clone(),
+        author,
+        description,
+        language: language.clone(),
+    };
+
+    let mut chapters_exported = 0;
+    let mut scenes_exported = 0;
+
+    let mut chapter_exports: Vec<(Chapter, Vec<Scene>)> = Vec::new();
+
+    match &options.scope {
+        ExportScope::Project => {
+            let chapters =
+                db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+
+            for chapter in chapters.into_iter().filter(|c| !c.archived) {
+                let scenes =
+                    db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
+                let active_scenes: Vec<Scene> =
+                    scenes.into_iter().filter(|s| !s.archived).collect();
+                scenes_exported += active_scenes.len();
+                chapters_exported += 1;
+                chapter_exports.push((chapter, active_scenes));
+            }
+        }
+        ExportScope::Chapter(chapter_id) => {
+            let chapter_uuid = Uuid::parse_str(chapter_id).map_err(|e| e.to_string())?;
+            let chapter = db::queries::get_chapter_by_id(&conn, &chapter_uuid)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| format!("Chapter not found: {}", chapter_id))?;
+
+            let scenes = db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
+            let active_scenes: Vec<Scene> = scenes.into_iter().filter(|s| !s.archived).collect();
+
+            scenes_exported = active_scenes.len();
+            chapters_exported = 1;
+            chapter_exports.push((chapter, active_scenes));
+        }
+        ExportScope::Scene(scene_id) => {
+            let scene_uuid = Uuid::parse_str(scene_id).map_err(|e| e.to_string())?;
+            let scene = db::queries::get_scene_by_id(&conn, &scene_uuid)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| format!("Scene not found: {}", scene_id))?;
+
+            let chapter = db::queries::get_chapter_by_id(&conn, &scene.chapter_id)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| format!("Chapter not found for scene: {}", scene_id))?;
+
+            scenes_exported = 1;
+            chapters_exported = 1;
+            chapter_exports.push((chapter, vec![scene]));
+        }
+    }
+
+    let mut beats_by_scene: std::collections::HashMap<Uuid, Vec<Beat>> =
+        std::collections::HashMap::new();
+
+    for (_, scenes) in &chapter_exports {
+        for scene in scenes {
+            let beats = db::queries::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
+            beats_by_scene.insert(scene.id, beats);
+        }
+    }
+
+    let mut xhtml_items: Vec<EpubXhtmlItem> = Vec::new();
+
+    if options.include_cover_image {
+        let cover_path = options
+            .cover_image_path
+            .as_ref()
+            .filter(|p| !p.trim().is_empty())
+            .ok_or_else(|| "Cover image path is required".to_string())?;
+        let cover_extension = PathBuf::from(cover_path)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.to_lowercase())
+            .ok_or_else(|| "Cover image must have a file extension".to_string())?;
+
+        let cover_body = format!(
+            r#"  <div class="cover">
+    <img src="images/cover.{ext}" alt="Cover image" />
+  </div>"#,
+            ext = escape_xml(&cover_extension)
+        );
+
+        xhtml_items.push(EpubXhtmlItem {
+            id: "cover".to_string(),
+            href: "cover.xhtml".to_string(),
+            title: "Cover".to_string(),
+            content: build_epub_xhtml_document("Cover", &cover_body, &language),
+            include_in_toc: false,
+            linear: false,
+        });
+    }
+
+    let mut title_body = format!(
+        r#"  <section class="title-page">
+    <h1>{}</h1>"#,
+        escape_xml(&metadata.title)
+    );
+    if !metadata.author.trim().is_empty() {
+        title_body.push_str(&format!(
+            "\n    <p class=\"author\">{}</p>",
+            escape_xml(&metadata.author)
+        ));
+    }
+    if let Some(ref desc) = metadata.description {
+        title_body.push_str(&format!(
+            "\n    <p class=\"description\">{}</p>",
+            escape_xml(desc)
+        ));
+    }
+    title_body.push_str("\n  </section>");
+
+    xhtml_items.push(EpubXhtmlItem {
+        id: "title".to_string(),
+        href: "title.xhtml".to_string(),
+        title: "Title Page".to_string(),
+        content: build_epub_xhtml_document("Title Page", &title_body, &language),
+        include_in_toc: true,
+        linear: true,
+    });
+
+    let mut chapter_number = 0;
+    let mut part_index = 0;
+
+    for (chapter, scenes) in chapter_exports {
+        if chapter.is_part {
+            part_index += 1;
+            let part_body = format!(
+                r#"  <h1 class="part-title">{}</h1>"#,
+                escape_xml(&chapter.title)
+            );
+            xhtml_items.push(EpubXhtmlItem {
+                id: format!("part-{:02}", part_index),
+                href: format!("part-{:02}.xhtml", part_index),
+                title: chapter.title.clone(),
+                content: build_epub_xhtml_document(&chapter.title, &part_body, &language),
+                include_in_toc: true,
+                linear: true,
+            });
+            continue;
+        }
+
+        chapter_number += 1;
+        let chapter_label = format_epub_chapter_label(chapter_number, &chapter.title);
+        let mut body = format!(
+            r#"  <h1 class="chapter-title">{}</h1>"#,
+            escape_xml(&chapter_label)
+        );
+
+        let mut is_first_scene = true;
+        for scene in scenes.iter().filter(|s| !s.archived) {
+            if !is_first_scene {
+                body.push_str(
+                    r#"
+  <div class="scene-break">* * *</div>"#,
+                );
+            }
+
+            if options.include_beat_markers {
+                body.push_str(&format!(
+                    "\n  <h2 class=\"scene-title\">{}</h2>",
+                    escape_xml(&scene.title)
+                ));
+            }
+
+            if options.include_synopsis {
+                if let Some(ref synopsis) = scene.synopsis {
+                    if !synopsis.trim().is_empty() {
+                        let synopsis_text = escape_xml(&transform_text(synopsis));
+                        body.push_str(&format!("\n  <p class=\"synopsis\">{}</p>", synopsis_text));
+                    }
+                }
+            }
+
+            if let Some(ref prose) = scene.prose {
+                if !prose.trim().is_empty() {
+                    body.push('\n');
+                    body.push_str(&render_html_to_xhtml(prose));
+                }
+            }
+
+            let beats = beats_by_scene
+                .get(&scene.id)
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
+            for beat in beats {
+                if options.include_beat_markers && !beat.content.trim().is_empty() {
+                    let beat_title = escape_xml(&transform_text(&beat.content));
+                    body.push_str(&format!("\n  <h3 class=\"beat-title\">{}</h3>", beat_title));
+                }
+
+                if let Some(ref prose) = beat.prose {
+                    if !prose.trim().is_empty() {
+                        body.push('\n');
+                        body.push_str(&render_html_to_xhtml(prose));
+                    }
+                }
+            }
+
+            is_first_scene = false;
+        }
+
+        xhtml_items.push(EpubXhtmlItem {
+            id: format!("chapter-{:02}", chapter_number),
+            href: format!("chapter-{:02}.xhtml", chapter_number),
+            title: chapter_label,
+            content: build_epub_xhtml_document(&chapter.title, &body, &language),
+            include_in_toc: true,
+            linear: true,
+        });
+    }
+
+    let toc_entries: Vec<(String, String)> = xhtml_items
+        .iter()
+        .filter(|item| item.include_in_toc)
+        .map(|item| (item.title.clone(), item.href.clone()))
+        .collect();
+
+    let nav_xhtml = build_epub_nav_xhtml(&toc_entries, &language);
+    let identifier = Uuid::new_v4().to_string();
+    let modified = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let toc_ncx = build_epub_toc_ncx(&toc_entries, &metadata.title, &identifier);
+
+    let mut manifest_items: Vec<String> = Vec::new();
+    let mut spine_items: Vec<String> = Vec::new();
+
+    manifest_items.push(
+        "    <item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\" />\n"
+            .to_string(),
+    );
+    manifest_items.push(
+        "    <item id=\"toc\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\" />\n"
+            .to_string(),
+    );
+    manifest_items
+        .push("    <item id=\"css\" href=\"styles.css\" media-type=\"text/css\" />\n".to_string());
+
+    if options.include_cover_image {
+        manifest_items.push(
+            "    <item id=\"cover\" href=\"cover.xhtml\" media-type=\"application/xhtml+xml\" />\n"
+                .to_string(),
+        );
+    }
+
+    manifest_items.push(
+        "    <item id=\"title\" href=\"title.xhtml\" media-type=\"application/xhtml+xml\" />\n"
+            .to_string(),
+    );
+
+    for item in &xhtml_items {
+        if item.id == "cover" || item.id == "title" {
+            continue;
+        }
+        manifest_items.push(format!(
+            "    <item id=\"{}\" href=\"{}\" media-type=\"application/xhtml+xml\" />\n",
+            escape_xml(&item.id),
+            escape_xml(&item.href)
+        ));
+    }
+
+    if options.include_cover_image {
+        let cover_path = options
+            .cover_image_path
+            .as_ref()
+            .filter(|p| !p.trim().is_empty())
+            .ok_or_else(|| "Cover image path is required".to_string())?;
+        let cover_extension = PathBuf::from(cover_path)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.to_lowercase())
+            .ok_or_else(|| "Cover image must have a file extension".to_string())?;
+        let cover_type = cover_media_type(cover_path)?;
+        manifest_items.push(format!(
+            "    <item id=\"cover-image\" href=\"images/cover.{ext}\" media-type=\"{cover_type}\" />\n",
+            ext = escape_xml(&cover_extension),
+            cover_type = escape_xml(cover_type)
+        ));
+    }
+
+    for item in &xhtml_items {
+        let linear_attr = if item.linear { "" } else { " linear=\"no\"" };
+        spine_items.push(format!(
+            "    <itemref idref=\"{}\"{} />\n",
+            escape_xml(&item.id),
+            linear_attr
+        ));
+    }
+
+    let content_opf = build_epub_content_opf(
+        &metadata,
+        &identifier,
+        &modified,
+        &manifest_items,
+        &spine_items,
+        options.include_cover_image,
+    );
+
+    let output_path = {
+        let mut path = PathBuf::from(&options.output_path);
+        if path.extension().and_then(|ext| ext.to_str()) != Some("epub") {
+            path.set_extension("epub");
+        }
+        path
+    };
+
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create output directory: {}", e))?;
+    }
+
+    let file = fs::File::create(&output_path)
+        .map_err(|e| format!("Failed to create output file: {}", e))?;
+    let mut zip = zip::ZipWriter::new(file);
+
+    let stored = FileOptions::<()>::default()
+        .compression_method(CompressionMethod::Stored)
+        .unix_permissions(0o644);
+    let deflated = FileOptions::<()>::default()
+        .compression_method(CompressionMethod::Deflated)
+        .unix_permissions(0o644);
+
+    zip.start_file("mimetype", stored)
+        .map_err(|e| format!("Failed to write mimetype: {}", e))?;
+    zip.write_all(b"application/epub+zip")
+        .map_err(|e| format!("Failed to write mimetype: {}", e))?;
+
+    zip.add_directory("META-INF/", deflated)
+        .map_err(|e| format!("Failed to add META-INF directory: {}", e))?;
+    zip.add_directory("OEBPS/", deflated)
+        .map_err(|e| format!("Failed to add OEBPS directory: {}", e))?;
+
+    zip.start_file("META-INF/container.xml", deflated)
+        .map_err(|e| format!("Failed to write container.xml: {}", e))?;
+    zip.write_all(build_epub_container_xml().as_bytes())
+        .map_err(|e| format!("Failed to write container.xml: {}", e))?;
+
+    zip.start_file("OEBPS/styles.css", deflated)
+        .map_err(|e| format!("Failed to write styles.css: {}", e))?;
+    zip.write_all(build_epub_css(&options.theme).as_bytes())
+        .map_err(|e| format!("Failed to write styles.css: {}", e))?;
+
+    zip.start_file("OEBPS/nav.xhtml", deflated)
+        .map_err(|e| format!("Failed to write nav.xhtml: {}", e))?;
+    zip.write_all(nav_xhtml.as_bytes())
+        .map_err(|e| format!("Failed to write nav.xhtml: {}", e))?;
+
+    zip.start_file("OEBPS/toc.ncx", deflated)
+        .map_err(|e| format!("Failed to write toc.ncx: {}", e))?;
+    zip.write_all(toc_ncx.as_bytes())
+        .map_err(|e| format!("Failed to write toc.ncx: {}", e))?;
+
+    zip.start_file("OEBPS/content.opf", deflated)
+        .map_err(|e| format!("Failed to write content.opf: {}", e))?;
+    zip.write_all(content_opf.as_bytes())
+        .map_err(|e| format!("Failed to write content.opf: {}", e))?;
+
+    zip.start_file("OEBPS/title.xhtml", deflated)
+        .map_err(|e| format!("Failed to write title.xhtml: {}", e))?;
+    if let Some(title_page) = xhtml_items.iter().find(|item| item.id == "title") {
+        zip.write_all(title_page.content.as_bytes())
+            .map_err(|e| format!("Failed to write title.xhtml: {}", e))?;
+    }
+
+    if options.include_cover_image {
+        let cover_path = options
+            .cover_image_path
+            .as_ref()
+            .filter(|p| !p.trim().is_empty())
+            .ok_or_else(|| "Cover image path is required".to_string())?;
+        let cover_extension = PathBuf::from(cover_path)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.to_lowercase())
+            .ok_or_else(|| "Cover image must have a file extension".to_string())?;
+
+        zip.start_file("OEBPS/cover.xhtml", deflated)
+            .map_err(|e| format!("Failed to write cover.xhtml: {}", e))?;
+        if let Some(cover_page) = xhtml_items.iter().find(|item| item.id == "cover") {
+            zip.write_all(cover_page.content.as_bytes())
+                .map_err(|e| format!("Failed to write cover.xhtml: {}", e))?;
+        }
+
+        zip.add_directory("OEBPS/images/", deflated)
+            .map_err(|e| format!("Failed to add images directory: {}", e))?;
+        let cover_bytes =
+            fs::read(cover_path).map_err(|e| format!("Failed to read cover image: {}", e))?;
+        zip.start_file(format!("OEBPS/images/cover.{}", cover_extension), deflated)
+            .map_err(|e| format!("Failed to write cover image: {}", e))?;
+        zip.write_all(&cover_bytes)
+            .map_err(|e| format!("Failed to write cover image: {}", e))?;
+    }
+
+    for item in &xhtml_items {
+        if item.id == "cover" || item.id == "title" {
+            continue;
+        }
+        zip.start_file(format!("OEBPS/{}", item.href), deflated)
+            .map_err(|e| format!("Failed to write {}: {}", item.href, e))?;
+        zip.write_all(item.content.as_bytes())
+            .map_err(|e| format!("Failed to write {}: {}", item.href, e))?;
+    }
+
+    zip.finish()
+        .map_err(|e| format!("Failed to finalize EPUB: {}", e))?;
 
     Ok(ExportResult {
         output_path: output_path.to_string_lossy().to_string(),
