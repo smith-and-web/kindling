@@ -32,6 +32,9 @@
     Download,
     Settings,
     BookOpen,
+    StickyNote,
+    CheckSquare,
+    EyeOff,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
@@ -39,6 +42,8 @@
     Beat,
     Chapter,
     Scene,
+    SceneStatus,
+    SceneType,
     SyncPreview,
     ReimportSummary,
     ExportResult,
@@ -106,6 +111,83 @@
     }
 
     return groups;
+  });
+
+  const sceneStatusOptions: { value: SceneStatus | "all"; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "draft", label: "Draft" },
+    { value: "revised", label: "Revised" },
+    { value: "final", label: "Final" },
+  ];
+
+  const sceneTypeLabels: Record<SceneType, string> = {
+    normal: "Normal",
+    notes: "Notes",
+    todo: "ToDo",
+    unused: "Unused",
+  };
+
+  const sceneTypeFilterOptions: {
+    type: SceneType;
+    label: string;
+    icon: IconComponent;
+  }[] = [
+    { type: "notes", label: "Notes", icon: StickyNote },
+    { type: "todo", label: "ToDo", icon: CheckSquare },
+    { type: "unused", label: "Unused", icon: EyeOff },
+  ];
+
+  const sceneStatusLabels: Record<SceneStatus, string> = {
+    draft: "Draft",
+    revised: "Revised",
+    final: "Final",
+  };
+
+  const sceneStatusClasses: Record<SceneStatus, string> = {
+    draft: "bg-text-secondary/40",
+    revised: "bg-warning",
+    final: "bg-success",
+  };
+
+  let showNotesScenes = $state(true);
+  let showTodoScenes = $state(true);
+  let showUnusedScenes = $state(true);
+  let sceneStatusFilter = $state<SceneStatus | "all">("all");
+
+  function isSceneTypeVisible(type: SceneType) {
+    if (type === "notes") return showNotesScenes;
+    if (type === "todo") return showTodoScenes;
+    if (type === "unused") return showUnusedScenes;
+    return true;
+  }
+
+  function toggleSceneTypeVisible(type: SceneType) {
+    if (type === "notes") {
+      showNotesScenes = !showNotesScenes;
+      return;
+    }
+    if (type === "todo") {
+      showTodoScenes = !showTodoScenes;
+      return;
+    }
+    if (type === "unused") {
+      showUnusedScenes = !showUnusedScenes;
+    }
+  }
+
+  const filteredScenes = $derived.by((): Scene[] => {
+    const scenes = currentProject.scenes;
+    return scenes.filter((scene) => {
+      const type = scene.scene_type ?? "normal";
+      const status = scene.scene_status ?? "draft";
+      const typeAllowed =
+        type === "normal" ||
+        (type === "notes" && showNotesScenes) ||
+        (type === "todo" && showTodoScenes) ||
+        (type === "unused" && showUnusedScenes);
+      const statusAllowed = sceneStatusFilter === "all" || status === sceneStatusFilter;
+      return typeAllowed && statusAllowed;
+    });
   });
 
   // Create new content state
@@ -1147,66 +1229,106 @@
                   <!-- Chapter row -->
                   <!-- svelte-ignore a11y_no_static_element_interactions -->
                   <div
-                    class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group"
+                    class="w-full flex flex-col gap-1 px-1 py-1.5 rounded-lg transition-colors group"
                     class:bg-bg-card={isExpanded}
                     class:hover:bg-bg-card={!isExpanded}
                     oncontextmenu={(e) => openContextMenu(e, "chapter", chapter)}
                   >
-                    <!-- Drag handle -->
-                    <div
-                      data-testid="drag-handle"
-                      onmousedown={(e) => onDragHandleMouseDown(e, "chapter", chapter.id)}
-                      class="cursor-grab active:cursor-grabbing p-0.5 text-text-secondary hover:text-text-primary transition-opacity"
-                      class:opacity-0={hoveredChapterId !== chapter.id}
-                      class:opacity-100={hoveredChapterId === chapter.id}
-                      role="button"
-                      tabindex="-1"
-                      aria-label="Drag to reorder"
-                    >
-                      <GripVertical class="w-3.5 h-3.5" />
+                    <div class="flex items-center gap-1">
+                      <!-- Drag handle -->
+                      <div
+                        data-testid="drag-handle"
+                        onmousedown={(e) => onDragHandleMouseDown(e, "chapter", chapter.id)}
+                        class="cursor-grab active:cursor-grabbing p-0.5 text-text-secondary hover:text-text-primary transition-opacity"
+                        class:opacity-0={hoveredChapterId !== chapter.id}
+                        class:opacity-100={hoveredChapterId === chapter.id}
+                        role="button"
+                        tabindex="-1"
+                        aria-label="Drag to reorder"
+                      >
+                        <GripVertical class="w-3.5 h-3.5" />
+                      </div>
+
+                      <button
+                        onclick={() => toggleChapter(chapter)}
+                        class="flex-1 flex items-center gap-2 text-left min-w-0"
+                        aria-expanded={isExpanded}
+                      >
+                        <!-- Expand/collapse chevron -->
+                        <ChevronRight
+                          class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0 {isExpanded
+                            ? 'rotate-90'
+                            : ''}"
+                        />
+                        <Folder class="w-4 h-4 text-text-secondary flex-shrink-0" />
+                        {#if chapter.locked}
+                          <Lock class="w-3 h-3 text-amber-500 flex-shrink-0" />
+                        {/if}
+                        <span
+                          data-testid="chapter-title"
+                          class="font-medium text-sm truncate text-text-primary"
+                          class:opacity-60={chapter.locked}>{chapter.title}</span
+                        >
+                      </button>
+
+                      <!-- Three-dot menu button -->
+                      <button
+                        data-testid="menu-button"
+                        onclick={(e) => openContextMenu(e, "chapter", chapter)}
+                        class="p-1 text-text-secondary hover:text-text-primary transition-opacity flex-shrink-0"
+                        class:opacity-0={hoveredChapterId !== chapter.id}
+                        class:opacity-100={hoveredChapterId === chapter.id}
+                        aria-label="Chapter menu"
+                      >
+                        <MoreVertical class="w-3.5 h-3.5" />
+                      </button>
                     </div>
 
-                    <button
-                      onclick={() => toggleChapter(chapter)}
-                      class="flex-1 flex items-center gap-2 text-left min-w-0"
-                      aria-expanded={isExpanded}
-                    >
-                      <!-- Expand/collapse chevron -->
-                      <ChevronRight
-                        class="w-4 h-4 text-text-secondary transition-transform flex-shrink-0 {isExpanded
-                          ? 'rotate-90'
-                          : ''}"
-                      />
-                      <Folder class="w-4 h-4 text-text-secondary flex-shrink-0" />
-                      {#if chapter.locked}
-                        <Lock class="w-3 h-3 text-amber-500 flex-shrink-0" />
-                      {/if}
-                      <span
-                        data-testid="chapter-title"
-                        class="font-medium text-sm truncate text-text-primary"
-                        class:opacity-60={chapter.locked}>{chapter.title}</span
-                      >
-                    </button>
-
-                    <!-- Three-dot menu button -->
-                    <button
-                      data-testid="menu-button"
-                      onclick={(e) => openContextMenu(e, "chapter", chapter)}
-                      class="p-1 text-text-secondary hover:text-text-primary transition-opacity flex-shrink-0"
-                      class:opacity-0={hoveredChapterId !== chapter.id}
-                      class:opacity-100={hoveredChapterId === chapter.id}
-                      aria-label="Chapter menu"
-                    >
-                      <MoreVertical class="w-3.5 h-3.5" />
-                    </button>
+                    {#if isExpanded && currentProject.currentChapter?.id === chapter.id}
+                      <div class="flex items-center gap-1 pl-6">
+                        {#each sceneTypeFilterOptions as option (option.type)}
+                          {@const FilterIcon = option.icon}
+                          <button
+                            type="button"
+                            class={`p-1 rounded border transition-colors hover:text-text-primary hover:bg-bg-card ${
+                              isSceneTypeVisible(option.type)
+                                ? "border-accent/40 bg-bg-card text-text-primary"
+                                : "border-transparent text-text-secondary"
+                            }`}
+                            onclick={() => toggleSceneTypeVisible(option.type)}
+                            aria-pressed={isSceneTypeVisible(option.type)}
+                            title={`Show ${option.label} scenes`}
+                          >
+                            <FilterIcon class="w-3.5 h-3.5" />
+                          </button>
+                        {/each}
+                        <span class="text-xs text-text-secondary ml-2">Status:</span>
+                        <div class="relative">
+                          <select
+                            bind:value={sceneStatusFilter}
+                            class="appearance-none bg-bg-card text-text-primary text-xs border border-text-secondary/40 rounded-md pl-2 pr-6 py-1 focus:outline-none focus:border-accent cursor-pointer"
+                            aria-label="Scene status filter"
+                          >
+                            {#each sceneStatusOptions as option (option.value)}
+                              <option value={option.value}>{option.label}</option>
+                            {/each}
+                          </select>
+                          <ChevronDown
+                            class="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-text-secondary pointer-events-none"
+                          />
+                        </div>
+                      </div>
+                    {/if}
                   </div>
 
                   <!-- Scenes (collapsible) -->
                   {#if isExpanded && currentProject.currentChapter?.id === chapter.id}
                     <div class="ml-6 mt-1 space-y-0.5 border-l border-bg-card pl-2">
-                      {#each currentProject.scenes as scene (scene.id)}
+                      {#each filteredScenes as scene (scene.id)}
                         {@const isSelected = currentProject.currentScene?.id === scene.id}
                         {@const isLocked = scene.locked || chapter.locked}
+                        {@const sceneType = scene.scene_type ?? "normal"}
+                        {@const sceneStatus = scene.scene_status ?? "draft"}
                         <!-- svelte-ignore a11y_no_static_element_interactions -->
                         <div
                           data-drag-scene={scene.id}
@@ -1262,6 +1384,21 @@
                               class="truncate"
                               class:opacity-60={isLocked}>{scene.title}</span
                             >
+                            {#if sceneType !== "normal"}
+                              {@const SceneTypeIcon = sceneTypeFilterOptions.find(
+                                (option) => option.type === sceneType
+                              )?.icon}
+                              {#if SceneTypeIcon}
+                                <SceneTypeIcon
+                                  class={`w-3 h-3 ${isSelected ? "text-white" : "text-text-secondary"}`}
+                                  title={sceneTypeLabels[sceneType as SceneType]}
+                                />
+                              {/if}
+                            {/if}
+                            <span
+                              class={`w-2 h-2 rounded-full ${sceneStatusClasses[sceneStatus]} ${sceneStatus === "draft" ? "opacity-60" : ""}`}
+                              title={sceneStatusLabels[sceneStatus]}
+                            ></span>
                           </button>
 
                           <!-- Scene menu button -->
@@ -1309,6 +1446,10 @@
                       {#if currentProject.scenes.length === 0 && !creatingScene}
                         <span class="text-text-secondary text-xs px-2 py-1 italic"
                           >No scenes yet</span
+                        >
+                      {:else if filteredScenes.length === 0 && !creatingScene}
+                        <span class="text-text-secondary text-xs px-2 py-1 italic"
+                          >No scenes match filters</span
                         >
                       {/if}
                     </div>

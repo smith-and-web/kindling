@@ -74,6 +74,7 @@ pub fn run() {
             commands::delete_reference,
             commands::save_beat_prose,
             commands::save_scene_synopsis,
+            commands::update_scene_metadata,
             commands::save_scene_prose,
             commands::reorder_chapters,
             commands::reorder_scenes,

@@ -78,7 +78,13 @@ export interface Scene {
   source_id?: string | null;
   archived: boolean;
   locked: boolean;
+  scene_type: SceneType;
+  scene_status: SceneStatus;
 }
+
+export type SceneType = "normal" | "notes" | "todo" | "unused";
+
+export type SceneStatus = "draft" | "revised" | "final";
 
 /** Container for archived (soft-deleted) items */
 export interface ArchivedItems {

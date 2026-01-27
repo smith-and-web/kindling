@@ -1,11 +1,12 @@
 <script lang="ts">
+  /* eslint-disable no-undef */
   import { FileText, ChevronRight, ChevronDown, Loader2, Plus, Pencil, Lock } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { onDestroy, tick } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
-  import type { Beat } from "../types";
+  import type { Beat, Scene, SceneStatus, SceneType } from "../types";
   import NovelEditor from "./NovelEditor.svelte";
   import Tooltip from "./Tooltip.svelte";
 
@@ -35,11 +36,26 @@
   let editingSynopsis = $state(false);
   let synopsisText = $state("");
   let synopsisSaving = $state(false);
+  let metadataSaving = $state(false);
+  let metadataError = $state<string | null>(null);
 
   // New beat state
   let addingBeat = $state(false);
   let newBeatContent = $state("");
   let creatingBeat = $state(false);
+
+  const sceneTypeOptions: { value: SceneType; label: string }[] = [
+    { value: "normal", label: "Normal" },
+    { value: "notes", label: "Notes" },
+    { value: "todo", label: "ToDo" },
+    { value: "unused", label: "Unused" },
+  ];
+
+  const sceneStatusOptions: { value: SceneStatus; label: string }[] = [
+    { value: "draft", label: "Draft" },
+    { value: "revised", label: "Revised" },
+    { value: "final", label: "Final" },
+  ];
 
   function syncPendingProse(beatId: string) {
     const pendingProse = pendingProseUpdates.get(beatId);
@@ -120,6 +136,42 @@
       console.error("Failed to save beat prose:", e);
       localSaveStatus = "error";
     }
+  }
+
+  async function saveSceneMetadata(scene: Scene, nextType: SceneType, nextStatus: SceneStatus) {
+    if (metadataSaving) return;
+    metadataSaving = true;
+    metadataError = null;
+
+    try {
+      await invoke("update_scene_metadata", {
+        sceneId: scene.id,
+        metadata: {
+          scene_type: nextType,
+          scene_status: nextStatus,
+        },
+      });
+      currentProject.updateScene(scene.id, {
+        scene_type: nextType,
+        scene_status: nextStatus,
+      });
+    } catch (e) {
+      metadataError = e instanceof Error ? e.message : "Failed to update scene metadata";
+    } finally {
+      metadataSaving = false;
+    }
+  }
+
+  function handleSceneTypeChange(event: Event, scene: Scene) {
+    const nextType = (event.currentTarget as HTMLSelectElement).value as SceneType;
+    const nextStatus = scene.scene_status ?? "draft";
+    saveSceneMetadata(scene, nextType, nextStatus);
+  }
+
+  function handleSceneStatusChange(event: Event, scene: Scene) {
+    const nextStatus = (event.currentTarget as HTMLSelectElement).value as SceneStatus;
+    const nextType = scene.scene_type ?? "normal";
+    saveSceneMetadata(scene, nextType, nextStatus);
   }
 
   function handleProseInput(beatId: string, value: string) {
@@ -287,6 +339,49 @@
             <p class="text-text-secondary text-sm mt-1">
               {currentProject.currentChapter.title}
             </p>
+          {/if}
+          <div class="mt-4 flex flex-wrap gap-4">
+            <div class="flex flex-col gap-1">
+              <label for="scene-type" class="text-xs text-text-secondary">Scene type</label>
+              <div class="relative">
+                <select
+                  id="scene-type"
+                  value={scene.scene_type ?? "normal"}
+                  onchange={(event) => handleSceneTypeChange(event, scene)}
+                  class="appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer disabled:opacity-60"
+                  disabled={isLocked || metadataSaving}
+                >
+                  {#each sceneTypeOptions as option (option.value)}
+                    <option value={option.value}>{option.label}</option>
+                  {/each}
+                </select>
+                <ChevronDown
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                />
+              </div>
+            </div>
+            <div class="flex flex-col gap-1">
+              <label for="scene-status" class="text-xs text-text-secondary">Status</label>
+              <div class="relative">
+                <select
+                  id="scene-status"
+                  value={scene.scene_status ?? "draft"}
+                  onchange={(event) => handleSceneStatusChange(event, scene)}
+                  class="appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer disabled:opacity-60"
+                  disabled={isLocked || metadataSaving}
+                >
+                  {#each sceneStatusOptions as option (option.value)}
+                    <option value={option.value}>{option.label}</option>
+                  {/each}
+                </select>
+                <ChevronDown
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                />
+              </div>
+            </div>
+          </div>
+          {#if metadataError}
+            <p class="text-xs text-red-400 mt-2">{metadataError}</p>
           {/if}
         </header>
 

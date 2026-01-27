@@ -3090,7 +3090,7 @@ mod tests {
 
     #[test]
     fn test_add_scene_to_docx() {
-        use crate::models::{Beat, Scene};
+        use crate::models::{Beat, Scene, SceneStatus, SceneType};
         use uuid::Uuid;
 
         let scene = Scene {
@@ -3103,6 +3103,8 @@ mod tests {
             locked: false,
             archived: false,
             source_id: None,
+            scene_type: SceneType::Normal,
+            scene_status: SceneStatus::Draft,
         };
 
         let beats = vec![Beat {
@@ -3372,7 +3374,7 @@ mod tests {
 
     #[test]
     fn test_add_chapter_to_docx() {
-        use crate::models::{Beat, Chapter, Scene};
+        use crate::models::{Beat, Chapter, Scene, SceneStatus, SceneType};
         use std::collections::HashMap;
         use uuid::Uuid;
 
@@ -3397,6 +3399,8 @@ mod tests {
             locked: false,
             archived: false,
             source_id: None,
+            scene_type: SceneType::Normal,
+            scene_status: SceneStatus::Draft,
         };
 
         let beat = Beat {
@@ -3433,7 +3437,7 @@ mod tests {
 
     #[test]
     fn test_add_chapter_with_multiple_scenes() {
-        use crate::models::{Beat, Chapter, Scene};
+        use crate::models::{Beat, Chapter, Scene, SceneStatus, SceneType};
         use std::collections::HashMap;
         use uuid::Uuid;
 
@@ -3458,6 +3462,8 @@ mod tests {
             locked: false,
             archived: false,
             source_id: None,
+            scene_type: SceneType::Normal,
+            scene_status: SceneStatus::Draft,
         };
 
         let scene2 = Scene {
@@ -3470,6 +3476,8 @@ mod tests {
             locked: false,
             archived: false,
             source_id: None,
+            scene_type: SceneType::Normal,
+            scene_status: SceneStatus::Draft,
         };
 
         let beat1 = Beat {

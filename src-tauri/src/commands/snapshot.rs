@@ -418,6 +418,8 @@ fn restore_create_new(
             source_id: scene.source_id.clone(),
             archived: scene.archived,
             locked: scene.locked,
+            scene_type: scene.scene_type,
+            scene_status: scene.scene_status,
         };
         if let Err(e) = db::insert_scene(conn, &new_scene) {
             conn.execute("ROLLBACK", []).ok();
