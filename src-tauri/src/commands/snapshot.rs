@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use crate::db;
 use crate::models::{
-    Beat, Chapter, Character, Location, Project, RestoreMode, Scene, SnapshotData,
+    Beat, Chapter, Character, Location, Project, ReferenceItem, RestoreMode, Scene, SnapshotData,
     SnapshotMetadata, SnapshotTrigger,
 };
 
@@ -62,6 +62,9 @@ fn collect_project_data(
 
     let locations = db::get_locations(conn, project_id).map_err(|e| e.to_string())?;
 
+    let reference_items =
+        db::get_all_reference_items(conn, project_id).map_err(|e| e.to_string())?;
+
     let scene_character_refs =
         db::get_all_scene_character_refs(conn, project_id).map_err(|e| e.to_string())?;
 
@@ -75,6 +78,7 @@ fn collect_project_data(
         beats,
         characters,
         locations,
+        reference_items,
         scene_character_refs,
         scene_location_refs,
     ))
@@ -285,6 +289,14 @@ fn restore_replace_current(
         }
     }
 
+    // Insert reference items
+    for item in &data.reference_items {
+        if let Err(e) = db::insert_reference_item(conn, item) {
+            conn.execute("ROLLBACK", []).ok();
+            return Err(e.to_string());
+        }
+    }
+
     // Insert scene-character references
     for r in &data.scene_character_refs {
         if let Err(e) = db::add_scene_character_ref(conn, &r.scene_id, &r.character_id) {
@@ -346,6 +358,9 @@ fn restore_create_new(
     for location in &data.locations {
         id_map.insert(location.id, Uuid::new_v4());
     }
+    for item in &data.reference_items {
+        id_map.insert(item.id, Uuid::new_v4());
+    }
 
     // Begin transaction
     conn.execute("BEGIN TRANSACTION", [])
@@ -365,6 +380,7 @@ fn restore_create_new(
         genre: data.project.genre,
         description: data.project.description,
         word_target: data.project.word_target,
+        reference_types: data.project.reference_types,
     };
 
     if let Err(e) = db::insert_project(conn, &new_project) {
@@ -457,6 +473,23 @@ fn restore_create_new(
         }
     }
 
+    // Insert reference items with remapped IDs
+    for item in &data.reference_items {
+        let new_item = ReferenceItem {
+            id: *id_map.get(&item.id).unwrap(),
+            project_id: new_project_id,
+            reference_type: item.reference_type.clone(),
+            name: item.name.clone(),
+            description: item.description.clone(),
+            attributes: item.attributes.clone(),
+            source_id: item.source_id.clone(),
+        };
+        if let Err(e) = db::insert_reference_item(conn, &new_item) {
+            conn.execute("ROLLBACK", []).ok();
+            return Err(e.to_string());
+        }
+    }
+
     // Insert scene-character references with remapped IDs
     for r in &data.scene_character_refs {
         let new_scene_id = id_map.get(&r.scene_id).unwrap();
@@ -533,6 +566,7 @@ mod tests {
         let project = Project::new("Snapshot Test".to_string(), SourceType::Markdown, None);
         let data = SnapshotData::new(
             project.clone(),
+            vec![],
             vec![],
             vec![],
             vec![],

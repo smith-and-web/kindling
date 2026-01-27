@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { currentProject } from "./project.svelte";
+import type { Project, ReferenceTypeId } from "../types";
 
 describe("currentProject store", () => {
   beforeEach(() => {
@@ -19,7 +20,7 @@ describe("currentProject store", () => {
   });
 
   it("should set and get project", () => {
-    const mockProject = {
+    const mockProject: Project = {
       id: "test-id",
       name: "Test Project",
       source_type: "Plottr" as const,
@@ -30,6 +31,7 @@ describe("currentProject store", () => {
       genre: null,
       description: null,
       word_target: null,
+      reference_types: ["characters", "locations"] as ReferenceTypeId[],
     };
 
     currentProject.setProject(mockProject);

@@ -3168,6 +3168,7 @@ mod tests {
             genre: Some("Literary Fiction".to_string()),
             description: Some("A story about creativity.".to_string()),
             word_target: Some(75000),
+            reference_types: Project::default_reference_types(),
         };
 
         let app_settings = AppSettings {
@@ -3204,6 +3205,7 @@ mod tests {
             genre: None,
             description: None,
             word_target: None,
+            reference_types: Project::default_reference_types(),
         };
 
         let app_settings = AppSettings::default();

@@ -28,6 +28,8 @@ export interface Project {
   description: string | null;
   /** Optional word count target for the project */
   word_target: number | null;
+  /** Enabled reference types for this project */
+  reference_types: ReferenceTypeId[];
 }
 
 /** App-wide settings (stored in JSON file, not database) */
@@ -117,6 +119,20 @@ export interface Location {
   name: string;
   description: string | null;
   /** Flexible key-value attributes (e.g., "Type": "City", "Climate": "Tropical") */
+  attributes: Record<string, string>;
+  source_id: string | null;
+}
+
+/** Supported reference types for the References panel */
+export type ReferenceTypeId = "characters" | "locations" | "items" | "objectives" | "organizations";
+
+/** Generic reference card used for extended reference types */
+export interface ReferenceItem {
+  id: string;
+  project_id: string;
+  reference_type: ReferenceTypeId;
+  name: string;
+  description: string | null;
   attributes: Record<string, string>;
   source_id: string | null;
 }

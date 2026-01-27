@@ -21,7 +21,9 @@ use std::fs;
 use std::path::Path;
 use thiserror::Error;
 
-use crate::models::{Beat, Chapter, Character, Location, Project, Scene, SourceType};
+use crate::models::{
+    Beat, Chapter, Character, Location, Project, ReferenceItem, Scene, SourceType,
+};
 
 #[derive(Debug, Error)]
 pub enum YWriterError {
@@ -130,6 +132,7 @@ pub struct ParsedYWriter {
     pub beats: Vec<Beat>,
     pub characters: Vec<Character>,
     pub locations: Vec<Location>,
+    pub reference_items: Vec<ReferenceItem>,
     pub scene_character_refs: Vec<(uuid::Uuid, uuid::Uuid)>,
     pub scene_location_refs: Vec<(uuid::Uuid, uuid::Uuid)>,
 }
@@ -700,7 +703,7 @@ fn convert_to_kindling(
     yw_scenes: HashMap<i32, YWriterScene>,
     yw_characters: HashMap<i32, YWriterCharacter>,
     yw_locations: HashMap<i32, YWriterLocation>,
-    _yw_items: HashMap<i32, YWriterItem>,
+    yw_items: HashMap<i32, YWriterItem>,
     path: &Path,
 ) -> Result<ParsedYWriter, YWriterError> {
     // Create project
@@ -842,6 +845,27 @@ fn convert_to_kindling(
         kindling_locations.push(location);
     }
 
+    // Convert items into generic reference items
+    let mut reference_items: Vec<ReferenceItem> = Vec::new();
+    for (yw_id, yw_item) in &yw_items {
+        let description = yw_item.description.as_ref().and_then(|desc| {
+            if desc.trim().is_empty() {
+                None
+            } else {
+                Some(desc.clone())
+            }
+        });
+
+        let item = ReferenceItem::new(
+            project.id,
+            "items".to_string(),
+            yw_item.title.clone(),
+            description,
+            Some(yw_id.to_string()),
+        );
+        reference_items.push(item);
+    }
+
     // Sort chapters by sort_order
     let mut sorted_chapters = yw_chapters;
     sorted_chapters.sort_by_key(|c| c.sort_order);
@@ -974,6 +998,7 @@ fn convert_to_kindling(
         beats: kindling_beats,
         characters: kindling_characters,
         locations: kindling_locations,
+        reference_items,
         scene_character_refs,
         scene_location_refs,
     })

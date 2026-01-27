@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{Beat, Chapter, Character, Location, Project, Scene};
+use super::{Beat, Chapter, Character, Location, Project, ReferenceItem, Scene};
 
 /// Trigger type for snapshot creation
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -109,6 +109,8 @@ pub struct SnapshotData {
     pub beats: Vec<Beat>,
     pub characters: Vec<Character>,
     pub locations: Vec<Location>,
+    #[serde(default)]
+    pub reference_items: Vec<ReferenceItem>,
     pub scene_character_refs: Vec<SceneCharacterRef>,
     pub scene_location_refs: Vec<SceneLocationRef>,
 }
@@ -122,6 +124,7 @@ impl SnapshotData {
         beats: Vec<Beat>,
         characters: Vec<Character>,
         locations: Vec<Location>,
+        reference_items: Vec<ReferenceItem>,
         scene_character_refs: Vec<SceneCharacterRef>,
         scene_location_refs: Vec<SceneLocationRef>,
     ) -> Self {
@@ -134,6 +137,7 @@ impl SnapshotData {
             beats,
             characters,
             locations,
+            reference_items,
             scene_character_refs,
             scene_location_refs,
         }

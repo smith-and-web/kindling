@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::models::{
-    Beat, Chapter, Character, Location, Project, Scene, SceneCharacterRef, SceneLocationRef,
-    SnapshotMetadata, SnapshotTrigger, SourceType,
+    Beat, Chapter, Character, Location, Project, ReferenceItem, Scene, SceneCharacterRef,
+    SceneLocationRef, SnapshotMetadata, SnapshotTrigger, SourceType,
 };
 
 // ============================================================================
@@ -12,9 +12,11 @@ use crate::models::{
 // ============================================================================
 
 pub fn insert_project(conn: &Connection, project: &Project) -> Result<()> {
+    let reference_types_json =
+        serde_json::to_string(&project.reference_types).unwrap_or_else(|_| "[]".to_string());
     conn.execute(
-        "INSERT INTO projects (id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT INTO projects (id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         params![
             project.id.to_string(),
             project.name,
@@ -26,14 +28,23 @@ pub fn insert_project(conn: &Connection, project: &Project) -> Result<()> {
             project.genre,
             project.description,
             project.word_target,
+            reference_types_json,
         ],
     )?;
     Ok(())
 }
 
+fn parse_reference_types(raw: Option<String>) -> Vec<String> {
+    match raw {
+        Some(value) => serde_json::from_str::<Vec<String>>(&value)
+            .unwrap_or_else(|_| Project::default_reference_types()),
+        None => Project::default_reference_types(),
+    }
+}
+
 pub fn get_project(conn: &Connection, id: &Uuid) -> Result<Option<Project>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target
+        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types
          FROM projects WHERE id = ?1",
     )?;
 
@@ -52,6 +63,7 @@ pub fn get_project(conn: &Connection, id: &Uuid) -> Result<Option<Project>> {
             genre: row.get(7)?,
             description: row.get(8)?,
             word_target: row.get(9)?,
+            reference_types: parse_reference_types(row.get(10)?),
         }))
     } else {
         Ok(None)
@@ -60,7 +72,7 @@ pub fn get_project(conn: &Connection, id: &Uuid) -> Result<Option<Project>> {
 
 pub fn get_recent_projects(conn: &Connection, limit: usize) -> Result<Vec<Project>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target
+        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types
          FROM projects ORDER BY modified_at DESC LIMIT ?1",
     )?;
 
@@ -78,6 +90,7 @@ pub fn get_recent_projects(conn: &Connection, limit: usize) -> Result<Vec<Projec
                 genre: row.get(7)?,
                 description: row.get(8)?,
                 word_target: row.get(9)?,
+                reference_types: parse_reference_types(row.get(10)?),
             })
         })?
         .filter_map(|r| r.ok())
@@ -442,6 +455,53 @@ pub fn get_characters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Charac
     Ok(characters)
 }
 
+pub fn get_character_project_id(conn: &Connection, character_id: &Uuid) -> Result<Option<Uuid>> {
+    let mut stmt = conn.prepare("SELECT project_id FROM characters WHERE id = ?1")?;
+    let mut rows = stmt.query(params![character_id.to_string()])?;
+
+    if let Some(row) = rows.next()? {
+        Ok(Some(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap()))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn update_character(
+    conn: &Connection,
+    character_id: &Uuid,
+    name: &str,
+    description: Option<&str>,
+    attributes: &HashMap<String, String>,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE characters SET name = ?1, description = ?2 WHERE id = ?3",
+        params![name, description, character_id.to_string()],
+    )?;
+
+    conn.execute(
+        "DELETE FROM character_attributes WHERE character_id = ?1",
+        params![character_id.to_string()],
+    )?;
+
+    for (key, value) in attributes {
+        conn.execute(
+            "INSERT INTO character_attributes (character_id, key, value)
+             VALUES (?1, ?2, ?3)",
+            params![character_id.to_string(), key, value],
+        )?;
+    }
+
+    Ok(())
+}
+
+pub fn delete_character(conn: &Connection, character_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "DELETE FROM characters WHERE id = ?1",
+        params![character_id.to_string()],
+    )?;
+    Ok(())
+}
+
 // ============================================================================
 // Location Queries
 // ============================================================================
@@ -510,6 +570,220 @@ pub fn get_locations(conn: &Connection, project_id: &Uuid) -> Result<Vec<Locatio
     }
 
     Ok(locations)
+}
+
+pub fn get_location_project_id(conn: &Connection, location_id: &Uuid) -> Result<Option<Uuid>> {
+    let mut stmt = conn.prepare("SELECT project_id FROM locations WHERE id = ?1")?;
+    let mut rows = stmt.query(params![location_id.to_string()])?;
+
+    if let Some(row) = rows.next()? {
+        Ok(Some(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap()))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn update_location(
+    conn: &Connection,
+    location_id: &Uuid,
+    name: &str,
+    description: Option<&str>,
+    attributes: &HashMap<String, String>,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE locations SET name = ?1, description = ?2 WHERE id = ?3",
+        params![name, description, location_id.to_string()],
+    )?;
+
+    conn.execute(
+        "DELETE FROM location_attributes WHERE location_id = ?1",
+        params![location_id.to_string()],
+    )?;
+
+    for (key, value) in attributes {
+        conn.execute(
+            "INSERT INTO location_attributes (location_id, key, value)
+             VALUES (?1, ?2, ?3)",
+            params![location_id.to_string(), key, value],
+        )?;
+    }
+
+    Ok(())
+}
+
+pub fn delete_location(conn: &Connection, location_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "DELETE FROM locations WHERE id = ?1",
+        params![location_id.to_string()],
+    )?;
+    Ok(())
+}
+
+// ============================================================================
+// Reference Item Queries
+// ============================================================================
+
+pub fn insert_reference_item(conn: &Connection, item: &ReferenceItem) -> Result<()> {
+    conn.execute(
+        "INSERT INTO reference_items (id, project_id, reference_type, name, description, source_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![
+            item.id.to_string(),
+            item.project_id.to_string(),
+            item.reference_type,
+            item.name,
+            item.description,
+            item.source_id,
+        ],
+    )?;
+
+    for (key, value) in &item.attributes {
+        conn.execute(
+            "INSERT INTO reference_item_attributes (reference_item_id, key, value)
+             VALUES (?1, ?2, ?3)",
+            params![item.id.to_string(), key, value],
+        )?;
+    }
+
+    Ok(())
+}
+
+pub fn get_reference_items(
+    conn: &Connection,
+    project_id: &Uuid,
+    reference_type: &str,
+) -> Result<Vec<ReferenceItem>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, project_id, reference_type, name, description, source_id
+         FROM reference_items WHERE project_id = ?1 AND reference_type = ?2 ORDER BY name",
+    )?;
+
+    let mut items: Vec<ReferenceItem> = stmt
+        .query_map(params![project_id.to_string(), reference_type], |row| {
+            Ok(ReferenceItem {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                reference_type: row.get(2)?,
+                name: row.get(3)?,
+                description: row.get(4)?,
+                attributes: HashMap::new(),
+                source_id: row.get(5)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    for item in &mut items {
+        let mut attr_stmt = conn.prepare(
+            "SELECT key, value FROM reference_item_attributes WHERE reference_item_id = ?1",
+        )?;
+
+        let attrs: Vec<(String, String)> = attr_stmt
+            .query_map(params![item.id.to_string()], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                ))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        item.attributes = attrs.into_iter().collect();
+    }
+
+    Ok(items)
+}
+
+pub fn get_all_reference_items(conn: &Connection, project_id: &Uuid) -> Result<Vec<ReferenceItem>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, project_id, reference_type, name, description, source_id
+         FROM reference_items WHERE project_id = ?1 ORDER BY reference_type, name",
+    )?;
+
+    let mut items: Vec<ReferenceItem> = stmt
+        .query_map(params![project_id.to_string()], |row| {
+            Ok(ReferenceItem {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                reference_type: row.get(2)?,
+                name: row.get(3)?,
+                description: row.get(4)?,
+                attributes: HashMap::new(),
+                source_id: row.get(5)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    for item in &mut items {
+        let mut attr_stmt = conn.prepare(
+            "SELECT key, value FROM reference_item_attributes WHERE reference_item_id = ?1",
+        )?;
+
+        let attrs: Vec<(String, String)> = attr_stmt
+            .query_map(params![item.id.to_string()], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                ))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        item.attributes = attrs.into_iter().collect();
+    }
+
+    Ok(items)
+}
+
+pub fn get_reference_item_project_id(
+    conn: &Connection,
+    reference_item_id: &Uuid,
+) -> Result<Option<Uuid>> {
+    let mut stmt = conn.prepare("SELECT project_id FROM reference_items WHERE id = ?1")?;
+    let mut rows = stmt.query(params![reference_item_id.to_string()])?;
+
+    if let Some(row) = rows.next()? {
+        Ok(Some(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap()))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn update_reference_item(
+    conn: &Connection,
+    reference_item_id: &Uuid,
+    name: &str,
+    description: Option<&str>,
+    attributes: &HashMap<String, String>,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE reference_items SET name = ?1, description = ?2 WHERE id = ?3",
+        params![name, description, reference_item_id.to_string()],
+    )?;
+
+    conn.execute(
+        "DELETE FROM reference_item_attributes WHERE reference_item_id = ?1",
+        params![reference_item_id.to_string()],
+    )?;
+
+    for (key, value) in attributes {
+        conn.execute(
+            "INSERT INTO reference_item_attributes (reference_item_id, key, value)
+             VALUES (?1, ?2, ?3)",
+            params![reference_item_id.to_string(), key, value],
+        )?;
+    }
+
+    Ok(())
+}
+
+pub fn delete_reference_item(conn: &Connection, reference_item_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "DELETE FROM reference_items WHERE id = ?1",
+        params![reference_item_id.to_string()],
+    )?;
+    Ok(())
 }
 
 // ============================================================================
@@ -1399,13 +1673,27 @@ pub fn delete_all_project_content(conn: &Connection, project_id: &Uuid) -> Resul
         params![project_id.to_string()],
     )?;
 
+    // Delete reference items and their attributes
+    conn.execute(
+        "DELETE FROM reference_item_attributes WHERE reference_item_id IN (
+            SELECT id FROM reference_items WHERE project_id = ?1
+        )",
+        params![project_id.to_string()],
+    )?;
+    conn.execute(
+        "DELETE FROM reference_items WHERE project_id = ?1",
+        params![project_id.to_string()],
+    )?;
+
     Ok(())
 }
 
 /// Update project metadata
 pub fn update_project(conn: &Connection, project: &Project) -> Result<()> {
+    let reference_types_json =
+        serde_json::to_string(&project.reference_types).unwrap_or_else(|_| "[]".to_string());
     conn.execute(
-        "UPDATE projects SET name = ?1, source_type = ?2, source_path = ?3, modified_at = ?4, author_pen_name = ?5, genre = ?6, description = ?7, word_target = ?8 WHERE id = ?9",
+        "UPDATE projects SET name = ?1, source_type = ?2, source_path = ?3, modified_at = ?4, author_pen_name = ?5, genre = ?6, description = ?7, word_target = ?8, reference_types = ?9 WHERE id = ?10",
         params![
             project.name,
             project.source_type.as_str(),
@@ -1415,6 +1703,7 @@ pub fn update_project(conn: &Connection, project: &Project) -> Result<()> {
             project.genre,
             project.description,
             project.word_target,
+            reference_types_json,
             project.id.to_string(),
         ],
     )?;
