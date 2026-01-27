@@ -1681,9 +1681,18 @@ mod tests {
         assert_eq!(item.name, "The Key");
         let desc = item.description.as_ref().unwrap();
         assert!(desc.contains("<em>rusty</em>"));
-        assert_eq!(item.attributes.get("aliases").map(String::as_str), Some("The Rust Key"));
-        assert_eq!(item.attributes.get("tags").map(String::as_str), Some("metal;locker"));
-        assert_eq!(item.attributes.get("image").map(String::as_str), Some("items/key.png"));
+        assert_eq!(
+            item.attributes.get("aliases").map(String::as_str),
+            Some("The Rust Key")
+        );
+        assert_eq!(
+            item.attributes.get("tags").map(String::as_str),
+            Some("metal;locker")
+        );
+        assert_eq!(
+            item.attributes.get("image").map(String::as_str),
+            Some("items/key.png")
+        );
     }
 
     #[test]
