@@ -37,6 +37,8 @@ pub async fn get_recent_projects(state: State<'_, AppState>) -> Result<Vec<Proje
 pub struct ProjectSettingsUpdate {
     pub author_pen_name: Option<String>,
     pub genre: Option<String>,
+    pub description: Option<String>,
+    pub word_target: Option<i32>,
 }
 
 #[tauri::command]
@@ -56,6 +58,8 @@ pub async fn update_project_settings(
     // Update the project-specific fields
     project.author_pen_name = settings.author_pen_name;
     project.genre = settings.genre;
+    project.description = settings.description;
+    project.word_target = settings.word_target;
 
     // Update modified timestamp
     project.modified_at = chrono::Utc::now().to_rfc3339();

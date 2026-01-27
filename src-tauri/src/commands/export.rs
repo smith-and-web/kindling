@@ -3166,6 +3166,8 @@ mod tests {
             modified_at: chrono::Utc::now().to_rfc3339(),
             author_pen_name: Some("Pen Name".to_string()),
             genre: Some("Literary Fiction".to_string()),
+            description: Some("A story about creativity.".to_string()),
+            word_target: Some(75000),
         };
 
         let app_settings = AppSettings {
@@ -3200,6 +3202,8 @@ mod tests {
             modified_at: chrono::Utc::now().to_rfc3339(),
             author_pen_name: None,
             genre: None,
+            description: None,
+            word_target: None,
         };
 
         let app_settings = AppSettings::default();

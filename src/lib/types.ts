@@ -24,6 +24,10 @@ export interface Project {
   author_pen_name: string | null;
   /** Genre of the work (displayed on title page) */
   genre: string | null;
+  /** Project description or summary */
+  description: string | null;
+  /** Optional word count target for the project */
+  word_target: number | null;
 }
 
 /** App-wide settings (stored in JSON file, not database) */

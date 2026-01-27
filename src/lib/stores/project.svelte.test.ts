@@ -28,6 +28,8 @@ describe("currentProject store", () => {
       modified_at: new Date().toISOString(),
       author_pen_name: null,
       genre: null,
+      description: null,
+      word_target: null,
     };
 
     currentProject.setProject(mockProject);

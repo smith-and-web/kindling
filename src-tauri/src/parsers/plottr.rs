@@ -333,11 +333,29 @@ pub fn parse_plottr_file<P: AsRef<Path>>(path: P) -> Result<ParsedPlottr, Plottr
                 .to_string()
         });
 
-    let project = Project::new(
+    let mut project = Project::new(
         project_name,
         SourceType::Plottr,
         Some(path.to_string_lossy().to_string()),
     );
+
+    if let Some(series) = plottr.series.as_ref() {
+        if let Some(genre) = series.genre.clone().filter(|g| !g.trim().is_empty()) {
+            project.genre = Some(genre);
+        }
+
+        let mut description_parts = Vec::new();
+        if let Some(premise) = series.premise.clone().filter(|p| !p.trim().is_empty()) {
+            description_parts.push(format!("Premise: {}", premise.trim()));
+        }
+        if let Some(theme) = series.theme.clone().filter(|t| !t.trim().is_empty()) {
+            description_parts.push(format!("Theme: {}", theme.trim()));
+        }
+
+        if !description_parts.is_empty() {
+            project.description = Some(description_parts.join("\n\n"));
+        }
+    }
 
     // Parse beats (these become our chapters)
     let plottr_beats = plottr
