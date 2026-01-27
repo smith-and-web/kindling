@@ -163,11 +163,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<main
-  class="flex h-screen w-screen bg-bg-primary overflow-x-hidden"
-  class:overflow-hidden={currentProject.value}
-  class:overflow-y-auto={!currentProject.value}
->
+<main class="flex h-screen w-screen overflow-hidden bg-bg-primary">
   {#if currentProject.value}
     <Sidebar />
     <ScenePanel />
