@@ -126,6 +126,15 @@ struct SceneBuildContext<'a> {
     location_index: &'a mut HashMap<String, uuid::Uuid>,
 }
 
+struct DataviewContext<'a> {
+    scene_status: &'a mut SceneStatus,
+    status_locked: bool,
+    synopsis: &'a mut Option<String>,
+    synopsis_locked: bool,
+    characters: &'a mut Vec<String>,
+    locations: &'a mut Vec<String>,
+}
+
 // ============================================================================
 // Parser Implementation
 // ============================================================================
@@ -398,16 +407,15 @@ fn parse_scene_body(content: &str) -> SceneContent {
             beat_lines.push(line);
         } else {
             if let Some((key, value)) = parse_dataview_field(trimmed_start) {
-                apply_dataview_field(
-                    &key,
-                    &value,
-                    &mut scene_status,
+                let mut context = DataviewContext {
+                    scene_status: &mut scene_status,
                     status_locked,
-                    &mut synopsis,
+                    synopsis: &mut synopsis,
                     synopsis_locked,
-                    &mut characters,
-                    &mut locations,
-                );
+                    characters: &mut characters,
+                    locations: &mut locations,
+                };
+                apply_dataview_field(&key, &value, &mut context);
                 continue;
             }
             if !status_locked {
@@ -558,40 +566,46 @@ enum ReferenceKind {
     Location,
 }
 
-fn apply_dataview_field(
-    key: &str,
-    value: &str,
-    scene_status: &mut SceneStatus,
-    status_locked: bool,
-    synopsis: &mut Option<String>,
-    synopsis_locked: bool,
-    characters: &mut Vec<String>,
-    locations: &mut Vec<String>,
-) {
+fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_>) {
     let normalized_key = key.trim().to_lowercase();
     match normalized_key.as_str() {
         "pov" => {
-            push_reference(value, ReferenceKind::Character, characters, locations);
+            push_reference(
+                value,
+                ReferenceKind::Character,
+                context.characters,
+                context.locations,
+            );
         }
         "characters" => {
             for entry in split_inline_list(value) {
-                push_reference(&entry, ReferenceKind::Character, characters, locations);
+                push_reference(
+                    &entry,
+                    ReferenceKind::Character,
+                    context.characters,
+                    context.locations,
+                );
             }
         }
         "setting" | "location" => {
             for entry in split_inline_list(value) {
-                push_reference(&entry, ReferenceKind::Location, characters, locations);
+                push_reference(
+                    &entry,
+                    ReferenceKind::Location,
+                    context.characters,
+                    context.locations,
+                );
             }
         }
         "status" => {
-            if !status_locked {
-                *scene_status = parse_obsidian_status(value);
+            if !context.status_locked {
+                *context.scene_status = parse_obsidian_status(value);
             }
         }
         "synopsis" => {
-            if !synopsis_locked {
+            if !context.synopsis_locked {
                 if let Some(text) = normalize_block(value) {
-                    *synopsis = Some(text);
+                    *context.synopsis = Some(text);
                 }
             }
         }
