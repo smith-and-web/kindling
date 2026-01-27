@@ -126,6 +126,15 @@ struct SceneBuildContext<'a> {
     location_index: &'a mut HashMap<String, uuid::Uuid>,
 }
 
+struct DataviewContext<'a> {
+    scene_status: &'a mut SceneStatus,
+    status_locked: bool,
+    synopsis: &'a mut Option<String>,
+    synopsis_locked: bool,
+    characters: &'a mut Vec<String>,
+    locations: &'a mut Vec<String>,
+}
+
 // ============================================================================
 // Parser Implementation
 // ============================================================================
@@ -314,16 +323,35 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
         if let Some(status) = frontmatter.status {
             scene_content.scene_status = parse_obsidian_status(&status);
         }
-        let mut characters: Vec<String> = Vec::new();
-        let mut locations: Vec<String> = Vec::new();
+        let mut characters = std::mem::take(&mut scene_content.characters);
+        let mut locations = std::mem::take(&mut scene_content.locations);
         if let Some(list) = frontmatter.characters {
-            characters.extend(list.into_vec());
+            for value in list.into_vec() {
+                push_reference(
+                    &value,
+                    ReferenceKind::Character,
+                    &mut characters,
+                    &mut locations,
+                );
+            }
         }
         if let Some(pov) = frontmatter.pov {
-            characters.push(pov);
+            push_reference(
+                &pov,
+                ReferenceKind::Character,
+                &mut characters,
+                &mut locations,
+            );
         }
         if let Some(list) = frontmatter.setting {
-            locations.extend(list.into_vec());
+            for value in list.into_vec() {
+                push_reference(
+                    &value,
+                    ReferenceKind::Location,
+                    &mut characters,
+                    &mut locations,
+                );
+            }
         }
         scene_content.characters = normalize_reference_list(characters);
         scene_content.locations = normalize_reference_list(locations);
@@ -340,9 +368,14 @@ fn parse_scene_body(content: &str) -> SceneContent {
     let mut beat_lines = Vec::new();
     let mut in_beats = false;
     let mut metadata_parsed = false;
+    let mut status_locked = false;
+    let mut synopsis_locked = false;
+    let mut characters = Vec::new();
+    let mut locations = Vec::new();
 
     for line in content.lines() {
         let trimmed = line.trim();
+        let trimmed_start = line.trim_start();
 
         if !in_beats && trimmed.eq_ignore_ascii_case(LONGFORM_BEATS_MARKER) {
             in_beats = true;
@@ -356,11 +389,13 @@ fn parse_scene_body(content: &str) -> SceneContent {
                 }
                 if let Some(value) = meta.get("scene_status") {
                     scene_status = SceneStatus::parse(value);
+                    status_locked = true;
                 }
                 if let Some(value) = meta.get("synopsis") {
                     let synopsis_value = value.trim();
                     if !synopsis_value.is_empty() {
                         synopsis = Some(synopsis_value.to_string());
+                        synopsis_locked = true;
                     }
                 }
                 metadata_parsed = true;
@@ -371,6 +406,31 @@ fn parse_scene_body(content: &str) -> SceneContent {
         if in_beats {
             beat_lines.push(line);
         } else {
+            if let Some((key, value)) = parse_dataview_field(trimmed_start) {
+                let mut context = DataviewContext {
+                    scene_status: &mut scene_status,
+                    status_locked,
+                    synopsis: &mut synopsis,
+                    synopsis_locked,
+                    characters: &mut characters,
+                    locations: &mut locations,
+                };
+                apply_dataview_field(&key, &value, &mut context);
+                continue;
+            }
+            if !status_locked {
+                if let Some(status) = parse_status_from_tags(trimmed_start) {
+                    scene_status = status;
+                }
+            }
+            for link in extract_wikilink_targets(trimmed_start) {
+                push_reference(
+                    &link,
+                    ReferenceKind::Character,
+                    &mut characters,
+                    &mut locations,
+                );
+            }
             body_lines.push(line);
         }
     }
@@ -384,8 +444,8 @@ fn parse_scene_body(content: &str) -> SceneContent {
         scene_type,
         scene_status,
         beats,
-        characters: Vec::new(),
-        locations: Vec::new(),
+        characters: normalize_reference_list(characters),
+        locations: normalize_reference_list(locations),
     }
 }
 
@@ -500,23 +560,131 @@ fn parse_obsidian_status(raw: &str) -> SceneStatus {
     }
 }
 
-fn normalize_reference_list(values: Vec<String>) -> Vec<String> {
-    let mut normalized = Vec::new();
-    let mut seen = HashSet::new();
-
-    for value in values {
-        if let Some(name) = normalize_reference_name(&value) {
-            let key = name.to_lowercase();
-            if seen.insert(key) {
-                normalized.push(name);
-            }
-        }
-    }
-
-    normalized
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReferenceKind {
+    Character,
+    Location,
 }
 
-fn normalize_reference_name(value: &str) -> Option<String> {
+fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_>) {
+    let normalized_key = key.trim().to_lowercase();
+    match normalized_key.as_str() {
+        "pov" => {
+            push_reference(
+                value,
+                ReferenceKind::Character,
+                context.characters,
+                context.locations,
+            );
+        }
+        "characters" => {
+            for entry in split_inline_list(value) {
+                push_reference(
+                    &entry,
+                    ReferenceKind::Character,
+                    context.characters,
+                    context.locations,
+                );
+            }
+        }
+        "setting" | "location" => {
+            for entry in split_inline_list(value) {
+                push_reference(
+                    &entry,
+                    ReferenceKind::Location,
+                    context.characters,
+                    context.locations,
+                );
+            }
+        }
+        "status" => {
+            if !context.status_locked {
+                *context.scene_status = parse_obsidian_status(value);
+            }
+        }
+        "synopsis" => {
+            if !context.synopsis_locked {
+                if let Some(text) = normalize_block(value) {
+                    *context.synopsis = Some(text);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn parse_dataview_field(line: &str) -> Option<(String, String)> {
+    let trimmed = line.trim();
+    let (key, value) = trimmed.split_once("::")?;
+    let key = key.trim();
+    let value = value.trim();
+    if key.is_empty() {
+        return None;
+    }
+    Some((key.to_string(), value.to_string()))
+}
+
+fn split_inline_list(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(|entry| entry.trim())
+        .filter(|entry| !entry.is_empty())
+        .map(|entry| entry.to_string())
+        .collect()
+}
+
+fn parse_status_from_tags(line: &str) -> Option<SceneStatus> {
+    let tag_marker = "#status/";
+    let idx = line.find(tag_marker)?;
+    let tag = &line[idx + tag_marker.len()..];
+    let value = tag
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .trim_matches(|ch: char| ch.is_ascii_punctuation());
+
+    if value.is_empty() {
+        return None;
+    }
+
+    Some(parse_obsidian_status(value))
+}
+
+fn extract_wikilink_targets(line: &str) -> Vec<String> {
+    let mut targets = Vec::new();
+    let mut remainder = line;
+
+    while let Some(start) = remainder.find("[[") {
+        let after_start = &remainder[start + 2..];
+        let Some(end) = after_start.find("]]") else {
+            break;
+        };
+        let inner = &after_start[..end];
+        let target = inner.split('|').next().unwrap_or("").trim();
+        if !target.is_empty() {
+            targets.push(target.to_string());
+        }
+        remainder = &after_start[end + 2..];
+    }
+
+    targets
+}
+
+fn push_reference(
+    value: &str,
+    default_kind: ReferenceKind,
+    characters: &mut Vec<String>,
+    locations: &mut Vec<String>,
+) {
+    if let Some((kind, name)) = classify_reference(value, default_kind) {
+        match kind {
+            ReferenceKind::Character => characters.push(name),
+            ReferenceKind::Location => locations.push(name),
+        }
+    }
+}
+
+fn classify_reference(value: &str, default_kind: ReferenceKind) -> Option<(ReferenceKind, String)> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
         return None;
@@ -525,9 +693,29 @@ fn normalize_reference_name(value: &str) -> Option<String> {
     let name = parse_wikilink_target(trimmed).unwrap_or_else(|| trimmed.to_string());
     let cleaned = name.trim();
     if cleaned.is_empty() {
+        return None;
+    }
+
+    if let Some(stripped) = cleaned.strip_prefix(';') {
+        return normalize_reference_by_kind(stripped, ReferenceKind::Character);
+    }
+
+    if let Some(stripped) = cleaned.strip_prefix('~') {
+        return normalize_reference_by_kind(stripped, ReferenceKind::Location);
+    }
+
+    normalize_reference_by_kind(cleaned, default_kind)
+}
+
+fn normalize_reference_by_kind(
+    value: &str,
+    kind: ReferenceKind,
+) -> Option<(ReferenceKind, String)> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
         None
     } else {
-        Some(cleaned.to_string())
+        Some((kind, trimmed.to_string()))
     }
 }
 
@@ -544,6 +732,24 @@ fn parse_wikilink_target(value: &str) -> Option<String> {
     } else {
         Some(target.to_string())
     }
+}
+
+fn normalize_reference_list(values: Vec<String>) -> Vec<String> {
+    let mut normalized = Vec::new();
+    let mut seen = HashSet::new();
+
+    for value in values {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let key = trimmed.to_lowercase();
+        if seen.insert(key) {
+            normalized.push(trimmed.to_string());
+        }
+    }
+
+    normalized
 }
 
 fn build_longform_structure(
@@ -1061,10 +1267,10 @@ longform:
 
         let scene_content = r#"---
 characters:
-  - "[[Sarah]]"
+  - "[[;Sarah]]"
   - "John"
-setting: "[[Downtown Cafe|Cafe]]"
-pov: "Sarah"
+setting: "[[~Downtown Cafe|Cafe]]"
+pov: "[[;Sarah]]"
 ---
 
 Scene prose."#;
@@ -1078,6 +1284,44 @@ Scene prose."#;
         assert_eq!(parsed.locations[0].name, "Downtown Cafe");
         assert_eq!(parsed.scene_character_refs.len(), 2);
         assert_eq!(parsed.scene_location_refs.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_scene_dataview_and_content_links() {
+        let dir = tempdir().unwrap();
+        let index_path = dir.path().join("Project.md");
+        let index_content = r#"---
+longform:
+  format: scenes
+  title: Test Project
+  workflow: Default Workflow
+  sceneFolder: /
+  scenes:
+    - dataview scene
+---"#;
+        fs::write(&index_path, index_content).unwrap();
+
+        let scene_content = r#"pov:: [[;Sarah]]
+characters:: [[John]], ;Zoe
+setting:: [[~Dock]]
+#status/final
+
+Scene prose with [[;Mila]] and [[~Warehouse]]."#;
+        fs::write(dir.path().join("dataview scene.md"), scene_content).unwrap();
+
+        let parsed = parse_longform_index(&index_path).unwrap();
+        assert_eq!(parsed.scenes.len(), 1);
+        assert_eq!(parsed.scenes[0].scene_status, SceneStatus::Final);
+
+        let character_names: Vec<_> = parsed.characters.iter().map(|c| c.name.as_str()).collect();
+        assert!(character_names.contains(&"Sarah"));
+        assert!(character_names.contains(&"John"));
+        assert!(character_names.contains(&"Zoe"));
+        assert!(character_names.contains(&"Mila"));
+
+        let location_names: Vec<_> = parsed.locations.iter().map(|l| l.name.as_str()).collect();
+        assert!(location_names.contains(&"Dock"));
+        assert!(location_names.contains(&"Warehouse"));
     }
 
     #[test]
