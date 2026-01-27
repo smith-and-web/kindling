@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 use thiserror::Error;
+use walkdir::WalkDir;
 
 use crate::models::{Beat, Chapter, Project, Scene, SceneStatus, SceneType, SourceType};
 
@@ -55,6 +56,12 @@ struct LongformIndex {
     scene_template: Option<String>,
     #[serde(rename = "ignoredFiles")]
     ignored_files: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct SceneFrontmatter {
+    synopsis: Option<String>,
+    status: Option<String>,
 }
 
 // ============================================================================
@@ -110,6 +117,7 @@ pub fn parse_longform_index<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, L
     })?;
 
     let scene_entries = parse_scene_entries(&scenes_value)?;
+    let ignored_patterns = longform.ignored_files.unwrap_or_default();
 
     let project_name = longform
         .title
@@ -128,48 +136,78 @@ pub fn parse_longform_index<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, L
         Some(path.to_string_lossy().to_string()),
     );
 
-    let chapter = Chapter::new(project.id, "Chapter 1".to_string(), 0)
-        .with_source_id(Some(LONGFORM_DEFAULT_CHAPTER_SOURCE_ID.to_string()));
-
     let index_dir = path.parent().unwrap_or_else(|| Path::new("."));
     let scene_dir = resolve_scene_dir(index_dir, &scene_folder);
 
-    let mut scenes = Vec::new();
-    let mut beats = Vec::new();
+    build_longform_structure(
+        project,
+        scene_entries,
+        &ignored_patterns,
+        index_dir,
+        &scene_dir,
+    )
+}
 
-    for (scene_position, entry) in scene_entries.into_iter().enumerate() {
-        let scene_file_name = ensure_markdown_extension(&entry.name);
-        let scene_path = scene_dir.join(&scene_file_name);
-        let scene_source_id = build_scene_source_id(index_dir, &scene_path);
-
-        let scene_content = parse_scene_file(&scene_path)?;
-
-        let mut scene = Scene::new(
-            chapter.id,
-            entry.name,
-            scene_content.synopsis,
-            scene_position as i32,
-        )
-        .with_source_id(Some(scene_source_id));
-        scene.prose = scene_content.prose;
-        scene.scene_type = scene_content.scene_type;
-        scene.scene_status = scene_content.scene_status;
-
-        for (beat_position, beat) in scene_content.beats.into_iter().enumerate() {
-            let mut new_beat = Beat::new(scene.id, beat.content, beat_position as i32);
-            new_beat.prose = beat.prose;
-            beats.push(new_beat);
+pub fn parse_longform_path<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, LongformError> {
+    let path = path.as_ref();
+    if path.is_dir() {
+        let indexes = find_longform_indexes(path)?;
+        if indexes.is_empty() {
+            return Err(LongformError::InvalidStructure(
+                "No Longform index files found in vault".to_string(),
+            ));
         }
-
-        scenes.push(scene);
+        if indexes.len() > 1 {
+            let list = indexes
+                .iter()
+                .map(|p| p.to_string_lossy().to_string())
+                .collect::<Vec<_>>()
+                .join("\n");
+            return Err(LongformError::InvalidStructure(format!(
+                "Multiple Longform index files found. Please pick one:\n{list}"
+            )));
+        }
+        return parse_longform_index(&indexes[0]);
     }
 
-    Ok(ParsedLongform {
-        project,
-        chapters: vec![chapter],
-        scenes,
-        beats,
-    })
+    parse_longform_index(path)
+}
+
+fn find_longform_indexes(vault_dir: &Path) -> Result<Vec<PathBuf>, LongformError> {
+    let mut indexes = Vec::new();
+
+    for entry in WalkDir::new(vault_dir)
+        .follow_links(true)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        if entry.path().extension().and_then(|s| s.to_str()) != Some("md") {
+            continue;
+        }
+
+        let content = fs::read_to_string(entry.path())?;
+        let (frontmatter_str, _) = match split_frontmatter(&content) {
+            Some(parts) => parts,
+            None => continue,
+        };
+
+        let frontmatter: LongformFrontmatter = match serde_yaml::from_str(&frontmatter_str) {
+            Ok(parsed) => parsed,
+            Err(_) => continue,
+        };
+
+        if let Some(longform) = frontmatter.longform {
+            let format = longform.format.unwrap_or_default().to_lowercase();
+            if format == "scenes" || format == "single" {
+                indexes.push(entry.path().to_path_buf());
+            }
+        }
+    }
+
+    Ok(indexes)
 }
 
 fn parse_scene_entries(value: &serde_yaml::Value) -> Result<Vec<SceneEntry>, LongformError> {
@@ -218,7 +256,27 @@ fn collect_scene_entries(
 
 fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
     let content = fs::read_to_string(path)?;
-    Ok(parse_scene_body(&content))
+    let (frontmatter, body) = match split_frontmatter(&content) {
+        Some((frontmatter_str, body)) => {
+            let parsed = serde_yaml::from_str::<SceneFrontmatter>(&frontmatter_str).ok();
+            (parsed, body)
+        }
+        None => (None, content),
+    };
+
+    let mut scene_content = parse_scene_body(&body);
+    if let Some(frontmatter) = frontmatter {
+        if scene_content.synopsis.is_none() {
+            if let Some(synopsis) = normalize_block(frontmatter.synopsis.as_deref().unwrap_or("")) {
+                scene_content.synopsis = Some(synopsis);
+            }
+        }
+        if let Some(status) = frontmatter.status {
+            scene_content.scene_status = parse_obsidian_status(&status);
+        }
+    }
+
+    Ok(scene_content)
 }
 
 fn parse_scene_body(content: &str) -> SceneContent {
@@ -324,6 +382,218 @@ fn normalize_block(content: &str) -> Option<String> {
     } else {
         Some(trimmed.to_string())
     }
+}
+
+fn normalize_scene_name(name: &str) -> String {
+    name.trim().to_string()
+}
+
+fn chapter_source_id_from_title(title: &str) -> String {
+    format!("longform:chapter:{}", normalize_scene_name(title))
+}
+
+fn should_ignore_scene(name: &str, patterns: &[String]) -> bool {
+    let trimmed = normalize_scene_name(name);
+    if trimmed.is_empty() {
+        return true;
+    }
+    let file_name = format!("{trimmed}.md");
+    patterns
+        .iter()
+        .any(|pattern| wildcard_match(pattern, &trimmed) || wildcard_match(pattern, &file_name))
+}
+
+fn wildcard_match(pattern: &str, text: &str) -> bool {
+    let pattern_chars: Vec<char> = pattern.chars().collect();
+    let text_chars: Vec<char> = text.chars().collect();
+    let mut p = 0;
+    let mut t = 0;
+    let mut star_index: Option<usize> = None;
+    let mut match_index = 0;
+
+    while t < text_chars.len() {
+        if p < pattern_chars.len() && (pattern_chars[p] == '?' || pattern_chars[p] == text_chars[t])
+        {
+            p += 1;
+            t += 1;
+        } else if p < pattern_chars.len() && pattern_chars[p] == '*' {
+            star_index = Some(p);
+            match_index = t;
+            p += 1;
+        } else if let Some(star_pos) = star_index {
+            p = star_pos + 1;
+            match_index += 1;
+            t = match_index;
+        } else {
+            return false;
+        }
+    }
+
+    while p < pattern_chars.len() && pattern_chars[p] == '*' {
+        p += 1;
+    }
+
+    p == pattern_chars.len()
+}
+
+fn parse_obsidian_status(raw: &str) -> SceneStatus {
+    match raw.trim().to_lowercase().as_str() {
+        "revised" => SceneStatus::Revised,
+        "final" => SceneStatus::Final,
+        "idea" | "outline" | "draft" => SceneStatus::Draft,
+        _ => SceneStatus::Draft,
+    }
+}
+
+fn build_longform_structure(
+    project: Project,
+    scene_entries: Vec<SceneEntry>,
+    ignored_patterns: &[String],
+    index_dir: &Path,
+    scene_dir: &Path,
+) -> Result<ParsedLongform, LongformError> {
+    let mut chapters = Vec::new();
+    let mut scenes = Vec::new();
+    let mut beats = Vec::new();
+
+    let has_hierarchy = scene_entries.iter().any(|entry| entry._depth > 0);
+
+    if !has_hierarchy {
+        let chapter = Chapter::new(project.id, "Chapter 1".to_string(), 0)
+            .with_source_id(Some(LONGFORM_DEFAULT_CHAPTER_SOURCE_ID.to_string()));
+        let mut scene_position = 0;
+
+        for entry in scene_entries {
+            if should_ignore_scene(&entry.name, ignored_patterns) {
+                continue;
+            }
+            add_scene_from_entry(
+                &chapter,
+                entry,
+                scene_position,
+                index_dir,
+                scene_dir,
+                &mut scenes,
+                &mut beats,
+            )?;
+            scene_position += 1;
+        }
+
+        chapters.push(chapter);
+    } else {
+        let mut current_chapter: Option<Chapter> = None;
+        let mut chapter_position = 0;
+        let mut scene_position = 0;
+        let mut chapter_has_scenes = false;
+
+        for entry in scene_entries {
+            if entry._depth == 0 {
+                if let Some(chapter) = current_chapter.take() {
+                    if chapter_has_scenes {
+                        chapters.push(chapter);
+                    }
+                }
+                chapter_has_scenes = false;
+                scene_position = 0;
+
+                current_chapter = Some(
+                    Chapter::new(project.id, entry.name.clone(), chapter_position)
+                        .with_source_id(Some(chapter_source_id_from_title(&entry.name))),
+                );
+                chapter_position += 1;
+
+                if !should_ignore_scene(&entry.name, ignored_patterns) {
+                    if let Some(ref chapter) = current_chapter {
+                        add_scene_from_entry(
+                            chapter,
+                            entry,
+                            scene_position,
+                            index_dir,
+                            scene_dir,
+                            &mut scenes,
+                            &mut beats,
+                        )?;
+                        scene_position += 1;
+                        chapter_has_scenes = true;
+                    }
+                }
+            } else {
+                if current_chapter.is_none() {
+                    current_chapter = Some(
+                        Chapter::new(project.id, "Chapter 1".to_string(), chapter_position)
+                            .with_source_id(Some(LONGFORM_DEFAULT_CHAPTER_SOURCE_ID.to_string())),
+                    );
+                    chapter_position += 1;
+                    scene_position = 0;
+                }
+                if !should_ignore_scene(&entry.name, ignored_patterns) {
+                    if let Some(ref chapter) = current_chapter {
+                        add_scene_from_entry(
+                            chapter,
+                            entry,
+                            scene_position,
+                            index_dir,
+                            scene_dir,
+                            &mut scenes,
+                            &mut beats,
+                        )?;
+                        scene_position += 1;
+                        chapter_has_scenes = true;
+                    }
+                }
+            }
+        }
+
+        if let Some(chapter) = current_chapter.take() {
+            if chapter_has_scenes {
+                chapters.push(chapter);
+            }
+        }
+    }
+
+    Ok(ParsedLongform {
+        project,
+        chapters,
+        scenes,
+        beats,
+    })
+}
+
+fn add_scene_from_entry(
+    chapter: &Chapter,
+    entry: SceneEntry,
+    scene_position: i32,
+    index_dir: &Path,
+    scene_dir: &Path,
+    scenes: &mut Vec<Scene>,
+    beats: &mut Vec<Beat>,
+) -> Result<(), LongformError> {
+    let scene_name = normalize_scene_name(&entry.name);
+    let scene_file_name = ensure_markdown_extension(&scene_name);
+    let scene_path = scene_dir.join(&scene_file_name);
+    let scene_source_id = build_scene_source_id(index_dir, &scene_path);
+
+    let scene_content = parse_scene_file(&scene_path)?;
+
+    let mut scene = Scene::new(
+        chapter.id,
+        scene_name,
+        scene_content.synopsis,
+        scene_position,
+    )
+    .with_source_id(Some(scene_source_id));
+    scene.prose = scene_content.prose;
+    scene.scene_type = scene_content.scene_type;
+    scene.scene_status = scene_content.scene_status;
+
+    for (beat_position, beat) in scene_content.beats.into_iter().enumerate() {
+        let mut new_beat = Beat::new(scene.id, beat.content, beat_position as i32);
+        new_beat.prose = beat.prose;
+        beats.push(new_beat);
+    }
+
+    scenes.push(scene);
+    Ok(())
 }
 
 fn parse_kindling_comment(line: &str) -> Option<HashMap<String, String>> {
@@ -579,5 +849,114 @@ This is some prose.
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].name, "1");
         assert_eq!(entries[1].name, "2");
+    }
+
+    #[test]
+    fn test_parse_scene_frontmatter_status_and_synopsis() {
+        let dir = tempdir().unwrap();
+        let index_path = dir.path().join("Project.md");
+        let index_content = r#"---
+longform:
+  format: scenes
+  title: Test Project
+  workflow: Default Workflow
+  sceneFolder: /
+  scenes:
+    - frontmatter scene
+---"#;
+        fs::write(&index_path, index_content).unwrap();
+
+        let scene_content = r#"---
+status: revised
+synopsis: Frontmatter synopsis
+---
+
+Scene prose."#;
+        fs::write(dir.path().join("frontmatter scene.md"), scene_content).unwrap();
+
+        let parsed = parse_longform_index(&index_path).unwrap();
+        assert_eq!(parsed.scenes.len(), 1);
+        assert_eq!(
+            parsed.scenes[0].synopsis.as_deref(),
+            Some("Frontmatter synopsis")
+        );
+        assert_eq!(parsed.scenes[0].scene_status, SceneStatus::Revised);
+    }
+
+    #[test]
+    fn test_ignored_files_patterns() {
+        let dir = tempdir().unwrap();
+        let index_path = dir.path().join("Project.md");
+        let index_content = r#"---
+longform:
+  format: scenes
+  title: Test Project
+  workflow: Default Workflow
+  sceneFolder: /
+  scenes:
+    - keep scene
+    - skip-scratch
+  ignoredFiles:
+    - "*-scratch"
+---"#;
+        fs::write(&index_path, index_content).unwrap();
+
+        fs::write(dir.path().join("keep scene.md"), "Content").unwrap();
+        fs::write(dir.path().join("skip-scratch.md"), "Content").unwrap();
+
+        let parsed = parse_longform_index(&index_path).unwrap();
+        assert_eq!(parsed.scenes.len(), 1);
+        assert_eq!(parsed.scenes[0].title, "keep scene");
+    }
+
+    #[test]
+    fn test_nested_scene_list_creates_chapters() {
+        let dir = tempdir().unwrap();
+        let index_path = dir.path().join("Project.md");
+        let index_content = r#"---
+longform:
+  format: scenes
+  title: Test Project
+  workflow: Default Workflow
+  sceneFolder: /
+  scenes:
+    - first scene
+    - - second scene
+      - third scene
+    - fourth scene
+---"#;
+        fs::write(&index_path, index_content).unwrap();
+
+        fs::write(dir.path().join("first scene.md"), "First").unwrap();
+        fs::write(dir.path().join("second scene.md"), "Second").unwrap();
+        fs::write(dir.path().join("third scene.md"), "Third").unwrap();
+        fs::write(dir.path().join("fourth scene.md"), "Fourth").unwrap();
+
+        let parsed = parse_longform_index(&index_path).unwrap();
+        assert_eq!(parsed.chapters.len(), 2);
+        assert_eq!(parsed.scenes.len(), 4);
+        assert_eq!(parsed.chapters[0].title, "first scene");
+        assert_eq!(parsed.chapters[1].title, "fourth scene");
+    }
+
+    #[test]
+    fn test_parse_longform_path_directory() {
+        let dir = tempdir().unwrap();
+        let index_path = dir.path().join("Project.md");
+        let index_content = r#"---
+longform:
+  format: scenes
+  title: Test Project
+  workflow: Default Workflow
+  sceneFolder: /
+  scenes:
+    - single scene
+---"#;
+        fs::write(&index_path, index_content).unwrap();
+        fs::write(dir.path().join("single scene.md"), "Scene content").unwrap();
+
+        let parsed = parse_longform_path(dir.path()).unwrap();
+        assert_eq!(parsed.project.name, "Test Project");
+        assert_eq!(parsed.scenes.len(), 1);
     }
 }

@@ -99,6 +99,35 @@ pub fn get_recent_projects(conn: &Connection, limit: usize) -> Result<Vec<Projec
     Ok(projects)
 }
 
+pub fn get_all_projects(conn: &Connection) -> Result<Vec<Project>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types
+         FROM projects ORDER BY modified_at DESC",
+    )?;
+
+    let projects = stmt
+        .query_map([], |row| {
+            Ok(Project {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                name: row.get(1)?,
+                source_type: SourceType::parse(&row.get::<_, String>(2)?)
+                    .unwrap_or(SourceType::Markdown),
+                source_path: row.get(3)?,
+                created_at: row.get(4)?,
+                modified_at: row.get(5)?,
+                author_pen_name: row.get(6)?,
+                genre: row.get(7)?,
+                description: row.get(8)?,
+                word_target: row.get(9)?,
+                reference_types: parse_reference_types(row.get(10)?),
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(projects)
+}
+
 pub fn update_project_modified(conn: &Connection, id: &Uuid) -> Result<()> {
     let now = chrono::Utc::now().to_rfc3339();
     conn.execute(

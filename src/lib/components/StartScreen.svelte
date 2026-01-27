@@ -11,14 +11,16 @@
 
   interface Props {
     recentProjects: Project[];
+    onImportLongform?: () => void;
   }
 
-  let { recentProjects = $bindable() }: Props = $props();
+  let { recentProjects = $bindable(), onImportLongform }: Props = $props();
 
   let deletingProjectId = $state<string | null>(null);
   let hoveredProjectId = $state<string | null>(null);
   let projectToDelete = $state<Project | null>(null);
   let showSettingsDialog = $state(false);
+  let showAllProjects = $state(false);
 
   async function importPlottr() {
     const path = await open({
@@ -83,6 +85,11 @@
     }
   }
 
+  function handleLongformImport() {
+    const handler = onImportLongform ?? importLongform;
+    handler();
+  }
+
   async function importYWriter() {
     const path = await open({
       multiple: false,
@@ -112,6 +119,20 @@
     } catch (e) {
       console.error("Failed to open project:", e);
       ui.showError(`Failed to open project: ${e}`);
+    }
+  }
+
+  async function toggleProjectList() {
+    showAllProjects = !showAllProjects;
+    try {
+      if (showAllProjects) {
+        recentProjects = await invoke("get_all_projects");
+      } else {
+        recentProjects = await invoke("get_recent_projects");
+      }
+    } catch (e) {
+      console.error("Failed to load projects:", e);
+      ui.showError(`Failed to load projects: ${e}`);
     }
   }
 
@@ -157,7 +178,7 @@
     </Tooltip>
   </div>
 
-  <div class="max-w-2xl w-full flex flex-col flex-1 min-h-0">
+  <div class="max-w-3xl w-full flex flex-col flex-1 min-h-0">
     <!-- Logo & Tagline -->
     <div class="text-center mb-12">
       <div class="flex justify-center mb-4">
@@ -229,17 +250,17 @@
           class="flex flex-col items-center p-4 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer"
         >
           <FileText class="w-10 h-10 text-accent mb-2" />
-          <span class="text-text-primary font-medium">Markdown</span>
-          <span class="text-text-secondary text-sm">.md</span>
+          <span class="text-text-primary font-medium">Markdown Outline</span>
+          <span class="text-text-secondary text-sm">Single .md file</span>
         </button>
 
         <button
-          onclick={importLongform}
+          onclick={handleLongformImport}
           class="flex flex-col items-center p-4 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer"
         >
           <BookOpen class="w-10 h-10 text-accent mb-2" />
-          <span class="text-text-primary font-medium">Longform</span>
-          <span class="text-text-secondary text-sm">Index .md</span>
+          <span class="text-text-primary font-medium">Longform Project</span>
+          <span class="text-text-secondary text-sm">Index file or vault</span>
         </button>
       </div>
     </div>
@@ -250,7 +271,17 @@
         data-testid="recent-projects"
         class="bg-bg-panel rounded-lg p-6 flex flex-col flex-1 min-h-0"
       >
-        <h2 class="text-xl font-heading font-medium text-text-primary mb-4">Recent Projects</h2>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-heading font-medium text-text-primary">
+            {showAllProjects ? "All Projects" : "Recent Projects"}
+          </h2>
+          <button
+            onclick={toggleProjectList}
+            class="text-xs text-text-secondary hover:text-text-primary transition-colors"
+          >
+            {showAllProjects ? "Show recent" : "View all"}
+          </button>
+        </div>
         <div class="space-y-2 overflow-y-auto pr-1 flex-1 min-h-0">
           {#each recentProjects as project (project.id)}
             <!-- svelte-ignore a11y_no_static_element_interactions -->

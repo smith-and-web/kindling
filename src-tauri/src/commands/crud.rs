@@ -35,6 +35,12 @@ pub async fn get_recent_projects(state: State<'_, AppState>) -> Result<Vec<Proje
     db::get_recent_projects(&conn, 10).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn get_all_projects(state: State<'_, AppState>) -> Result<Vec<Project>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    db::get_all_projects(&conn).map_err(|e| e.to_string())
+}
+
 /// Input type for updating project settings (pen name and genre)
 #[derive(serde::Deserialize)]
 pub struct ProjectSettingsUpdate {

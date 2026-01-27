@@ -13,6 +13,7 @@
   import ExportDialog from "./lib/components/ExportDialog.svelte";
   import ExportSuccessDialog from "./lib/components/ExportSuccessDialog.svelte";
   import ErrorToast from "./lib/components/ErrorToast.svelte";
+  import ImportLongformDialog from "./lib/components/ImportLongformDialog.svelte";
   import { currentProject } from "./lib/stores/project.svelte";
   import { ui } from "./lib/stores/ui.svelte";
   import type { Project, ExportResult } from "./lib/types";
@@ -24,6 +25,7 @@
   let showProjectSettings = $state(false);
   let showExportDialog = $state(false);
   let exportResult = $state<ExportResult | null>(null);
+  let showLongformImportDialog = $state(false);
 
   async function loadRecentProjects() {
     try {
@@ -127,6 +129,31 @@
     }
   }
 
+  async function importLongformVault() {
+    const path = await open({
+      directory: true,
+      multiple: false,
+    });
+
+    if (path) {
+      ui.startImport();
+      try {
+        const project = await invoke<Project>("import_longform", { path });
+        currentProject.setProject(project);
+        ui.setView("editor");
+      } catch (e) {
+        console.error("Failed to import Longform vault:", e);
+        ui.showError(`Import failed: ${e}`);
+      } finally {
+        ui.finishImport();
+      }
+    }
+  }
+
+  function openLongformImportDialog() {
+    showLongformImportDialog = true;
+  }
+
   function closeProject() {
     currentProject.setProject(null);
   }
@@ -147,7 +174,7 @@
           importMarkdown();
           break;
         case "import_longform":
-          importLongform();
+          openLongformImportDialog();
           break;
         case "export":
           if (currentProject.value) {
@@ -193,7 +220,7 @@
     <ScenePanel />
     <ReferencesPanel />
   {:else}
-    <StartScreen {recentProjects} />
+    <StartScreen {recentProjects} onImportLongform={openLongformImportDialog} />
   {/if}
 </main>
 
@@ -204,7 +231,7 @@
 {/if}
 
 <!-- Onboarding overlay (shown on first launch) -->
-<Onboarding />
+<Onboarding onImportLongform={openLongformImportDialog} />
 
 <!-- Kindling Settings Dialog (triggered by menu) -->
 {#if showKindlingSettings}
@@ -236,6 +263,20 @@
       showExportDialog = false;
       exportResult = result;
     }}
+  />
+{/if}
+
+{#if showLongformImportDialog}
+  <ImportLongformDialog
+    onSelectIndex={() => {
+      showLongformImportDialog = false;
+      importLongform();
+    }}
+    onSelectVault={() => {
+      showLongformImportDialog = false;
+      importLongformVault();
+    }}
+    onClose={() => (showLongformImportDialog = false)}
   />
 {/if}
 
