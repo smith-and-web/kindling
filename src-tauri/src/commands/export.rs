@@ -1980,6 +1980,8 @@ pub async fn export_to_longform(
     let characters =
         db::queries::get_characters(&conn, &project_uuid).map_err(|e| e.to_string())?;
     let locations = db::queries::get_locations(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    let reference_items =
+        db::queries::get_all_reference_items(&conn, &project_uuid).map_err(|e| e.to_string())?;
     let mut character_map = HashMap::new();
     for character in characters {
         character_map.insert(character.id, character);
@@ -1988,11 +1990,18 @@ pub async fn export_to_longform(
     for location in locations {
         location_map.insert(location.id, location);
     }
+    let mut reference_item_map = HashMap::new();
+    for item in reference_items {
+        reference_item_map.insert(item.id, item);
+    }
 
     let scene_character_refs = db::queries::get_all_scene_character_refs(&conn, &project_uuid)
         .map_err(|e| e.to_string())?;
     let scene_location_refs = db::queries::get_all_scene_location_refs(&conn, &project_uuid)
         .map_err(|e| e.to_string())?;
+    let scene_reference_item_refs =
+        db::queries::get_all_scene_reference_item_refs(&conn, &project_uuid)
+            .map_err(|e| e.to_string())?;
 
     let scene_ids: HashSet<Uuid> = scenes_to_export.iter().map(|(scene, _)| scene.id).collect();
     let mut scene_character_map: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
@@ -2011,6 +2020,15 @@ pub async fn export_to_longform(
                 .entry(reference.scene_id)
                 .or_default()
                 .push(reference.location_id);
+        }
+    }
+    let mut scene_reference_item_map: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+    for reference in scene_reference_item_refs {
+        if scene_ids.contains(&reference.scene_id) {
+            scene_reference_item_map
+                .entry(reference.scene_id)
+                .or_default()
+                .push(reference.reference_item_id);
         }
     }
 
@@ -2058,9 +2076,12 @@ pub async fn export_to_longform(
     files_created += 1;
 
     let mut reference_files_created = 0;
-    if !character_map.is_empty() || !location_map.is_empty() {
+    if !character_map.is_empty() || !location_map.is_empty() || !reference_item_map.is_empty() {
         let mut character_scene_map: HashMap<Uuid, Vec<String>> = HashMap::new();
         let mut location_scene_map: HashMap<Uuid, Vec<String>> = HashMap::new();
+        let mut item_scene_map: HashMap<Uuid, Vec<String>> = HashMap::new();
+        let mut objective_scene_map: HashMap<Uuid, Vec<String>> = HashMap::new();
+        let mut organization_scene_map: HashMap<Uuid, Vec<String>> = HashMap::new();
         let scene_order: Vec<(Uuid, String)> = scenes_to_export
             .iter()
             .map(|(scene, _)| (scene.id, scene.title.clone()))
@@ -2083,6 +2104,33 @@ pub async fn export_to_longform(
                         .push(scene_title.clone());
                 }
             }
+            if let Some(reference_items) = scene_reference_item_map.get(scene_id) {
+                for reference_item_id in reference_items {
+                    if let Some(reference_item) = reference_item_map.get(reference_item_id) {
+                        match reference_item.reference_type.as_str() {
+                            "items" => {
+                                item_scene_map
+                                    .entry(*reference_item_id)
+                                    .or_default()
+                                    .push(scene_title.clone());
+                            }
+                            "objectives" => {
+                                objective_scene_map
+                                    .entry(*reference_item_id)
+                                    .or_default()
+                                    .push(scene_title.clone());
+                            }
+                            "organizations" => {
+                                organization_scene_map
+                                    .entry(*reference_item_id)
+                                    .or_default()
+                                    .push(scene_title.clone());
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
         }
 
         if export_all_references {
@@ -2091,6 +2139,20 @@ pub async fn export_to_longform(
             }
             for location_id in location_map.keys() {
                 location_scene_map.entry(*location_id).or_default();
+            }
+            for (item_id, item) in &reference_item_map {
+                match item.reference_type.as_str() {
+                    "items" => {
+                        item_scene_map.entry(*item_id).or_default();
+                    }
+                    "objectives" => {
+                        objective_scene_map.entry(*item_id).or_default();
+                    }
+                    "organizations" => {
+                        organization_scene_map.entry(*item_id).or_default();
+                    }
+                    _ => {}
+                }
             }
         }
 
@@ -2160,6 +2222,109 @@ pub async fn export_to_longform(
                     .map_err(|e| format!("Failed to generate location note: {}", e))?;
                     fs::write(&file_path, markdown)
                         .map_err(|e| format!("Failed to write location note: {}", e))?;
+                    reference_files_created += 1;
+                }
+            }
+        }
+
+        if !item_scene_map.is_empty() {
+            let item_dir = project_folder.join("items");
+            fs::create_dir_all(&item_dir)
+                .map_err(|e| format!("Failed to create items folder: {}", e))?;
+            let mut used_names: HashMap<String, usize> = HashMap::new();
+            for (item_id, scenes) in item_scene_map {
+                if let Some(item) = reference_item_map.get(&item_id) {
+                    let stem =
+                        ensure_unique_scene_stem(sanitize_filename(&item.name), &mut used_names);
+                    let file_path = item_dir.join(format!("{}.md", stem));
+                    let notes = item
+                        .attributes
+                        .get("notes")
+                        .or_else(|| item.attributes.get("note"));
+                    let first_appearance = scenes.first();
+                    let markdown = generate_reference_note_markdown(ReferenceNoteContent {
+                        note_type: "item",
+                        name: &item.name,
+                        description: item.description.as_ref(),
+                        notes,
+                        role: None,
+                        first_appearance,
+                        appearances: &scenes,
+                        attributes: &item.attributes,
+                    })
+                    .map_err(|e| format!("Failed to generate item note: {}", e))?;
+                    fs::write(&file_path, markdown)
+                        .map_err(|e| format!("Failed to write item note: {}", e))?;
+                    reference_files_created += 1;
+                }
+            }
+        }
+
+        if !objective_scene_map.is_empty() {
+            let objective_dir = project_folder.join("objectives");
+            fs::create_dir_all(&objective_dir)
+                .map_err(|e| format!("Failed to create objectives folder: {}", e))?;
+            let mut used_names: HashMap<String, usize> = HashMap::new();
+            for (objective_id, scenes) in objective_scene_map {
+                if let Some(objective) = reference_item_map.get(&objective_id) {
+                    let stem = ensure_unique_scene_stem(
+                        sanitize_filename(&objective.name),
+                        &mut used_names,
+                    );
+                    let file_path = objective_dir.join(format!("{}.md", stem));
+                    let notes = objective
+                        .attributes
+                        .get("notes")
+                        .or_else(|| objective.attributes.get("note"));
+                    let first_appearance = scenes.first();
+                    let markdown = generate_reference_note_markdown(ReferenceNoteContent {
+                        note_type: "objective",
+                        name: &objective.name,
+                        description: objective.description.as_ref(),
+                        notes,
+                        role: None,
+                        first_appearance,
+                        appearances: &scenes,
+                        attributes: &objective.attributes,
+                    })
+                    .map_err(|e| format!("Failed to generate objective note: {}", e))?;
+                    fs::write(&file_path, markdown)
+                        .map_err(|e| format!("Failed to write objective note: {}", e))?;
+                    reference_files_created += 1;
+                }
+            }
+        }
+
+        if !organization_scene_map.is_empty() {
+            let organization_dir = project_folder.join("organizations");
+            fs::create_dir_all(&organization_dir)
+                .map_err(|e| format!("Failed to create organizations folder: {}", e))?;
+            let mut used_names: HashMap<String, usize> = HashMap::new();
+            for (organization_id, scenes) in organization_scene_map {
+                if let Some(organization) = reference_item_map.get(&organization_id) {
+                    let stem = ensure_unique_scene_stem(
+                        sanitize_filename(&organization.name),
+                        &mut used_names,
+                    );
+                    let file_path = organization_dir.join(format!("{}.md", stem));
+                    let notes = organization
+                        .attributes
+                        .get("notes")
+                        .or_else(|| organization.attributes.get("note"));
+                    let first_appearance = scenes.first();
+                    let markdown = generate_reference_note_markdown(ReferenceNoteContent {
+                        note_type: "organization",
+                        name: &organization.name,
+                        description: organization.description.as_ref(),
+                        notes,
+                        role: None,
+                        first_appearance,
+                        appearances: &scenes,
+                        attributes: &organization.attributes,
+                    })
+                    .map_err(|e| format!("Failed to generate organization note: {}", e))?;
+                    fs::write(&file_path, markdown)
+                        .map_err(|e| format!("Failed to write organization note: {}", e))?;
                     reference_files_created += 1;
                 }
             }
@@ -4408,5 +4573,26 @@ mod tests {
         assert!(markdown.contains("- [[Scene 2]]"));
         assert!(markdown.contains("age:"));
         assert!(markdown.contains("32"));
+    }
+
+    #[test]
+    fn test_generate_reference_note_markdown_item() {
+        let attributes = std::collections::HashMap::new();
+        let markdown = generate_reference_note_markdown(ReferenceNoteContent {
+            note_type: "item",
+            name: "Ancient Relic",
+            description: None,
+            notes: None,
+            role: None,
+            first_appearance: Some(&"Scene 3".to_string()),
+            appearances: &["Scene 3".to_string()],
+            attributes: &attributes,
+        })
+        .unwrap();
+
+        assert!(markdown.contains("type: item"));
+        assert!(markdown.contains("## Scenes"));
+        assert!(markdown.contains("- [[Scene 3]]"));
+        assert!(!markdown.contains("## Appearances"));
     }
 }
