@@ -7,7 +7,8 @@ use thiserror::Error;
 use walkdir::WalkDir;
 
 use crate::models::{
-    Beat, Chapter, Character, Location, Project, Scene, SceneStatus, SceneType, SourceType,
+    Beat, Chapter, Character, Location, Project, ReferenceItem, Scene, SceneStatus, SceneType,
+    SourceType,
 };
 
 const LONGFORM_DEFAULT_CHAPTER_SOURCE_ID: &str = "longform:default";
@@ -34,6 +35,7 @@ pub struct ParsedLongform {
     pub beats: Vec<Beat>,
     pub characters: Vec<Character>,
     pub locations: Vec<Location>,
+    pub reference_items: Vec<ReferenceItem>,
     pub scene_character_refs: Vec<(uuid::Uuid, uuid::Uuid)>,
     pub scene_location_refs: Vec<(uuid::Uuid, uuid::Uuid)>,
 }
@@ -71,9 +73,17 @@ struct SceneFrontmatter {
     pov: Option<String>,
     characters: Option<FrontmatterList>,
     setting: Option<FrontmatterList>,
+    items: Option<FrontmatterList>,
+    objects: Option<FrontmatterList>,
+    objectives: Option<FrontmatterList>,
+    goals: Option<FrontmatterList>,
+    organizations: Option<FrontmatterList>,
+    factions: Option<FrontmatterList>,
+    groups: Option<FrontmatterList>,
+    teams: Option<FrontmatterList>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(untagged)]
 enum FrontmatterList {
     Single(String),
@@ -106,6 +116,9 @@ struct SceneContent {
     beats: Vec<BeatContent>,
     characters: Vec<String>,
     locations: Vec<String>,
+    items: Vec<String>,
+    objectives: Vec<String>,
+    organizations: Vec<String>,
 }
 
 struct SceneEntry {
@@ -126,6 +139,9 @@ struct ReferenceNote {
 struct ReferenceNameIndex {
     character_names: HashSet<String>,
     location_names: HashSet<String>,
+    item_names: HashSet<String>,
+    objective_names: HashSet<String>,
+    organization_names: HashSet<String>,
 }
 
 impl ReferenceNameIndex {
@@ -141,6 +157,24 @@ impl ReferenceNameIndex {
                 .iter()
                 .map(|l| l.name.to_lowercase())
                 .collect(),
+            item_names: parsed
+                .reference_items
+                .iter()
+                .filter(|item| item.reference_type == "items")
+                .map(|item| item.name.to_lowercase())
+                .collect(),
+            objective_names: parsed
+                .reference_items
+                .iter()
+                .filter(|item| item.reference_type == "objectives")
+                .map(|item| item.name.to_lowercase())
+                .collect(),
+            organization_names: parsed
+                .reference_items
+                .iter()
+                .filter(|item| item.reference_type == "organizations")
+                .map(|item| item.name.to_lowercase())
+                .collect(),
         }
     }
 }
@@ -152,6 +186,9 @@ struct NoteFrontmatter {
     name: Option<String>,
     description: Option<String>,
     role: Option<String>,
+    tags: Option<FrontmatterList>,
+    category: Option<String>,
+    categories: Option<FrontmatterList>,
     #[serde(flatten)]
     extra: HashMap<String, serde_yaml::Value>,
 }
@@ -163,10 +200,12 @@ struct SceneBuildContext<'a> {
     beats: &'a mut Vec<Beat>,
     characters: &'a mut Vec<Character>,
     locations: &'a mut Vec<Location>,
+    reference_items: &'a mut Vec<ReferenceItem>,
     scene_character_refs: &'a mut Vec<(uuid::Uuid, uuid::Uuid)>,
     scene_location_refs: &'a mut Vec<(uuid::Uuid, uuid::Uuid)>,
     character_index: &'a mut HashMap<String, uuid::Uuid>,
     location_index: &'a mut HashMap<String, uuid::Uuid>,
+    reference_item_index: &'a mut HashMap<String, uuid::Uuid>,
 }
 
 struct DataviewContext<'a> {
@@ -176,6 +215,9 @@ struct DataviewContext<'a> {
     synopsis_locked: bool,
     characters: &'a mut Vec<String>,
     locations: &'a mut Vec<String>,
+    items: &'a mut Vec<String>,
+    objectives: &'a mut Vec<String>,
+    organizations: &'a mut Vec<String>,
 }
 
 // ============================================================================
@@ -249,6 +291,7 @@ pub fn parse_longform_index<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, L
     let reference_names = ReferenceNameIndex::new(&parsed);
     let notes = collect_reference_notes(index_dir, &skip_paths, &reference_names)?;
     merge_reference_notes(&mut parsed, notes);
+    update_project_reference_types(&mut parsed.project, &parsed.reference_items);
 
     Ok(parsed)
 }
@@ -431,12 +474,30 @@ fn resolve_note_kind(
 ) -> Option<ReferenceKind> {
     if let Some(frontmatter) = frontmatter {
         if let Some(ref note_type) = frontmatter.note_type {
-            let normalized = note_type.to_lowercase();
-            if normalized.contains("character") {
-                return Some(ReferenceKind::Character);
+            if let Some(kind) = reference_kind_from_label(note_type) {
+                return Some(kind);
             }
-            if normalized.contains("location") || normalized.contains("setting") {
-                return Some(ReferenceKind::Location);
+        }
+
+        if let Some(ref category) = frontmatter.category {
+            if let Some(kind) = reference_kind_from_label(category) {
+                return Some(kind);
+            }
+        }
+
+        if let Some(list) = frontmatter.categories.clone() {
+            for value in list.into_vec() {
+                if let Some(kind) = reference_kind_from_label(&value) {
+                    return Some(kind);
+                }
+            }
+        }
+
+        if let Some(list) = frontmatter.tags.clone() {
+            for value in list.into_vec() {
+                if let Some(kind) = reference_kind_from_label(&value) {
+                    return Some(kind);
+                }
             }
         }
     }
@@ -447,6 +508,15 @@ fn resolve_note_kind(
     if is_location_path(path) {
         return Some(ReferenceKind::Location);
     }
+    if is_item_path(path) {
+        return Some(ReferenceKind::Item);
+    }
+    if is_objective_path(path) {
+        return Some(ReferenceKind::Objective);
+    }
+    if is_organization_path(path) {
+        return Some(ReferenceKind::Organization);
+    }
 
     let stem_key = file_stem.to_lowercase();
     if reference_names.character_names.contains(&stem_key) {
@@ -454,6 +524,15 @@ fn resolve_note_kind(
     }
     if reference_names.location_names.contains(&stem_key) {
         return Some(ReferenceKind::Location);
+    }
+    if reference_names.item_names.contains(&stem_key) {
+        return Some(ReferenceKind::Item);
+    }
+    if reference_names.objective_names.contains(&stem_key) {
+        return Some(ReferenceKind::Objective);
+    }
+    if reference_names.organization_names.contains(&stem_key) {
+        return Some(ReferenceKind::Organization);
     }
 
     None
@@ -486,6 +565,22 @@ fn extract_note_details(
             }
         }
 
+        if let Some(list) = frontmatter.tags.clone() {
+            if let Some(value) = join_frontmatter_list(list) {
+                attributes.insert("tags".to_string(), value);
+            }
+        }
+        if let Some(ref category) = frontmatter.category {
+            if let Some(value) = normalize_block(category) {
+                attributes.insert("category".to_string(), value);
+            }
+        }
+        if let Some(list) = frontmatter.categories.clone() {
+            if let Some(value) = join_frontmatter_list(list) {
+                attributes.insert("categories".to_string(), value);
+            }
+        }
+
         for (key, value) in &frontmatter.extra {
             let normalized_key = key.trim().to_string();
             if normalized_key.is_empty() {
@@ -512,6 +607,21 @@ fn extract_note_details(
     }
 
     (name, description, attributes)
+}
+
+fn join_frontmatter_list(list: FrontmatterList) -> Option<String> {
+    let values: Vec<String> = list
+        .into_vec()
+        .into_iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect();
+
+    if values.is_empty() {
+        None
+    } else {
+        Some(values.join(", "))
+    }
 }
 
 fn normalize_reference_label(value: &str, kind: ReferenceKind) -> Option<String> {
@@ -595,6 +705,66 @@ fn is_location_path(path: &Path) -> bool {
     )
 }
 
+fn is_item_path(path: &Path) -> bool {
+    path_contains_folder(
+        path,
+        &[
+            "items",
+            "item",
+            "objects",
+            "object",
+            "artifacts",
+            "artifact",
+            "props",
+            "prop",
+        ],
+    )
+}
+
+fn is_objective_path(path: &Path) -> bool {
+    path_contains_folder(
+        path,
+        &[
+            "objectives",
+            "objective",
+            "goals",
+            "goal",
+            "quests",
+            "quest",
+            "missions",
+            "mission",
+            "tasks",
+            "task",
+        ],
+    )
+}
+
+fn is_organization_path(path: &Path) -> bool {
+    path_contains_folder(
+        path,
+        &[
+            "organizations",
+            "organisation",
+            "orgs",
+            "org",
+            "factions",
+            "faction",
+            "groups",
+            "group",
+            "teams",
+            "team",
+            "guilds",
+            "guild",
+            "companies",
+            "company",
+            "agencies",
+            "agency",
+            "crews",
+            "crew",
+        ],
+    )
+}
+
 fn path_contains_folder(path: &Path, names: &[&str]) -> bool {
     path.components().any(|component| {
         let std::path::Component::Normal(value) = component else {
@@ -621,13 +791,35 @@ fn merge_reference_notes(parsed: &mut ParsedLongform, notes: Vec<ReferenceNote>)
         .enumerate()
         .map(|(idx, location)| (location.name.to_lowercase(), idx))
         .collect();
+    let mut reference_item_index: HashMap<String, usize> = parsed
+        .reference_items
+        .iter()
+        .enumerate()
+        .map(|(idx, item)| (reference_item_key(&item.reference_type, &item.name), idx))
+        .collect();
 
     for note in notes {
         match note.kind {
             ReferenceKind::Character => merge_character_note(parsed, note, &mut character_index),
             ReferenceKind::Location => merge_location_note(parsed, note, &mut location_index),
+            ReferenceKind::Item | ReferenceKind::Objective | ReferenceKind::Organization => {
+                merge_reference_item_note(parsed, note, &mut reference_item_index);
+            }
         }
     }
+}
+
+fn update_project_reference_types(project: &mut Project, reference_items: &[ReferenceItem]) {
+    let mut types = project.reference_types.clone();
+    let mut seen: HashSet<String> = types.iter().cloned().collect();
+
+    for item in reference_items {
+        if seen.insert(item.reference_type.clone()) {
+            types.push(item.reference_type.clone());
+        }
+    }
+
+    project.reference_types = types;
 }
 
 fn merge_character_note(
@@ -716,6 +908,54 @@ fn merge_location_note(
     }
 }
 
+fn merge_reference_item_note(
+    parsed: &mut ParsedLongform,
+    note: ReferenceNote,
+    index: &mut HashMap<String, usize>,
+) {
+    let Some(reference_type) = reference_type_for_kind(note.kind) else {
+        return;
+    };
+
+    let name_key = reference_item_key(reference_type, &note.name);
+    let stem_key = reference_item_key(reference_type, &note.file_stem);
+
+    let mut matched_idx = index.get(&name_key).copied();
+    if matched_idx.is_none() && stem_key != name_key {
+        matched_idx = index.get(&stem_key).copied();
+    }
+
+    if let Some(idx) = matched_idx {
+        let item = &mut parsed.reference_items[idx];
+        if item.name != note.name {
+            item.name = note.name.clone();
+            index.remove(&stem_key);
+            index.insert(name_key.clone(), idx);
+        }
+        if item.description.is_none() {
+            item.description = note.description;
+        }
+        if item.source_id.is_none() {
+            item.source_id = note.source_id;
+        }
+        for (key, value) in note.attributes {
+            item.attributes.insert(key, value);
+        }
+    } else {
+        let mut item = ReferenceItem::new(
+            parsed.project.id,
+            reference_type.to_string(),
+            note.name,
+            note.description,
+            note.source_id,
+        );
+        item.attributes = note.attributes;
+        let idx = parsed.reference_items.len();
+        parsed.reference_items.push(item);
+        index.insert(name_key, idx);
+    }
+}
+
 fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
     let content = fs::read_to_string(path)?;
     let (frontmatter, body) = match split_frontmatter(&content) {
@@ -738,6 +978,9 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
         }
         let mut characters = std::mem::take(&mut scene_content.characters);
         let mut locations = std::mem::take(&mut scene_content.locations);
+        let mut items = std::mem::take(&mut scene_content.items);
+        let mut objectives = std::mem::take(&mut scene_content.objectives);
+        let mut organizations = std::mem::take(&mut scene_content.organizations);
         if let Some(list) = frontmatter.characters {
             for value in list.into_vec() {
                 push_reference(
@@ -745,6 +988,9 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
                     ReferenceKind::Character,
                     &mut characters,
                     &mut locations,
+                    &mut items,
+                    &mut objectives,
+                    &mut organizations,
                 );
             }
         }
@@ -754,6 +1000,9 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
                 ReferenceKind::Character,
                 &mut characters,
                 &mut locations,
+                &mut items,
+                &mut objectives,
+                &mut organizations,
             );
         }
         if let Some(list) = frontmatter.setting {
@@ -763,11 +1012,121 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
                     ReferenceKind::Location,
                     &mut characters,
                     &mut locations,
+                    &mut items,
+                    &mut objectives,
+                    &mut organizations,
+                );
+            }
+        }
+        if let Some(list) = frontmatter.items {
+            for value in list.into_vec() {
+                push_reference(
+                    &value,
+                    ReferenceKind::Item,
+                    &mut characters,
+                    &mut locations,
+                    &mut items,
+                    &mut objectives,
+                    &mut organizations,
+                );
+            }
+        }
+        if let Some(list) = frontmatter.objects {
+            for value in list.into_vec() {
+                push_reference(
+                    &value,
+                    ReferenceKind::Item,
+                    &mut characters,
+                    &mut locations,
+                    &mut items,
+                    &mut objectives,
+                    &mut organizations,
+                );
+            }
+        }
+        if let Some(list) = frontmatter.objectives {
+            for value in list.into_vec() {
+                push_reference(
+                    &value,
+                    ReferenceKind::Objective,
+                    &mut characters,
+                    &mut locations,
+                    &mut items,
+                    &mut objectives,
+                    &mut organizations,
+                );
+            }
+        }
+        if let Some(list) = frontmatter.goals {
+            for value in list.into_vec() {
+                push_reference(
+                    &value,
+                    ReferenceKind::Objective,
+                    &mut characters,
+                    &mut locations,
+                    &mut items,
+                    &mut objectives,
+                    &mut organizations,
+                );
+            }
+        }
+        if let Some(list) = frontmatter.organizations {
+            for value in list.into_vec() {
+                push_reference(
+                    &value,
+                    ReferenceKind::Organization,
+                    &mut characters,
+                    &mut locations,
+                    &mut items,
+                    &mut objectives,
+                    &mut organizations,
+                );
+            }
+        }
+        if let Some(list) = frontmatter.factions {
+            for value in list.into_vec() {
+                push_reference(
+                    &value,
+                    ReferenceKind::Organization,
+                    &mut characters,
+                    &mut locations,
+                    &mut items,
+                    &mut objectives,
+                    &mut organizations,
+                );
+            }
+        }
+        if let Some(list) = frontmatter.groups {
+            for value in list.into_vec() {
+                push_reference(
+                    &value,
+                    ReferenceKind::Organization,
+                    &mut characters,
+                    &mut locations,
+                    &mut items,
+                    &mut objectives,
+                    &mut organizations,
+                );
+            }
+        }
+        if let Some(list) = frontmatter.teams {
+            for value in list.into_vec() {
+                push_reference(
+                    &value,
+                    ReferenceKind::Organization,
+                    &mut characters,
+                    &mut locations,
+                    &mut items,
+                    &mut objectives,
+                    &mut organizations,
                 );
             }
         }
         scene_content.characters = normalize_reference_list(characters);
         scene_content.locations = normalize_reference_list(locations);
+        scene_content.items = normalize_reference_list(items);
+        scene_content.objectives = normalize_reference_list(objectives);
+        scene_content.organizations = normalize_reference_list(organizations);
     }
 
     Ok(scene_content)
@@ -786,6 +1145,9 @@ fn parse_scene_body(content: &str) -> SceneContent {
     let mut skipped_heading = false;
     let mut characters = Vec::new();
     let mut locations = Vec::new();
+    let mut items = Vec::new();
+    let mut objectives = Vec::new();
+    let mut organizations = Vec::new();
 
     for line in content.lines() {
         let trimmed = line.trim();
@@ -828,6 +1190,9 @@ fn parse_scene_body(content: &str) -> SceneContent {
                     synopsis_locked,
                     characters: &mut characters,
                     locations: &mut locations,
+                    items: &mut items,
+                    objectives: &mut objectives,
+                    organizations: &mut organizations,
                 };
                 apply_dataview_field(&key, &value, &mut context);
                 continue;
@@ -843,6 +1208,9 @@ fn parse_scene_body(content: &str) -> SceneContent {
                     ReferenceKind::Character,
                     &mut characters,
                     &mut locations,
+                    &mut items,
+                    &mut objectives,
+                    &mut organizations,
                 );
             }
             if !skipped_heading && trimmed_start.starts_with("# ") {
@@ -864,6 +1232,9 @@ fn parse_scene_body(content: &str) -> SceneContent {
         beats,
         characters: normalize_reference_list(characters),
         locations: normalize_reference_list(locations),
+        items: normalize_reference_list(items),
+        objectives: normalize_reference_list(objectives),
+        organizations: normalize_reference_list(organizations),
     }
 }
 
@@ -982,6 +1353,73 @@ fn parse_obsidian_status(raw: &str) -> SceneStatus {
 enum ReferenceKind {
     Character,
     Location,
+    Item,
+    Objective,
+    Organization,
+}
+
+fn reference_kind_from_label(label: &str) -> Option<ReferenceKind> {
+    let trimmed = label.trim().trim_start_matches('#');
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let normalized = trimmed
+        .split('/')
+        .next()
+        .unwrap_or(trimmed)
+        .trim()
+        .to_lowercase();
+
+    if normalized.contains("character")
+        || matches!(normalized.as_str(), "person" | "people" | "npc" | "cast")
+    {
+        return Some(ReferenceKind::Character);
+    }
+    if normalized.contains("location")
+        || normalized.contains("place")
+        || normalized.contains("setting")
+    {
+        return Some(ReferenceKind::Location);
+    }
+    if normalized.contains("objective")
+        || normalized.contains("goal")
+        || normalized.contains("quest")
+        || normalized.contains("mission")
+        || normalized.contains("task")
+    {
+        return Some(ReferenceKind::Objective);
+    }
+    if normalized.contains("organization")
+        || normalized.contains("organisation")
+        || normalized.contains("faction")
+        || normalized.contains("group")
+        || normalized.contains("team")
+        || normalized.contains("guild")
+        || normalized.contains("company")
+        || normalized.contains("agency")
+        || normalized.contains("crew")
+    {
+        return Some(ReferenceKind::Organization);
+    }
+    if normalized.contains("item")
+        || normalized.contains("object")
+        || normalized.contains("artifact")
+        || normalized.contains("prop")
+    {
+        return Some(ReferenceKind::Item);
+    }
+
+    None
+}
+
+fn reference_type_for_kind(kind: ReferenceKind) -> Option<&'static str> {
+    match kind {
+        ReferenceKind::Item => Some("items"),
+        ReferenceKind::Objective => Some("objectives"),
+        ReferenceKind::Organization => Some("organizations"),
+        _ => None,
+    }
 }
 
 fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_>) {
@@ -993,6 +1431,9 @@ fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_
                 ReferenceKind::Character,
                 context.characters,
                 context.locations,
+                context.items,
+                context.objectives,
+                context.organizations,
             );
         }
         "characters" => {
@@ -1002,16 +1443,64 @@ fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_
                     ReferenceKind::Character,
                     context.characters,
                     context.locations,
+                    context.items,
+                    context.objectives,
+                    context.organizations,
                 );
             }
         }
-        "setting" | "location" => {
+        "setting" | "location" | "locations" | "places" => {
             for entry in split_inline_list(value) {
                 push_reference(
                     &entry,
                     ReferenceKind::Location,
                     context.characters,
                     context.locations,
+                    context.items,
+                    context.objectives,
+                    context.organizations,
+                );
+            }
+        }
+        "items" | "item" | "objects" | "object" | "props" | "prop" | "artifacts" | "artifact" => {
+            for entry in split_inline_list(value) {
+                push_reference(
+                    &entry,
+                    ReferenceKind::Item,
+                    context.characters,
+                    context.locations,
+                    context.items,
+                    context.objectives,
+                    context.organizations,
+                );
+            }
+        }
+        "objectives" | "objective" | "goals" | "goal" | "quests" | "quest" | "missions"
+        | "mission" | "tasks" | "task" => {
+            for entry in split_inline_list(value) {
+                push_reference(
+                    &entry,
+                    ReferenceKind::Objective,
+                    context.characters,
+                    context.locations,
+                    context.items,
+                    context.objectives,
+                    context.organizations,
+                );
+            }
+        }
+        "organizations" | "organisation" | "orgs" | "org" | "factions" | "faction" | "groups"
+        | "group" | "teams" | "team" | "guilds" | "guild" | "companies" | "company"
+        | "agencies" | "agency" | "crews" | "crew" => {
+            for entry in split_inline_list(value) {
+                push_reference(
+                    &entry,
+                    ReferenceKind::Organization,
+                    context.characters,
+                    context.locations,
+                    context.items,
+                    context.objectives,
+                    context.organizations,
                 );
             }
         }
@@ -1093,11 +1582,17 @@ fn push_reference(
     default_kind: ReferenceKind,
     characters: &mut Vec<String>,
     locations: &mut Vec<String>,
+    items: &mut Vec<String>,
+    objectives: &mut Vec<String>,
+    organizations: &mut Vec<String>,
 ) {
     if let Some((kind, name)) = classify_reference(value, default_kind) {
         match kind {
             ReferenceKind::Character => characters.push(name),
             ReferenceKind::Location => locations.push(name),
+            ReferenceKind::Item => items.push(name),
+            ReferenceKind::Objective => objectives.push(name),
+            ReferenceKind::Organization => organizations.push(name),
         }
     }
 }
@@ -1182,10 +1677,12 @@ fn build_longform_structure(
     let mut beats = Vec::new();
     let mut characters = Vec::new();
     let mut locations = Vec::new();
+    let mut reference_items = Vec::new();
     let mut scene_character_refs = Vec::new();
     let mut scene_location_refs = Vec::new();
     let mut character_index: HashMap<String, uuid::Uuid> = HashMap::new();
     let mut location_index: HashMap<String, uuid::Uuid> = HashMap::new();
+    let mut reference_item_index: HashMap<String, uuid::Uuid> = HashMap::new();
     let mut build_context = SceneBuildContext {
         index_dir,
         scene_dir,
@@ -1193,10 +1690,12 @@ fn build_longform_structure(
         beats: &mut beats,
         characters: &mut characters,
         locations: &mut locations,
+        reference_items: &mut reference_items,
         scene_character_refs: &mut scene_character_refs,
         scene_location_refs: &mut scene_location_refs,
         character_index: &mut character_index,
         location_index: &mut location_index,
+        reference_item_index: &mut reference_item_index,
     };
 
     let has_hierarchy = scene_entries.iter().any(|entry| entry._depth > 0);
@@ -1277,6 +1776,7 @@ fn build_longform_structure(
         beats,
         characters,
         locations,
+        reference_items,
         scene_character_refs,
         scene_location_refs,
     })
@@ -1321,6 +1821,27 @@ fn add_scene_from_entry(
         context.locations,
         context.scene_location_refs,
         context.location_index,
+    );
+    register_reference_items(
+        chapter.project_id,
+        ReferenceKind::Item,
+        &scene_content.items,
+        context.reference_items,
+        context.reference_item_index,
+    );
+    register_reference_items(
+        chapter.project_id,
+        ReferenceKind::Objective,
+        &scene_content.objectives,
+        context.reference_items,
+        context.reference_item_index,
+    );
+    register_reference_items(
+        chapter.project_id,
+        ReferenceKind::Organization,
+        &scene_content.organizations,
+        context.reference_items,
+        context.reference_item_index,
     );
 
     for (beat_position, beat) in scene_content.beats.into_iter().enumerate() {
@@ -1378,6 +1899,37 @@ fn register_scene_locations(
             }
         };
         scene_location_refs.push((scene_id, location_id));
+    }
+}
+
+fn reference_item_key(reference_type: &str, name: &str) -> String {
+    format!("{}:{}", reference_type, name.trim().to_lowercase())
+}
+
+fn register_reference_items(
+    project_id: uuid::Uuid,
+    kind: ReferenceKind,
+    names: &[String],
+    reference_items: &mut Vec<ReferenceItem>,
+    reference_item_index: &mut HashMap<String, uuid::Uuid>,
+) {
+    let Some(reference_type) = reference_type_for_kind(kind) else {
+        return;
+    };
+    for name in names {
+        let key = reference_item_key(reference_type, name);
+        if reference_item_index.contains_key(&key) {
+            continue;
+        }
+        let item = ReferenceItem::new(
+            project_id,
+            reference_type.to_string(),
+            name.clone(),
+            None,
+            None,
+        );
+        reference_item_index.insert(key, item.id);
+        reference_items.push(item);
     }
 }
 
@@ -1722,6 +2274,9 @@ longform:
         let scene_content = r#"pov:: [[;Sarah]]
 characters:: [[John]], ;Zoe
 setting:: [[~Dock]]
+items:: [[Magic Sword]], relic
+objectives:: Find the relic
+organizations:: [[Guild]]
 #status/final
 
 Scene prose with [[;Mila]] and [[~Warehouse]]."#;
@@ -1740,6 +2295,31 @@ Scene prose with [[;Mila]] and [[~Warehouse]]."#;
         let location_names: Vec<_> = parsed.locations.iter().map(|l| l.name.as_str()).collect();
         assert!(location_names.contains(&"Dock"));
         assert!(location_names.contains(&"Warehouse"));
+
+        let item_names: Vec<_> = parsed
+            .reference_items
+            .iter()
+            .filter(|item| item.reference_type == "items")
+            .map(|item| item.name.as_str())
+            .collect();
+        assert!(item_names.contains(&"Magic Sword"));
+        assert!(item_names.contains(&"relic"));
+
+        let objective_names: Vec<_> = parsed
+            .reference_items
+            .iter()
+            .filter(|item| item.reference_type == "objectives")
+            .map(|item| item.name.as_str())
+            .collect();
+        assert!(objective_names.contains(&"Find the relic"));
+
+        let organization_names: Vec<_> = parsed
+            .reference_items
+            .iter()
+            .filter(|item| item.reference_type == "organizations")
+            .map(|item| item.name.as_str())
+            .collect();
+        assert!(organization_names.contains(&"Guild"));
     }
 
     #[test]
@@ -1787,6 +2367,20 @@ Additional notes."#;
 A cozy corner cafe on Main Street."#;
         fs::write(locations_dir.join("downtown cafe.md"), location_note).unwrap();
 
+        let items_dir = dir.path().join("items");
+        fs::create_dir_all(&items_dir).unwrap();
+        let item_note = r#"---
+type: item
+name: Magic Sword
+description: Ancient blade.
+rarity: legendary
+---
+
+# Magic Sword
+
+It hums softly."#;
+        fs::write(items_dir.join("magic sword.md"), item_note).unwrap();
+
         let parsed = parse_longform_index(&index_path).unwrap();
         let sarah = parsed
             .characters
@@ -1809,6 +2403,19 @@ A cozy corner cafe on Main Street."#;
         assert_eq!(
             cafe.description.as_deref(),
             Some("A cozy corner cafe on Main Street.")
+        );
+
+        let item = parsed
+            .reference_items
+            .iter()
+            .find(|reference| {
+                reference.reference_type == "items" && reference.name == "Magic Sword"
+            })
+            .unwrap();
+        assert_eq!(item.description.as_deref(), Some("Ancient blade."));
+        assert_eq!(
+            item.attributes.get("rarity").map(|s| s.as_str()),
+            Some("legendary")
         );
     }
 
