@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/svelte";
 import { invoke } from "@tauri-apps/api/core";
+import type { InvokeArgs } from "@tauri-apps/api/core";
 import ReferenceClassificationDialog from "./ReferenceClassificationDialog.svelte";
 import type { Character, Location, Project, ReferenceItem } from "../types";
 
@@ -79,7 +80,7 @@ const mockOrganizations: ReferenceItem[] = [
 ];
 
 function setupInvokeMocks() {
-  invokeMock.mockImplementation((command: string, args?: Record<string, unknown>) => {
+  invokeMock.mockImplementation((command: string, args?: InvokeArgs) => {
     if (command === "get_characters") {
       return Promise.resolve(mockCharacters);
     }
