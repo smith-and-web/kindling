@@ -143,6 +143,21 @@ export interface ReferenceItem {
   source_id: string | null;
 }
 
+/** Persisted per-scene reference workspace state */
+export interface SceneReferenceState {
+  scene_id: string;
+  reference_type: ReferenceTypeId;
+  reference_id: string;
+  position: number;
+  expanded: boolean;
+}
+
+export interface SceneReferenceStateUpdate {
+  reference_id: string;
+  position: number;
+  expanded: boolean;
+}
+
 /** Persisted state for resuming where the user left off */
 export interface SessionState {
   project_id: string;

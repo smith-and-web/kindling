@@ -7,6 +7,7 @@
     ChevronsLeft,
     ChevronsRight,
     GripVertical,
+    Link2,
     ListChevronsDownUp,
     Pencil,
     Plus,
@@ -14,7 +15,12 @@
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
-  import type { ReferenceItem, ReferenceTypeId } from "../types";
+  import type {
+    ReferenceItem,
+    ReferenceTypeId,
+    SceneReferenceState,
+    SceneReferenceStateUpdate,
+  } from "../types";
   import {
     DEFAULT_REFERENCE_TYPES,
     REFERENCE_TYPE_OPTIONS,
@@ -32,6 +38,10 @@
     {} as Record<ReferenceTypeId, ReferenceItem[]>
   );
   let expandedIds = new SvelteSet<string>();
+  let sceneReferenceStates = $state<SceneReferenceState[]>([]);
+  let sceneReferenceLoading = $state(false);
+  let sceneReferenceError = $state<string | null>(null);
+  let sceneReferenceRequestId = 0;
   let isResizing = $state(false);
   let draggedId = $state<string | null>(null);
   let dragOverId = $state<string | null>(null);
@@ -43,7 +53,35 @@
   } | null>(null);
   let deleteTarget = $state<ReferenceItem | null>(null);
   let activeTypeOption = $derived(getReferenceTypeOption(activeTab));
-  let activeItems = $derived(activeTab ? (referencesByType[activeTab] ?? []) : []);
+  let activeSceneStates = $derived(
+    activeTab && currentProject.currentScene
+      ? getSceneStatesForType(activeTab)
+      : ([] as SceneReferenceState[])
+  );
+  let linkedIds = $derived(new Set(activeSceneStates.map((state) => state.reference_id)));
+  let linkedItems = $derived(
+    activeTab
+      ? activeSceneStates
+          .map((state) =>
+            getReferencesForType(activeTab as ReferenceTypeId).find(
+              (item) => item.id === state.reference_id
+            )
+          )
+          .filter((item): item is ReferenceItem => item !== undefined)
+      : []
+  );
+  let unlinkedItems = $derived(
+    activeTab
+      ? getReferencesForType(activeTab as ReferenceTypeId).filter((item) => !linkedIds.has(item.id))
+      : []
+  );
+  let activeItems = $derived(
+    currentProject.currentScene
+      ? [...linkedItems, ...unlinkedItems]
+      : activeTab
+        ? getReferencesForType(activeTab as ReferenceTypeId)
+        : []
+  );
   let ActiveIcon = $derived(activeTypeOption?.icon ?? null);
   let iconBgClass = $derived(activeTypeOption?.bgClass ?? "bg-accent/20");
   let iconTextClass = $derived(activeTypeOption?.accentClass ?? "text-accent");
@@ -102,8 +140,90 @@
     }
   }
 
+  function getSceneStatesForType(type: ReferenceTypeId): SceneReferenceState[] {
+    return sceneReferenceStates
+      .filter((state) => state.reference_type === type)
+      .sort((a, b) => a.position - b.position);
+  }
+
+  function syncExpandedIdsFromState(states: SceneReferenceState[]) {
+    expandedIds.clear();
+    for (const state of states) {
+      if (state.expanded) {
+        expandedIds.add(state.reference_id);
+      }
+    }
+  }
+
+  async function loadSceneReferenceState(sceneId: string) {
+    const requestId = ++sceneReferenceRequestId;
+    sceneReferenceLoading = true;
+    sceneReferenceError = null;
+    try {
+      const states = await invoke<SceneReferenceState[]>("get_scene_reference_state", {
+        sceneId,
+      });
+      if (requestId !== sceneReferenceRequestId) return;
+      sceneReferenceStates = states;
+      syncExpandedIdsFromState(states);
+    } catch (e) {
+      if (requestId !== sceneReferenceRequestId) return;
+      console.error("Failed to load scene reference state:", e);
+      sceneReferenceError = e instanceof Error ? e.message : "Failed to load scene reference state";
+      sceneReferenceStates = [];
+      syncExpandedIdsFromState([]);
+    } finally {
+      if (requestId === sceneReferenceRequestId) {
+        sceneReferenceLoading = false;
+      }
+    }
+  }
+
+  async function saveSceneReferenceState(
+    referenceType: ReferenceTypeId,
+    updates: SceneReferenceStateUpdate[]
+  ) {
+    const scene = currentProject.currentScene;
+    if (!scene) return;
+    try {
+      await invoke("save_scene_reference_state", {
+        sceneId: scene.id,
+        referenceType,
+        states: updates,
+      });
+      const nextStates = [
+        ...sceneReferenceStates.filter((state) => state.reference_type !== referenceType),
+        ...updates.map((update) => ({
+          scene_id: scene.id,
+          reference_type: referenceType,
+          reference_id: update.reference_id,
+          position: update.position,
+          expanded: update.expanded,
+        })),
+      ];
+      sceneReferenceStates = nextStates;
+      syncExpandedIdsFromState(nextStates);
+    } catch (e) {
+      console.error("Failed to save scene reference state:", e);
+      sceneReferenceError = e instanceof Error ? e.message : "Failed to save scene reference state";
+    }
+  }
+
   function toggleExpanded(id: string) {
-    if (expandedIds.has(id)) {
+    const isExpanded = expandedIds.has(id);
+    const nextExpanded = !isExpanded;
+    if (currentProject.currentScene && activeTab && linkedIds.has(id)) {
+      const states = getSceneStatesForType(activeTab);
+      const updates = states.map((state, index) => ({
+        reference_id: state.reference_id,
+        position: index,
+        expanded: state.reference_id === id ? nextExpanded : state.expanded,
+      }));
+      saveSceneReferenceState(activeTab, updates);
+      return;
+    }
+
+    if (isExpanded) {
       expandedIds.delete(id);
     } else {
       expandedIds.add(id);
@@ -111,11 +231,38 @@
   }
 
   function collapseAll() {
+    if (currentProject.currentScene && activeTab) {
+      const states = getSceneStatesForType(activeTab);
+      const updates = states.map((state, index) => ({
+        reference_id: state.reference_id,
+        position: index,
+        expanded: false,
+      }));
+      saveSceneReferenceState(activeTab, updates);
+      return;
+    }
     expandedIds.clear();
   }
 
   function sortAlphabetically() {
     if (!activeTab) return;
+    if (currentProject.currentScene) {
+      const states = getSceneStatesForType(activeTab);
+      const itemMap = new Map((referencesByType[activeTab] ?? []).map((item) => [item.id, item]));
+      const sorted = [...states].sort((a, b) => {
+        const aName = itemMap.get(a.reference_id)?.name ?? "";
+        const bName = itemMap.get(b.reference_id)?.name ?? "";
+        return aName.localeCompare(bName);
+      });
+      const updates = sorted.map((state, index) => ({
+        reference_id: state.reference_id,
+        position: index,
+        expanded: state.expanded,
+      }));
+      saveSceneReferenceState(activeTab, updates);
+      return;
+    }
+
     const items = referencesByType[activeTab] ?? [];
     const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name));
     referencesByType = { ...referencesByType, [activeTab]: sorted };
@@ -124,6 +271,39 @@
     } else if (activeTab === "locations") {
       currentProject.setLocations(sorted);
     }
+  }
+
+  async function toggleSceneLink(reference: ReferenceItem) {
+    if (!currentProject.currentScene) return;
+    const referenceType = reference.reference_type;
+    const states = getSceneStatesForType(referenceType);
+    const isLinked = states.some((state) => state.reference_id === reference.id);
+
+    let updates: SceneReferenceStateUpdate[];
+    if (isLinked) {
+      updates = states
+        .filter((state) => state.reference_id !== reference.id)
+        .map((state, index) => ({
+          reference_id: state.reference_id,
+          position: index,
+          expanded: state.expanded,
+        }));
+    } else {
+      updates = [
+        ...states.map((state, index) => ({
+          reference_id: state.reference_id,
+          position: index,
+          expanded: state.expanded,
+        })),
+        {
+          reference_id: reference.id,
+          position: states.length,
+          expanded: false,
+        },
+      ];
+    }
+
+    await saveSceneReferenceState(referenceType, updates);
   }
 
   function formatAttributes(attrs: Record<string, string>): [string, string][] {
@@ -146,6 +326,10 @@
 
   function getReferenceTypeOption(type: ReferenceTypeId | null) {
     return REFERENCE_TYPE_OPTIONS.find((option) => option.id === type) ?? null;
+  }
+
+  function getReferencesForType(type: ReferenceTypeId) {
+    return referencesByType[type] ?? [];
   }
 
   function getReferenceCount(type: ReferenceTypeId) {
@@ -200,6 +384,9 @@
         referenceType: deleteTarget.reference_type,
       });
       await loadReferences();
+      if (currentProject.currentScene) {
+        loadSceneReferenceState(currentProject.currentScene.id);
+      }
     } catch (e) {
       console.error("Failed to delete reference:", e);
       ui.showError(`Failed to delete reference: ${e}`);
@@ -212,7 +399,10 @@
   let draggedElement: globalThis.HTMLElement | null = null;
   let currentDragOverElement: globalThis.HTMLElement | null = null;
 
-  function onDragHandleMouseDown(e: globalThis.MouseEvent, id: string) {
+  function onDragHandleMouseDown(e: globalThis.MouseEvent, id: string, canDrag = true) {
+    if (!canDrag) {
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     draggedId = id;
@@ -278,17 +468,34 @@
     }
 
     if (draggedId && dragOverId && draggedId !== dragOverId && activeTab) {
-      const items = [...(referencesByType[activeTab] ?? [])];
-      const fromIndex = items.findIndex((item) => item.id === draggedId);
-      const toIndex = items.findIndex((item) => item.id === dragOverId);
-      if (fromIndex !== -1 && toIndex !== -1) {
-        const [moved] = items.splice(fromIndex, 1);
-        items.splice(toIndex, 0, moved);
-        referencesByType = { ...referencesByType, [activeTab]: items };
-        if (activeTab === "characters") {
-          currentProject.setCharacters(items);
-        } else if (activeTab === "locations") {
-          currentProject.setLocations(items);
+      if (currentProject.currentScene) {
+        const states = getSceneStatesForType(activeTab);
+        const fromIndex = states.findIndex((state) => state.reference_id === draggedId);
+        const toIndex = states.findIndex((state) => state.reference_id === dragOverId);
+        if (fromIndex !== -1 && toIndex !== -1) {
+          const nextStates = [...states];
+          const [moved] = nextStates.splice(fromIndex, 1);
+          nextStates.splice(toIndex, 0, moved);
+          const updates = nextStates.map((state, index) => ({
+            reference_id: state.reference_id,
+            position: index,
+            expanded: state.expanded,
+          }));
+          saveSceneReferenceState(activeTab, updates);
+        }
+      } else {
+        const items = [...(referencesByType[activeTab] ?? [])];
+        const fromIndex = items.findIndex((item) => item.id === draggedId);
+        const toIndex = items.findIndex((item) => item.id === dragOverId);
+        if (fromIndex !== -1 && toIndex !== -1) {
+          const [moved] = items.splice(fromIndex, 1);
+          items.splice(toIndex, 0, moved);
+          referencesByType = { ...referencesByType, [activeTab]: items };
+          if (activeTab === "characters") {
+            currentProject.setCharacters(items);
+          } else if (activeTab === "locations") {
+            currentProject.setLocations(items);
+          }
         }
       }
     }
@@ -335,6 +542,21 @@
       ui.setReferencesPanelWidth(ui.referencesPanelWidth - step);
     }
   }
+
+  let lastSceneId: string | null = null;
+  $effect(() => {
+    const sceneId = currentProject.currentScene?.id ?? null;
+    if (sceneId === lastSceneId) return;
+    lastSceneId = sceneId;
+    if (sceneId) {
+      loadSceneReferenceState(sceneId);
+    } else {
+      sceneReferenceStates = [];
+      sceneReferenceError = null;
+      sceneReferenceLoading = false;
+      syncExpandedIdsFromState([]);
+    }
+  });
 
   $effect(() => {
     if (currentProject.value) {
@@ -461,11 +683,35 @@
         </span>
       </div>
     {:else}
+      {#if currentProject.currentScene}
+        <div class="flex items-center justify-between px-1 pb-2 text-xs text-text-secondary">
+          <span class="uppercase tracking-wide">Linked to this scene</span>
+          {#if sceneReferenceLoading}
+            <span>Loading…</span>
+          {/if}
+        </div>
+        {#if sceneReferenceError}
+          <div class="px-1 pb-2 text-xs text-red-400">{sceneReferenceError}</div>
+        {:else if linkedItems.length === 0 && !sceneReferenceLoading}
+          <div class="px-1 pb-2 text-xs text-text-secondary">
+            No references linked to this scene yet.
+          </div>
+        {/if}
+      {/if}
       <div class="space-y-2">
-        {#each activeItems as reference (reference.id)}
+        {#each activeItems as reference, index (reference.id)}
           {@const isExpanded = expandedIds.has(reference.id)}
           {@const attributes = formatAttributes(reference.attributes)}
           {@const notes = getNotes(reference.attributes)}
+          {@const isLinked = currentProject.currentScene ? linkedIds.has(reference.id) : false}
+          {@const canDrag = !currentProject.currentScene || isLinked}
+          {#if currentProject.currentScene && linkedItems.length > 0 && index === linkedItems.length}
+            <div
+              class="border-t border-bg-card pt-3 mt-3 text-xs text-text-secondary uppercase tracking-wide"
+            >
+              All references
+            </div>
+          {/if}
           <div
             class="bg-bg-card rounded-lg overflow-hidden"
             class:ring-2={dragOverId === reference.id}
@@ -478,13 +724,30 @@
               <!-- Drag handle -->
               <div
                 class="text-text-secondary/50 cursor-grab active:cursor-grabbing shrink-0 hover:text-text-secondary"
-                onmousedown={(e) => onDragHandleMouseDown(e, reference.id)}
+                class:opacity-40={!canDrag}
+                onmousedown={(e) => onDragHandleMouseDown(e, reference.id, canDrag)}
                 role="button"
                 tabindex="-1"
                 aria-label="Drag to reorder"
               >
                 <GripVertical class="w-4 h-4" />
               </div>
+              {#if currentProject.currentScene}
+                <Tooltip text={isLinked ? "Unlink from scene" : "Link to scene"} position="bottom">
+                  <button
+                    onclick={() => toggleSceneLink(reference)}
+                    class={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-xs transition-colors ${
+                      isLinked
+                        ? "border-accent/60 text-accent hover:border-accent"
+                        : "border-bg-card text-text-secondary hover:text-text-primary hover:border-accent/40"
+                    }`}
+                    aria-label={isLinked ? "Unlink from scene" : "Link to scene"}
+                  >
+                    <Link2 class="w-3 h-3" />
+                    <span>{isLinked ? "Unlink" : "Link"}</span>
+                  </button>
+                </Tooltip>
+              {/if}
               <!-- Clickable area for expand/collapse -->
               <button
                 onclick={() => toggleExpanded(reference.id)}

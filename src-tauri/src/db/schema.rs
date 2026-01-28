@@ -106,6 +106,21 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             PRIMARY KEY (scene_id, location_id)
         );
 
+        CREATE TABLE IF NOT EXISTS scene_reference_item_refs (
+            scene_id TEXT REFERENCES scenes(id) ON DELETE CASCADE,
+            reference_item_id TEXT REFERENCES reference_items(id) ON DELETE CASCADE,
+            PRIMARY KEY (scene_id, reference_item_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS scene_reference_state (
+            scene_id TEXT REFERENCES scenes(id) ON DELETE CASCADE,
+            reference_type TEXT NOT NULL,
+            reference_id TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            expanded INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (scene_id, reference_type, reference_id)
+        );
+
         CREATE TABLE IF NOT EXISTS session_state (
             project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
             current_scene_id TEXT,
@@ -139,6 +154,10 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_locations_project ON locations(project_id);
         CREATE INDEX IF NOT EXISTS idx_reference_items_project ON reference_items(project_id);
         CREATE INDEX IF NOT EXISTS idx_reference_items_type ON reference_items(project_id, reference_type);
+        CREATE INDEX IF NOT EXISTS idx_scene_reference_items_scene ON scene_reference_item_refs(scene_id);
+        CREATE INDEX IF NOT EXISTS idx_scene_reference_items_item ON scene_reference_item_refs(reference_item_id);
+        CREATE INDEX IF NOT EXISTS idx_scene_reference_state_scene ON scene_reference_state(scene_id);
+        CREATE INDEX IF NOT EXISTS idx_scene_reference_state_type ON scene_reference_state(scene_id, reference_type);
         CREATE INDEX IF NOT EXISTS idx_snapshots_project ON snapshots(project_id);
 
         -- Enable foreign key support
@@ -266,6 +285,54 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
         conn.execute("ALTER TABLE projects ADD COLUMN reference_types TEXT", [])?;
     }
 
+    // Migration: Add scene reference tables if missing
+    let tables: Vec<String> = conn
+        .prepare("SELECT name FROM sqlite_master WHERE type='table'")?
+        .query_map([], |row| row.get::<_, String>(0))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if !tables.contains(&"scene_reference_item_refs".to_string()) {
+        conn.execute(
+            "CREATE TABLE scene_reference_item_refs (
+                scene_id TEXT REFERENCES scenes(id) ON DELETE CASCADE,
+                reference_item_id TEXT REFERENCES reference_items(id) ON DELETE CASCADE,
+                PRIMARY KEY (scene_id, reference_item_id)
+            )",
+            [],
+        )?;
+        conn.execute(
+            "CREATE INDEX idx_scene_reference_items_scene ON scene_reference_item_refs(scene_id)",
+            [],
+        )?;
+        conn.execute(
+            "CREATE INDEX idx_scene_reference_items_item ON scene_reference_item_refs(reference_item_id)",
+            [],
+        )?;
+    }
+
+    if !tables.contains(&"scene_reference_state".to_string()) {
+        conn.execute(
+            "CREATE TABLE scene_reference_state (
+                scene_id TEXT REFERENCES scenes(id) ON DELETE CASCADE,
+                reference_type TEXT NOT NULL,
+                reference_id TEXT NOT NULL,
+                position INTEGER NOT NULL,
+                expanded INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (scene_id, reference_type, reference_id)
+            )",
+            [],
+        )?;
+        conn.execute(
+            "CREATE INDEX idx_scene_reference_state_scene ON scene_reference_state(scene_id)",
+            [],
+        )?;
+        conn.execute(
+            "CREATE INDEX idx_scene_reference_state_type ON scene_reference_state(scene_id, reference_type)",
+            [],
+        )?;
+    }
+
     Ok(())
 }
 
@@ -294,5 +361,7 @@ mod tests {
         assert!(tables.contains(&"characters".to_string()));
         assert!(tables.contains(&"locations".to_string()));
         assert!(tables.contains(&"reference_items".to_string()));
+        assert!(tables.contains(&"scene_reference_item_refs".to_string()));
+        assert!(tables.contains(&"scene_reference_state".to_string()));
     }
 }

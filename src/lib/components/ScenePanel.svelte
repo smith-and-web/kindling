@@ -4,9 +4,17 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onDestroy, tick } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
+  import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
-  import type { Beat, Scene, SceneStatus, SceneType } from "../types";
+  import type {
+    Beat,
+    ReferenceItem,
+    ReferenceTypeId,
+    Scene,
+    SceneStatus,
+    SceneType,
+  } from "../types";
   import NovelEditor from "./NovelEditor.svelte";
   import Tooltip from "./Tooltip.svelte";
 
@@ -56,6 +64,50 @@
     { value: "revised", label: "Revised" },
     { value: "final", label: "Final" },
   ];
+
+  const sceneReferenceOptions = REFERENCE_TYPE_OPTIONS.filter(
+    (option) => option.id === "items" || option.id === "objectives" || option.id === "organizations"
+  );
+
+  let sceneReferenceItems = $state<Record<ReferenceTypeId, ReferenceItem[]>>(
+    {} as Record<ReferenceTypeId, ReferenceItem[]>
+  );
+  let sceneReferenceLoading = $state(false);
+  let sceneReferenceError = $state<string | null>(null);
+  let sceneReferenceRequestId = 0;
+
+  async function loadSceneReferenceItems(sceneId: string) {
+    const requestId = ++sceneReferenceRequestId;
+    sceneReferenceLoading = true;
+    sceneReferenceError = null;
+    try {
+      const results = await Promise.all(
+        sceneReferenceOptions.map(async (option) => {
+          const items = await invoke<ReferenceItem[]>("get_scene_reference_items", {
+            sceneId,
+            referenceType: option.id,
+          });
+          return [option.id, items] as const;
+        })
+      );
+
+      if (requestId !== sceneReferenceRequestId) return;
+      const next = {} as Record<ReferenceTypeId, ReferenceItem[]>;
+      for (const [referenceType, items] of results) {
+        next[referenceType] = items;
+      }
+      sceneReferenceItems = next;
+    } catch (e) {
+      if (requestId !== sceneReferenceRequestId) return;
+      console.error("Failed to load scene reference items:", e);
+      sceneReferenceError = e instanceof Error ? e.message : "Failed to load scene reference items";
+      sceneReferenceItems = {} as Record<ReferenceTypeId, ReferenceItem[]>;
+    } finally {
+      if (requestId === sceneReferenceRequestId) {
+        sceneReferenceLoading = false;
+      }
+    }
+  }
 
   function syncPendingProse(beatId: string) {
     const pendingProse = pendingProseUpdates.get(beatId);
@@ -302,6 +354,22 @@
     lastSceneId = sceneId;
   });
 
+  let lastSceneReferenceId: string | null = null;
+  $effect(() => {
+    const sceneId = currentProject.currentScene?.id ?? null;
+    if (sceneId === lastSceneReferenceId) return;
+    lastSceneReferenceId = sceneId;
+
+    if (!sceneId) {
+      sceneReferenceItems = {} as Record<ReferenceTypeId, ReferenceItem[]>;
+      sceneReferenceError = null;
+      sceneReferenceLoading = false;
+      return;
+    }
+
+    loadSceneReferenceItems(sceneId);
+  });
+
   onDestroy(() => {
     flushPendingSave(ui.expandedBeatId ?? undefined);
     if (ui.expandedBeatId) {
@@ -464,6 +532,52 @@
           {/if}
         </section>
 
+        <!-- References -->
+        <section class="mb-8">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-sm font-medium text-text-secondary uppercase tracking-wide">
+              References
+            </h2>
+            {#if sceneReferenceLoading}
+              <span class="text-xs text-text-secondary">Loading…</span>
+            {/if}
+          </div>
+          {#if sceneReferenceError}
+            <p class="text-xs text-red-400">{sceneReferenceError}</p>
+          {:else}
+            {@const hasSceneReferences = sceneReferenceOptions.some(
+              (option) => (sceneReferenceItems[option.id]?.length ?? 0) > 0
+            )}
+            {#if hasSceneReferences}
+              <div class="space-y-4">
+                {#each sceneReferenceOptions as option (option.id)}
+                  {@const items = sceneReferenceItems[option.id] ?? []}
+                  {#if items.length > 0}
+                    {@const Icon = option.icon}
+                    <div>
+                      <div class="flex items-center gap-2 text-xs text-text-secondary">
+                        <Icon class={`w-3.5 h-3.5 ${option.accentClass}`} />
+                        <span class="font-medium">{option.label}</span>
+                      </div>
+                      <div class="mt-2 flex flex-wrap gap-2">
+                        {#each items as item (item.id)}
+                          <span class="px-2 py-1 rounded-md bg-bg-panel text-text-primary text-xs">
+                            {item.name}
+                          </span>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+                {/each}
+              </div>
+            {:else if !sceneReferenceLoading}
+              <div class="text-sm text-text-secondary">
+                No linked items, objectives, or organizations.
+              </div>
+            {/if}
+          {/if}
+        </section>
+
         <!-- Beats -->
         <section>
           <div class="flex items-center justify-between mb-4">
@@ -492,7 +606,7 @@
                     onclick={() => toggleBeat(beat.id)}
                     class="w-full bg-beat-header px-4 py-2 flex items-center gap-3 hover:bg-beat-header/80 transition-colors cursor-pointer text-left"
                   >
-                    <span class="text-text-secondary flex-shrink-0">
+                    <span class="text-text-secondary shrink-0">
                       {#if isExpanded}
                         <ChevronDown class="w-4 h-4" />
                       {:else}
@@ -500,7 +614,7 @@
                       {/if}
                     </span>
                     <span
-                      class="w-6 h-6 rounded-full bg-accent text-white text-xs font-medium flex items-center justify-center flex-shrink-0"
+                      class="w-6 h-6 rounded-full bg-accent text-white text-xs font-medium flex items-center justify-center shrink-0"
                     >
                       {index + 1}
                     </span>

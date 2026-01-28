@@ -10,7 +10,8 @@ use uuid::Uuid;
 
 use crate::db;
 use crate::models::{
-    Beat, Chapter, Character, Location, Project, ReferenceItem, Scene, SceneStatus, SceneType,
+    Beat, Chapter, Character, Location, Project, ReferenceItem, Scene, SceneReferenceState,
+    SceneStatus, SceneType,
 };
 
 use super::AppState;
@@ -730,6 +731,137 @@ pub async fn get_references(
 }
 
 #[tauri::command]
+pub async fn get_scene_reference_items(
+    scene_id: String,
+    reference_type: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<ReferenceItem>, String> {
+    let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    db::get_scene_reference_items(&conn, &scene_uuid, &reference_type).map_err(|e| e.to_string())
+}
+
+#[derive(serde::Deserialize)]
+pub struct SceneReferenceStateUpdate {
+    pub reference_id: String,
+    pub position: i32,
+    pub expanded: bool,
+}
+
+#[tauri::command]
+pub async fn get_scene_reference_state(
+    scene_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<SceneReferenceState>, String> {
+    let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    db::cleanup_scene_reference_state(&conn, &scene_uuid).map_err(|e| e.to_string())?;
+
+    let mut states =
+        db::get_scene_reference_states(&conn, &scene_uuid).map_err(|e| e.to_string())?;
+    if states.is_empty() {
+        states = db::build_default_scene_reference_state(&conn, &scene_uuid)
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(states)
+}
+
+#[tauri::command]
+pub async fn save_scene_reference_state(
+    scene_id: String,
+    reference_type: String,
+    states: Vec<SceneReferenceStateUpdate>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    conn.execute("BEGIN TRANSACTION", [])
+        .map_err(|e| e.to_string())?;
+
+    db::delete_scene_reference_states_for_type(&conn, &scene_uuid, &reference_type).map_err(
+        |e| {
+            let _ = conn.execute("ROLLBACK", []);
+            e.to_string()
+        },
+    )?;
+
+    let mut reference_ids = Vec::new();
+    for state_update in &states {
+        let reference_id =
+            Uuid::parse_str(&state_update.reference_id).map_err(|e| e.to_string())?;
+        reference_ids.push(reference_id);
+        let state = SceneReferenceState {
+            scene_id: scene_uuid,
+            reference_type: reference_type.clone(),
+            reference_id,
+            position: state_update.position,
+            expanded: state_update.expanded,
+        };
+        db::insert_scene_reference_state(&conn, &state).map_err(|e| {
+            let _ = conn.execute("ROLLBACK", []);
+            e.to_string()
+        })?;
+    }
+
+    match reference_type.as_str() {
+        "characters" => {
+            db::clear_scene_character_refs(&conn, &scene_uuid).map_err(|e| {
+                let _ = conn.execute("ROLLBACK", []);
+                e.to_string()
+            })?;
+            for reference_id in reference_ids {
+                db::add_scene_character_ref(&conn, &scene_uuid, &reference_id).map_err(|e| {
+                    let _ = conn.execute("ROLLBACK", []);
+                    e.to_string()
+                })?;
+            }
+        }
+        "locations" => {
+            db::clear_scene_location_refs(&conn, &scene_uuid).map_err(|e| {
+                let _ = conn.execute("ROLLBACK", []);
+                e.to_string()
+            })?;
+            for reference_id in reference_ids {
+                db::add_scene_location_ref(&conn, &scene_uuid, &reference_id).map_err(|e| {
+                    let _ = conn.execute("ROLLBACK", []);
+                    e.to_string()
+                })?;
+            }
+        }
+        _ => {
+            db::clear_scene_reference_item_refs(&conn, &scene_uuid).map_err(|e| {
+                let _ = conn.execute("ROLLBACK", []);
+                e.to_string()
+            })?;
+            for reference_id in reference_ids {
+                db::add_scene_reference_item_ref(&conn, &scene_uuid, &reference_id).map_err(
+                    |e| {
+                        let _ = conn.execute("ROLLBACK", []);
+                        e.to_string()
+                    },
+                )?;
+            }
+        }
+    }
+
+    if let Some(project_id) =
+        db::get_scene_project_id(&conn, &scene_uuid).map_err(|e| e.to_string())?
+    {
+        db::update_project_modified(&conn, &project_id).map_err(|e| {
+            let _ = conn.execute("ROLLBACK", []);
+            e.to_string()
+        })?;
+    }
+
+    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn create_reference(
     project_id: String,
     reference_type: String,
@@ -852,6 +984,9 @@ pub async fn delete_reference(
             project_id
         }
     };
+
+    db::delete_scene_reference_states_for_reference(&conn, &reference_type, &reference_uuid)
+        .map_err(|e| e.to_string())?;
 
     if let Some(project_id) = project_id {
         db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
