@@ -176,3 +176,27 @@ jobs:
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
           args: ${{ matrix.args }}
+
+  checksums:
+    name: Generate Checksums
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p artifacts
+          gh release download "${{ github.ref_name }}" --dir artifacts
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          find . -type f \( -name "*.dmg" -o -name "*.msi" -o -name "*.AppImage" -o -name "*.deb" \) \
+            -exec sha256sum {} \; | sort > ../checksums.sha256
+
+      - name: Upload checksums to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: checksums.sha256
+          tag_name: ${{ github.ref_name }}
