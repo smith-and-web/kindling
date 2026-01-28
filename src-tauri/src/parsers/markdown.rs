@@ -152,7 +152,10 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
 
             // New chapter
             let title = stripped.trim().to_string();
-            current_chapter = Some(Chapter::new(project.id, title, chapter_position));
+            current_chapter = Some(
+                Chapter::new(project.id, title, chapter_position)
+                    .with_source_id(Some(markdown_chapter_source_id(chapter_position))),
+            );
             chapter_position += 1;
             scene_position = 0;
             beat_position = 0;
@@ -169,17 +172,20 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
 
             // New scene under current chapter (or create default chapter)
             if current_chapter.is_none() {
-                current_chapter = Some(Chapter::new(
-                    project.id,
-                    "Chapter 1".to_string(),
-                    chapter_position,
-                ));
+                current_chapter = Some(
+                    Chapter::new(project.id, "Chapter 1".to_string(), chapter_position)
+                        .with_source_id(Some(markdown_chapter_source_id(chapter_position))),
+                );
                 chapter_position += 1;
             }
 
             if let Some(ref chapter) = current_chapter {
                 let title = stripped.trim().to_string();
-                current_scene = Some(Scene::new(chapter.id, title, None, scene_position));
+                current_scene = Some(
+                    Scene::new(chapter.id, title, None, scene_position).with_source_id(Some(
+                        markdown_scene_source_id(chapter.position, scene_position),
+                    )),
+                );
                 scene_position += 1;
                 beat_position = 0;
                 pending_synopsis = true;
@@ -188,20 +194,20 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
             // Beat (list item with content)
             if current_scene.is_none() {
                 if current_chapter.is_none() {
-                    current_chapter = Some(Chapter::new(
-                        project.id,
-                        "Chapter 1".to_string(),
-                        chapter_position,
-                    ));
+                    current_chapter = Some(
+                        Chapter::new(project.id, "Chapter 1".to_string(), chapter_position)
+                            .with_source_id(Some(markdown_chapter_source_id(chapter_position))),
+                    );
                     chapter_position += 1;
                 }
                 if let Some(ref chapter) = current_chapter {
-                    current_scene = Some(Scene::new(
-                        chapter.id,
-                        "Scene 1".to_string(),
-                        None,
-                        scene_position,
-                    ));
+                    current_scene = Some(
+                        Scene::new(chapter.id, "Scene 1".to_string(), None, scene_position)
+                            .with_source_id(Some(markdown_scene_source_id(
+                                chapter.position,
+                                scene_position,
+                            ))),
+                    );
                     scene_position += 1;
                     beat_position = 0;
                 }
@@ -209,7 +215,13 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
             if let Some(ref scene) = current_scene {
                 let content = trimmed_start[2..].trim().to_string();
                 if !content.is_empty() {
-                    let beat = Beat::new(scene.id, content, beat_position);
+                    let chapter_position = current_chapter
+                        .as_ref()
+                        .map(|chapter| chapter.position)
+                        .unwrap_or(0);
+                    let beat = Beat::new(scene.id, content, beat_position).with_source_id(Some(
+                        markdown_beat_source_id(chapter_position, scene.position, beat_position),
+                    ));
                     beats.push(beat);
                     beat_position += 1;
                 }
@@ -221,26 +233,33 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
             // Regular paragraph under a scene becomes a beat
             if current_scene.is_none() {
                 if current_chapter.is_none() {
-                    current_chapter = Some(Chapter::new(
-                        project.id,
-                        "Chapter 1".to_string(),
-                        chapter_position,
-                    ));
+                    current_chapter = Some(
+                        Chapter::new(project.id, "Chapter 1".to_string(), chapter_position)
+                            .with_source_id(Some(markdown_chapter_source_id(chapter_position))),
+                    );
                     chapter_position += 1;
                 }
                 if let Some(ref chapter) = current_chapter {
-                    current_scene = Some(Scene::new(
-                        chapter.id,
-                        "Scene 1".to_string(),
-                        None,
-                        scene_position,
-                    ));
+                    current_scene = Some(
+                        Scene::new(chapter.id, "Scene 1".to_string(), None, scene_position)
+                            .with_source_id(Some(markdown_scene_source_id(
+                                chapter.position,
+                                scene_position,
+                            ))),
+                    );
                     scene_position += 1;
                     beat_position = 0;
                 }
             }
             if let Some(ref scene) = current_scene {
-                let beat = Beat::new(scene.id, trimmed.to_string(), beat_position);
+                let chapter_position = current_chapter
+                    .as_ref()
+                    .map(|chapter| chapter.position)
+                    .unwrap_or(0);
+                let beat =
+                    Beat::new(scene.id, trimmed.to_string(), beat_position).with_source_id(Some(
+                        markdown_beat_source_id(chapter_position, scene.position, beat_position),
+                    ));
                 beats.push(beat);
                 beat_position += 1;
             }
@@ -260,11 +279,13 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
 
     // If no chapters were found, create a default one
     if chapters.is_empty() {
-        let default_chapter = Chapter::new(project.id, "Chapter 1".to_string(), 0);
+        let default_chapter = Chapter::new(project.id, "Chapter 1".to_string(), 0)
+            .with_source_id(Some(markdown_chapter_source_id(0)));
 
         // If we have any orphan beats, create a scene for them
         if !beats.is_empty() {
-            let default_scene = Scene::new(default_chapter.id, "Scene 1".to_string(), None, 0);
+            let default_scene = Scene::new(default_chapter.id, "Scene 1".to_string(), None, 0)
+                .with_source_id(Some(markdown_scene_source_id(default_chapter.position, 0)));
 
             // Re-assign all beats to this scene
             for beat in &mut beats {
@@ -283,6 +304,22 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
         scenes,
         beats,
     })
+}
+
+fn markdown_chapter_source_id(chapter_position: i32) -> String {
+    format!("markdown:chapter:{chapter_position}")
+}
+
+fn markdown_scene_source_id(chapter_position: i32, scene_position: i32) -> String {
+    format!("markdown:scene:{chapter_position}:{scene_position}")
+}
+
+fn markdown_beat_source_id(
+    chapter_position: i32,
+    scene_position: i32,
+    beat_position: i32,
+) -> String {
+    format!("markdown:beat:{chapter_position}:{scene_position}:{beat_position}")
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -583,6 +620,35 @@ mod tests {
         );
         assert_eq!(result.beats.len(), 1);
         assert_eq!(result.beats[0].content, "Beat one");
+    }
+
+    #[test]
+    fn test_markdown_source_ids_generated() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        let content = r#"# Chapter One
+
+## Scene One
+
+- Beat one
+"#;
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = parse_markdown_outline(file.path()).unwrap();
+        assert_eq!(
+            result.chapters[0].source_id.as_deref(),
+            Some("markdown:chapter:0")
+        );
+        assert_eq!(
+            result.scenes[0].source_id.as_deref(),
+            Some("markdown:scene:0:0")
+        );
+        assert_eq!(
+            result.beats[0].source_id.as_deref(),
+            Some("markdown:beat:0:0:0")
+        );
     }
 
     // ========================================================================

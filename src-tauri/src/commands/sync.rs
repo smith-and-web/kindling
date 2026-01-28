@@ -2,13 +2,16 @@
 //!
 //! Handles sync/reimport functionality for keeping projects in sync with source files.
 
+use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
 use tauri::State;
 use uuid::Uuid;
 
 use crate::db;
 use crate::models::{Beat, Chapter, Scene};
-use crate::parsers::{parse_longform_index, parse_plottr_file, parse_ywriter_file};
+use crate::parsers::{
+    parse_longform_index, parse_markdown_outline, parse_plottr_file, parse_ywriter_file,
+};
 
 use super::AppState;
 
@@ -74,6 +77,10 @@ pub async fn reimport_project(
         .as_ref()
         .ok_or_else(|| "Project has no source path for reimport".to_string())?;
 
+    if matches!(project.source_type, crate::models::SourceType::Markdown) {
+        ensure_markdown_source_ids(&conn, &project_uuid)?;
+    }
+
     // Re-parse the source file based on source type
     let parsed = match project.source_type {
         crate::models::SourceType::Plottr => {
@@ -113,7 +120,17 @@ pub async fn reimport_project(
             }
         }
         crate::models::SourceType::Markdown => {
-            return Err("Markdown reimport not yet supported".to_string());
+            let md_parsed = parse_markdown_outline(source_path).map_err(|e| e.to_string())?;
+            crate::parsers::ParsedPlottr {
+                project: md_parsed.project,
+                chapters: md_parsed.chapters,
+                scenes: md_parsed.scenes,
+                beats: md_parsed.beats,
+                characters: Vec::new(),
+                locations: Vec::new(),
+                scene_character_refs: Vec::new(),
+                scene_location_refs: Vec::new(),
+            }
         }
     };
 
@@ -386,7 +403,17 @@ pub async fn get_sync_preview(
             }
         }
         crate::models::SourceType::Markdown => {
-            return Err("Markdown sync not yet supported".to_string());
+            let md_parsed = parse_markdown_outline(source_path).map_err(|e| e.to_string())?;
+            crate::parsers::ParsedPlottr {
+                project: md_parsed.project,
+                chapters: md_parsed.chapters,
+                scenes: md_parsed.scenes,
+                beats: md_parsed.beats,
+                characters: Vec::new(),
+                locations: Vec::new(),
+                scene_character_refs: Vec::new(),
+                scene_location_refs: Vec::new(),
+            }
         }
     };
 
@@ -593,6 +620,63 @@ fn truncate_string(s: &str, max_len: usize) -> String {
     }
 }
 
+fn ensure_markdown_source_ids(conn: &Connection, project_id: &Uuid) -> Result<(), String> {
+    let chapters = db::get_chapters(conn, project_id).map_err(|e| e.to_string())?;
+    let chapter_positions: HashMap<Uuid, i32> =
+        chapters.iter().map(|c| (c.id, c.position)).collect();
+
+    for chapter in &chapters {
+        if chapter.source_id.is_none() {
+            let source_id = markdown_chapter_source_id(chapter.position);
+            db::update_chapter_source_id(conn, &chapter.id, &source_id)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    let scenes = db::get_all_project_scenes(conn, project_id).map_err(|e| e.to_string())?;
+    let mut scene_positions: HashMap<Uuid, (i32, i32)> = HashMap::new();
+    for scene in &scenes {
+        if let Some(chapter_position) = chapter_positions.get(&scene.chapter_id) {
+            if scene.source_id.is_none() {
+                let source_id = markdown_scene_source_id(*chapter_position, scene.position);
+                db::update_scene_source_id(conn, &scene.id, &source_id)
+                    .map_err(|e| e.to_string())?;
+            }
+            scene_positions.insert(scene.id, (*chapter_position, scene.position));
+        }
+    }
+
+    let beats = db::get_all_project_beats(conn, project_id).map_err(|e| e.to_string())?;
+    for beat in &beats {
+        if beat.source_id.is_some() {
+            continue;
+        }
+        if let Some((chapter_position, scene_position)) = scene_positions.get(&beat.scene_id) {
+            let source_id =
+                markdown_beat_source_id(*chapter_position, *scene_position, beat.position);
+            db::update_beat_source_id(conn, &beat.id, &source_id).map_err(|e| e.to_string())?;
+        }
+    }
+
+    Ok(())
+}
+
+fn markdown_chapter_source_id(chapter_position: i32) -> String {
+    format!("markdown:chapter:{chapter_position}")
+}
+
+fn markdown_scene_source_id(chapter_position: i32, scene_position: i32) -> String {
+    format!("markdown:scene:{chapter_position}:{scene_position}")
+}
+
+fn markdown_beat_source_id(
+    chapter_position: i32,
+    scene_position: i32,
+    beat_position: i32,
+) -> String {
+    format!("markdown:beat:{chapter_position}:{scene_position}:{beat_position}")
+}
+
 #[tauri::command]
 pub async fn apply_sync(
     project_id: String,
@@ -650,7 +734,17 @@ pub async fn apply_sync(
             }
         }
         crate::models::SourceType::Markdown => {
-            return Err("Markdown sync not yet supported".to_string());
+            let md_parsed = parse_markdown_outline(source_path).map_err(|e| e.to_string())?;
+            crate::parsers::ParsedPlottr {
+                project: md_parsed.project,
+                chapters: md_parsed.chapters,
+                scenes: md_parsed.scenes,
+                beats: md_parsed.beats,
+                characters: Vec::new(),
+                locations: Vec::new(),
+                scene_character_refs: Vec::new(),
+                scene_location_refs: Vec::new(),
+            }
         }
     };
 

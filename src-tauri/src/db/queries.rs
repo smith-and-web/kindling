@@ -1080,6 +1080,18 @@ pub fn update_chapter(
     Ok(())
 }
 
+pub fn update_chapter_source_id(
+    conn: &Connection,
+    chapter_id: &Uuid,
+    source_id: &str,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE chapters SET source_id = ?1 WHERE id = ?2",
+        params![source_id, chapter_id.to_string()],
+    )?;
+    Ok(())
+}
+
 /// Update a scene's title, synopsis, position, and metadata (preserves prose)
 pub fn update_scene(
     conn: &Connection,
@@ -1100,6 +1112,14 @@ pub fn update_scene(
             scene_status.as_str(),
             scene_id.to_string()
         ],
+    )?;
+    Ok(())
+}
+
+pub fn update_scene_source_id(conn: &Connection, scene_id: &Uuid, source_id: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE scenes SET source_id = ?1 WHERE id = ?2",
+        params![source_id, scene_id.to_string()],
     )?;
     Ok(())
 }
@@ -1126,6 +1146,14 @@ pub fn update_beat(conn: &Connection, beat_id: &Uuid, content: &str, position: i
     conn.execute(
         "UPDATE beats SET content = ?1, position = ?2 WHERE id = ?3",
         params![content, position, beat_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn update_beat_source_id(conn: &Connection, beat_id: &Uuid, source_id: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE beats SET source_id = ?1 WHERE id = ?2",
+        params![source_id, beat_id.to_string()],
     )?;
     Ok(())
 }
