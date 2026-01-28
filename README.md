@@ -47,13 +47,19 @@ Kindling keeps your outline visible and actionable as you write. Each scene disp
 
 | Feature | Description |
 |---------|-------------|
-| **Import from popular tools** | Plottr (.pltr) or Markdown outlines |
+| **Import from popular tools** | Plottr (`.pltr`), Markdown (`.md`), yWriter (`.yw7`), and Longform/Obsidian (index or vault) |
 | **Scaffolded writing view** | Scene beats appear as expandable prompts |
 | **Rich text prose editor** | Write with formatting, auto-save, and beat context |
-| **Export to DOCX** | Standard Manuscript Format with customizable options |
+| **Export formats** | DOCX (Standard Manuscript Format), Markdown, Longform/Obsidian, and EPUB |
+| **Reference types** | Characters, locations, items, objectives, and organizations |
+| **Sync/reimport** | Preview and apply source changes while preserving prose |
 | **Distraction-free dark mode** | Easy on the eyes for long writing sessions |
 | **Local-first** | Your work stays on your machine in a SQLite database |
 | **Cross-platform** | macOS, Windows, and Linux support |
+
+Kindling now supports expanded reference types beyond characters and locations, with a post-import classification step to confirm or adjust detected references.
+
+Sync/reimport is designed to keep source-backed projects up to date while preserving the prose you add inside Kindling.
 
 ## Installation
 
