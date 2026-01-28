@@ -4,7 +4,8 @@ use uuid::Uuid;
 
 use crate::models::{
     Beat, Chapter, Character, Location, Project, ReferenceItem, Scene, SceneCharacterRef,
-    SceneLocationRef, SceneStatus, SceneType, SnapshotMetadata, SnapshotTrigger, SourceType,
+    SceneLocationRef, SceneReferenceItemRef, SceneReferenceState, SceneStatus, SceneType,
+    SnapshotMetadata, SnapshotTrigger, SourceType,
 };
 
 // ============================================================================
@@ -849,6 +850,19 @@ pub fn add_scene_location_ref(
     Ok(())
 }
 
+pub fn add_scene_reference_item_ref(
+    conn: &Connection,
+    scene_id: &Uuid,
+    reference_item_id: &Uuid,
+) -> Result<()> {
+    conn.execute(
+        "INSERT OR IGNORE INTO scene_reference_item_refs (scene_id, reference_item_id)
+         VALUES (?1, ?2)",
+        params![scene_id.to_string(), reference_item_id.to_string()],
+    )?;
+    Ok(())
+}
+
 pub fn get_scene_characters(conn: &Connection, scene_id: &Uuid) -> Result<Vec<Uuid>> {
     let mut stmt =
         conn.prepare("SELECT character_id FROM scene_character_refs WHERE scene_id = ?1")?;
@@ -875,6 +889,256 @@ pub fn get_scene_locations(conn: &Connection, scene_id: &Uuid) -> Result<Vec<Uui
         .collect();
 
     Ok(ids)
+}
+
+pub fn get_scene_reference_states(
+    conn: &Connection,
+    scene_id: &Uuid,
+) -> Result<Vec<SceneReferenceState>> {
+    let mut stmt = conn.prepare(
+        "SELECT scene_id, reference_type, reference_id, position, expanded
+         FROM scene_reference_state
+         WHERE scene_id = ?1
+         ORDER BY reference_type, position",
+    )?;
+
+    let states = stmt
+        .query_map(params![scene_id.to_string()], |row| {
+            Ok(SceneReferenceState {
+                scene_id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                reference_type: row.get(1)?,
+                reference_id: Uuid::parse_str(&row.get::<_, String>(2)?).unwrap(),
+                position: row.get(3)?,
+                expanded: row.get::<_, i32>(4)? != 0,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(states)
+}
+
+pub fn insert_scene_reference_state(conn: &Connection, state: &SceneReferenceState) -> Result<()> {
+    conn.execute(
+        "INSERT INTO scene_reference_state (scene_id, reference_type, reference_id, position, expanded)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            state.scene_id.to_string(),
+            &state.reference_type,
+            state.reference_id.to_string(),
+            state.position,
+            if state.expanded { 1 } else { 0 }
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn delete_scene_reference_states_for_type(
+    conn: &Connection,
+    scene_id: &Uuid,
+    reference_type: &str,
+) -> Result<()> {
+    conn.execute(
+        "DELETE FROM scene_reference_state WHERE scene_id = ?1 AND reference_type = ?2",
+        params![scene_id.to_string(), reference_type],
+    )?;
+    Ok(())
+}
+
+pub fn delete_scene_reference_states_for_reference(
+    conn: &Connection,
+    reference_type: &str,
+    reference_id: &Uuid,
+) -> Result<()> {
+    conn.execute(
+        "DELETE FROM scene_reference_state WHERE reference_type = ?1 AND reference_id = ?2",
+        params![reference_type, reference_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn cleanup_scene_reference_state(conn: &Connection, scene_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "DELETE FROM scene_reference_state
+         WHERE scene_id = ?1 AND reference_type = 'characters'
+         AND reference_id NOT IN (SELECT id FROM characters)",
+        params![scene_id.to_string()],
+    )?;
+    conn.execute(
+        "DELETE FROM scene_reference_state
+         WHERE scene_id = ?1 AND reference_type = 'locations'
+         AND reference_id NOT IN (SELECT id FROM locations)",
+        params![scene_id.to_string()],
+    )?;
+    conn.execute(
+        "DELETE FROM scene_reference_state
+         WHERE scene_id = ?1 AND reference_type NOT IN ('characters', 'locations')
+         AND reference_id NOT IN (SELECT id FROM reference_items)",
+        params![scene_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn build_default_scene_reference_state(
+    conn: &Connection,
+    scene_id: &Uuid,
+) -> Result<Vec<SceneReferenceState>> {
+    let mut states = Vec::new();
+
+    let mut character_stmt = conn.prepare(
+        "SELECT c.id
+         FROM scene_character_refs scr
+         JOIN characters c ON scr.character_id = c.id
+         WHERE scr.scene_id = ?1
+         ORDER BY c.name",
+    )?;
+    let character_rows = character_stmt
+        .query_map(params![scene_id.to_string()], |row| {
+            Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+        })?
+        .filter_map(|r| r.ok())
+        .collect::<Vec<_>>();
+    for (position, character_id) in character_rows.into_iter().enumerate() {
+        states.push(SceneReferenceState {
+            scene_id: *scene_id,
+            reference_type: "characters".to_string(),
+            reference_id: character_id,
+            position: position as i32,
+            expanded: false,
+        });
+    }
+
+    let mut location_stmt = conn.prepare(
+        "SELECT l.id
+         FROM scene_location_refs slr
+         JOIN locations l ON slr.location_id = l.id
+         WHERE slr.scene_id = ?1
+         ORDER BY l.name",
+    )?;
+    let location_rows = location_stmt
+        .query_map(params![scene_id.to_string()], |row| {
+            Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+        })?
+        .filter_map(|r| r.ok())
+        .collect::<Vec<_>>();
+    for (position, location_id) in location_rows.into_iter().enumerate() {
+        states.push(SceneReferenceState {
+            scene_id: *scene_id,
+            reference_type: "locations".to_string(),
+            reference_id: location_id,
+            position: position as i32,
+            expanded: false,
+        });
+    }
+
+    let mut reference_stmt = conn.prepare(
+        "SELECT ri.id, ri.reference_type
+         FROM scene_reference_item_refs srir
+         JOIN reference_items ri ON srir.reference_item_id = ri.id
+         WHERE srir.scene_id = ?1
+         ORDER BY ri.reference_type, ri.name",
+    )?;
+    let reference_rows = reference_stmt
+        .query_map(params![scene_id.to_string()], |row| {
+            Ok((
+                Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                row.get::<_, String>(1)?,
+            ))
+        })?
+        .filter_map(|r| r.ok())
+        .collect::<Vec<_>>();
+
+    let mut type_positions: HashMap<String, i32> = HashMap::new();
+    for (reference_id, reference_type) in reference_rows {
+        let entry = type_positions.entry(reference_type.clone()).or_insert(0);
+        let position = *entry;
+        *entry += 1;
+        states.push(SceneReferenceState {
+            scene_id: *scene_id,
+            reference_type,
+            reference_id,
+            position,
+            expanded: false,
+        });
+    }
+
+    for state in &states {
+        insert_scene_reference_state(conn, state)?;
+    }
+
+    Ok(states)
+}
+
+pub fn clear_scene_character_refs(conn: &Connection, scene_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "DELETE FROM scene_character_refs WHERE scene_id = ?1",
+        params![scene_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn clear_scene_location_refs(conn: &Connection, scene_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "DELETE FROM scene_location_refs WHERE scene_id = ?1",
+        params![scene_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn clear_scene_reference_item_refs(conn: &Connection, scene_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "DELETE FROM scene_reference_item_refs WHERE scene_id = ?1",
+        params![scene_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn get_scene_reference_items(
+    conn: &Connection,
+    scene_id: &Uuid,
+    reference_type: &str,
+) -> Result<Vec<ReferenceItem>> {
+    let mut stmt = conn.prepare(
+        "SELECT ri.id, ri.project_id, ri.reference_type, ri.name, ri.description, ri.source_id
+         FROM scene_reference_item_refs srir
+         JOIN reference_items ri ON srir.reference_item_id = ri.id
+         WHERE srir.scene_id = ?1 AND ri.reference_type = ?2
+         ORDER BY ri.name",
+    )?;
+
+    let mut items: Vec<ReferenceItem> = stmt
+        .query_map(params![scene_id.to_string(), reference_type], |row| {
+            Ok(ReferenceItem {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                reference_type: row.get(2)?,
+                name: row.get(3)?,
+                description: row.get(4)?,
+                attributes: HashMap::new(),
+                source_id: row.get(5)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    for item in &mut items {
+        let mut attr_stmt = conn.prepare(
+            "SELECT key, value FROM reference_item_attributes WHERE reference_item_id = ?1",
+        )?;
+        let attrs: Vec<(String, String)> = attr_stmt
+            .query_map(params![item.id.to_string()], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                ))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        item.attributes = attrs.into_iter().collect();
+    }
+
+    Ok(items)
 }
 
 // ============================================================================
@@ -921,6 +1185,14 @@ pub fn delete_chapter(conn: &Connection, chapter_id: &Uuid) -> Result<()> {
         "DELETE FROM scene_location_refs WHERE scene_id IN (SELECT id FROM scenes WHERE chapter_id = ?1)",
         params![chapter_id.to_string()],
     )?;
+    conn.execute(
+        "DELETE FROM scene_reference_item_refs WHERE scene_id IN (SELECT id FROM scenes WHERE chapter_id = ?1)",
+        params![chapter_id.to_string()],
+    )?;
+    conn.execute(
+        "DELETE FROM scene_reference_state WHERE scene_id IN (SELECT id FROM scenes WHERE chapter_id = ?1)",
+        params![chapter_id.to_string()],
+    )?;
 
     // Delete beats for all scenes in this chapter
     conn.execute(
@@ -955,6 +1227,14 @@ pub fn delete_scene(conn: &Connection, scene_id: &Uuid) -> Result<()> {
     )?;
     conn.execute(
         "DELETE FROM scene_location_refs WHERE scene_id = ?1",
+        params![scene_id.to_string()],
+    )?;
+    conn.execute(
+        "DELETE FROM scene_reference_item_refs WHERE scene_id = ?1",
+        params![scene_id.to_string()],
+    )?;
+    conn.execute(
+        "DELETE FROM scene_reference_state WHERE scene_id = ?1",
         params![scene_id.to_string()],
     )?;
 
@@ -1610,6 +1890,61 @@ pub fn get_all_scene_location_refs(
     Ok(refs)
 }
 
+pub fn get_all_scene_reference_states(
+    conn: &Connection,
+    project_id: &Uuid,
+) -> Result<Vec<SceneReferenceState>> {
+    let mut stmt = conn.prepare(
+        "SELECT srs.scene_id, srs.reference_type, srs.reference_id, srs.position, srs.expanded
+         FROM scene_reference_state srs
+         JOIN scenes s ON srs.scene_id = s.id
+         JOIN chapters c ON s.chapter_id = c.id
+         WHERE c.project_id = ?1
+         ORDER BY srs.scene_id, srs.reference_type, srs.position",
+    )?;
+
+    let states = stmt
+        .query_map(params![project_id.to_string()], |row| {
+            Ok(SceneReferenceState {
+                scene_id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                reference_type: row.get(1)?,
+                reference_id: Uuid::parse_str(&row.get::<_, String>(2)?).unwrap(),
+                position: row.get(3)?,
+                expanded: row.get::<_, i32>(4)? != 0,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(states)
+}
+
+/// Get all scene-reference-item references for a project (for snapshots)
+pub fn get_all_scene_reference_item_refs(
+    conn: &Connection,
+    project_id: &Uuid,
+) -> Result<Vec<SceneReferenceItemRef>> {
+    let mut stmt = conn.prepare(
+        "SELECT srir.scene_id, srir.reference_item_id
+         FROM scene_reference_item_refs srir
+         JOIN scenes s ON srir.scene_id = s.id
+         JOIN chapters c ON s.chapter_id = c.id
+         WHERE c.project_id = ?1",
+    )?;
+
+    let refs = stmt
+        .query_map(params![project_id.to_string()], |row| {
+            Ok(SceneReferenceItemRef {
+                scene_id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                reference_item_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(refs)
+}
+
 /// Get all chapters for a project including archived (for snapshots)
 pub fn get_all_chapters_including_archived(
     conn: &Connection,
@@ -1715,6 +2050,22 @@ pub fn delete_all_project_content(conn: &Connection, project_id: &Uuid) -> Resul
     )?;
     conn.execute(
         "DELETE FROM scene_location_refs WHERE scene_id IN (
+            SELECT s.id FROM scenes s
+            JOIN chapters c ON s.chapter_id = c.id
+            WHERE c.project_id = ?1
+        )",
+        params![project_id.to_string()],
+    )?;
+    conn.execute(
+        "DELETE FROM scene_reference_item_refs WHERE scene_id IN (
+            SELECT s.id FROM scenes s
+            JOIN chapters c ON s.chapter_id = c.id
+            WHERE c.project_id = ?1
+        )",
+        params![project_id.to_string()],
+    )?;
+    conn.execute(
+        "DELETE FROM scene_reference_state WHERE scene_id IN (
             SELECT s.id FROM scenes s
             JOIN chapters c ON s.chapter_id = c.id
             WHERE c.project_id = ?1

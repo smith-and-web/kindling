@@ -38,6 +38,7 @@ pub struct ParsedLongform {
     pub reference_items: Vec<ReferenceItem>,
     pub scene_character_refs: Vec<(uuid::Uuid, uuid::Uuid)>,
     pub scene_location_refs: Vec<(uuid::Uuid, uuid::Uuid)>,
+    pub scene_reference_item_refs: Vec<(uuid::Uuid, uuid::Uuid)>,
 }
 
 // ============================================================================
@@ -203,6 +204,7 @@ struct SceneBuildContext<'a> {
     reference_items: &'a mut Vec<ReferenceItem>,
     scene_character_refs: &'a mut Vec<(uuid::Uuid, uuid::Uuid)>,
     scene_location_refs: &'a mut Vec<(uuid::Uuid, uuid::Uuid)>,
+    scene_reference_item_refs: &'a mut Vec<(uuid::Uuid, uuid::Uuid)>,
     character_index: &'a mut HashMap<String, uuid::Uuid>,
     location_index: &'a mut HashMap<String, uuid::Uuid>,
     reference_item_index: &'a mut HashMap<String, uuid::Uuid>,
@@ -1680,6 +1682,7 @@ fn build_longform_structure(
     let mut reference_items = Vec::new();
     let mut scene_character_refs = Vec::new();
     let mut scene_location_refs = Vec::new();
+    let mut scene_reference_item_refs = Vec::new();
     let mut character_index: HashMap<String, uuid::Uuid> = HashMap::new();
     let mut location_index: HashMap<String, uuid::Uuid> = HashMap::new();
     let mut reference_item_index: HashMap<String, uuid::Uuid> = HashMap::new();
@@ -1693,6 +1696,7 @@ fn build_longform_structure(
         reference_items: &mut reference_items,
         scene_character_refs: &mut scene_character_refs,
         scene_location_refs: &mut scene_location_refs,
+        scene_reference_item_refs: &mut scene_reference_item_refs,
         character_index: &mut character_index,
         location_index: &mut location_index,
         reference_item_index: &mut reference_item_index,
@@ -1779,6 +1783,7 @@ fn build_longform_structure(
         reference_items,
         scene_character_refs,
         scene_location_refs,
+        scene_reference_item_refs,
     })
 }
 
@@ -1822,26 +1827,32 @@ fn add_scene_from_entry(
         context.scene_location_refs,
         context.location_index,
     );
-    register_reference_items(
+    register_scene_reference_items(
         chapter.project_id,
+        scene.id,
         ReferenceKind::Item,
         &scene_content.items,
         context.reference_items,
         context.reference_item_index,
+        context.scene_reference_item_refs,
     );
-    register_reference_items(
+    register_scene_reference_items(
         chapter.project_id,
+        scene.id,
         ReferenceKind::Objective,
         &scene_content.objectives,
         context.reference_items,
         context.reference_item_index,
+        context.scene_reference_item_refs,
     );
-    register_reference_items(
+    register_scene_reference_items(
         chapter.project_id,
+        scene.id,
         ReferenceKind::Organization,
         &scene_content.organizations,
         context.reference_items,
         context.reference_item_index,
+        context.scene_reference_item_refs,
     );
 
     for (beat_position, beat) in scene_content.beats.into_iter().enumerate() {
@@ -1899,6 +1910,38 @@ fn register_scene_locations(
             }
         };
         scene_location_refs.push((scene_id, location_id));
+    }
+}
+
+fn register_scene_reference_items(
+    project_id: uuid::Uuid,
+    scene_id: uuid::Uuid,
+    reference_kind: ReferenceKind,
+    names: &[String],
+    reference_items: &mut Vec<ReferenceItem>,
+    reference_item_index: &mut HashMap<String, uuid::Uuid>,
+    scene_reference_item_refs: &mut Vec<(uuid::Uuid, uuid::Uuid)>,
+) {
+    if names.is_empty() {
+        return;
+    }
+
+    register_reference_items(
+        project_id,
+        reference_kind,
+        names,
+        reference_items,
+        reference_item_index,
+    );
+
+    let Some(reference_type) = reference_type_for_kind(reference_kind) else {
+        return;
+    };
+    for name in names {
+        let key = reference_item_key(reference_type, name);
+        if let Some(reference_item_id) = reference_item_index.get(&key) {
+            scene_reference_item_refs.push((scene_id, *reference_item_id));
+        }
     }
 }
 
@@ -2320,6 +2363,7 @@ Scene prose with [[;Mila]] and [[~Warehouse]]."#;
             .map(|item| item.name.as_str())
             .collect();
         assert!(organization_names.contains(&"Guild"));
+        assert_eq!(parsed.scene_reference_item_refs.len(), 4);
     }
 
     #[test]

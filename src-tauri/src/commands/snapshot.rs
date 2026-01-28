@@ -15,8 +15,8 @@ use uuid::Uuid;
 
 use crate::db;
 use crate::models::{
-    Beat, Chapter, Character, Location, Project, ReferenceItem, RestoreMode, Scene, SnapshotData,
-    SnapshotMetadata, SnapshotTrigger,
+    Beat, Chapter, Character, Location, Project, ReferenceItem, RestoreMode, Scene,
+    SceneReferenceState, SnapshotData, SnapshotMetadata, SnapshotTrigger,
 };
 
 use super::AppState;
@@ -71,6 +71,12 @@ fn collect_project_data(
     let scene_location_refs =
         db::get_all_scene_location_refs(conn, project_id).map_err(|e| e.to_string())?;
 
+    let scene_reference_item_refs =
+        db::get_all_scene_reference_item_refs(conn, project_id).map_err(|e| e.to_string())?;
+
+    let scene_reference_states =
+        db::get_all_scene_reference_states(conn, project_id).map_err(|e| e.to_string())?;
+
     Ok(SnapshotData::new(
         project,
         chapters,
@@ -81,6 +87,8 @@ fn collect_project_data(
         reference_items,
         scene_character_refs,
         scene_location_refs,
+        scene_reference_item_refs,
+        scene_reference_states,
     ))
 }
 
@@ -313,6 +321,22 @@ fn restore_replace_current(
         }
     }
 
+    // Insert scene-reference-item references
+    for r in &data.scene_reference_item_refs {
+        if let Err(e) = db::add_scene_reference_item_ref(conn, &r.scene_id, &r.reference_item_id) {
+            conn.execute("ROLLBACK", []).ok();
+            return Err(e.to_string());
+        }
+    }
+
+    // Insert scene reference state entries
+    for state in &data.scene_reference_states {
+        if let Err(e) = db::insert_scene_reference_state(conn, state) {
+            conn.execute("ROLLBACK", []).ok();
+            return Err(e.to_string());
+        }
+    }
+
     // Update project modified time
     if let Err(e) = db::update_project_modified(conn, &project_id) {
         conn.execute("ROLLBACK", []).ok();
@@ -512,6 +536,37 @@ fn restore_create_new(
         }
     }
 
+    // Insert scene-reference-item references with remapped IDs
+    for r in &data.scene_reference_item_refs {
+        let new_scene_id = id_map.get(&r.scene_id).unwrap();
+        let new_reference_item_id = id_map.get(&r.reference_item_id).unwrap();
+        if let Err(e) = db::add_scene_reference_item_ref(conn, new_scene_id, new_reference_item_id)
+        {
+            conn.execute("ROLLBACK", []).ok();
+            return Err(e.to_string());
+        }
+    }
+
+    // Insert scene reference state entries with remapped IDs
+    for state in &data.scene_reference_states {
+        let new_scene_id = id_map.get(&state.scene_id).unwrap();
+        let new_reference_id = match id_map.get(&state.reference_id) {
+            Some(id) => id,
+            None => continue,
+        };
+        let new_state = SceneReferenceState {
+            scene_id: *new_scene_id,
+            reference_type: state.reference_type.clone(),
+            reference_id: *new_reference_id,
+            position: state.position,
+            expanded: state.expanded,
+        };
+        if let Err(e) = db::insert_scene_reference_state(conn, &new_state) {
+            conn.execute("ROLLBACK", []).ok();
+            return Err(e.to_string());
+        }
+    }
+
     // Commit transaction
     conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
 
@@ -568,6 +623,8 @@ mod tests {
         let project = Project::new("Snapshot Test".to_string(), SourceType::Markdown, None);
         let data = SnapshotData::new(
             project.clone(),
+            vec![],
+            vec![],
             vec![],
             vec![],
             vec![],

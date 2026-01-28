@@ -5,6 +5,7 @@ pub mod location;
 pub mod project;
 pub mod reference_item;
 pub mod scene;
+pub mod scene_reference_state;
 pub mod settings;
 pub mod snapshot;
 
@@ -15,5 +16,6 @@ pub use location::*;
 pub use project::*;
 pub use reference_item::*;
 pub use scene::*;
+pub use scene_reference_state::*;
 pub use settings::*;
 pub use snapshot::*;

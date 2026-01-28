@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{Beat, Chapter, Character, Location, Project, ReferenceItem, Scene};
+use super::{
+    Beat, Chapter, Character, Location, Project, ReferenceItem, Scene, SceneReferenceState,
+};
 
 /// Trigger type for snapshot creation
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -98,6 +100,13 @@ pub struct SceneLocationRef {
     pub location_id: Uuid,
 }
 
+/// Reference linking a scene to a reference item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SceneReferenceItemRef {
+    pub scene_id: Uuid,
+    pub reference_item_id: Uuid,
+}
+
 /// The full snapshot data stored in the compressed file
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnapshotData {
@@ -113,6 +122,10 @@ pub struct SnapshotData {
     pub reference_items: Vec<ReferenceItem>,
     pub scene_character_refs: Vec<SceneCharacterRef>,
     pub scene_location_refs: Vec<SceneLocationRef>,
+    #[serde(default)]
+    pub scene_reference_item_refs: Vec<SceneReferenceItemRef>,
+    #[serde(default)]
+    pub scene_reference_states: Vec<SceneReferenceState>,
 }
 
 impl SnapshotData {
@@ -127,6 +140,8 @@ impl SnapshotData {
         reference_items: Vec<ReferenceItem>,
         scene_character_refs: Vec<SceneCharacterRef>,
         scene_location_refs: Vec<SceneLocationRef>,
+        scene_reference_item_refs: Vec<SceneReferenceItemRef>,
+        scene_reference_states: Vec<SceneReferenceState>,
     ) -> Self {
         Self {
             version: 1,
@@ -140,6 +155,8 @@ impl SnapshotData {
             reference_items,
             scene_character_refs,
             scene_location_refs,
+            scene_reference_item_refs,
+            scene_reference_states,
         }
     }
 
