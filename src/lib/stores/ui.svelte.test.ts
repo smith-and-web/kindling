@@ -194,6 +194,18 @@ describe("ui store", () => {
     });
   });
 
+  describe("scene reference refresh", () => {
+    it("should initialize with refresh id 0", () => {
+      expect(ui.sceneReferenceRefreshId).toBe(0);
+    });
+
+    it("should bump the refresh id", () => {
+      const start = ui.sceneReferenceRefreshId;
+      ui.bumpSceneReferenceRefresh();
+      expect(ui.sceneReferenceRefreshId).toBe(start + 1);
+    });
+  });
+
   describe("import progress", () => {
     it("should initialize with not importing", () => {
       expect(ui.isImporting).toBe(false);
