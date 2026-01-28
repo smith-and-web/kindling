@@ -9,6 +9,7 @@
     GripVertical,
     Link2,
     ListChevronsDownUp,
+    Settings,
     Pencil,
     Plus,
     Trash2,
@@ -16,6 +17,7 @@
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type {
+    Project,
     ReferenceItem,
     ReferenceTypeId,
     SceneReferenceState,
@@ -42,6 +44,10 @@
   let sceneReferenceLoading = $state(false);
   let sceneReferenceError = $state<string | null>(null);
   let sceneReferenceRequestId = 0;
+  let showReferenceTypeSettings = $state(false);
+  let referenceTypeSelection = $state<ReferenceTypeId[]>([]);
+  let referenceTypeSaving = $state(false);
+  let referenceTypeError = $state<string | null>(null);
   let isResizing = $state(false);
   let draggedId = $state<string | null>(null);
   let dragOverId = $state<string | null>(null);
@@ -140,6 +146,48 @@
     }
   }
 
+  function openReferenceTypeSettings() {
+    referenceTypeSelection = normalizeReferenceTypes(
+      currentProject.value?.reference_types ?? DEFAULT_REFERENCE_TYPES
+    );
+    referenceTypeError = null;
+    showReferenceTypeSettings = true;
+  }
+
+  function closeReferenceTypeSettings() {
+    showReferenceTypeSettings = false;
+  }
+
+  function toggleReferenceType(typeId: ReferenceTypeId) {
+    if (referenceTypeSelection.includes(typeId)) {
+      referenceTypeSelection = referenceTypeSelection.filter((type) => type !== typeId);
+    } else {
+      referenceTypeSelection = [...referenceTypeSelection, typeId];
+    }
+  }
+
+  async function saveReferenceTypeSettings() {
+    if (!currentProject.value) return;
+    referenceTypeSaving = true;
+    referenceTypeError = null;
+    try {
+      const updatedProject = await invoke<Project>("update_project_settings", {
+        projectId: currentProject.value.id,
+        settings: {
+          reference_types: referenceTypeSelection,
+        },
+      });
+      currentProject.setProject(updatedProject);
+      await loadReferences();
+      showReferenceTypeSettings = false;
+    } catch (e) {
+      console.error("Failed to update reference types:", e);
+      referenceTypeError = e instanceof Error ? e.message : "Failed to update reference types";
+    } finally {
+      referenceTypeSaving = false;
+    }
+  }
+
   function getSceneStatesForType(type: ReferenceTypeId): SceneReferenceState[] {
     return sceneReferenceStates
       .filter((state) => state.reference_type === type)
@@ -203,6 +251,7 @@
       ];
       sceneReferenceStates = nextStates;
       syncExpandedIdsFromState(nextStates);
+      ui.bumpSceneReferenceRefresh();
     } catch (e) {
       console.error("Failed to save scene reference state:", e);
       sceneReferenceError = e instanceof Error ? e.message : "Failed to save scene reference state";
@@ -614,6 +663,16 @@
             <Plus class="w-4 h-4" />
           </button>
         </Tooltip>
+        <!-- Reference Types settings -->
+        <Tooltip text="Reference types" position="bottom">
+          <button
+            onclick={openReferenceTypeSettings}
+            class="text-text-secondary hover:text-text-primary p-1"
+            aria-label="Reference types settings"
+          >
+            <Settings class="w-4 h-4" />
+          </button>
+        </Tooltip>
         <!-- Collapse All button -->
         <Tooltip text="Collapse all" position="bottom">
           <button
@@ -673,7 +732,7 @@
     {:else if !activeTab}
       <div class="flex items-center justify-center p-4">
         <span class="text-text-secondary text-sm">
-          No reference types enabled. Configure them in Project Settings.
+          No reference types enabled. Use the settings cog to enable them.
         </span>
       </div>
     {:else if activeItems.length === 0}
@@ -868,4 +927,72 @@
     onConfirm={handleDeleteReference}
     onCancel={() => (deleteTarget = null)}
   />
+{/if}
+
+{#if showReferenceTypeSettings}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="reference-types-title"
+    tabindex="-1"
+  >
+    <div class="bg-bg-panel rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-bg-card">
+        <h2 id="reference-types-title" class="text-lg font-medium text-text-primary">
+          Reference Types
+        </h2>
+        <Tooltip text="Close" position="left">
+          <button
+            type="button"
+            onclick={closeReferenceTypeSettings}
+            class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
+            aria-label="Close"
+          >
+            <ChevronsRight class="w-4 h-4" />
+          </button>
+        </Tooltip>
+      </div>
+      <div class="p-4 space-y-3">
+        <p class="text-sm text-text-secondary">
+          Choose which reference types appear in this project’s References panel.
+        </p>
+        <div class="space-y-2">
+          {#each REFERENCE_TYPE_OPTIONS as option (option.id)}
+            <label class="flex items-center gap-2 text-sm text-text-primary">
+              <input
+                type="checkbox"
+                class="accent-accent"
+                checked={referenceTypeSelection.includes(option.id)}
+                disabled={referenceTypeSaving}
+                onclick={() => toggleReferenceType(option.id)}
+              />
+              <span>{option.label}</span>
+            </label>
+          {/each}
+        </div>
+        {#if referenceTypeError}
+          <p class="text-sm text-red-400">{referenceTypeError}</p>
+        {/if}
+      </div>
+      <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-bg-card">
+        <button
+          type="button"
+          onclick={closeReferenceTypeSettings}
+          class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+          disabled={referenceTypeSaving}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onclick={saveReferenceTypeSettings}
+          class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/80 transition-colors disabled:opacity-50"
+          disabled={referenceTypeSaving}
+        >
+          {referenceTypeSaving ? "Saving..." : "Save"}
+        </button>
+      </div>
+    </div>
+  </div>
 {/if}

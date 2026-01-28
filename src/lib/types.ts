@@ -158,6 +158,11 @@ export interface SceneReferenceStateUpdate {
   expanded: boolean;
 }
 
+export interface ReferenceReclassification {
+  reference_id: string;
+  new_type: ReferenceTypeId;
+}
+
 /** Persisted state for resuming where the user left off */
 export interface SessionState {
   project_id: string;

@@ -14,6 +14,7 @@
   import ExportSuccessDialog from "./lib/components/ExportSuccessDialog.svelte";
   import ErrorToast from "./lib/components/ErrorToast.svelte";
   import ImportLongformDialog from "./lib/components/ImportLongformDialog.svelte";
+  import ReferenceClassificationDialog from "./lib/components/ReferenceClassificationDialog.svelte";
   import { currentProject } from "./lib/stores/project.svelte";
   import { ui } from "./lib/stores/ui.svelte";
   import type { Project, ExportResult } from "./lib/types";
@@ -26,6 +27,8 @@
   let showExportDialog = $state(false);
   let exportResult = $state<ExportResult | null>(null);
   let showLongformImportDialog = $state(false);
+  let showReferenceClassificationDialog = $state(false);
+  let referenceClassificationProjectId = $state<string | null>(null);
 
   async function loadRecentProjects() {
     try {
@@ -41,6 +44,21 @@
     currentProject.setProject(null);
     currentProject.setProject(project);
     ui.setView("editor");
+  }
+
+  function openReferenceClassificationDialog(project: Project) {
+    referenceClassificationProjectId = project.id;
+    showReferenceClassificationDialog = true;
+  }
+
+  function closeReferenceClassificationDialog() {
+    showReferenceClassificationDialog = false;
+    referenceClassificationProjectId = null;
+  }
+
+  function handleReferenceClassificationComplete(project: Project) {
+    currentProject.setProject(project);
+    closeReferenceClassificationDialog();
   }
 
   // Reload projects when returning to start screen (currentProject becomes null)
@@ -63,6 +81,7 @@
       try {
         const project = await invoke<Project>("import_plottr", { path });
         activateImportedProject(project);
+        openReferenceClassificationDialog(project);
       } catch (e) {
         console.error("Failed to import Plottr file:", e);
         ui.showError(`Import failed: ${e}`);
@@ -103,6 +122,7 @@
       try {
         const project = await invoke<Project>("import_ywriter", { path });
         activateImportedProject(project);
+        openReferenceClassificationDialog(project);
       } catch (e) {
         console.error("Failed to import yWriter file:", e);
         ui.showError(`Import failed: ${e}`);
@@ -123,6 +143,7 @@
       try {
         const project = await invoke<Project>("import_longform", { path });
         activateImportedProject(project);
+        openReferenceClassificationDialog(project);
       } catch (e) {
         console.error("Failed to import Longform index:", e);
         ui.showError(`Import failed: ${e}`);
@@ -143,6 +164,7 @@
       try {
         const project = await invoke<Project>("import_longform", { path });
         activateImportedProject(project);
+        openReferenceClassificationDialog(project);
       } catch (e) {
         console.error("Failed to import Longform vault:", e);
         ui.showError(`Import failed: ${e}`);
@@ -222,7 +244,11 @@
     <ScenePanel />
     <ReferencesPanel />
   {:else}
-    <StartScreen {recentProjects} onImportLongform={openLongformImportDialog} />
+    <StartScreen
+      {recentProjects}
+      onImportLongform={openLongformImportDialog}
+      onImportComplete={openReferenceClassificationDialog}
+    />
   {/if}
 </main>
 
@@ -233,7 +259,18 @@
 {/if}
 
 <!-- Onboarding overlay (shown on first launch) -->
-<Onboarding onImportLongform={openLongformImportDialog} />
+<Onboarding
+  onImportLongform={openLongformImportDialog}
+  onImportComplete={openReferenceClassificationDialog}
+/>
+
+{#if showReferenceClassificationDialog && referenceClassificationProjectId}
+  <ReferenceClassificationDialog
+    projectId={referenceClassificationProjectId}
+    onClose={closeReferenceClassificationDialog}
+    onComplete={handleReferenceClassificationComplete}
+  />
+{/if}
 
 <!-- Kindling Settings Dialog (triggered by menu) -->
 {#if showKindlingSettings}

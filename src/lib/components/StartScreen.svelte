@@ -12,9 +12,10 @@
   interface Props {
     recentProjects: Project[];
     onImportLongform?: () => void;
+    onImportComplete?: (project: Project) => void;
   }
 
-  let { recentProjects = $bindable(), onImportLongform }: Props = $props();
+  let { recentProjects = $bindable(), onImportLongform, onImportComplete }: Props = $props();
 
   let deletingProjectId = $state<string | null>(null);
   let hoveredProjectId = $state<string | null>(null);
@@ -34,6 +35,7 @@
         const project = await invoke<Project>("import_plottr", { path });
         currentProject.setProject(project);
         ui.setView("editor");
+        onImportComplete?.(project);
       } catch (e) {
         console.error("Failed to import Plottr file:", e);
         ui.showError(`Import failed: ${e}`);
@@ -76,6 +78,7 @@
         const project = await invoke<Project>("import_longform", { path });
         currentProject.setProject(project);
         ui.setView("editor");
+        onImportComplete?.(project);
       } catch (e) {
         console.error("Failed to import Longform index:", e);
         ui.showError(`Import failed: ${e}`);
@@ -102,6 +105,7 @@
         const project = await invoke<Project>("import_ywriter", { path });
         currentProject.setProject(project);
         ui.setView("editor");
+        onImportComplete?.(project);
       } catch (e) {
         console.error("Failed to import yWriter file:", e);
         ui.showError(`Import failed: ${e}`);

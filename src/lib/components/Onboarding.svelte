@@ -23,9 +23,10 @@
 
   interface Props {
     onImportLongform?: () => void;
+    onImportComplete?: (project: Project) => void;
   }
 
-  let { onImportLongform }: Props = $props();
+  let { onImportLongform, onImportComplete }: Props = $props();
 
   const STEP_ORDER: OnboardingStep[] = [
     "welcome",
@@ -49,6 +50,7 @@
         currentProject.setProject(project);
         ui.completeOnboarding();
         ui.setView("editor");
+        onImportComplete?.(project);
       } catch (e) {
         console.error("Failed to import Plottr file:", e);
         ui.showError(`Import failed: ${e}`);
@@ -93,6 +95,7 @@
         currentProject.setProject(project);
         ui.completeOnboarding();
         ui.setView("editor");
+        onImportComplete?.(project);
       } catch (e) {
         console.error("Failed to import Longform index:", e);
         ui.showError(`Import failed: ${e}`);
@@ -512,7 +515,7 @@
                 <!-- Collapse All button -->
                 <div class="flex items-center gap-3">
                   <div
-                    class="w-7 h-7 rounded bg-bg-panel flex items-center justify-center flex-shrink-0"
+                    class="w-7 h-7 rounded bg-bg-panel flex items-center justify-center shrink-0"
                   >
                     <ListChevronsDownUp class="w-4 h-4 text-text-secondary" />
                   </div>
@@ -524,7 +527,7 @@
                 <!-- Sort A-Z button -->
                 <div class="flex items-center gap-3">
                   <div
-                    class="w-7 h-7 rounded bg-bg-panel flex items-center justify-center flex-shrink-0"
+                    class="w-7 h-7 rounded bg-bg-panel flex items-center justify-center shrink-0"
                   >
                     <ArrowDownAZ class="w-4 h-4 text-text-secondary" />
                   </div>
@@ -536,7 +539,7 @@
                 <!-- Hide Panel button -->
                 <div class="flex items-center gap-3">
                   <div
-                    class="w-7 h-7 rounded bg-bg-panel flex items-center justify-center flex-shrink-0"
+                    class="w-7 h-7 rounded bg-bg-panel flex items-center justify-center shrink-0"
                   >
                     <ChevronsRight class="w-4 h-4 text-text-secondary" />
                   </div>
@@ -682,7 +685,7 @@
 
     <!-- Import Progress Modal -->
     {#if ui.isImporting}
-      <div class="fixed inset-0 bg-black/70 flex items-center justify-center z-[60]">
+      <div class="fixed inset-0 bg-black/70 flex items-center justify-center z-60">
         <div class="bg-bg-panel rounded-lg p-6 max-w-md w-full mx-4">
           <h3 class="text-lg font-heading font-medium text-text-primary mb-4">Importing...</h3>
           <div class="w-full bg-bg-card rounded-full h-2 mb-2">
