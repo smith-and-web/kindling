@@ -88,7 +88,8 @@ function setupInvokeMocks() {
       return Promise.resolve(mockLocations);
     }
     if (command === "get_references") {
-      const referenceType = args?.referenceType;
+      const referenceType =
+        args && !Array.isArray(args) ? (args as { referenceType?: unknown }).referenceType : null;
       if (referenceType === "items") {
         return Promise.resolve(mockItems);
       }
