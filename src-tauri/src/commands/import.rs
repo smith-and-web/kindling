@@ -169,6 +169,10 @@ pub async fn import_longform(path: String, state: State<'_, AppState>) -> Result
         db::insert_location(&tx, location).map_err(|e| e.to_string())?;
     }
 
+    for item in &parsed.reference_items {
+        db::insert_reference_item(&tx, item).map_err(|e| e.to_string())?;
+    }
+
     for (scene_id, character_id) in &parsed.scene_character_refs {
         db::add_scene_character_ref(&tx, scene_id, character_id).map_err(|e| e.to_string())?;
     }

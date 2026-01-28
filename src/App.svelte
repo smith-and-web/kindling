@@ -36,6 +36,13 @@
     }
   }
 
+  function activateImportedProject(project: Project) {
+    // Clear prior project state so panels reload for the new project.
+    currentProject.setProject(null);
+    currentProject.setProject(project);
+    ui.setView("editor");
+  }
+
   // Reload projects when returning to start screen (currentProject becomes null)
   // or on initial load
   $effect(() => {
@@ -55,8 +62,7 @@
       ui.startImport();
       try {
         const project = await invoke<Project>("import_plottr", { path });
-        currentProject.setProject(project);
-        ui.setView("editor");
+        activateImportedProject(project);
       } catch (e) {
         console.error("Failed to import Plottr file:", e);
         ui.showError(`Import failed: ${e}`);
@@ -76,8 +82,7 @@
       ui.startImport();
       try {
         const project = await invoke<Project>("import_markdown", { path });
-        currentProject.setProject(project);
-        ui.setView("editor");
+        activateImportedProject(project);
       } catch (e) {
         console.error("Failed to import Markdown file:", e);
         ui.showError(`Import failed: ${e}`);
@@ -97,8 +102,7 @@
       ui.startImport();
       try {
         const project = await invoke<Project>("import_ywriter", { path });
-        currentProject.setProject(project);
-        ui.setView("editor");
+        activateImportedProject(project);
       } catch (e) {
         console.error("Failed to import yWriter file:", e);
         ui.showError(`Import failed: ${e}`);
@@ -118,8 +122,7 @@
       ui.startImport();
       try {
         const project = await invoke<Project>("import_longform", { path });
-        currentProject.setProject(project);
-        ui.setView("editor");
+        activateImportedProject(project);
       } catch (e) {
         console.error("Failed to import Longform index:", e);
         ui.showError(`Import failed: ${e}`);
@@ -139,8 +142,7 @@
       ui.startImport();
       try {
         const project = await invoke<Project>("import_longform", { path });
-        currentProject.setProject(project);
-        ui.setView("editor");
+        activateImportedProject(project);
       } catch (e) {
         console.error("Failed to import Longform vault:", e);
         ui.showError(`Import failed: ${e}`);

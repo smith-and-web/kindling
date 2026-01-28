@@ -8,6 +8,7 @@ use crate::models::{AppSettings, Beat, Chapter, Project, Scene, SnapshotTrigger}
 use chrono::Utc;
 use docx_rs::*;
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -1322,8 +1323,85 @@ fn escape_longform_attribute(value: &str) -> String {
         .replace('\t', "\\t")
 }
 
-fn generate_longform_scene_markdown(scene: &Scene, beats: &[Beat]) -> String {
-    let mut content = String::new();
+fn format_wikilink(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.starts_with("[[") && trimmed.ends_with("]]") {
+        trimmed.to_string()
+    } else {
+        format!("[[{}]]", trimmed)
+    }
+}
+
+fn map_scene_status_for_frontmatter(scene: &Scene) -> String {
+    if scene.archived {
+        "archived".to_string()
+    } else if scene.locked && scene.scene_status != crate::models::SceneStatus::Final {
+        "final".to_string()
+    } else {
+        scene.scene_status.as_str().to_string()
+    }
+}
+
+fn generate_longform_scene_frontmatter(
+    project: &Project,
+    scene: &Scene,
+    characters: &[String],
+    setting: Option<&String>,
+) -> Result<String, String> {
+    #[derive(Serialize)]
+    struct SceneFrontmatter {
+        #[serde(rename = "type")]
+        note_type: String,
+        project: String,
+        status: String,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        characters: Vec<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        setting: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        synopsis: Option<String>,
+    }
+
+    let frontmatter = SceneFrontmatter {
+        note_type: "writing scene".to_string(),
+        project: format_wikilink(&project.name),
+        status: map_scene_status_for_frontmatter(scene),
+        characters: characters.iter().map(|c| format_wikilink(c)).collect(),
+        setting: setting.map(|name| format_wikilink(name)),
+        synopsis: scene.synopsis.clone().filter(|s| !s.trim().is_empty()),
+    };
+
+    let mut yaml = serde_yaml::to_string(&frontmatter).map_err(|e| e.to_string())?;
+    if yaml.starts_with("---") {
+        yaml = yaml.trim_start_matches("---").trim_start().to_string();
+    }
+
+    Ok(format!("---\n{}---\n", yaml))
+}
+
+fn generate_longform_scene_markdown(
+    project: &Project,
+    scene: &Scene,
+    beats: &[Beat],
+    characters: &[String],
+    setting: Option<&String>,
+) -> Result<String, String> {
+    let mut content = generate_longform_scene_frontmatter(project, scene, characters, setting)?;
+
+    if !scene.title.trim().is_empty() {
+        content.push_str(&format!("# {}\n\n", scene.title.trim()));
+    }
+
+    if let Some(ref synopsis) = scene.synopsis {
+        let trimmed = synopsis.trim();
+        if !trimmed.is_empty() {
+            for line in trimmed.lines() {
+                content.push_str(&format!("> {}\n", line.trim()));
+            }
+            content.push('\n');
+        }
+    }
+
     let mut meta_parts = vec![
         format!("scene_type={}", scene.scene_type.as_str()),
         format!("scene_status={}", scene.scene_status.as_str()),
@@ -1364,7 +1442,84 @@ fn generate_longform_scene_markdown(scene: &Scene, beats: &[Beat]) -> String {
         }
     }
 
-    content
+    Ok(content)
+}
+
+struct ReferenceNoteContent<'a> {
+    note_type: &'a str,
+    name: &'a str,
+    description: Option<&'a String>,
+    notes: Option<&'a String>,
+    role: Option<&'a String>,
+    first_appearance: Option<&'a String>,
+    appearances: &'a [String],
+    attributes: &'a HashMap<String, String>,
+}
+
+fn generate_reference_note_markdown(note: ReferenceNoteContent<'_>) -> Result<String, String> {
+    #[derive(Serialize)]
+    struct ReferenceFrontmatter {
+        #[serde(rename = "type")]
+        note_type: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        role: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        first_appearance: Option<String>,
+        #[serde(flatten)]
+        attributes: HashMap<String, String>,
+    }
+
+    let mut extra = note.attributes.clone();
+    extra.remove("role");
+    extra.remove("notes");
+    extra.remove("note");
+
+    let frontmatter = ReferenceFrontmatter {
+        note_type: note.note_type.to_string(),
+        role: note.role.cloned(),
+        first_appearance: note.first_appearance.map(|scene| format_wikilink(scene)),
+        attributes: extra,
+    };
+
+    let mut yaml = serde_yaml::to_string(&frontmatter).map_err(|e| e.to_string())?;
+    if yaml.starts_with("---") {
+        yaml = yaml.trim_start_matches("---").trim_start().to_string();
+    }
+
+    let mut output = format!("---\n{}---\n\n", yaml);
+    output.push_str(&format!("# {}\n\n", note.name.trim()));
+
+    if let Some(desc) = note.description {
+        let clean = strip_html(desc);
+        if !clean.trim().is_empty() {
+            output.push_str("## Description\n\n");
+            output.push_str(clean.trim());
+            output.push_str("\n\n");
+        }
+    }
+
+    if let Some(note_text) = note.notes {
+        let clean = strip_html(note_text);
+        if !clean.trim().is_empty() {
+            output.push_str("## Notes\n\n");
+            output.push_str(clean.trim());
+            output.push_str("\n\n");
+        }
+    }
+
+    if !note.appearances.is_empty() {
+        output.push_str(if note.note_type == "character" {
+            "## Appearances\n\n"
+        } else {
+            "## Scenes\n\n"
+        });
+        for scene in note.appearances {
+            output.push_str(&format!("- {}\n", format_wikilink(scene)));
+        }
+        output.push('\n');
+    }
+
+    Ok(output)
 }
 
 fn generate_longform_frontmatter(
@@ -1769,7 +1924,9 @@ pub async fn export_to_longform(
     let mut scenes_to_export: Vec<(Scene, Vec<Beat>)> = Vec::new();
     let mut chapter_ids = std::collections::HashSet::new();
 
-    match options.scope {
+    let export_all_references = matches!(options.scope, ExportScope::Project);
+
+    match &options.scope {
         ExportScope::Project => {
             let chapters =
                 db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
@@ -1785,7 +1942,7 @@ pub async fn export_to_longform(
             }
         }
         ExportScope::Chapter(chapter_id) => {
-            let chapter_uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
+            let chapter_uuid = Uuid::parse_str(chapter_id).map_err(|e| e.to_string())?;
             let chapters =
                 db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
             let chapter = chapters
@@ -1805,7 +1962,7 @@ pub async fn export_to_longform(
             }
         }
         ExportScope::Scene(scene_id) => {
-            let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+            let scene_uuid = Uuid::parse_str(scene_id).map_err(|e| e.to_string())?;
             let scene = db::queries::get_scene_by_id(&conn, &scene_uuid)
                 .map_err(|e| e.to_string())?
                 .ok_or_else(|| format!("Scene not found: {}", scene_id))?;
@@ -1820,6 +1977,43 @@ pub async fn export_to_longform(
         }
     }
 
+    let characters =
+        db::queries::get_characters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    let locations = db::queries::get_locations(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    let mut character_map = HashMap::new();
+    for character in characters {
+        character_map.insert(character.id, character);
+    }
+    let mut location_map = HashMap::new();
+    for location in locations {
+        location_map.insert(location.id, location);
+    }
+
+    let scene_character_refs = db::queries::get_all_scene_character_refs(&conn, &project_uuid)
+        .map_err(|e| e.to_string())?;
+    let scene_location_refs = db::queries::get_all_scene_location_refs(&conn, &project_uuid)
+        .map_err(|e| e.to_string())?;
+
+    let scene_ids: HashSet<Uuid> = scenes_to_export.iter().map(|(scene, _)| scene.id).collect();
+    let mut scene_character_map: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+    for reference in scene_character_refs {
+        if scene_ids.contains(&reference.scene_id) {
+            scene_character_map
+                .entry(reference.scene_id)
+                .or_default()
+                .push(reference.character_id);
+        }
+    }
+    let mut scene_location_map: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+    for reference in scene_location_refs {
+        if scene_ids.contains(&reference.scene_id) {
+            scene_location_map
+                .entry(reference.scene_id)
+                .or_default()
+                .push(reference.location_id);
+        }
+    }
+
     let mut used_stems: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     let mut scene_names = Vec::new();
     let mut files_created = 0;
@@ -1828,7 +2022,24 @@ pub async fn export_to_longform(
         let base = extract_longform_scene_stem(scene);
         let stem = ensure_unique_scene_stem(base, &mut used_stems);
         let scene_file = project_folder.join(format!("{}.md", stem));
-        let markdown = generate_longform_scene_markdown(scene, beats);
+        let character_names = scene_character_map
+            .get(&scene.id)
+            .into_iter()
+            .flatten()
+            .filter_map(|id| character_map.get(id).map(|c| c.name.clone()))
+            .collect::<Vec<_>>();
+        let setting = scene_location_map
+            .get(&scene.id)
+            .and_then(|locations| locations.first())
+            .and_then(|id| location_map.get(id).map(|l| l.name.clone()));
+        let markdown = generate_longform_scene_markdown(
+            &project,
+            scene,
+            beats,
+            &character_names,
+            setting.as_ref(),
+        )
+        .map_err(|e| format!("Failed to generate scene markdown: {}", e))?;
         fs::write(&scene_file, markdown)
             .map_err(|e| format!("Failed to write scene file: {}", e))?;
         files_created += 1;
@@ -1845,6 +2056,116 @@ pub async fn export_to_longform(
     fs::write(&index_file, frontmatter)
         .map_err(|e| format!("Failed to write index file: {}", e))?;
     files_created += 1;
+
+    let mut reference_files_created = 0;
+    if !character_map.is_empty() || !location_map.is_empty() {
+        let mut character_scene_map: HashMap<Uuid, Vec<String>> = HashMap::new();
+        let mut location_scene_map: HashMap<Uuid, Vec<String>> = HashMap::new();
+        let scene_order: Vec<(Uuid, String)> = scenes_to_export
+            .iter()
+            .map(|(scene, _)| (scene.id, scene.title.clone()))
+            .collect();
+
+        for (scene_id, scene_title) in &scene_order {
+            if let Some(characters) = scene_character_map.get(scene_id) {
+                for character_id in characters {
+                    character_scene_map
+                        .entry(*character_id)
+                        .or_default()
+                        .push(scene_title.clone());
+                }
+            }
+            if let Some(locations) = scene_location_map.get(scene_id) {
+                for location_id in locations {
+                    location_scene_map
+                        .entry(*location_id)
+                        .or_default()
+                        .push(scene_title.clone());
+                }
+            }
+        }
+
+        if export_all_references {
+            for character_id in character_map.keys() {
+                character_scene_map.entry(*character_id).or_default();
+            }
+            for location_id in location_map.keys() {
+                location_scene_map.entry(*location_id).or_default();
+            }
+        }
+
+        if !character_scene_map.is_empty() {
+            let character_dir = project_folder.join("characters");
+            fs::create_dir_all(&character_dir)
+                .map_err(|e| format!("Failed to create characters folder: {}", e))?;
+            let mut used_names: HashMap<String, usize> = HashMap::new();
+            for (character_id, scenes) in character_scene_map {
+                if let Some(character) = character_map.get(&character_id) {
+                    let stem = ensure_unique_scene_stem(
+                        sanitize_filename(&character.name),
+                        &mut used_names,
+                    );
+                    let file_path = character_dir.join(format!("{}.md", stem));
+                    let notes = character
+                        .attributes
+                        .get("notes")
+                        .or_else(|| character.attributes.get("note"));
+                    let role = character.attributes.get("role");
+                    let first_appearance = scenes.first();
+                    let markdown = generate_reference_note_markdown(ReferenceNoteContent {
+                        note_type: "character",
+                        name: &character.name,
+                        description: character.description.as_ref(),
+                        notes,
+                        role,
+                        first_appearance,
+                        appearances: &scenes,
+                        attributes: &character.attributes,
+                    })
+                    .map_err(|e| format!("Failed to generate character note: {}", e))?;
+                    fs::write(&file_path, markdown)
+                        .map_err(|e| format!("Failed to write character note: {}", e))?;
+                    reference_files_created += 1;
+                }
+            }
+        }
+
+        if !location_scene_map.is_empty() {
+            let location_dir = project_folder.join("locations");
+            fs::create_dir_all(&location_dir)
+                .map_err(|e| format!("Failed to create locations folder: {}", e))?;
+            let mut used_names: HashMap<String, usize> = HashMap::new();
+            for (location_id, scenes) in location_scene_map {
+                if let Some(location) = location_map.get(&location_id) {
+                    let stem = ensure_unique_scene_stem(
+                        sanitize_filename(&location.name),
+                        &mut used_names,
+                    );
+                    let file_path = location_dir.join(format!("{}.md", stem));
+                    let notes = location
+                        .attributes
+                        .get("notes")
+                        .or_else(|| location.attributes.get("note"));
+                    let first_appearance = scenes.first();
+                    let markdown = generate_reference_note_markdown(ReferenceNoteContent {
+                        note_type: "location",
+                        name: &location.name,
+                        description: location.description.as_ref(),
+                        notes,
+                        role: None,
+                        first_appearance,
+                        appearances: &scenes,
+                        attributes: &location.attributes,
+                    })
+                    .map_err(|e| format!("Failed to generate location note: {}", e))?;
+                    fs::write(&file_path, markdown)
+                        .map_err(|e| format!("Failed to write location note: {}", e))?;
+                    reference_files_created += 1;
+                }
+            }
+        }
+    }
+    files_created += reference_files_created;
 
     Ok(ExportResult {
         output_path: project_folder.to_string_lossy().to_string(),
@@ -4012,6 +4333,11 @@ mod tests {
     fn test_generate_longform_scene_markdown() {
         use crate::models::{SceneStatus, SceneType};
 
+        let project = Project::new(
+            "My Project".to_string(),
+            crate::models::SourceType::Longform,
+            None,
+        );
         let chapter_id = Uuid::new_v4();
         let mut scene = Scene::new(
             chapter_id,
@@ -4026,12 +4352,61 @@ mod tests {
         let mut beat = Beat::new(scene.id, "Beat One".to_string(), 0);
         beat.prose = Some("<p>Beat prose.</p>".to_string());
 
-        let markdown = generate_longform_scene_markdown(&scene, &[beat]);
+        let markdown = generate_longform_scene_markdown(
+            &project,
+            &scene,
+            &[beat],
+            &["Sarah".to_string()],
+            Some(&"Downtown Cafe".to_string()),
+        )
+        .unwrap();
+        assert!(markdown.starts_with("---"));
+        assert!(markdown.contains("type: writing scene"));
+        assert!(markdown.contains("project:"));
+        assert!(markdown.contains("[[My Project]]"));
+        assert!(markdown.contains("characters:"));
+        assert!(markdown.contains("[[Sarah]]"));
+        assert!(markdown.contains("setting:"));
+        assert!(markdown.contains("[[Downtown Cafe]]"));
         assert!(markdown.contains("<!-- kindling: scene_type=notes scene_status=revised"));
         assert!(markdown.contains("synopsis=\"Short synopsis\""));
+        assert!(markdown.contains("# Scene Title"));
+        assert!(markdown.contains("> Short synopsis"));
         assert!(markdown.contains("Scene prose."));
         assert!(markdown.contains("<!-- kindling: beats -->"));
         assert!(markdown.contains("- Beat One"));
         assert!(markdown.contains("Beat prose."));
+    }
+
+    #[test]
+    fn test_generate_reference_note_markdown() {
+        let mut attributes = std::collections::HashMap::new();
+        attributes.insert("role".to_string(), "protagonist".to_string());
+        attributes.insert("age".to_string(), "32".to_string());
+
+        let markdown = generate_reference_note_markdown(ReferenceNoteContent {
+            note_type: "character",
+            name: "Sarah",
+            description: Some(&"A sharp investigator.".to_string()),
+            notes: None,
+            role: Some(&"protagonist".to_string()),
+            first_appearance: Some(&"Scene 1".to_string()),
+            appearances: &["Scene 1".to_string(), "Scene 2".to_string()],
+            attributes: &attributes,
+        })
+        .unwrap();
+
+        assert!(markdown.contains("type: character"));
+        assert!(markdown.contains("role: protagonist"));
+        assert!(markdown.contains("first_appearance:"));
+        assert!(markdown.contains("[[Scene 1]]"));
+        assert!(markdown.contains("# Sarah"));
+        assert!(markdown.contains("## Description"));
+        assert!(markdown.contains("A sharp investigator."));
+        assert!(markdown.contains("## Appearances"));
+        assert!(markdown.contains("- [[Scene 1]]"));
+        assert!(markdown.contains("- [[Scene 2]]"));
+        assert!(markdown.contains("age:"));
+        assert!(markdown.contains("32"));
     }
 }
