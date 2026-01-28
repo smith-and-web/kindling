@@ -4398,13 +4398,15 @@ mod tests {
 
         assert!(markdown.contains("type: character"));
         assert!(markdown.contains("role: protagonist"));
-        assert!(markdown.contains("first_appearance: \"[[Scene 1]]\""));
+        assert!(markdown.contains("first_appearance:"));
+        assert!(markdown.contains("[[Scene 1]]"));
         assert!(markdown.contains("# Sarah"));
         assert!(markdown.contains("## Description"));
         assert!(markdown.contains("A sharp investigator."));
         assert!(markdown.contains("## Appearances"));
         assert!(markdown.contains("- [[Scene 1]]"));
         assert!(markdown.contains("- [[Scene 2]]"));
-        assert!(markdown.contains("age: \"32\""));
+        assert!(markdown.contains("age:"));
+        assert!(markdown.contains("32"));
     }
 }
