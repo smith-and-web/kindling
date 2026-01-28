@@ -18,9 +18,40 @@ Get the latest release from the [GitHub Releases page](https://github.com/smith-
 
 ---
 
+## Verify Your Download
+
+To ensure you downloaded the authentic Kindling release:
+
+1. **Download only from official sources**: [GitHub Releases](https://github.com/smith-and-web/kindling/releases)
+2. **Verify checksums (optional but recommended)**:
+   - Download `checksums.sha256` from the same release
+   - Verify the file with your platform:
+
+```bash
+# macOS / Linux
+shasum -a 256 -c checksums.sha256 --ignore-missing
+
+# Windows (PowerShell)
+certutil -hashfile Kindling_*_x64-setup.msi SHA256
+```
+
+If your checksum doesn't match, delete the file and re-download from the official release page.
+
+## Trust Signals
+
+- Kindling is open source and auditable: [github.com/smith-and-web/kindling](https://github.com/smith-and-web/kindling)
+- Release builds are produced by GitHub Actions in this repository
+- Release assets include checksums for download verification
+
+---
+
 ## macOS Installation
 
 Kindling is not code-signed with an Apple Developer certificate. When you first open the app, macOS will show a security warning.
+
+### Why This Warning Appears
+
+Gatekeeper warns about apps that aren't signed with an Apple Developer certificate. As an open-source project, Kindling ships with ad-hoc signing instead. You can verify authenticity using the checksums above and by reviewing the source code on GitHub.
 
 ### macOS Sequoia (15.0) and Later
 
