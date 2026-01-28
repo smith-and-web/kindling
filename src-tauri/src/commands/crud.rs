@@ -2,7 +2,7 @@
 //!
 //! Handles create, read, update, delete operations for all data types.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
@@ -833,10 +833,11 @@ pub async fn save_scene_reference_state(
             }
         }
         _ => {
-            db::clear_scene_reference_item_refs(&conn, &scene_uuid).map_err(|e| {
-                let _ = conn.execute("ROLLBACK", []);
-                e.to_string()
-            })?;
+            db::clear_scene_reference_item_refs_for_type(&conn, &scene_uuid, &reference_type)
+                .map_err(|e| {
+                    let _ = conn.execute("ROLLBACK", []);
+                    e.to_string()
+                })?;
             for reference_id in reference_ids {
                 db::add_scene_reference_item_ref(&conn, &scene_uuid, &reference_id).map_err(
                     |e| {
@@ -859,6 +860,282 @@ pub async fn save_scene_reference_state(
 
     conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[derive(serde::Deserialize)]
+pub struct ReferenceReclassification {
+    pub reference_id: String,
+    pub new_type: String,
+}
+
+#[tauri::command]
+pub async fn reclassify_references(
+    project_id: String,
+    changes: Vec<ReferenceReclassification>,
+    state: State<'_, AppState>,
+) -> Result<Project, String> {
+    let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    conn.execute("BEGIN TRANSACTION", [])
+        .map_err(|e| e.to_string())?;
+
+    let result: Result<Project, String> = (|| {
+        for change in &changes {
+            let reference_uuid =
+                Uuid::parse_str(&change.reference_id).map_err(|e| e.to_string())?;
+            let target_type = change.new_type.trim().to_lowercase();
+            if target_type.is_empty() {
+                continue;
+            }
+
+            let current_character =
+                db::get_character_by_id(&conn, &reference_uuid).map_err(|e| e.to_string())?;
+            let current_location =
+                db::get_location_by_id(&conn, &reference_uuid).map_err(|e| e.to_string())?;
+            let current_reference_item =
+                db::get_reference_item_by_id(&conn, &reference_uuid).map_err(|e| e.to_string())?;
+
+            let (current_type, scene_states) = if current_character.is_some() {
+                let states = db::get_scene_reference_states_for_reference(
+                    &conn,
+                    "characters",
+                    &reference_uuid,
+                )
+                .map_err(|e| e.to_string())?;
+                ("characters".to_string(), states)
+            } else if current_location.is_some() {
+                let states = db::get_scene_reference_states_for_reference(
+                    &conn,
+                    "locations",
+                    &reference_uuid,
+                )
+                .map_err(|e| e.to_string())?;
+                ("locations".to_string(), states)
+            } else if let Some(item) = &current_reference_item {
+                let states = db::get_scene_reference_states_for_reference(
+                    &conn,
+                    &item.reference_type,
+                    &reference_uuid,
+                )
+                .map_err(|e| e.to_string())?;
+                (item.reference_type.clone(), states)
+            } else {
+                continue;
+            };
+
+            if current_type == target_type {
+                continue;
+            }
+
+            let scene_ids = if current_type == "characters" {
+                db::get_scene_ids_for_character(&conn, &reference_uuid)
+                    .map_err(|e| e.to_string())?
+            } else if current_type == "locations" {
+                db::get_scene_ids_for_location(&conn, &reference_uuid).map_err(|e| e.to_string())?
+            } else {
+                db::get_scene_ids_for_reference_item(&conn, &reference_uuid)
+                    .map_err(|e| e.to_string())?
+            };
+
+            if !scene_states.is_empty() {
+                db::delete_scene_reference_states_for_reference(
+                    &conn,
+                    &current_type,
+                    &reference_uuid,
+                )
+                .map_err(|e| e.to_string())?;
+                for state in &scene_states {
+                    let max_position = db::get_scene_reference_state_max_position(
+                        &conn,
+                        &state.scene_id,
+                        &target_type,
+                    )
+                    .map_err(|e| e.to_string())?
+                    .unwrap_or(-1);
+                    let next_state = SceneReferenceState {
+                        scene_id: state.scene_id,
+                        reference_type: target_type.clone(),
+                        reference_id: reference_uuid,
+                        position: max_position + 1,
+                        expanded: state.expanded,
+                    };
+                    db::insert_scene_reference_state(&conn, &next_state)
+                        .map_err(|e| e.to_string())?;
+                }
+            }
+
+            match current_type.as_str() {
+                "characters" => {
+                    let character = current_character.expect("Character missing");
+                    match target_type.as_str() {
+                        "locations" => {
+                            let location = Location {
+                                id: character.id,
+                                project_id: character.project_id,
+                                name: character.name,
+                                description: character.description,
+                                attributes: character.attributes,
+                                source_id: character.source_id,
+                            };
+                            db::insert_location(&conn, &location).map_err(|e| e.to_string())?;
+                            for scene_id in &scene_ids {
+                                db::add_scene_location_ref(&conn, scene_id, &location.id)
+                                    .map_err(|e| e.to_string())?;
+                            }
+                            db::delete_character(&conn, &character.id)
+                                .map_err(|e| e.to_string())?;
+                        }
+                        "items" | "objectives" | "organizations" => {
+                            let item = ReferenceItem {
+                                id: character.id,
+                                project_id: character.project_id,
+                                reference_type: target_type.clone(),
+                                name: character.name,
+                                description: character.description,
+                                attributes: character.attributes,
+                                source_id: character.source_id,
+                            };
+                            db::insert_reference_item(&conn, &item).map_err(|e| e.to_string())?;
+                            for scene_id in &scene_ids {
+                                db::add_scene_reference_item_ref(&conn, scene_id, &item.id)
+                                    .map_err(|e| e.to_string())?;
+                            }
+                            db::delete_character(&conn, &character.id)
+                                .map_err(|e| e.to_string())?;
+                        }
+                        _ => {}
+                    }
+                    db::delete_scene_character_refs_for_character(&conn, &reference_uuid)
+                        .map_err(|e| e.to_string())?;
+                }
+                "locations" => {
+                    let location = current_location.expect("Location missing");
+                    match target_type.as_str() {
+                        "characters" => {
+                            let character = Character {
+                                id: location.id,
+                                project_id: location.project_id,
+                                name: location.name,
+                                description: location.description,
+                                attributes: location.attributes,
+                                source_id: location.source_id,
+                            };
+                            db::insert_character(&conn, &character).map_err(|e| e.to_string())?;
+                            for scene_id in &scene_ids {
+                                db::add_scene_character_ref(&conn, scene_id, &character.id)
+                                    .map_err(|e| e.to_string())?;
+                            }
+                            db::delete_location(&conn, &location.id).map_err(|e| e.to_string())?;
+                        }
+                        "items" | "objectives" | "organizations" => {
+                            let item = ReferenceItem {
+                                id: location.id,
+                                project_id: location.project_id,
+                                reference_type: target_type.clone(),
+                                name: location.name,
+                                description: location.description,
+                                attributes: location.attributes,
+                                source_id: location.source_id,
+                            };
+                            db::insert_reference_item(&conn, &item).map_err(|e| e.to_string())?;
+                            for scene_id in &scene_ids {
+                                db::add_scene_reference_item_ref(&conn, scene_id, &item.id)
+                                    .map_err(|e| e.to_string())?;
+                            }
+                            db::delete_location(&conn, &location.id).map_err(|e| e.to_string())?;
+                        }
+                        _ => {}
+                    }
+                    db::delete_scene_location_refs_for_location(&conn, &reference_uuid)
+                        .map_err(|e| e.to_string())?;
+                }
+                _ => {
+                    let item = current_reference_item.expect("Reference item missing");
+                    match target_type.as_str() {
+                        "characters" => {
+                            let character = Character {
+                                id: item.id,
+                                project_id: item.project_id,
+                                name: item.name,
+                                description: item.description,
+                                attributes: item.attributes,
+                                source_id: item.source_id,
+                            };
+                            db::insert_character(&conn, &character).map_err(|e| e.to_string())?;
+                            for scene_id in &scene_ids {
+                                db::add_scene_character_ref(&conn, scene_id, &character.id)
+                                    .map_err(|e| e.to_string())?;
+                            }
+                            db::delete_reference_item(&conn, &item.id)
+                                .map_err(|e| e.to_string())?;
+                            db::delete_scene_reference_item_refs_for_item(&conn, &reference_uuid)
+                                .map_err(|e| e.to_string())?;
+                        }
+                        "locations" => {
+                            let location = Location {
+                                id: item.id,
+                                project_id: item.project_id,
+                                name: item.name,
+                                description: item.description,
+                                attributes: item.attributes,
+                                source_id: item.source_id,
+                            };
+                            db::insert_location(&conn, &location).map_err(|e| e.to_string())?;
+                            for scene_id in &scene_ids {
+                                db::add_scene_location_ref(&conn, scene_id, &location.id)
+                                    .map_err(|e| e.to_string())?;
+                            }
+                            db::delete_reference_item(&conn, &item.id)
+                                .map_err(|e| e.to_string())?;
+                            db::delete_scene_reference_item_refs_for_item(&conn, &reference_uuid)
+                                .map_err(|e| e.to_string())?;
+                        }
+                        "items" | "objectives" | "organizations" => {
+                            db::update_reference_item_type(&conn, &item.id, &target_type)
+                                .map_err(|e| e.to_string())?;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        let mut project = db::get_project(&conn, &project_uuid)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "Project not found".to_string())?;
+
+        let mut types = HashSet::new();
+        let characters = db::get_characters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+        if !characters.is_empty() {
+            types.insert("characters".to_string());
+        }
+        let locations = db::get_locations(&conn, &project_uuid).map_err(|e| e.to_string())?;
+        if !locations.is_empty() {
+            types.insert("locations".to_string());
+        }
+        let reference_items =
+            db::get_all_reference_items(&conn, &project_uuid).map_err(|e| e.to_string())?;
+        for item in reference_items {
+            types.insert(item.reference_type);
+        }
+        if types.is_empty() {
+            types.extend(Project::default_reference_types());
+        }
+        project.reference_types = types.into_iter().collect();
+
+        db::update_project(&conn, &project).map_err(|e| e.to_string())?;
+        db::update_project_modified(&conn, &project_uuid).map_err(|e| e.to_string())?;
+
+        conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+        Ok(project)
+    })();
+
+    if result.is_err() {
+        let _ = conn.execute("ROLLBACK", []);
+    }
+
+    result
 }
 
 #[tauri::command]

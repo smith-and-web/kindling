@@ -370,6 +370,16 @@
     loadSceneReferenceItems(sceneId);
   });
 
+  let lastSceneReferenceRefreshId = -1;
+  $effect(() => {
+    const refreshId = ui.sceneReferenceRefreshId;
+    const sceneId = currentProject.currentScene?.id ?? null;
+    if (!sceneId) return;
+    if (refreshId === lastSceneReferenceRefreshId) return;
+    lastSceneReferenceRefreshId = refreshId;
+    loadSceneReferenceItems(sceneId);
+  });
+
   onDestroy(() => {
     flushPendingSave(ui.expandedBeatId ?? undefined);
     if (ui.expandedBeatId) {

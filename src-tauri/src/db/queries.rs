@@ -500,6 +500,42 @@ pub fn get_character_project_id(conn: &Connection, character_id: &Uuid) -> Resul
     }
 }
 
+pub fn get_character_by_id(conn: &Connection, character_id: &Uuid) -> Result<Option<Character>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, project_id, name, description, source_id
+         FROM characters WHERE id = ?1",
+    )?;
+    let mut rows = stmt.query(params![character_id.to_string()])?;
+
+    if let Some(row) = rows.next()? {
+        let mut character = Character {
+            id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+            project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+            name: row.get(2)?,
+            description: row.get(3)?,
+            attributes: HashMap::new(),
+            source_id: row.get(4)?,
+        };
+
+        let mut attr_stmt =
+            conn.prepare("SELECT key, value FROM character_attributes WHERE character_id = ?1")?;
+        let attrs: Vec<(String, String)> = attr_stmt
+            .query_map(params![character.id.to_string()], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                ))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        character.attributes = attrs.into_iter().collect();
+
+        Ok(Some(character))
+    } else {
+        Ok(None)
+    }
+}
+
 pub fn update_character(
     conn: &Connection,
     character_id: &Uuid,
@@ -612,6 +648,42 @@ pub fn get_location_project_id(conn: &Connection, location_id: &Uuid) -> Result<
 
     if let Some(row) = rows.next()? {
         Ok(Some(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap()))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn get_location_by_id(conn: &Connection, location_id: &Uuid) -> Result<Option<Location>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, project_id, name, description, source_id
+         FROM locations WHERE id = ?1",
+    )?;
+    let mut rows = stmt.query(params![location_id.to_string()])?;
+
+    if let Some(row) = rows.next()? {
+        let mut location = Location {
+            id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+            project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+            name: row.get(2)?,
+            description: row.get(3)?,
+            attributes: HashMap::new(),
+            source_id: row.get(4)?,
+        };
+
+        let mut attr_stmt =
+            conn.prepare("SELECT key, value FROM location_attributes WHERE location_id = ?1")?;
+        let attrs: Vec<(String, String)> = attr_stmt
+            .query_map(params![location.id.to_string()], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                ))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        location.attributes = attrs.into_iter().collect();
+
+        Ok(Some(location))
     } else {
         Ok(None)
     }
@@ -784,6 +856,59 @@ pub fn get_reference_item_project_id(
     }
 }
 
+pub fn get_reference_item_by_id(
+    conn: &Connection,
+    reference_item_id: &Uuid,
+) -> Result<Option<ReferenceItem>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, project_id, reference_type, name, description, source_id
+         FROM reference_items WHERE id = ?1",
+    )?;
+    let mut rows = stmt.query(params![reference_item_id.to_string()])?;
+
+    if let Some(row) = rows.next()? {
+        let mut item = ReferenceItem {
+            id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+            project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+            reference_type: row.get(2)?,
+            name: row.get(3)?,
+            description: row.get(4)?,
+            attributes: HashMap::new(),
+            source_id: row.get(5)?,
+        };
+
+        let mut attr_stmt = conn.prepare(
+            "SELECT key, value FROM reference_item_attributes WHERE reference_item_id = ?1",
+        )?;
+        let attrs: Vec<(String, String)> = attr_stmt
+            .query_map(params![item.id.to_string()], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                ))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        item.attributes = attrs.into_iter().collect();
+
+        Ok(Some(item))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn update_reference_item_type(
+    conn: &Connection,
+    reference_item_id: &Uuid,
+    reference_type: &str,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE reference_items SET reference_type = ?1 WHERE id = ?2",
+        params![reference_type, reference_item_id.to_string()],
+    )?;
+    Ok(())
+}
+
 pub fn update_reference_item(
     conn: &Connection,
     reference_item_id: &Uuid,
@@ -863,6 +988,45 @@ pub fn add_scene_reference_item_ref(
     Ok(())
 }
 
+pub fn get_scene_ids_for_character(conn: &Connection, character_id: &Uuid) -> Result<Vec<Uuid>> {
+    let mut stmt =
+        conn.prepare("SELECT scene_id FROM scene_character_refs WHERE character_id = ?1")?;
+    let ids = stmt
+        .query_map(params![character_id.to_string()], |row| {
+            Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(ids)
+}
+
+pub fn get_scene_ids_for_location(conn: &Connection, location_id: &Uuid) -> Result<Vec<Uuid>> {
+    let mut stmt =
+        conn.prepare("SELECT scene_id FROM scene_location_refs WHERE location_id = ?1")?;
+    let ids = stmt
+        .query_map(params![location_id.to_string()], |row| {
+            Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(ids)
+}
+
+pub fn get_scene_ids_for_reference_item(
+    conn: &Connection,
+    reference_item_id: &Uuid,
+) -> Result<Vec<Uuid>> {
+    let mut stmt = conn
+        .prepare("SELECT scene_id FROM scene_reference_item_refs WHERE reference_item_id = ?1")?;
+    let ids = stmt
+        .query_map(params![reference_item_id.to_string()], |row| {
+            Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(ids)
+}
+
 pub fn get_scene_characters(conn: &Connection, scene_id: &Uuid) -> Result<Vec<Uuid>> {
     let mut stmt =
         conn.prepare("SELECT character_id FROM scene_character_refs WHERE scene_id = ?1")?;
@@ -916,6 +1080,46 @@ pub fn get_scene_reference_states(
         .collect();
 
     Ok(states)
+}
+
+pub fn get_scene_reference_states_for_reference(
+    conn: &Connection,
+    reference_type: &str,
+    reference_id: &Uuid,
+) -> Result<Vec<SceneReferenceState>> {
+    let mut stmt = conn.prepare(
+        "SELECT scene_id, reference_type, reference_id, position, expanded
+         FROM scene_reference_state
+         WHERE reference_type = ?1 AND reference_id = ?2",
+    )?;
+
+    let states = stmt
+        .query_map(params![reference_type, reference_id.to_string()], |row| {
+            Ok(SceneReferenceState {
+                scene_id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                reference_type: row.get(1)?,
+                reference_id: Uuid::parse_str(&row.get::<_, String>(2)?).unwrap(),
+                position: row.get(3)?,
+                expanded: row.get::<_, i32>(4)? != 0,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(states)
+}
+
+pub fn get_scene_reference_state_max_position(
+    conn: &Connection,
+    scene_id: &Uuid,
+    reference_type: &str,
+) -> Result<Option<i32>> {
+    conn.query_row(
+        "SELECT MAX(position) FROM scene_reference_state WHERE scene_id = ?1 AND reference_type = ?2",
+        params![scene_id.to_string(), reference_type],
+        |row| row.get(0),
+    )
+    .optional()
 }
 
 pub fn insert_scene_reference_state(conn: &Connection, state: &SceneReferenceState) -> Result<()> {
@@ -1089,6 +1293,55 @@ pub fn clear_scene_reference_item_refs(conn: &Connection, scene_id: &Uuid) -> Re
     conn.execute(
         "DELETE FROM scene_reference_item_refs WHERE scene_id = ?1",
         params![scene_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn clear_scene_reference_item_refs_for_type(
+    conn: &Connection,
+    scene_id: &Uuid,
+    reference_type: &str,
+) -> Result<()> {
+    conn.execute(
+        "DELETE FROM scene_reference_item_refs
+         WHERE scene_id = ?1
+           AND reference_item_id IN (
+             SELECT id FROM reference_items WHERE reference_type = ?2
+           )",
+        params![scene_id.to_string(), reference_type],
+    )?;
+    Ok(())
+}
+
+pub fn delete_scene_character_refs_for_character(
+    conn: &Connection,
+    character_id: &Uuid,
+) -> Result<()> {
+    conn.execute(
+        "DELETE FROM scene_character_refs WHERE character_id = ?1",
+        params![character_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn delete_scene_location_refs_for_location(
+    conn: &Connection,
+    location_id: &Uuid,
+) -> Result<()> {
+    conn.execute(
+        "DELETE FROM scene_location_refs WHERE location_id = ?1",
+        params![location_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn delete_scene_reference_item_refs_for_item(
+    conn: &Connection,
+    reference_item_id: &Uuid,
+) -> Result<()> {
+    conn.execute(
+        "DELETE FROM scene_reference_item_refs WHERE reference_item_id = ?1",
+        params![reference_item_id.to_string()],
     )?;
     Ok(())
 }

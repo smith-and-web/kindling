@@ -52,6 +52,7 @@ class UIStore {
   private _focusMode = $state(false);
   private _expandedBeatId = $state<string | null>(null);
   private _beatSaveStatus = $state<"idle" | "saving" | "saved" | "error">("idle");
+  private _sceneReferenceRefreshId = $state(0);
   private _isImporting = $state(false);
   private _importProgress = $state(0);
   private _importStatus = $state("");
@@ -147,6 +148,10 @@ class UIStore {
     return this._beatSaveStatus;
   }
 
+  get sceneReferenceRefreshId() {
+    return this._sceneReferenceRefreshId;
+  }
+
   get isImporting() {
     return this._isImporting;
   }
@@ -189,6 +194,10 @@ class UIStore {
 
   setBeatSaveStatus(status: "idle" | "saving" | "saved" | "error") {
     this._beatSaveStatus = status;
+  }
+
+  bumpSceneReferenceRefresh() {
+    this._sceneReferenceRefreshId += 1;
   }
 
   startImport() {
