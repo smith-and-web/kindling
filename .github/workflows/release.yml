@@ -62,20 +62,13 @@ jobs:
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Commit changelog
+      - name: Check changelog changes
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Disable local hooks for CI pushes
-          git config --local core.hooksPath /dev/null
-
-          # Check if there are changes to commit
           if git diff --quiet CHANGELOG.md; then
-            echo "No changelog changes to commit"
+            echo "No changelog changes to report"
           else
-            git add CHANGELOG.md
-            git commit -m "docs: update changelog for ${{ github.ref_name }} [skip ci]"
-            git push origin main
+            echo "::warning::CHANGELOG.md updated during release build; commit manually to main."
+            git --no-pager diff --stat CHANGELOG.md
           fi
 
   # Build and release for each platform
