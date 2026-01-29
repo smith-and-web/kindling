@@ -53,10 +53,10 @@ kindling/
 ├── src-tauri/                # Rust backend
 │   ├── src/
 │   │   ├── lib.rs            # App initialization, command registration
-│   │   ├── commands.rs       # Tauri IPC command handlers
-│   │   ├── models/           # Data structures (Chapter, Scene, Beat, etc.)
+│   │   ├── commands/         # Tauri IPC command handlers (by module)
+│   │   ├── models/           # Data structures (Project, Scene, ReferenceItem, etc.)
 │   │   ├── db/               # SQLite schema and queries
-│   │   └── parsers/          # Import format parsers
+│   │   └── parsers/          # Import format parsers (Plottr, Markdown, yWriter, Longform)
 │   └── tauri.conf.json       # Tauri configuration
 │
 ├── e2e/                      # End-to-end tests (WebdriverIO)
@@ -68,43 +68,45 @@ kindling/
 
 ### Components (`src/lib/components/`)
 
-| Component | Purpose |
-|-----------|---------|
-| `App.svelte` | Root component, routes between StartScreen and Editor |
-| `StartScreen.svelte` | Project selection and import UI |
-| `Sidebar.svelte` | Chapter/scene tree navigation |
-| `ScenePanel.svelte` | Main editing area with beats |
-| `ReferencesPanel.svelte` | Character and location reference cards |
-| `Onboarding.svelte` | First-launch tutorial flow |
-| `ContextMenu.svelte` | Right-click context menus |
-| `ConfirmDialog.svelte` | Confirmation modals |
-| `RenameDialog.svelte` | Rename modals |
-| `ArchivePanel.svelte` | View and restore archived items |
+| Component                | Purpose                                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------- |
+| `App.svelte`             | Root component, routes between StartScreen and Editor                                  |
+| `StartScreen.svelte`     | Project selection and import UI                                                        |
+| `Sidebar.svelte`         | Chapter/scene tree navigation                                                          |
+| `ScenePanel.svelte`      | Main editing area with beats                                                           |
+| `ReferencesPanel.svelte` | Reference cards across types (characters, locations, items, objectives, organizations) |
+| `Onboarding.svelte`      | First-launch tutorial flow                                                             |
+| `ContextMenu.svelte`     | Right-click context menus                                                              |
+| `ConfirmDialog.svelte`   | Confirmation modals                                                                    |
+| `RenameDialog.svelte`    | Rename modals                                                                          |
+| `ArchivePanel.svelte`    | View and restore archived items                                                        |
 
 ### State Management (`src/lib/stores/`)
 
 Kindling uses Svelte 5's runes-based reactivity. State is managed through class-based stores:
 
 **`project.svelte.ts`** - Project data state:
+
 ```typescript
 // Access via: currentProject
-currentProject.value        // Current Project or null
-currentProject.chapters     // Chapter[]
-currentProject.scenes       // Scene[] (for current chapter)
-currentProject.beats        // Beat[] (for current scene)
-currentProject.characters   // Character[]
-currentProject.locations    // Location[]
+currentProject.value; // Current Project or null
+currentProject.chapters; // Chapter[]
+currentProject.scenes; // Scene[] (for current chapter)
+currentProject.beats; // Beat[] (for current scene)
+currentProject.characters; // Character[]
+currentProject.locations; // Location[]
 ```
 
 **`ui.svelte.ts`** - UI state:
+
 ```typescript
 // Access via: ui
-ui.currentView              // 'start' | 'editor'
-ui.sidebarCollapsed         // boolean
-ui.referencesPanelCollapsed // boolean
-ui.focusMode                // boolean
-ui.showOnboarding           // boolean
-ui.isImporting              // boolean
+ui.currentView; // 'start' | 'editor'
+ui.sidebarCollapsed; // boolean
+ui.referencesPanelCollapsed; // boolean
+ui.focusMode; // boolean
+ui.showOnboarding; // boolean
+ui.isImporting; // boolean
 ```
 
 ### Data Flow
@@ -116,6 +118,7 @@ ui.isImporting              // boolean
 5. Reactive UI updates automatically
 
 Example:
+
 ```typescript
 // In a component
 import { invoke } from "@tauri-apps/api/core";
@@ -129,7 +132,7 @@ async function loadChapters(projectId: string) {
 
 ## Backend Architecture
 
-### Commands (`src-tauri/src/commands.rs`)
+### Commands (`src-tauri/src/commands/`)
 
 All frontend-backend communication goes through Tauri commands. Commands are async functions decorated with `#[tauri::command]`:
 
@@ -145,6 +148,7 @@ pub async fn get_chapters(
 ```
 
 Commands are registered in `lib.rs`:
+
 ```rust
 .invoke_handler(tauri::generate_handler![
     commands::get_chapters,
@@ -154,25 +158,30 @@ Commands are registered in `lib.rs`:
 ```
 
 **Command categories:**
-- **Import**: `import_plottr`, `import_markdown`
+
+- **Import**: `import_plottr`, `import_markdown`, `import_ywriter`, `import_longform`
 - **CRUD**: `get_*`, `create_*`, `delete_*`, `rename_*`
 - **Reorder**: `reorder_chapters`, `reorder_scenes`, `move_scene_to_chapter`
 - **Sync**: `get_sync_preview`, `apply_sync`, `reimport_project`
 - **Archive**: `archive_*`, `restore_*`, `get_archived_items`
 - **Lock**: `lock_*`, `unlock_*`
+- **Export**: `export_to_docx`, `export_to_markdown`, `export_to_longform`, `export_to_epub`
+- **Snapshot**: `create_snapshot`, `list_snapshots`, `preview_snapshot`, `restore_snapshot`, `delete_snapshot`
+- **Settings**: `get_app_settings`, `update_app_settings`, `update_project_settings`
 
 ### Models (`src-tauri/src/models/`)
 
 Each model maps to a database table:
 
-| Model | Description |
-|-------|-------------|
-| `Project` | Top-level container, tracks source file |
-| `Chapter` | Groups scenes, has position for ordering |
-| `Scene` | Writing unit, contains synopsis and prose |
-| `Beat` | Story beat within a scene |
-| `Character` | Character reference with attributes |
-| `Location` | Location reference with attributes |
+| Model           | Description                                                               |
+| --------------- | ------------------------------------------------------------------------- |
+| `Project`       | Top-level container, tracks source file                                   |
+| `Chapter`       | Groups scenes, has position for ordering                                  |
+| `Scene`         | Writing unit, contains synopsis and prose                                 |
+| `Beat`          | Story beat within a scene                                                 |
+| `Character`     | Character reference with attributes                                       |
+| `Location`      | Location reference with attributes                                        |
+| `ReferenceItem` | Typed reference (characters, locations, items, objectives, organizations) |
 
 ### Database (`src-tauri/src/db/`)
 
@@ -183,20 +192,23 @@ Each model maps to a database table:
 The database is SQLite, stored in the app's data directory (`kindling.db`).
 
 **Key tables:**
+
 ```
 projects → chapters → scenes → beats
     ↓
-characters, locations (with scene references)
+characters, locations, reference_items (with scene reference links)
 ```
 
 ### Parsers (`src-tauri/src/parsers/`)
 
 Native Rust parsers for importing outlines:
 
-| Parser | File Type | Notes |
-|--------|-----------|-------|
-| `plottr.rs` | `.pltr` | JSON-based, extracts timeline/beats |
-| `markdown.rs` | `.md` | Heading-based outline format |
+| Parser        | File Type | Notes                                   |
+| ------------- | --------- | --------------------------------------- |
+| `plottr.rs`   | `.pltr`   | JSON-based, extracts timeline/beats     |
+| `markdown.rs` | `.md`     | Heading-based outline format            |
+| `ywriter.rs`  | `.yw7`    | yWriter project import                  |
+| `longform.rs` | `.md`     | Longform/Obsidian index or vault import |
 
 Each parser returns a `ParsedProject` struct that gets inserted into the database.
 
@@ -214,6 +226,7 @@ Project
 ```
 
 **Key concepts:**
+
 - `source_id`: Links imported items back to their source file IDs (for re-import sync)
 - `position`: Integer for ordering within parent
 - `archived`: Soft-delete flag
@@ -222,6 +235,7 @@ Project
 ## Import & Sync Flow
 
 ### Initial Import
+
 1. User selects file via system dialog
 2. Frontend calls `import_*` command
 3. Parser extracts structure from source file
@@ -229,6 +243,7 @@ Project
 5. Project returned to frontend, UI updates
 
 ### Re-import Sync
+
 1. User triggers reimport on existing project
 2. `get_sync_preview` parses source file and compares to DB
 3. Returns `SyncPreview` with additions and changes
@@ -239,16 +254,19 @@ Project
 ## Testing
 
 ### Frontend Tests
+
 - **Location**: `src/**/*.test.ts`
 - **Framework**: Vitest + Testing Library
 - **Run**: `npm test`
 
 ### Backend Tests
+
 - **Location**: `src-tauri/src/**/*.rs` (inline `#[cfg(test)]` modules)
 - **Framework**: Rust's built-in test framework
 - **Run**: `cd src-tauri && cargo test`
 
 ### E2E Tests
+
 - **Location**: `e2e/specs/`
 - **Framework**: WebdriverIO with Tauri driver
 - **Run**: See `e2e/README.md`
@@ -256,16 +274,19 @@ Project
 ## Key Patterns
 
 ### Error Handling
+
 - Rust commands return `Result<T, String>`
 - Frontend wraps `invoke()` in try/catch
 - Errors displayed via toast notifications (planned)
 
 ### Async Operations
+
 - All Tauri commands are async
 - Frontend uses `$effect()` for reactive data loading
 - Import progress tracked via UI store
 
 ### Persistence
+
 - UI preferences stored in `localStorage`
 - Project data stored in SQLite
 - Session state (last opened scene) stored per-project
@@ -273,17 +294,20 @@ Project
 ## Adding a New Feature
 
 ### Adding a new Tauri command:
-1. Add function to `commands.rs`
+
+1. Add function in the appropriate `src-tauri/src/commands/` module
 2. Register in `lib.rs` invoke_handler
 3. Add TypeScript types to `types.ts`
 4. Call via `invoke()` from frontend
 
 ### Adding a new component:
+
 1. Create `.svelte` file in `src/lib/components/`
 2. Add `data-testid` attributes for E2E tests
 3. Import and use in parent component
 
 ### Adding a database field:
+
 1. Add migration in `schema.rs`
 2. Update model struct
 3. Update relevant queries
