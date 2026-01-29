@@ -6,8 +6,7 @@ Kindling exports your work to multiple formats so you can move between outlining
 
 Open **Export** from the project toolbar or menu, then choose a format and scope.
 
-TODO: Add screenshot of the export dialog.
-![Screenshot: Export dialog](docs/assets/placeholder-export-dialog.png)
+![Screenshot: Export dialog](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/export-dialog.png)
 
 ## Supported Formats
 

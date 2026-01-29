@@ -6,8 +6,7 @@ Scenes are where you turn your outline into prose. Each scene combines beats, sy
 
 When you open a scene, the Scene panel shows its beats, synopsis, and metadata controls in one place.
 
-TODO: Add screenshot of the Scene panel.
-![Screenshot: Scene panel layout](docs/assets/placeholder-scene-panel.png)
+![Screenshot: Scene panel layout](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/scene-panel.png)
 
 ## Beats and Prose
 
@@ -16,8 +15,7 @@ TODO: Add screenshot of the Scene panel.
 - Prose auto-saves as you write
 - Collapse a beat to keep the outline visible while you draft
 
-TODO: Add screenshot of the beat editor with prose.
-![Screenshot: Beat editor with prose](docs/assets/placeholder-beat-editor.png)
+![Screenshot: Beat editor with prose](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/beat-with-prose.png)
 
 ## Synopsis Editing
 

@@ -8,8 +8,7 @@ Kindling supports importing story outlines from multiple sources. This guide exp
 2. Select a source file (Plottr, Markdown, yWriter) or a Longform/Obsidian vault folder.
 3. Review the import summary and finish the import.
 
-TODO: Add screenshot of the import dialog.
-![Screenshot: Import dialog](docs/assets/placeholder-import-dialog.png)
+![Screenshot: Import dialog](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/import-dialog.png)
 
 ## Supported Formats
 
@@ -26,8 +25,7 @@ TODO: Add screenshot of the import dialog.
 
 If Kindling detects references during import, it opens a classification dialog so you can confirm or adjust reference types before continuing. You can skip this step and refine reference types later in the References panel.
 
-TODO: Add screenshot of the reference classification dialog.
-![Screenshot: Reference classification dialog](docs/assets/placeholder-reference-classification.png)
+![Screenshot: Reference classification dialog](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/reference-classification.png)
 
 ---
 
@@ -183,8 +181,7 @@ Kindling enhances the Obsidian workflow—it doesn't replace it. Keep research a
 - The **index file** (recommended), or
 - The **vault folder**, if it contains exactly one Longform index.
 
-TODO: Add screenshot of Longform/Obsidian import selection.
-![Screenshot: Longform/Obsidian import selection](docs/assets/placeholder-longform-import.png)
+![Screenshot: Longform/Obsidian import selection](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/import-longform.png)
 
 ### What Gets Imported
 

@@ -11,8 +11,7 @@ App settings control your author and contact information, which is used on expor
 - Phone
 - Email
 
-TODO: Add screenshot of the Kindling settings dialog.
-![Screenshot: Kindling settings](docs/assets/placeholder-settings-app.png)
+![Screenshot: Kindling settings](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/kindling-settings.png)
 
 ## Project Settings
 
@@ -23,8 +22,7 @@ Project settings customize metadata for a single project:
 - Project description
 - Word target
 
-TODO: Add screenshot of the project settings dialog.
-![Screenshot: Project settings](docs/assets/placeholder-settings-project.png)
+![Screenshot: Project settings](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/project-settings.png)
 
 ## Reference Type Settings
 

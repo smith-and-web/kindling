@@ -24,8 +24,7 @@ Sync/reimport is available for:
 2. Choose **Sync** to generate a preview.
 3. Review additions and changes, then apply the ones you want.
 
-TODO: Add screenshot of the sync preview dialog.
-![Screenshot: Sync preview dialog](docs/assets/placeholder-sync-preview.png)
+![Screenshot: Sync preview dialog](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/sync-preview.png)
 
 ## Reimport Workflow
 
@@ -33,8 +32,7 @@ TODO: Add screenshot of the sync preview dialog.
 2. Choose **Reimport** to re-read the source file.
 3. Review the summary after completion.
 
-TODO: Add screenshot of the reimport summary dialog.
-![Screenshot: Reimport summary dialog](docs/assets/placeholder-reimport-summary.png)
+![Screenshot: Reimport summary dialog](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/sync-summary.png)
 
 ## What Sync Updates
 
