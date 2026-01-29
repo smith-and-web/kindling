@@ -11,20 +11,20 @@ TODO: Add screenshot of the export dialog.
 
 ## Supported Formats
 
-| Format | Output | Best For |
-|--------|--------|----------|
-| DOCX | `.docx` file | Standard Manuscript Format submissions |
-| Markdown | Folder of `.md` files | Plain text workflows or backups |
-| Longform/Obsidian | Index + scene files | Roundtrip with Obsidian |
-| EPUB | `.epub` file | E-readers and ebook previews |
+| Format            | Output                | Best For                               |
+| ----------------- | --------------------- | -------------------------------------- |
+| DOCX              | `.docx` file          | Standard Manuscript Format submissions |
+| Markdown          | Folder of `.md` files | Plain text workflows or backups        |
+| Longform/Obsidian | Index + scene files   | Roundtrip with Obsidian                |
+| EPUB              | `.epub` file          | E-readers and ebook previews           |
 
 ## Export Scopes
 
-| Scope | What It Includes |
-|-------|------------------|
-| Project | All chapters and scenes |
+| Scope   | What It Includes          |
+| ------- | ------------------------- |
+| Project | All chapters and scenes   |
 | Chapter | Only the selected chapter |
-| Scene | Only the selected scene |
+| Scene   | Only the selected scene   |
 
 ## DOCX (Standard Manuscript Format)
 

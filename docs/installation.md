@@ -8,13 +8,13 @@ Get the latest release from the [GitHub Releases page](https://github.com/smith-
 
 ### Available Downloads
 
-| Platform | File | Description |
-|----------|------|-------------|
-| macOS (Apple Silicon) | `Kindling_*_aarch64.dmg` | For M1, M2, M3 Macs |
-| macOS (Intel) | `Kindling_*_x64.dmg` | For Intel-based Macs |
-| Windows | `Kindling_*_x64-setup.msi` | Windows installer |
-| Linux | `Kindling_*_amd64.AppImage` | Portable, works on most distros |
-| Linux (Debian/Ubuntu) | `kindling_*_amd64.deb` | Native package for apt-based systems |
+| Platform              | File                        | Description                          |
+| --------------------- | --------------------------- | ------------------------------------ |
+| macOS (Apple Silicon) | `Kindling_*_aarch64.dmg`    | For M1, M2, M3 Macs                  |
+| macOS (Intel)         | `Kindling_*_x64.dmg`        | For Intel-based Macs                 |
+| Windows               | `Kindling_*_x64-setup.msi`  | Windows installer                    |
+| Linux                 | `Kindling_*_amd64.AppImage` | Portable, works on most distros      |
+| Linux (Debian/Ubuntu) | `kindling_*_amd64.deb`      | Native package for apt-based systems |
 
 ---
 
@@ -150,7 +150,7 @@ EOF
 
 ### Debian/Ubuntu (.deb)
 
-For Debian-based distributions (Ubuntu, Linux Mint, Pop!_OS, etc.):
+For Debian-based distributions (Ubuntu, Linux Mint, Pop!\_OS, etc.):
 
 ```bash
 # Install the package
@@ -183,6 +183,7 @@ xattr -cr /Applications/Kindling.app
 ### macOS: App crashes immediately
 
 Ensure you downloaded the correct version:
+
 - **Apple Silicon** (M1/M2/M3): `aarch64.dmg`
 - **Intel**: `x64.dmg`
 
@@ -191,6 +192,7 @@ Check your Mac's chip: Apple menu → About This Mac → Chip/Processor.
 ### Windows: Installer fails silently
 
 Try running the installer as Administrator:
+
 1. Right-click the `.msi` file
 2. Select **Run as administrator**
 

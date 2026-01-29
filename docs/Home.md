@@ -31,4 +31,4 @@
 
 ---
 
-*This wiki is automatically synced from the [docs/](https://github.com/smith-and-web/kindling/tree/main/docs) folder in the main repository.*
+_This wiki is automatically synced from the [docs/](https://github.com/smith-and-web/kindling/tree/main/docs) folder in the main repository._
