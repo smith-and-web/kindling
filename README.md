@@ -43,6 +43,10 @@ Writers often struggle with the transition from outline to draft. You've done th
 
 Kindling keeps your outline visible and actionable as you write. Each scene displays its beats as collapsible cards that you can expand to write prose directly beneath them. Your outline becomes the scaffolding for your draft, always present but never in the way.
 
+<p align="center">
+  <img src="docs/assets/demo-1.gif" alt="Kindling demo - scaffolded writing view" width="800" />
+</p>
+
 ## Features
 
 | Feature | Description |
