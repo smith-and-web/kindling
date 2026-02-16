@@ -28,7 +28,7 @@ thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 flate2 = "1"
 docx-rs = "0.4"
-zip = "2"
+zip = "8"
 serde_yaml = "0.9.34"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
