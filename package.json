@@ -49,7 +49,7 @@
     "@commitlint/config-conventional": "^20.4.2",
     "@eslint/js": "^9.39.2",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
-    "@tailwindcss/vite": "^4.2.0",
+    "@tailwindcss/vite": "^4.2.1",
     "@tauri-apps/cli": "^2",
     "@testing-library/svelte": "^5.3.1",
     "@vitest/coverage-v8": "^4.0.18",
@@ -61,11 +61,11 @@
     "jsdom": "^27.4.0",
     "prettier": "^3.8.1",
     "prettier-plugin-svelte": "^3.5.0",
-    "svelte": "^5.53.2",
-    "svelte-check": "^4.4.3",
+    "svelte": "^5.53.5",
+    "svelte-check": "^4.4.4",
     "tailwindcss": "^4.1.0",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.56.0",
+    "typescript-eslint": "^8.56.1",
     "vite": "^7.3.1",
     "vitest": "^4.0.17"
   }
