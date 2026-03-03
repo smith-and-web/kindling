@@ -139,6 +139,13 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Apple code signing and notarization (only effective on macOS runners)
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Kindling ${{ github.ref_name }}"
@@ -153,7 +160,7 @@ jobs:
 
             ### First-Time Installation Notes
 
-            **macOS**: This app is not code-signed. See the [Installation Guide](https://github.com/smith-and-web/kindling/wiki/Installation) for instructions on opening unsigned apps.
+            **macOS**: This app is code-signed and notarized by Apple.
 
             **Windows**: You may see a SmartScreen warning. Click "More info" then "Run anyway".
 

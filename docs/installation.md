@@ -47,44 +47,11 @@ If your checksum doesn't match, delete the file and re-download from the officia
 
 ## macOS Installation
 
-Kindling is not code-signed with an Apple Developer certificate. When you first open the app, macOS will show a security warning.
-
-### Why This Warning Appears
-
-Gatekeeper warns about apps that aren't signed with an Apple Developer certificate. As an open-source project, Kindling ships with ad-hoc signing instead. You can verify authenticity using the checksums above and by reviewing the source code on GitHub.
-
-### macOS Sequoia (15.0) and Later
+Kindling is code-signed and notarized by Apple. It should open without Gatekeeper warnings.
 
 1. Double-click the `.dmg` file to mount it
 2. Drag **Kindling** to your **Applications** folder
-3. Try to open Kindling — you'll see a message saying it "cannot be opened because the developer cannot be verified"
-4. Open **System Settings** → **Privacy & Security**
-5. Scroll down to the **Security** section
-6. You'll see a message about Kindling being blocked — click **Open Anyway**
-7. Enter your password if prompted
-8. Click **Open** in the confirmation dialog
-
-After this one-time setup, Kindling will open normally.
-
-### macOS Sonoma (14.0) and Earlier
-
-1. Double-click the `.dmg` file to mount it
-2. Drag **Kindling** to your **Applications** folder
-3. **Right-click** (or Control-click) on Kindling in your Applications folder
-4. Select **Open** from the context menu
-5. Click **Open** in the dialog that appears
-
-After this one-time setup, Kindling will open normally.
-
-### Alternative: Terminal Method
-
-If the above methods don't work, you can remove the quarantine attribute:
-
-```bash
-xattr -cr /Applications/Kindling.app
-```
-
-Then open Kindling normally.
+3. Double-click **Kindling** in your Applications folder to launch it
 
 ---
 
@@ -171,14 +138,6 @@ sudo apt remove kindling
 ---
 
 ## Troubleshooting
-
-### macOS: "App is damaged and can't be opened"
-
-This usually means the quarantine attribute is corrupted. Remove it with:
-
-```bash
-xattr -cr /Applications/Kindling.app
-```
 
 ### macOS: App crashes immediately
 

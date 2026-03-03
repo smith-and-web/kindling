@@ -29,7 +29,8 @@
     "active": true,
     "targets": "all",
     "macOS": {
-      "signingIdentity": "-"
+      "signingIdentity": null,
+      "entitlements": "./Entitlements.plist"
     },
     "icon": [
       "icons/32x32.png",
