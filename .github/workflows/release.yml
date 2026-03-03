@@ -243,12 +243,9 @@ jobs:
                 xcrun stapler staple "$APP_PATH"
                 echo "Stapled ticket to .app"
 
-                # Staple the DMG if it exists
-                DMG_PATH=$(find src-tauri/target -name "*.dmg" | head -1)
-                if [ -n "$DMG_PATH" ]; then
-                  xcrun stapler staple "$DMG_PATH"
-                  echo "Stapled ticket to DMG: $DMG_PATH"
-                fi
+                # DMG stapling is not needed — the .app inside the DMG has the
+                # stapled ticket, which is what Gatekeeper checks when users
+                # mount the DMG and drag the app to Applications.
                 echo "✅ Notarization and stapling complete!"
                 exit 0
                 ;;
