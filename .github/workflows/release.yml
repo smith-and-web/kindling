@@ -79,14 +79,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS Apple Silicon (M1/M2/M3)
+          # macOS Universal (Apple Silicon + Intel in one binary)
           - platform: macos-latest
-            target: aarch64-apple-darwin
-            args: "--target aarch64-apple-darwin"
-          # macOS Intel
-          - platform: macos-latest
-            target: x86_64-apple-darwin
-            args: "--target x86_64-apple-darwin"
+            target: universal-apple-darwin
+            args: "--target universal-apple-darwin"
           # Linux x64
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
@@ -136,18 +132,17 @@ jobs:
         run: npm ci
 
       - name: Build and Release
-        timeout-minutes: 30
+        timeout-minutes: 60
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Apple code signing (only effective on macOS runners)
-          # APPLE_ID and APPLE_PASSWORD are intentionally omitted here so Tauri
-          # signs without notarizing. Notarization is handled in a separate step
-          # below with custom polling and its own timeout.
+          # Apple code signing and notarization (only effective on macOS runners)
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Kindling ${{ github.ref_name }}"
@@ -155,8 +150,7 @@ jobs:
             ## Installation
 
             Download the appropriate installer for your platform:
-            - **macOS (Apple Silicon)**: `Kindling_*_aarch64.dmg`
-            - **macOS (Intel)**: `Kindling_*_x64.dmg`
+            - **macOS**: `Kindling_*_universal.dmg` (works on both Apple Silicon and Intel Macs)
             - **Windows**: `Kindling_*_x64-setup.msi`
             - **Linux**: `Kindling_*_amd64.AppImage` or `.deb`
 
@@ -180,87 +174,6 @@ jobs:
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
           args: ${{ matrix.args }}
-
-      # Notarize macOS builds separately from the Tauri action.
-      # Apple's notarization service can take 30-60+ minutes for new apps.
-      # By splitting this into its own step with custom polling, we avoid
-      # blocking the entire build and get clear status updates.
-      - name: Notarize macOS Build
-        if: matrix.platform == 'macos-latest'
-        timeout-minutes: 120
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          set -euo pipefail
-
-          # Find the .app bundle produced by Tauri
-          APP_PATH=$(find src-tauri/target -name "Kindling.app" -type d | head -1)
-          if [ -z "$APP_PATH" ]; then
-            echo "::warning::No .app bundle found — skipping notarization"
-            exit 0
-          fi
-          echo "Found app bundle: $APP_PATH"
-
-          # Create a zip for notarization submission
-          ZIP_PATH="/tmp/Kindling-notarize.zip"
-          ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
-          echo "Created submission zip: $(du -h "$ZIP_PATH" | cut -f1)"
-
-          # Submit for notarization (without --wait)
-          echo "Submitting for notarization..."
-          SUBMIT_OUTPUT=$(xcrun notarytool submit "$ZIP_PATH" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --output-format json)
-
-          SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | jq -r '.id')
-          echo "Submission ID: $SUBMISSION_ID"
-          echo "Polling for notarization status (this can take 30-60 minutes)..."
-
-          # Poll every 30 seconds, up to 110 minutes
-          MAX_ATTEMPTS=220
-          ATTEMPT=0
-          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-            ATTEMPT=$((ATTEMPT + 1))
-            sleep 30
-
-            STATUS_OUTPUT=$(xcrun notarytool info "$SUBMISSION_ID" \
-              --apple-id "$APPLE_ID" \
-              --password "$APPLE_PASSWORD" \
-              --team-id "$APPLE_TEAM_ID" \
-              --output-format json 2>/dev/null || echo '{"status":"In Progress"}')
-
-            STATUS=$(echo "$STATUS_OUTPUT" | jq -r '.status')
-            ELAPSED=$((ATTEMPT * 30))
-            echo "[${ELAPSED}s] Notarization status: $STATUS"
-
-            case "$STATUS" in
-              Accepted)
-                echo "✅ Notarization accepted! Stapling ticket..."
-                xcrun stapler staple "$APP_PATH"
-                echo "Stapled ticket to .app"
-
-                # DMG stapling is not needed — the .app inside the DMG has the
-                # stapled ticket, which is what Gatekeeper checks when users
-                # mount the DMG and drag the app to Applications.
-                echo "✅ Notarization and stapling complete!"
-                exit 0
-                ;;
-              Invalid|Rejected)
-                echo "❌ Notarization failed: $STATUS"
-                xcrun notarytool log "$SUBMISSION_ID" \
-                  --apple-id "$APPLE_ID" \
-                  --password "$APPLE_PASSWORD" \
-                  --team-id "$APPLE_TEAM_ID" || true
-                exit 1
-                ;;
-            esac
-          done
-          echo "❌ Notarization polling timed out after $((MAX_ATTEMPTS * 30 / 60)) minutes"
-          exit 1
 
   checksums:
     name: Generate Checksums
