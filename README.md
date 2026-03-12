@@ -5,7 +5,15 @@
 <h1 align="center">Kindling</h1>
 
 <p align="center">
-  <strong>Spark your draft</strong> — Bridge the gap between outline and prose.
+  <strong>Free, open-source writing software for plotters and outliners.</strong><br/>
+  Bridge the gap between your story outline and your first draft.
+</p>
+
+<p align="center">
+  <a href="https://kindlingwriter.com/download/">Download</a> ·
+  <a href="https://kindlingwriter.com/features/">Features</a> ·
+  <a href="https://kindlingwriter.com/compare/">Compare</a> ·
+  <a href="#contributing">Contributing</a>
 </p>
 
 <p align="center">
@@ -21,31 +29,34 @@
   <a href="https://github.com/smith-and-web/kindling/stargazers">
     <img src="https://img.shields.io/github/stars/smith-and-web/kindling?style=flat" alt="Stars" />
   </a>
-  <img src="https://img.shields.io/badge/coverage-95%25-brightgreen" alt="Test Coverage" />
-</p>
-
-<p align="center">
-  <a href="#features">Features</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#roadmap">Roadmap</a> •
-  <a href="#testing">Testing</a> •
-  <a href="#contributing">Contributing</a> •
-  <a href="#support">Support</a>
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="Platform" />
 </p>
 
 ---
 
-## The Problem
-
-Writers often struggle with the transition from outline to draft. You've done the planning work—you know your story beats, your character arcs, your scene goals—but when you open a blank document, that carefully crafted structure feels distant and unhelpful.
-
-## The Solution
-
-Kindling keeps your outline visible and actionable as you write. Each scene displays its beats as collapsible cards that you can expand to write prose directly beneath them. Your outline becomes the scaffolding for your draft, always present but never in the way.
-
 <p align="center">
   <img src="docs/assets/demo-1.gif" alt="Kindling demo - scaffolded writing view" width="800" />
 </p>
+
+## Why Kindling?
+
+- **Your outline stays visible while you write.** Scene beats appear as expandable prompts in your drafting space. No more switching between apps.
+- **Import your existing work.** Bring in projects from Plottr (.pltr), yWriter (.yw7), or Obsidian Longform — no starting from scratch.
+- **No AI. No subscription. No cloud.** Every word is yours. Your projects are local SQLite files. Works completely offline.
+- **Free and open source.** MIT licensed. Inspect the code, contribute, or fork it. Your tools should be as permanent as your writing.
+
+## Download
+
+Get Kindling for free at **[kindlingwriter.com/download](https://kindlingwriter.com/download/)**
+
+| Platform | Download |
+|----------|----------|
+| macOS (Apple Silicon) | `Kindling_*_aarch64.dmg` |
+| macOS (Intel) | `Kindling_*_x64.dmg` |
+| Windows | `Kindling_*_x64-setup.msi` |
+| Linux | `Kindling_*_amd64.AppImage` or `.deb` |
+
+Or grab the latest directly from the [Releases page](https://github.com/smith-and-web/kindling/releases).
 
 ## Features
 
@@ -61,24 +72,16 @@ Kindling keeps your outline visible and actionable as you write. Each scene disp
 | **Local-first** | Your work stays on your machine in a SQLite database |
 | **Cross-platform** | macOS, Windows, and Linux support |
 
-Kindling now supports expanded reference types beyond characters and locations, with a post-import classification step to confirm or adjust detected references.
+See the full [features overview](https://kindlingwriter.com/features/) on the website.
 
-Sync/reimport is designed to keep source-backed projects up to date while preserving the prose you add inside Kindling.
+## Tech Stack
 
-## Installation
+- **Frontend**: [Svelte 5](https://svelte.dev/) + [Tailwind CSS](https://tailwindcss.com/)
+- **Backend**: [Rust](https://www.rust-lang.org/) + [Tauri 2.x](https://tauri.app/)
+- **Database**: [SQLite](https://sqlite.org/) via rusqlite
+- **Parsers**: Native Rust parsers for Plottr and Markdown
 
-### Download
-
-Download the latest release for your platform from the [Releases page](https://github.com/smith-and-web/kindling/releases):
-
-| Platform | Download |
-|----------|----------|
-| macOS (Apple Silicon) | `Kindling_*_aarch64.dmg` |
-| macOS (Intel) | `Kindling_*_x64.dmg` |
-| Windows | `Kindling_*_x64-setup.msi` |
-| Linux | `Kindling_*_amd64.AppImage` or `.deb` |
-
-### From Source
+## From Source
 
 **Prerequisites:**
 - [Node.js](https://nodejs.org/) 20+
@@ -109,46 +112,14 @@ Track progress on the [project board](https://github.com/users/smith-and-web/pro
 | **v0.1 - Foundation** | ✅ Complete | Plottr import, basic UI, project structure |
 | **v0.2 - Outline View** | ✅ Complete | Drag-and-drop reordering, create/delete scenes |
 | **v0.3 - Writing & Export** | ✅ Complete | Prose editor, DOCX export with Standard Manuscript Format |
-| **v1.0.0-beta** | 🔄 In Progress | Additional importers, polish, performance, stability |
+| **v1.0 - Release** | ✅ Complete | Additional importers, polish, performance, stability |
+| **v1.2 - Next** | 🔄 In Progress | Sync/reimport UI, bug fixes, new features |
 
 See the [milestones](https://github.com/smith-and-web/kindling/milestones) for detailed breakdowns.
-
-## Tech Stack
-
-- **Frontend**: [Svelte 5](https://svelte.dev/) + [Tailwind CSS](https://tailwindcss.com/)
-- **Backend**: [Rust](https://www.rust-lang.org/) + [Tauri 2.x](https://tauri.app/)
-- **Database**: [SQLite](https://sqlite.org/) via rusqlite
-- **Parsers**: Native Rust parsers for Plottr and Markdown
-
-<details>
-<summary><strong>Project Structure</strong></summary>
-
-```
-kindling/
-├── src/                          # Svelte frontend
-│   ├── lib/
-│   │   ├── components/           # UI components
-│   │   ├── stores/               # Svelte 5 state management
-│   │   └── types.ts              # TypeScript interfaces
-│   ├── app.css                   # Tailwind styles
-│   └── App.svelte                # Main app component
-├── src-tauri/                    # Rust backend
-│   ├── src/
-│   │   ├── commands.rs           # Tauri IPC handlers
-│   │   ├── db/                   # SQLite schema & queries
-│   │   ├── models/               # Data structures
-│   │   └── parsers/              # Import parsers
-│   └── tauri.conf.json           # Tauri configuration
-└── package.json
-```
-
-</details>
 
 ## Testing
 
 Kindling maintains high test coverage standards to ensure code quality and prevent regressions.
-
-### Coverage Requirements
 
 | Metric | Minimum | Current |
 |--------|---------|---------|
@@ -158,8 +129,6 @@ Kindling maintains high test coverage standards to ensure code quality and preve
 | Lines | 95% | 95%+ |
 
 **CI will fail if coverage drops below these thresholds.** New code must include appropriate tests.
-
-### Running Tests
 
 ```bash
 # Frontend tests with coverage
@@ -172,15 +141,14 @@ cd src-tauri && cargo test
 npm run check:all
 ```
 
-Coverage reports are uploaded as artifacts on every CI run and can be viewed in the GitHub Actions workflow summary.
-
 ## Contributing
 
 Contributions are welcome! Please read the [Contributing Guide](CONTRIBUTING.md) before submitting a PR.
 
 - 🐛 [Report bugs](https://github.com/smith-and-web/kindling/issues/new?template=bug_report.yml)
 - 💡 [Request features](https://github.com/smith-and-web/kindling/issues/new?template=feature_request.yml)
-- 💬 [Join discussions](https://github.com/smith-and-web/kindling/discussions)
+- 💬 [GitHub Discussions](https://github.com/smith-and-web/kindling/discussions) — Questions and ideas
+- 🔥 [Discord](https://discord.gg/g7bkj4kY8w) — Chat with other writers and contributors
 
 Looking for a place to start? Check out issues labeled [`good first issue`](https://github.com/smith-and-web/kindling/labels/good%20first%20issue).
 
@@ -192,7 +160,7 @@ If Kindling is useful to you, consider supporting its development:
   <img src="https://img.shields.io/badge/Sponsor-❤️-ea4aaa?style=for-the-badge&logo=github-sponsors" alt="Sponsor on GitHub" />
 </a>
 
-Your sponsorship helps keep Kindling free and open source. See the [sponsor tiers](https://github.com/sponsors/smith-and-web) for perks.
+Your sponsorship helps keep Kindling free and open source.
 
 ## License
 
