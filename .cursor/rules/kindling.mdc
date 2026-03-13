@@ -1,0 +1,90 @@
+---
+description: Kindling project — Tauri 2 + Svelte 5 desktop app for fiction writers
+globs:
+alwaysApply: true
+---
+
+# Kindling Project Rules
+
+## Architecture
+
+Kindling is a Tauri 2 desktop application with a Svelte 5 frontend. It helps fiction writers bridge the gap between outline and prose.
+
+- **Frontend**: `src/` — Svelte 5 (runes), TypeScript, Tailwind CSS 4, TipTap editor
+- **Backend**: `src-tauri/` — Rust, SQLite (rusqlite), file parsers (Plottr, YWriter, Longform, Markdown)
+- **E2E tests**: `e2e/` — WebdriverIO + tauri-driver (Docker-based on macOS)
+- **Path alias**: `$lib` resolves to `src/lib/`
+
+## Key Commands
+
+### Development
+
+- `npm run tauri dev` — Full app (Vite frontend + Tauri Rust backend)
+- `npm run dev` — Frontend only (Vite on http://localhost:1420)
+
+### Testing
+
+- `npm test` — Frontend unit tests (Vitest)
+- `npm run test:watch` — Frontend tests in watch mode
+- `npm run test:rust` — Rust tests (`cargo test --all-features` in src-tauri/)
+- `npm run test:all` — Both frontend and Rust tests
+- `npm run test:coverage` — Frontend tests with coverage report
+
+### Linting & Formatting
+
+- `npm run lint` — ESLint on `src/`
+- `npm run lint:rust` — Clippy on `src-tauri/`
+- `npm run lint:all` — Both
+- `npm run format:all` — Prettier (frontend) + cargo fmt (Rust)
+- `npm run check:all` — Full CI check (svelte-check + format check + lint + clippy)
+
+### Building
+
+- `npm run tauri build` — Production build
+
+### Browser E2E (Cursor testing)
+
+- `npm run dev` (Vite only, no Tauri) — Activates mock Tauri backend. Navigate to http://localhost:1420 and use browser tools to drive the full UI: import flows, sidebar, scene panel, references, etc. Mock returns seed project "Ember & Ash" with chapters, scenes, beats, characters, locations.
+
+## Validation Workflow
+
+After making changes, validate them before considering work complete:
+
+1. **Rust changes** (`src-tauri/`): Run `cd src-tauri && cargo check` for fast compilation check, then `npm run test:rust` for tests, then `npm run lint:rust` for clippy.
+2. **Frontend changes** (`src/`): Run `npm test` for unit tests, then `npm run lint` for ESLint.
+3. **Both stacks**: Run `npm run test:all` followed by `npm run check:all`.
+4. **After formatting edits**: Run `npm run format:all` to normalize style.
+
+## Coding Conventions
+
+### Svelte (Frontend)
+
+- Svelte 5 with runes (`$state`, `$derived`, `$effect`) — do NOT use Svelte 4 stores or reactive declarations (`$:`)
+- TypeScript with strict mode — no `any` types without justification
+- Tailwind CSS 4 for styling — use utility classes, avoid custom CSS where possible
+- Components live in `src/lib/components/`
+- Stores live in `src/lib/stores/` and use Svelte 5 rune-based patterns
+- Types live in `src/lib/types/`
+- Utilities live in `src/lib/utils/`
+
+### Rust (Backend)
+
+- Tauri commands live in `src-tauri/src/commands/`
+- Database layer in `src-tauri/src/db/` (SQLite via rusqlite)
+- Data models in `src-tauri/src/models/`
+- File parsers in `src-tauri/src/parsers/`
+- Use `thiserror` for error types
+- All features enabled for tests (`cargo test --all-features`)
+
+### Testing
+
+- Frontend tests use Vitest with jsdom environment
+- Tauri APIs are mocked in `src/test/setup.ts` (invoke, dialog)
+- Test files go alongside source: `*.test.ts` or `*.spec.ts`
+- Rust tests use `#[cfg(test)]` modules within source files
+- Coverage thresholds: statements 95%, branches 65%, functions 98%, lines 95%
+
+### Git
+
+- Conventional commits (enforced via commitlint)
+- Git hooks configured via `.githooks/` directory

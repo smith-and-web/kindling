@@ -10,7 +10,18 @@
         "kind": "build",
         "isDefault": true
       },
-      "problemMatcher": [],
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "tauri",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^\\s*VITE",
+          "endsPattern": "ready in \\d+"
+        }
+      },
       "presentation": {
         "reveal": "always",
         "panel": "new"
@@ -20,7 +31,18 @@
       "label": "Dev: Frontend Only (Vite)",
       "type": "shell",
       "command": "npm run dev",
-      "problemMatcher": [],
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^\\s*VITE",
+          "endsPattern": "ready in \\d+"
+        }
+      },
       "presentation": {
         "reveal": "always",
         "panel": "new"

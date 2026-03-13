@@ -11,6 +11,15 @@ export default defineConfig({
   resolve: {
     alias: {
       $lib: path.resolve("./src/lib"),
+      // Mock Tauri APIs when running in browser only (npm run dev without Tauri)
+      ...(host
+        ? {}
+        : {
+            "@tauri-apps/api/core": path.resolve("./src/dev/mock-tauri.ts"),
+            "@tauri-apps/api/event": path.resolve("./src/dev/mock-event.ts"),
+            "@tauri-apps/plugin-dialog": path.resolve("./src/dev/mock-dialog.ts"),
+            "@tauri-apps/plugin-opener": path.resolve("./src/dev/mock-opener.ts"),
+          }),
     },
   },
   clearScreen: false,
