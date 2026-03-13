@@ -226,8 +226,13 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
 
     case "split_beat": {
       const beatId = getArg<string>(args, "beatId", "beat_id");
-      const splitBeforeParagraph = getArg<number>(args, "splitBeforeParagraph", "split_before_paragraph");
-      if (!beatId || splitBeforeParagraph == null) throw new Error("Missing beatId or splitBeforeParagraph");
+      const splitBeforeParagraph = getArg<number>(
+        args,
+        "splitBeforeParagraph",
+        "split_before_paragraph"
+      );
+      if (!beatId || splitBeforeParagraph == null)
+        throw new Error("Missing beatId or splitBeforeParagraph");
       const beat = beats.find((b) => b.id === beatId);
       if (!beat || !beat.prose) throw new Error("Beat not found or has no prose");
       const paraMatch = beat.prose.match(/<p[^>]*>/g);
@@ -259,7 +264,9 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         prose: after.trim(),
         position: beat.position + 1,
       };
-      beats.filter((b) => b.scene_id === beat.scene_id && b.position >= newBeat.position).forEach((b) => b.position++);
+      beats
+        .filter((b) => b.scene_id === beat.scene_id && b.position >= newBeat.position)
+        .forEach((b) => b.position++);
       beats.push(newBeat);
       return newBeat as T;
     }
@@ -270,11 +277,18 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       if (!firstBeatId || !secondBeatId) throw new Error("Missing beat ids");
       const first = beats.find((b) => b.id === firstBeatId);
       const second = beats.find((b) => b.id === secondBeatId);
-      if (!first || !second || first.scene_id !== second.scene_id || first.position + 1 !== second.position) {
+      if (
+        !first ||
+        !second ||
+        first.scene_id !== second.scene_id ||
+        first.position + 1 !== second.position
+      ) {
         throw new Error("Beats must be adjacent in same scene");
       }
       first.content = first.content ? `${first.content} / ${second.content}` : second.content;
-      first.prose = first.prose ? `${first.prose}<p></p>${second.prose ?? ""}` : second.prose ?? "";
+      first.prose = first.prose
+        ? `${first.prose}<p></p>${second.prose ?? ""}`
+        : (second.prose ?? "");
       beats = beats.filter((b) => b.id !== secondBeatId);
       if (first.prose === "") first.prose = null;
       return first as T;
