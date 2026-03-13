@@ -889,10 +889,7 @@
                         {beat.content}
                       </p>
                       {#if beat.prose}
-                        <span
-                          class="text-xs text-text-secondary shrink-0"
-                          title="Word count"
-                        >
+                        <span class="text-xs text-text-secondary shrink-0" title="Word count">
                           {getBeatWordCount(beat.prose)}w
                         </span>
                       {/if}
