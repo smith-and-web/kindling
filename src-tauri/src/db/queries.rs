@@ -407,6 +407,42 @@ pub fn get_max_beat_position(conn: &Connection, scene_id: &Uuid) -> Result<i32> 
     Ok(max)
 }
 
+pub fn get_beat(conn: &Connection, beat_id: &Uuid) -> Result<Option<Beat>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, scene_id, content, prose, position, source_id
+         FROM beats WHERE id = ?1",
+    )?;
+    let opt = stmt
+        .query_row(params![beat_id.to_string()], |row| {
+            Ok(Beat {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                scene_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                content: row.get(2)?,
+                prose: row.get(3)?,
+                position: row.get(4)?,
+                source_id: row.get(5)?,
+            })
+        })
+        .optional()?;
+    Ok(opt)
+}
+
+pub fn delete_beat(conn: &Connection, beat_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "DELETE FROM beats WHERE id = ?1",
+        params![beat_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn update_beat_position(conn: &Connection, beat_id: &Uuid, position: i32) -> Result<()> {
+    conn.execute(
+        "UPDATE beats SET position = ?1 WHERE id = ?2",
+        params![position, beat_id.to_string()],
+    )?;
+    Ok(())
+}
+
 pub fn update_scene_synopsis(
     conn: &Connection,
     scene_id: &Uuid,

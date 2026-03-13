@@ -195,6 +195,35 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       return b as T;
     }
 
+    case "delete_beat": {
+      if (!beatId) throw new Error("Missing beatId");
+      const beat = beats.find((b) => b.id === beatId);
+      if (!beat) throw new Error(`Beat not found: ${beatId}`);
+      const sceneIdForRebase = beat.scene_id;
+      beats = beats.filter((b) => b.id !== beatId);
+      // Rebase positions for remaining beats in the scene
+      const sceneBeats = beats.filter((b) => b.scene_id === sceneIdForRebase);
+      sceneBeats.sort((a, b) => a.position - b.position);
+      sceneBeats.forEach((b, i) => {
+        b.position = i;
+      });
+      return undefined as T;
+    }
+
+    case "reorder_beats": {
+      const beatIds = getArg<string[]>(args, "beatIds", "beat_ids");
+      if (!sceneId || !beatIds) throw new Error("Missing sceneId or beatIds");
+      const sceneBeats = beats.filter((b) => b.scene_id === sceneId);
+      if (beatIds.length !== sceneBeats.length) {
+        throw new Error("Beat order must include all beats in the scene");
+      }
+      beatIds.forEach((id, position) => {
+        const b = beats.find((x) => x.id === id);
+        if (b && b.scene_id === sceneId) b.position = position;
+      });
+      return undefined as T;
+    }
+
     case "get_characters":
       return characters.filter((c) => c.project_id === projectId) as T;
 

@@ -1,7 +1,20 @@
 <script lang="ts">
   /* eslint-disable no-undef */
-  import { FileText, ChevronRight, ChevronDown, Loader2, Plus, Pencil, Lock } from "lucide-svelte";
+  import {
+    FileText,
+    ChevronRight,
+    ChevronDown,
+    Loader2,
+    Plus,
+    Pencil,
+    Lock,
+    GripVertical,
+    Trash2,
+    MoreVertical,
+  } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import ContextMenu from "./ContextMenu.svelte";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
   import { onDestroy, tick } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
   import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
@@ -51,6 +64,19 @@
   let addingBeat = $state(false);
   let newBeatContent = $state("");
   let creatingBeat = $state(false);
+
+  // Beat context menu and delete confirmation
+  let beatContextMenu: { beat: Beat; x: number; y: number } | null = $state(null);
+  let deleteBeatDialog: Beat | null = $state(null);
+  let deletingBeat = $state(false);
+
+  // Beat drag-and-drop state
+  let draggedBeatId: string | null = $state(null);
+  let dragOverBeatId: string | null = $state(null);
+  let isDraggingBeat = $state(false);
+  let draggedBeatElement: HTMLElement | null = null;
+  let currentDragOverBeatElement: HTMLElement | null = null;
+  let hoveredBeatId: string | null = $state(null);
 
   const sceneTypeOptions: { value: SceneType; label: string }[] = [
     { value: "normal", label: "Normal" },
@@ -334,6 +360,134 @@
     }
   }
 
+  function openBeatContextMenu(e: MouseEvent, beat: Beat) {
+    e.preventDefault();
+    e.stopPropagation();
+    beatContextMenu = { beat, x: e.clientX, y: e.clientY };
+  }
+
+  function closeBeatContextMenu() {
+    beatContextMenu = null;
+  }
+
+  function getBeatContextMenuItems(beat: Beat) {
+    return [
+      {
+        label: "Delete",
+        icon: Trash2,
+        action: () => confirmDeleteBeat(beat),
+        danger: true,
+      },
+    ];
+  }
+
+  function confirmDeleteBeat(beat: Beat) {
+    beatContextMenu = null;
+    deleteBeatDialog = beat;
+  }
+
+  async function executeDeleteBeat() {
+    const beat = deleteBeatDialog;
+    if (!beat || deletingBeat) return;
+    deletingBeat = true;
+    try {
+      await invoke("delete_beat", { beatId: beat.id });
+      currentProject.removeBeat(beat.id);
+      if (ui.expandedBeatId === beat.id) {
+        ui.setExpandedBeat(null);
+      }
+    } catch (e) {
+      console.error("Failed to delete beat:", e);
+    } finally {
+      deletingBeat = false;
+      deleteBeatDialog = null;
+    }
+  }
+
+  function onBeatDragHandleMouseDown(e: MouseEvent, beatId: string) {
+    if (isLocked) return;
+    e.preventDefault();
+    e.stopPropagation();
+    draggedBeatId = beatId;
+    isDraggingBeat = true;
+    const target = e.currentTarget as HTMLElement;
+    draggedBeatElement = target.closest("[data-drag-beat]") as HTMLElement;
+    if (draggedBeatElement) {
+      draggedBeatElement.style.opacity = "0.5";
+    }
+    document.addEventListener("mousemove", onBeatDragMouseMove);
+    document.addEventListener("mouseup", onBeatDragMouseUp);
+    document.body.style.cursor = "grabbing";
+    document.body.style.userSelect = "none";
+  }
+
+  function onBeatDragMouseMove(e: MouseEvent) {
+    if (!isDraggingBeat || !draggedBeatId) return;
+    if (currentDragOverBeatElement) {
+      currentDragOverBeatElement.style.outline = "";
+    }
+    const itemElements = document.querySelectorAll("[data-drag-beat]");
+    let foundId: string | null = null;
+    let foundElement: HTMLElement | null = null;
+    for (const el of itemElements) {
+      const rect = el.getBoundingClientRect();
+      const id = el.getAttribute("data-drag-beat");
+      if (id && id !== draggedBeatId && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        foundId = id;
+        foundElement = el as HTMLElement;
+        break;
+      }
+    }
+    dragOverBeatId = foundId;
+    currentDragOverBeatElement = foundElement;
+    if (foundElement) {
+      foundElement.style.outline = "2px solid var(--color-accent)";
+    }
+  }
+
+  async function onBeatDragMouseUp() {
+    document.removeEventListener("mousemove", onBeatDragMouseMove);
+    document.removeEventListener("mouseup", onBeatDragMouseUp);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    if (draggedBeatElement) {
+      draggedBeatElement.style.opacity = "";
+    }
+    if (currentDragOverBeatElement) {
+      currentDragOverBeatElement.style.outline = "";
+    }
+    if (
+      draggedBeatId &&
+      dragOverBeatId &&
+      draggedBeatId !== dragOverBeatId &&
+      currentProject.currentScene
+    ) {
+      const beats = currentProject.beats;
+      const fromIndex = beats.findIndex((b) => b.id === draggedBeatId);
+      const toIndex = beats.findIndex((b) => b.id === dragOverBeatId);
+      if (fromIndex !== -1 && toIndex !== -1) {
+        const newOrder = [...beats];
+        const [moved] = newOrder.splice(fromIndex, 1);
+        newOrder.splice(toIndex, 0, moved);
+        const newIds = newOrder.map((b) => b.id);
+        try {
+          await invoke("reorder_beats", {
+            sceneId: currentProject.currentScene.id,
+            beatIds: newIds,
+          });
+          currentProject.reorderBeats(newIds);
+        } catch (e) {
+          console.error("Failed to reorder beats:", e);
+        }
+      }
+    }
+    isDraggingBeat = false;
+    draggedBeatId = null;
+    dragOverBeatId = null;
+    draggedBeatElement = null;
+    currentDragOverBeatElement = null;
+  }
+
   // Strip HTML tags for plain text preview
   function stripHtml(html: string): string {
     return html.replace(/<[^>]*>/g, "").trim();
@@ -604,34 +758,74 @@
           </div>
           {#if currentProject.beats.length > 0}
             <div class="space-y-4">
-              {#each currentProject.beats as beat, index (beat.id)}
+              <!-- svelte-ignore require-each-key -- Svelte 5.53 keyed #each triggers $.validate_each_keys runtime error in dev -->
+              {#each currentProject.beats as beat, index}
                 {@const isExpanded = ui.expandedBeatId === beat.id}
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <article
-                  class="bg-bg-panel rounded-lg overflow-hidden"
+                  data-drag-beat={beat.id}
+                  data-testid="beat-item"
+                  class="bg-bg-panel rounded-lg overflow-hidden select-none relative"
+                  class:ring-2={dragOverBeatId === beat.id}
+                  class:ring-accent={dragOverBeatId === beat.id}
                   use:registerBeatRef={beat.id}
+                  onmouseenter={() => (hoveredBeatId = beat.id)}
+                  onmouseleave={() => (hoveredBeatId = null)}
                 >
                   <!-- Beat Header (clickable to expand) -->
-                  <button
-                    data-testid="beat-header"
-                    onclick={() => toggleBeat(beat.id)}
-                    class="w-full bg-beat-header px-4 py-2 flex items-center gap-3 hover:bg-beat-header/80 transition-colors cursor-pointer text-left"
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <div
+                    class="w-full bg-beat-header px-4 py-2 flex items-center gap-2 hover:bg-beat-header/80 transition-colors cursor-pointer"
+                    oncontextmenu={(e) => !isLocked && openBeatContextMenu(e, beat)}
                   >
-                    <span class="text-text-secondary shrink-0">
-                      {#if isExpanded}
-                        <ChevronDown class="w-4 h-4" />
-                      {:else}
-                        <ChevronRight class="w-4 h-4" />
-                      {/if}
-                    </span>
-                    <span
-                      class="w-6 h-6 rounded-full bg-accent text-white text-xs font-medium flex items-center justify-center shrink-0"
+                    {#if !isLocked}
+                      <div
+                        data-testid="beat-drag-handle"
+                        onmousedown={(e) => onBeatDragHandleMouseDown(e, beat.id)}
+                        class="cursor-grab active:cursor-grabbing p-0.5 text-text-secondary hover:text-text-primary transition-opacity shrink-0"
+                        class:opacity-0={hoveredBeatId !== beat.id}
+                        class:opacity-100={hoveredBeatId === beat.id}
+                        role="button"
+                        tabindex="-1"
+                        aria-label="Drag to reorder"
+                      >
+                        <GripVertical class="w-3.5 h-3.5" />
+                      </div>
+                    {/if}
+                    <button
+                      data-testid="beat-header"
+                      onclick={() => toggleBeat(beat.id)}
+                      class="flex-1 flex items-center gap-3 text-left min-w-0"
                     >
-                      {index + 1}
-                    </span>
-                    <p class="text-text-primary text-sm font-medium flex-1">
-                      {beat.content}
-                    </p>
-                  </button>
+                      <span class="text-text-secondary shrink-0">
+                        {#if isExpanded}
+                          <ChevronDown class="w-4 h-4" />
+                        {:else}
+                          <ChevronRight class="w-4 h-4" />
+                        {/if}
+                      </span>
+                      <span
+                        class="w-6 h-6 rounded-full bg-accent text-white text-xs font-medium flex items-center justify-center shrink-0"
+                      >
+                        {index + 1}
+                      </span>
+                      <p class="text-text-primary text-sm font-medium flex-1 truncate">
+                        {beat.content}
+                      </p>
+                    </button>
+                    {#if !isLocked}
+                      <button
+                        data-testid="beat-menu-button"
+                        onclick={(e) => openBeatContextMenu(e, beat)}
+                        class="p-1 text-text-secondary hover:text-text-primary transition-opacity shrink-0"
+                        class:opacity-0={hoveredBeatId !== beat.id}
+                        class:opacity-100={hoveredBeatId === beat.id}
+                        aria-label="Beat menu"
+                      >
+                        <MoreVertical class="w-3.5 h-3.5" />
+                      </button>
+                    {/if}
+                  </div>
 
                   <!-- Expanded Beat Content -->
                   {#if isExpanded}
@@ -744,3 +938,21 @@
     </div>
   {/if}
 </div>
+
+{#if beatContextMenu}
+  <ContextMenu
+    items={getBeatContextMenuItems(beatContextMenu.beat)}
+    x={beatContextMenu.x}
+    y={beatContextMenu.y}
+    onClose={closeBeatContextMenu}
+  />
+{/if}
+
+{#if deleteBeatDialog}
+  <ConfirmDialog
+    title="Delete Beat"
+    message="Are you sure you want to delete this beat? Any prose will be merged into the previous beat."
+    onConfirm={executeDeleteBeat}
+    onCancel={() => (deleteBeatDialog = null)}
+  />
+{/if}

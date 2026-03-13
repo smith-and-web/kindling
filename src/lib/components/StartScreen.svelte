@@ -120,6 +120,7 @@
       const loaded = await invoke<Project>("get_project", { id: project.id });
       currentProject.setProject(loaded);
       ui.setView("editor");
+      // Sidebar $effect will run loadChapters
     } catch (e) {
       console.error("Failed to open project:", e);
       ui.showError(`Failed to open project: ${e}`);
@@ -287,7 +288,8 @@
           </button>
         </div>
         <div class="space-y-2 overflow-y-auto pr-1 flex-1 min-h-0">
-          {#each recentProjects as project (project.id)}
+          <!-- svelte-ignore require-each-key -- Svelte 5.53 keyed #each triggers $.validate_each_keys runtime error in dev -->
+          {#each recentProjects as project}
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               class="relative flex items-center bg-bg-card rounded-lg hover:bg-beat-header transition-colors"

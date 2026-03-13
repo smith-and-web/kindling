@@ -7,9 +7,9 @@ import path from "path";
 const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig(({ command }) => {
-  // Only use mock Tauri APIs when running dev server (npm run dev) without Tauri.
-  // Never use mocks for build - production and E2E need the real Tauri backend.
-  const useMocks = command === "serve" && !host;
+  // Mock Tauri layer disabled - use real Tauri backend (npm run tauri dev).
+  // To re-enable mocks for browser-only testing: set useMocks = command === "serve" && !host
+  const useMocks = false;
 
   return {
     plugins: [svelte(), tailwindcss()],

@@ -19,8 +19,9 @@ Kindling is a Tauri 2 desktop application with a Svelte 5 frontend. It helps fic
 
 ### Development
 
-- `npm run tauri dev` — Full app (Vite frontend + Tauri Rust backend)
-- `npm run dev` — Frontend only (Vite on http://localhost:1420)
+- `npm run tauri dev` — **Use this for development.** Full app (Vite frontend + Tauri Rust backend). The mock layer is disabled; the app requires the real Tauri backend.
+  - **Port 1420**: Stop any other `npm run dev` or Vite process before running. Port 1420 must be free or the beforeDevCommand fails.
+- `npm run dev` — Frontend only (Vite on http://localhost:1420). Invoke will fail without Tauri; use only for CSS/static work.
 
 ### Testing
 
@@ -42,9 +43,13 @@ Kindling is a Tauri 2 desktop application with a Svelte 5 frontend. It helps fic
 
 - `npm run tauri build` — Production build
 
+### Tauri Version Alignment
+
+- NPM packages (`@tauri-apps/api`, `@tauri-apps/cli`) must match the Rust crate major/minor (e.g. 2.9.x). Mismatches cause "version mismatched Tauri packages" errors. Pinned to 2.9.1 to match tauri crate 2.9.x.
+
 ### Browser E2E (Cursor testing)
 
-- `npm run dev` (Vite only, no Tauri) — Activates mock Tauri backend. Navigate to http://localhost:1420 and use browser tools to drive the full UI: import flows, sidebar, scene panel, references, etc. Mock returns seed project "Ember & Ash" with chapters, scenes, beats, characters, locations.
+- The mock Tauri layer is **disabled**. Use `npm run tauri dev` for full app testing. Browser-only testing (npm run dev + browser tools) will fail on any invoke() call.
 
 ## Validation Workflow
 
@@ -60,6 +65,7 @@ After making changes, validate them before considering work complete:
 ### Svelte (Frontend)
 
 - Svelte 5 with runes (`$state`, `$derived`, `$effect`) — do NOT use Svelte 4 stores or reactive declarations (`$:`)
+- **Svelte 5.53 keyed `#each` bug**: Keyed blocks `{#each items as item (item.id)}` trigger `$.validate_each_keys is not a function` at runtime in dev. Use unkeyed `{#each items as item}` and add `<!-- svelte-ignore require-each-key -->` above the block when the linter complains.
 - TypeScript with strict mode — no `any` types without justification
 - Tailwind CSS 4 for styling — use utility classes, avoid custom CSS where possible
 - Components live in `src/lib/components/`

@@ -647,6 +647,92 @@ pub async fn save_beat_prose(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn delete_beat(beat_id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let beat_uuid = Uuid::parse_str(&beat_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let beat = db::get_beat(&conn, &beat_uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Beat not found".to_string())?;
+
+    if db::is_scene_locked(&conn, &beat.scene_id).map_err(|e| e.to_string())? {
+        return Err("Cannot delete beats in a locked scene".to_string());
+    }
+
+    // If beat has prose, merge into previous beat
+    if let Some(ref prose) = beat.prose {
+        let beats = db::get_beats(&conn, &beat.scene_id).map_err(|e| e.to_string())?;
+        if let Some(prev_idx) = beats
+            .iter()
+            .position(|b| b.id == beat_uuid)
+            .and_then(|i| i.checked_sub(1))
+        {
+            let prev = &beats[prev_idx];
+            let merged = match &prev.prose {
+                Some(p) => format!("{}<p></p>{}", p, prose),
+                None => prose.clone(),
+            };
+            db::update_beat_prose(&conn, &prev.id, &merged).map_err(|e| e.to_string())?;
+        }
+    }
+
+    db::delete_beat(&conn, &beat_uuid).map_err(|e| e.to_string())?;
+
+    // Rebase positions of beats after the deleted one
+    let beats = db::get_beats(&conn, &beat.scene_id).map_err(|e| e.to_string())?;
+    for (i, b) in beats.iter().enumerate() {
+        if b.position != i as i32 {
+            db::update_beat_position(&conn, &b.id, i as i32).map_err(|e| e.to_string())?;
+        }
+    }
+
+    if let Some(project_id) =
+        db::get_scene_project_id(&conn, &beat.scene_id).map_err(|e| e.to_string())?
+    {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn reorder_beats(
+    scene_id: String,
+    beat_ids: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    if db::is_scene_locked(&conn, &scene_uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot reorder beats in a locked scene".to_string());
+    }
+
+    let existing_beats = db::get_beats(&conn, &scene_uuid).map_err(|e| e.to_string())?;
+    let existing_ids: std::collections::HashSet<_> = existing_beats.iter().map(|b| b.id).collect();
+
+    if beat_ids.len() != existing_beats.len() {
+        return Err("Beat order must include all beats in the scene".to_string());
+    }
+
+    for (position, id_str) in beat_ids.iter().enumerate() {
+        let beat_uuid = Uuid::parse_str(id_str).map_err(|e| e.to_string())?;
+        if !existing_ids.contains(&beat_uuid) {
+            return Err(format!("Beat {} does not belong to this scene", id_str));
+        }
+        db::update_beat_position(&conn, &beat_uuid, position as i32).map_err(|e| e.to_string())?;
+    }
+
+    if let Some(project_id) =
+        db::get_scene_project_id(&conn, &scene_uuid).map_err(|e| e.to_string())?
+    {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    Ok(())
+}
+
 // ============================================================================
 // Character Commands
 // ============================================================================

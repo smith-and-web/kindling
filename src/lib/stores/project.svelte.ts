@@ -130,6 +130,18 @@ class ProjectStore {
     this.beats = [...this.beats, beat];
   }
 
+  removeBeat(beatId: string) {
+    this.beats = this.beats.filter((b) => b.id !== beatId);
+  }
+
+  reorderBeats(beatIds: string[]) {
+    const beatMap = new Map(this.beats.map((b) => [b.id, b]));
+    this.beats = beatIds
+      .map((id) => beatMap.get(id))
+      .filter((b): b is Beat => b !== undefined)
+      .map((b, i) => ({ ...b, position: i }));
+  }
+
   updateSceneSynopsis(sceneId: string, synopsis: string | null) {
     this.scenes = this.scenes.map((scene) =>
       scene.id === sceneId ? { ...scene, synopsis } : scene
