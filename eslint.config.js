@@ -56,7 +56,8 @@ export default ts.config(
       ],
       "@typescript-eslint/no-explicit-any": "warn",
       "svelte/no-at-html-tags": "warn",
-      "svelte/require-each-key": "warn",
+      // Disabled: Svelte 5.53 keyed #each triggers $.validate_each_keys runtime error in dev
+      "svelte/require-each-key": "off",
     },
   }
 );

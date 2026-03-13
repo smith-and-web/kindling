@@ -1142,7 +1142,6 @@
       </div>
     {:else}
       <nav class="space-y-1" aria-label="Project outline">
-        <!-- svelte-ignore require-each-key -- Svelte 5.53 keyed #each triggers $.validate_each_keys runtime error in dev -->
         {#each partGroups as group}
           <!-- Part header (if this group has a Part) -->
           {#if group.part}
@@ -1218,7 +1217,6 @@
           <!-- Chapters in this group (collapsible under Part) -->
           {#if !group.part || checkPartExpanded(group.part.id)}
             <div class={group.part ? "ml-2" : ""}>
-              <!-- svelte-ignore require-each-key -- Svelte 5.53 keyed #each triggers $.validate_each_keys runtime error in dev -->
               {#each group.chapters as chapter}
                 {@const isExpanded = isChapterExpanded(chapter.id)}
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -1291,7 +1289,6 @@
 
                     {#if isExpanded && currentProject.currentChapter?.id === chapter.id}
                       <div class="flex items-center gap-1 pl-6">
-                        <!-- svelte-ignore require-each-key -- Svelte 5.53 keyed #each triggers $.validate_each_keys runtime error in dev -->
                         {#each sceneTypeFilterOptions as option}
                           {@const FilterIcon = option.icon}
                           <button
@@ -1315,7 +1312,6 @@
                             class="appearance-none bg-bg-card text-text-primary text-xs border border-text-secondary/40 rounded-md pl-2 pr-6 py-1 focus:outline-none focus:border-accent cursor-pointer"
                             aria-label="Scene status filter"
                           >
-                            <!-- svelte-ignore require-each-key -- Svelte 5.53 keyed #each triggers $.validate_each_keys runtime error in dev -->
                             {#each sceneStatusOptions as option}
                               <option value={option.value}>{option.label}</option>
                             {/each}
@@ -1331,7 +1327,6 @@
                   <!-- Scenes (collapsible) -->
                   {#if isExpanded && currentProject.currentChapter?.id === chapter.id}
                     <div class="ml-6 mt-1 space-y-0.5 border-l border-bg-card pl-2">
-                      <!-- svelte-ignore require-each-key -- Svelte 5.53 keyed #each triggers $.validate_each_keys runtime error in dev -->
                       {#each filteredScenes as scene}
                         {@const isSelected = currentProject.currentScene?.id === scene.id}
                         {@const isLocked = scene.locked || chapter.locked}

@@ -65,7 +65,7 @@ After making changes, validate them before considering work complete:
 ### Svelte (Frontend)
 
 - Svelte 5 with runes (`$state`, `$derived`, `$effect`) — do NOT use Svelte 4 stores or reactive declarations (`$:`)
-- **Svelte 5.53 keyed `#each` bug**: Keyed blocks `{#each items as item (item.id)}` trigger `$.validate_each_keys is not a function` at runtime in dev. Use unkeyed `{#each items as item}` and add `<!-- svelte-ignore require-each-key -->` above the block when the linter complains.
+- **Svelte 5.53 keyed `#each` bug**: Keyed blocks `{#each items as item (item.id)}` trigger `$.validate_each_keys is not a function` at runtime in dev. Use unkeyed `{#each items as item}`. The `svelte/require-each-key` ESLint rule is disabled in eslint.config.js.
 - TypeScript with strict mode — no `any` types without justification
 - Tailwind CSS 4 for styling — use utility classes, avoid custom CSS where possible
 - Components live in `src/lib/components/`

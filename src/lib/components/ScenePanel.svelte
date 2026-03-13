@@ -758,7 +758,6 @@
           </div>
           {#if currentProject.beats.length > 0}
             <div class="space-y-4">
-              <!-- svelte-ignore require-each-key -- Svelte 5.53 keyed #each triggers $.validate_each_keys runtime error in dev -->
               {#each currentProject.beats as beat, index}
                 {@const isExpanded = ui.expandedBeatId === beat.id}
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
