@@ -116,7 +116,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-test-results
           path: |
@@ -128,7 +128,7 @@ jobs:
 
       - name: Upload test screenshots on failure
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-failure-screenshots
           path: e2e/screenshots/
