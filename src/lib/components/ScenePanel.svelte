@@ -69,6 +69,7 @@
   let beatContextMenu: { beat: Beat; x: number; y: number } | null = $state(null);
   let deleteBeatDialog: Beat | null = $state(null);
   let deletingBeat = $state(false);
+  let novelEditorRef: { getSplitBeforeParagraph: () => number | null } | null = $state(null);
 
   // Beat drag-and-drop state
   let draggedBeatId: string | null = $state(null);
@@ -371,7 +372,31 @@
   }
 
   function getBeatContextMenuItems(beat: Beat) {
+    const beats = currentProject.beats;
+    const beatIndex = beats.findIndex((b) => b.id === beat.id);
+    const nextBeat = beatIndex >= 0 && beatIndex < beats.length - 1 ? beats[beatIndex + 1] : null;
+    const canSplit =
+      beat.prose?.trim() &&
+      ui.expandedBeatId === beat.id &&
+      novelEditorRef &&
+      (novelEditorRef.getSplitBeforeParagraph() ?? 0) >= 1;
+
     return [
+      {
+        label: "Split at cursor",
+        icon: ChevronRight,
+        action: () => executeSplitBeat(beat),
+        disabled: !canSplit,
+      },
+      {
+        label: "Merge with next",
+        icon: ChevronDown,
+        action: () => {
+          if (nextBeat) executeMergeBeats(beat, nextBeat);
+        },
+        disabled: !nextBeat,
+      },
+      { label: "", divider: true, action: () => {} },
       {
         label: "Delete",
         icon: Trash2,
@@ -401,6 +426,51 @@
     } finally {
       deletingBeat = false;
       deleteBeatDialog = null;
+    }
+  }
+
+  async function executeSplitBeat(beat: Beat) {
+    beatContextMenu = null;
+    const paraIndex = novelEditorRef?.getSplitBeforeParagraph();
+    if (paraIndex == null || paraIndex < 1) return;
+    if (!currentProject.currentScene) return;
+    try {
+      flushPendingSave(beat.id);
+      syncPendingProse(beat.id);
+      const newBeat = await invoke<Beat>("split_beat", {
+        beatId: beat.id,
+        splitAt: null,
+        splitBeforeParagraph: paraIndex,
+      });
+      const beats = await invoke<Beat[]>("get_beats", {
+        sceneId: currentProject.currentScene.id,
+      });
+      currentProject.setBeats(beats);
+      ui.setExpandedBeat(newBeat.id);
+    } catch (e) {
+      console.error("Failed to split beat:", e);
+    }
+  }
+
+  async function executeMergeBeats(first: Beat, second: Beat) {
+    beatContextMenu = null;
+    if (!currentProject.currentScene) return;
+    try {
+      if (ui.expandedBeatId === first.id || ui.expandedBeatId === second.id) {
+        flushPendingSave(ui.expandedBeatId);
+        syncPendingProse(ui.expandedBeatId);
+      }
+      await invoke("merge_beats", {
+        firstBeatId: first.id,
+        secondBeatId: second.id,
+      });
+      const beats = await invoke<Beat[]>("get_beats", {
+        sceneId: currentProject.currentScene.id,
+      });
+      currentProject.setBeats(beats);
+      ui.setExpandedBeat(first.id);
+    } catch (e) {
+      console.error("Failed to merge beats:", e);
     }
   }
 
@@ -491,6 +561,13 @@
   // Strip HTML tags for plain text preview
   function stripHtml(html: string): string {
     return html.replace(/<[^>]*>/g, "").trim();
+  }
+
+  function getBeatWordCount(prose: string | null): number {
+    if (!prose) return 0;
+    return stripHtml(prose)
+      .split(/\s+/)
+      .filter((w) => w.length > 0).length;
   }
 
   let lastSceneId: string | null = null;
@@ -811,6 +888,14 @@
                       <p class="text-text-primary text-sm font-medium flex-1 truncate">
                         {beat.content}
                       </p>
+                      {#if beat.prose}
+                        <span
+                          class="text-xs text-text-secondary shrink-0"
+                          title="Word count"
+                        >
+                          {getBeatWordCount(beat.prose)}w
+                        </span>
+                      {/if}
                     </button>
                     {#if !isLocked}
                       <button
@@ -830,6 +915,7 @@
                   {#if isExpanded}
                     <div class="border-t border-bg-card relative" style="height: 50rem;">
                       <NovelEditor
+                        bind:this={novelEditorRef}
                         content={beat.prose || ""}
                         placeholder={isLocked
                           ? "Scene is locked"

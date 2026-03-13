@@ -81,6 +81,8 @@ pub fn run() {
             commands::save_beat_prose,
             commands::delete_beat,
             commands::reorder_beats,
+            commands::split_beat,
+            commands::merge_beats,
             commands::save_scene_synopsis,
             commands::update_scene_metadata,
             commands::save_scene_prose,

@@ -25,6 +25,8 @@
     readonly?: boolean;
     saveStatus?: "idle" | "saving" | "error";
     onUpdate?: (html: string) => void;
+    /** Called when editor is ready; pass to parent for split-at-cursor support */
+    onEditorReady?: (editor: Editor) => void;
   }
 
   let {
@@ -33,6 +35,7 @@
     readonly = false,
     saveStatus = "idle",
     onUpdate,
+    onEditorReady,
   }: Props = $props();
 
   let editorElement: HTMLElement;
@@ -129,6 +132,8 @@
     lastExternalContent = content || "";
     lastEmittedContent = content || "";
 
+    onEditorReady?.(editor);
+
     setTimeout(() => {
       isInitialized = true;
     }, 0);
@@ -209,6 +214,15 @@
       e.preventDefault();
       insertTab();
     }
+  }
+
+  /** Get the 0-based paragraph index for split_before_paragraph (which paragraph the cursor is in) */
+  export function getSplitBeforeParagraph(): number | null {
+    if (!editor) return null;
+    const { from } = editor.state.selection;
+    const resolved = editor.state.doc.resolve(from);
+    if (resolved.depth < 1) return 0;
+    return resolved.index(1) as number;
   }
 </script>
 

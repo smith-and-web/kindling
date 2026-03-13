@@ -733,6 +733,158 @@ pub async fn reorder_beats(
     Ok(())
 }
 
+/// Find the character offset of the start of the nth <p> tag (0-indexed) in HTML.
+fn find_paragraph_offset(html: &str, paragraph_index: u32) -> Option<usize> {
+    let mut count = 0u32;
+    let mut search_start = 0;
+    while let Some(start) = html[search_start..].find("<p") {
+        let abs_start = search_start + start;
+        if count == paragraph_index {
+            return Some(abs_start);
+        }
+        count += 1;
+        search_start = abs_start + 1;
+    }
+    None
+}
+
+#[tauri::command]
+pub async fn split_beat(
+    beat_id: String,
+    split_at: Option<usize>,
+    split_before_paragraph: Option<u32>,
+    state: State<'_, AppState>,
+) -> Result<Beat, String> {
+    let beat_uuid = Uuid::parse_str(&beat_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let beat = db::get_beat(&conn, &beat_uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Beat not found".to_string())?;
+
+    if db::is_scene_locked(&conn, &beat.scene_id).map_err(|e| e.to_string())? {
+        return Err("Cannot split beats in a locked scene".to_string());
+    }
+
+    let prose = beat.prose.as_deref().unwrap_or("");
+    if prose.trim().is_empty() {
+        return Err("Cannot split beat with no prose".to_string());
+    }
+    let len = prose.chars().count();
+
+    let split_pos = match (split_at, split_before_paragraph) {
+        (Some(pos), None) => pos,
+        (None, Some(para_idx)) => find_paragraph_offset(prose, para_idx)
+            .ok_or_else(|| "Paragraph not found for split".to_string())?,
+        _ => return Err("Provide either split_at or split_before_paragraph".to_string()),
+    };
+
+    if split_pos == 0 || split_pos >= len {
+        return Err("Split position must be between 0 and prose length".to_string());
+    }
+
+    let prose_before: String = prose.chars().take(split_pos).collect();
+    let prose_after: String = prose.chars().skip(split_pos).collect();
+    let prose_after = prose_after.trim();
+
+    if prose_after.is_empty() {
+        return Err("Nothing to split off - split position is at end of content".to_string());
+    }
+
+    db::update_beat_prose(&conn, &beat.id, prose_before.trim()).map_err(|e| e.to_string())?;
+
+    let new_position = beat.position + 1;
+    db::shift_beat_positions(&conn, &beat.scene_id, new_position).map_err(|e| e.to_string())?;
+
+    let new_beat = Beat {
+        id: Uuid::new_v4(),
+        scene_id: beat.scene_id,
+        content: String::new(),
+        prose: Some(prose_after.to_string()),
+        position: new_position,
+        source_id: None,
+    };
+    db::insert_beat(&conn, &new_beat).map_err(|e| e.to_string())?;
+
+    if let Some(project_id) =
+        db::get_scene_project_id(&conn, &beat.scene_id).map_err(|e| e.to_string())?
+    {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    Ok(new_beat)
+}
+
+#[tauri::command]
+pub async fn merge_beats(
+    first_beat_id: String,
+    second_beat_id: String,
+    state: State<'_, AppState>,
+) -> Result<Beat, String> {
+    let first_uuid = Uuid::parse_str(&first_beat_id).map_err(|e| e.to_string())?;
+    let second_uuid = Uuid::parse_str(&second_beat_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let first = db::get_beat(&conn, &first_uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "First beat not found".to_string())?;
+    let second = db::get_beat(&conn, &second_uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Second beat not found".to_string())?;
+
+    if first.scene_id != second.scene_id {
+        return Err("Beats must be in the same scene".to_string());
+    }
+    if first.position + 1 != second.position {
+        return Err("Beats must be adjacent (merge second into first)".to_string());
+    }
+    if db::is_scene_locked(&conn, &first.scene_id).map_err(|e| e.to_string())? {
+        return Err("Cannot merge beats in a locked scene".to_string());
+    }
+
+    let merged_content = if second.content.is_empty() {
+        first.content.clone()
+    } else if first.content.is_empty() {
+        second.content.clone()
+    } else {
+        format!("{} / {}", first.content, second.content)
+    };
+
+    let merged_prose = match (&first.prose, &second.prose) {
+        (Some(a), Some(b)) => format!("{}<p></p>{}", a, b),
+        (Some(a), None) => a.clone(),
+        (None, Some(b)) => b.clone(),
+        (None, None) => String::new(),
+    };
+
+    db::update_beat(&conn, &first.id, &merged_content, first.position)
+        .map_err(|e| e.to_string())?;
+    db::update_beat_prose(&conn, &first.id, &merged_prose).map_err(|e| e.to_string())?;
+    db::delete_beat(&conn, &second.id).map_err(|e| e.to_string())?;
+
+    let beats = db::get_beats(&conn, &first.scene_id).map_err(|e| e.to_string())?;
+    for (i, b) in beats.iter().enumerate() {
+        if b.position != i as i32 {
+            db::update_beat_position(&conn, &b.id, i as i32).map_err(|e| e.to_string())?;
+        }
+    }
+
+    if let Some(project_id) =
+        db::get_scene_project_id(&conn, &first.scene_id).map_err(|e| e.to_string())?
+    {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    let mut result = first.clone();
+    result.content = merged_content;
+    result.prose = if merged_prose.is_empty() {
+        None
+    } else {
+        Some(merged_prose)
+    };
+    Ok(result)
+}
+
 // ============================================================================
 // Character Commands
 // ============================================================================

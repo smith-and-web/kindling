@@ -224,6 +224,62 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       return undefined as T;
     }
 
+    case "split_beat": {
+      const beatId = getArg<string>(args, "beatId", "beat_id");
+      const splitBeforeParagraph = getArg<number>(args, "splitBeforeParagraph", "split_before_paragraph");
+      if (!beatId || splitBeforeParagraph == null) throw new Error("Missing beatId or splitBeforeParagraph");
+      const beat = beats.find((b) => b.id === beatId);
+      if (!beat || !beat.prose) throw new Error("Beat not found or has no prose");
+      const paraMatch = beat.prose.match(/<p[^>]*>/g);
+      const paraCount = paraMatch?.length ?? 1;
+      if (splitBeforeParagraph >= paraCount) throw new Error("Paragraph not found for split");
+      const parts = beat.prose.split(/(<p[^>]*>)/g);
+      let idx = 0;
+      let before = "";
+      let after = "";
+      for (let i = 0; i < parts.length; i++) {
+        if (parts[i].match(/^<p[^>]*>$/)) {
+          if (idx === splitBeforeParagraph) {
+            before = parts.slice(0, i).join("");
+            after = parts.slice(i).join("");
+            break;
+          }
+          idx++;
+        }
+      }
+      if (!after) {
+        before = beat.prose.slice(0, Math.floor(beat.prose.length / 2));
+        after = beat.prose.slice(Math.floor(beat.prose.length / 2));
+      }
+      beat.prose = before.trim();
+      const newBeat: Beat = {
+        id: crypto.randomUUID(),
+        scene_id: beat.scene_id,
+        content: "",
+        prose: after.trim(),
+        position: beat.position + 1,
+      };
+      beats.filter((b) => b.scene_id === beat.scene_id && b.position >= newBeat.position).forEach((b) => b.position++);
+      beats.push(newBeat);
+      return newBeat as T;
+    }
+
+    case "merge_beats": {
+      const firstBeatId = getArg<string>(args, "firstBeatId", "first_beat_id");
+      const secondBeatId = getArg<string>(args, "secondBeatId", "second_beat_id");
+      if (!firstBeatId || !secondBeatId) throw new Error("Missing beat ids");
+      const first = beats.find((b) => b.id === firstBeatId);
+      const second = beats.find((b) => b.id === secondBeatId);
+      if (!first || !second || first.scene_id !== second.scene_id || first.position + 1 !== second.position) {
+        throw new Error("Beats must be adjacent in same scene");
+      }
+      first.content = first.content ? `${first.content} / ${second.content}` : second.content;
+      first.prose = first.prose ? `${first.prose}<p></p>${second.prose ?? ""}` : second.prose ?? "";
+      beats = beats.filter((b) => b.id !== secondBeatId);
+      if (first.prose === "") first.prose = null;
+      return first as T;
+    }
+
     case "get_characters":
       return characters.filter((c) => c.project_id === projectId) as T;
 
