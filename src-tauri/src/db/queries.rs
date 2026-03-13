@@ -444,11 +444,7 @@ pub fn update_beat_position(conn: &Connection, beat_id: &Uuid, position: i32) ->
 }
 
 /// Shift all beats at position >= from_position by +1 (for insert before)
-pub fn shift_beat_positions(
-    conn: &Connection,
-    scene_id: &Uuid,
-    from_position: i32,
-) -> Result<()> {
+pub fn shift_beat_positions(conn: &Connection, scene_id: &Uuid, from_position: i32) -> Result<()> {
     conn.execute(
         "UPDATE beats SET position = position + 1 WHERE scene_id = ?1 AND position >= ?2",
         params![scene_id.to_string(), from_position],
