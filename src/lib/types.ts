@@ -107,6 +107,16 @@ export interface Beat {
   position: number;
 }
 
+/** Inline discovery note for capturing ideas while writing */
+export interface DiscoveryNote {
+  id: string;
+  scene_id: string;
+  content: string;
+  tags: string[];
+  position: number;
+  created_at: string;
+}
+
 /** A character reference card shown in the References panel */
 export interface Character {
   id: string;

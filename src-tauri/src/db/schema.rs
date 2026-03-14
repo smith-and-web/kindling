@@ -121,6 +121,15 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             PRIMARY KEY (scene_id, reference_type, reference_id)
         );
 
+        CREATE TABLE IF NOT EXISTS discovery_notes (
+            id TEXT PRIMARY KEY,
+            scene_id TEXT NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+            content TEXT NOT NULL,
+            tags TEXT,
+            position INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS session_state (
             project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
             current_scene_id TEXT,
@@ -159,6 +168,7 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_scene_reference_state_scene ON scene_reference_state(scene_id);
         CREATE INDEX IF NOT EXISTS idx_scene_reference_state_type ON scene_reference_state(scene_id, reference_type);
         CREATE INDEX IF NOT EXISTS idx_snapshots_project ON snapshots(project_id);
+        CREATE INDEX IF NOT EXISTS idx_discovery_notes_scene ON discovery_notes(scene_id);
 
         -- Enable foreign key support
         PRAGMA foreign_keys = ON;
@@ -329,6 +339,24 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
         )?;
         conn.execute(
             "CREATE INDEX idx_scene_reference_state_type ON scene_reference_state(scene_id, reference_type)",
+            [],
+        )?;
+    }
+
+    if !tables.contains(&"discovery_notes".to_string()) {
+        conn.execute(
+            "CREATE TABLE discovery_notes (
+                id TEXT PRIMARY KEY,
+                scene_id TEXT NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                tags TEXT,
+                position INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            )",
+            [],
+        )?;
+        conn.execute(
+            "CREATE INDEX idx_discovery_notes_scene ON discovery_notes(scene_id)",
             [],
         )?;
     }

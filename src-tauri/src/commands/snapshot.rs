@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use crate::db;
 use crate::models::{
-    Beat, Chapter, Character, Location, Project, ReferenceItem, RestoreMode, Scene,
+    Beat, Chapter, Character, DiscoveryNote, Location, Project, ReferenceItem, RestoreMode, Scene,
     SceneReferenceState, SnapshotData, SnapshotMetadata, SnapshotTrigger,
 };
 
@@ -77,6 +77,9 @@ fn collect_project_data(
     let scene_reference_states =
         db::get_all_scene_reference_states(conn, project_id).map_err(|e| e.to_string())?;
 
+    let discovery_notes =
+        db::get_all_discovery_notes_for_project(conn, project_id).map_err(|e| e.to_string())?;
+
     Ok(SnapshotData::new(
         project,
         chapters,
@@ -89,6 +92,7 @@ fn collect_project_data(
         scene_location_refs,
         scene_reference_item_refs,
         scene_reference_states,
+        discovery_notes,
     ))
 }
 
@@ -337,6 +341,14 @@ fn restore_replace_current(
         }
     }
 
+    // Insert discovery notes
+    for note in &data.discovery_notes {
+        if let Err(e) = db::insert_discovery_note(conn, note) {
+            conn.execute("ROLLBACK", []).ok();
+            return Err(e.to_string());
+        }
+    }
+
     // Update project modified time
     if let Err(e) = db::update_project_modified(conn, &project_id) {
         conn.execute("ROLLBACK", []).ok();
@@ -384,6 +396,9 @@ fn restore_create_new(
     }
     for item in &data.reference_items {
         id_map.insert(item.id, Uuid::new_v4());
+    }
+    for note in &data.discovery_notes {
+        id_map.insert(note.id, Uuid::new_v4());
     }
 
     // Begin transaction
@@ -567,6 +582,23 @@ fn restore_create_new(
         }
     }
 
+    // Insert discovery notes with remapped IDs
+    for note in &data.discovery_notes {
+        let new_scene_id = id_map.get(&note.scene_id).unwrap();
+        let new_note = DiscoveryNote {
+            id: *id_map.get(&note.id).unwrap(),
+            scene_id: *new_scene_id,
+            content: note.content.clone(),
+            tags: note.tags.clone(),
+            position: note.position,
+            created_at: note.created_at.clone(),
+        };
+        if let Err(e) = db::insert_discovery_note(conn, &new_note) {
+            conn.execute("ROLLBACK", []).ok();
+            return Err(e.to_string());
+        }
+    }
+
     // Commit transaction
     conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
 
@@ -623,6 +655,7 @@ mod tests {
         let project = Project::new("Snapshot Test".to_string(), SourceType::Markdown, None);
         let data = SnapshotData::new(
             project.clone(),
+            vec![],
             vec![],
             vec![],
             vec![],

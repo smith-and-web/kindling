@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::models::{
-    Beat, Chapter, Character, Location, Project, ReferenceItem, Scene, SceneCharacterRef,
-    SceneLocationRef, SceneReferenceItemRef, SceneReferenceState, SceneStatus, SceneType,
-    SnapshotMetadata, SnapshotTrigger, SourceType,
+    Beat, Chapter, Character, DiscoveryNote, Location, Project, ReferenceItem, Scene,
+    SceneCharacterRef, SceneLocationRef, SceneReferenceItemRef, SceneReferenceState, SceneStatus,
+    SceneType, SnapshotMetadata, SnapshotTrigger, SourceType,
 };
 
 // ============================================================================
@@ -462,6 +462,100 @@ pub fn update_scene_synopsis(
         params![synopsis, scene_id.to_string()],
     )?;
     Ok(())
+}
+
+// ============================================================================
+// Discovery Note Queries
+// ============================================================================
+
+fn parse_tags(raw: Option<String>) -> Vec<String> {
+    match raw {
+        Some(value) => serde_json::from_str::<Vec<String>>(&value).unwrap_or_default(),
+        None => Vec::new(),
+    }
+}
+
+pub fn insert_discovery_note(conn: &Connection, note: &DiscoveryNote) -> Result<()> {
+    let tags_json = serde_json::to_string(&note.tags).unwrap_or_else(|_| "[]".to_string());
+    conn.execute(
+        "INSERT INTO discovery_notes (id, scene_id, content, tags, position, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![
+            note.id.to_string(),
+            note.scene_id.to_string(),
+            note.content,
+            tags_json,
+            note.position,
+            note.created_at,
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn get_discovery_notes(conn: &Connection, scene_id: &Uuid) -> Result<Vec<DiscoveryNote>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, scene_id, content, tags, position, created_at
+         FROM discovery_notes WHERE scene_id = ?1 ORDER BY position, created_at",
+    )?;
+
+    let notes = stmt
+        .query_map(params![scene_id.to_string()], |row| {
+            Ok(DiscoveryNote {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                scene_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                content: row.get(2)?,
+                tags: parse_tags(row.get(3)?),
+                position: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(notes)
+}
+
+pub fn update_discovery_note(
+    conn: &Connection,
+    note_id: &Uuid,
+    content: &str,
+    tags: &[String],
+) -> Result<()> {
+    let tags_json = serde_json::to_string(tags).unwrap_or_else(|_| "[]".to_string());
+    conn.execute(
+        "UPDATE discovery_notes SET content = ?1, tags = ?2 WHERE id = ?3",
+        params![content, tags_json, note_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn delete_discovery_note(conn: &Connection, note_id: &Uuid) -> Result<()> {
+    conn.execute(
+        "DELETE FROM discovery_notes WHERE id = ?1",
+        params![note_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn get_discovery_note(conn: &Connection, note_id: &Uuid) -> Result<Option<DiscoveryNote>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, scene_id, content, tags, position, created_at
+         FROM discovery_notes WHERE id = ?1",
+    )?;
+
+    let opt = stmt
+        .query_row(params![note_id.to_string()], |row| {
+            Ok(DiscoveryNote {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                scene_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                content: row.get(2)?,
+                tags: parse_tags(row.get(3)?),
+                position: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })
+        .optional()?;
+    Ok(opt)
 }
 
 // ============================================================================
@@ -2215,6 +2309,37 @@ pub fn get_all_scene_reference_states(
         .collect();
 
     Ok(states)
+}
+
+/// Get all discovery notes for a project (for snapshots)
+pub fn get_all_discovery_notes_for_project(
+    conn: &Connection,
+    project_id: &Uuid,
+) -> Result<Vec<DiscoveryNote>> {
+    let mut stmt = conn.prepare(
+        "SELECT dn.id, dn.scene_id, dn.content, dn.tags, dn.position, dn.created_at
+         FROM discovery_notes dn
+         JOIN scenes s ON dn.scene_id = s.id
+         JOIN chapters c ON s.chapter_id = c.id
+         WHERE c.project_id = ?1
+         ORDER BY c.position, s.position, dn.position, dn.created_at",
+    )?;
+
+    let notes = stmt
+        .query_map(params![project_id.to_string()], |row| {
+            Ok(DiscoveryNote {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                scene_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                content: row.get(2)?,
+                tags: parse_tags(row.get(3)?),
+                position: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(notes)
 }
 
 /// Get all scene-reference-item references for a project (for snapshots)

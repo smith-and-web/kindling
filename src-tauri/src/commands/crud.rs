@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use crate::db;
 use crate::models::{
-    Beat, Chapter, Character, Location, Project, ReferenceItem, Scene, SceneReferenceState,
-    SceneStatus, SceneType,
+    Beat, Chapter, Character, DiscoveryNote, Location, Project, ReferenceItem, Scene,
+    SceneReferenceState, SceneStatus, SceneType,
 };
 
 use super::AppState;
@@ -883,6 +883,153 @@ pub async fn merge_beats(
         Some(merged_prose)
     };
     Ok(result)
+}
+
+// ============================================================================
+// Discovery Note Commands
+// ============================================================================
+
+#[tauri::command]
+pub async fn get_discovery_notes(
+    scene_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<DiscoveryNote>, String> {
+    let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    db::get_discovery_notes(&conn, &uuid).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_discovery_note(
+    scene_id: String,
+    content: String,
+    tags: Option<Vec<String>>,
+    state: State<'_, AppState>,
+) -> Result<DiscoveryNote, String> {
+    let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    if db::is_scene_locked(&conn, &scene_uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot add discovery notes to a locked scene".to_string());
+    }
+
+    let max_pos: i32 = conn
+        .query_row(
+            "SELECT COALESCE(MAX(position), -1) FROM discovery_notes WHERE scene_id = ?1",
+            rusqlite::params![scene_uuid.to_string()],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let note = DiscoveryNote {
+        id: Uuid::new_v4(),
+        scene_id: scene_uuid,
+        content: content.trim().to_string(),
+        tags: tags.unwrap_or_default(),
+        position: max_pos + 1,
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+
+    db::insert_discovery_note(&conn, &note).map_err(|e| e.to_string())?;
+
+    if let Some(project_id) =
+        db::get_scene_project_id(&conn, &scene_uuid).map_err(|e| e.to_string())?
+    {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    Ok(note)
+}
+
+#[tauri::command]
+pub async fn update_discovery_note(
+    note_id: String,
+    content: String,
+    tags: Option<Vec<String>>,
+    state: State<'_, AppState>,
+) -> Result<DiscoveryNote, String> {
+    let note_uuid = Uuid::parse_str(&note_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let note = db::get_discovery_note(&conn, &note_uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Discovery note not found".to_string())?;
+
+    if db::is_scene_locked(&conn, &note.scene_id).map_err(|e| e.to_string())? {
+        return Err("Cannot edit discovery notes in a locked scene".to_string());
+    }
+
+    let tags = tags.unwrap_or_else(|| note.tags.clone());
+    db::update_discovery_note(&conn, &note_uuid, content.trim(), &tags)
+        .map_err(|e| e.to_string())?;
+
+    if let Some(project_id) =
+        db::get_scene_project_id(&conn, &note.scene_id).map_err(|e| e.to_string())?
+    {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    let mut updated = note;
+    updated.content = content.trim().to_string();
+    updated.tags = tags;
+    Ok(updated)
+}
+
+#[tauri::command]
+pub async fn delete_discovery_note(
+    note_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let note_uuid = Uuid::parse_str(&note_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let note = db::get_discovery_note(&conn, &note_uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Discovery note not found".to_string())?;
+
+    if db::is_scene_locked(&conn, &note.scene_id).map_err(|e| e.to_string())? {
+        return Err("Cannot delete discovery notes in a locked scene".to_string());
+    }
+
+    db::delete_discovery_note(&conn, &note_uuid).map_err(|e| e.to_string())?;
+
+    if let Some(project_id) =
+        db::get_scene_project_id(&conn, &note.scene_id).map_err(|e| e.to_string())?
+    {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn promote_discovery_note_to_beat(
+    note_id: String,
+    state: State<'_, AppState>,
+) -> Result<Beat, String> {
+    let note_uuid = Uuid::parse_str(&note_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let note = db::get_discovery_note(&conn, &note_uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Discovery note not found".to_string())?;
+
+    if db::is_scene_locked(&conn, &note.scene_id).map_err(|e| e.to_string())? {
+        return Err("Cannot promote notes in a locked scene".to_string());
+    }
+
+    let max_pos = db::get_max_beat_position(&conn, &note.scene_id).map_err(|e| e.to_string())?;
+    let beat = Beat::new(note.scene_id, note.content.clone(), max_pos + 1);
+    db::insert_beat(&conn, &beat).map_err(|e| e.to_string())?;
+    db::delete_discovery_note(&conn, &note_uuid).map_err(|e| e.to_string())?;
+
+    if let Some(project_id) =
+        db::get_scene_project_id(&conn, &note.scene_id).map_err(|e| e.to_string())?
+    {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    Ok(beat)
 }
 
 // ============================================================================

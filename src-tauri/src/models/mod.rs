@@ -1,6 +1,7 @@
 pub mod beat;
 pub mod chapter;
 pub mod character;
+pub mod discovery_note;
 pub mod location;
 pub mod project;
 pub mod reference_item;
@@ -12,6 +13,7 @@ pub mod snapshot;
 pub use beat::*;
 pub use chapter::*;
 pub use character::*;
+pub use discovery_note::*;
 pub use location::*;
 pub use project::*;
 pub use reference_item::*;

@@ -40,13 +40,7 @@ export default ts.config(
     },
   },
   {
-    ignores: [
-      "dist/",
-      "node_modules/",
-      "src-tauri/",
-      ".svelte-kit/",
-      "build/",
-    ],
+    ignores: ["dist/", "node_modules/", "src-tauri/", ".svelte-kit/", "build/"],
   },
   {
     rules: {

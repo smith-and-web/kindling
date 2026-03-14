@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{
-    Beat, Chapter, Character, Location, Project, ReferenceItem, Scene, SceneReferenceState,
+    Beat, Chapter, Character, DiscoveryNote, Location, Project, ReferenceItem, Scene,
+    SceneReferenceState,
 };
 
 /// Trigger type for snapshot creation
@@ -126,6 +127,8 @@ pub struct SnapshotData {
     pub scene_reference_item_refs: Vec<SceneReferenceItemRef>,
     #[serde(default)]
     pub scene_reference_states: Vec<SceneReferenceState>,
+    #[serde(default)]
+    pub discovery_notes: Vec<DiscoveryNote>,
 }
 
 impl SnapshotData {
@@ -142,6 +145,7 @@ impl SnapshotData {
         scene_location_refs: Vec<SceneLocationRef>,
         scene_reference_item_refs: Vec<SceneReferenceItemRef>,
         scene_reference_states: Vec<SceneReferenceState>,
+        discovery_notes: Vec<DiscoveryNote>,
     ) -> Self {
         Self {
             version: 1,
@@ -157,6 +161,7 @@ impl SnapshotData {
             scene_location_refs,
             scene_reference_item_refs,
             scene_reference_states,
+            discovery_notes,
         }
     }
 

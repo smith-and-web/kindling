@@ -22,6 +22,7 @@
   import { ui } from "../stores/ui.svelte";
   import type {
     Beat,
+    DiscoveryNote,
     ReferenceItem,
     ReferenceTypeId,
     Scene,
@@ -102,6 +103,17 @@
   let sceneReferenceLoading = $state(false);
   let sceneReferenceError = $state<string | null>(null);
   let sceneReferenceRequestId = 0;
+
+  // Discovery notes state
+  let discoveryNotesVisible = $state(false);
+  let discoveryNotes = $state<DiscoveryNote[]>([]);
+  let discoveryNotesLoading = $state(false);
+  let addingDiscoveryNote = $state(false);
+  let newDiscoveryNoteContent = $state("");
+  let creatingDiscoveryNote = $state(false);
+  let editingDiscoveryNoteId: string | null = $state(null);
+  let editingDiscoveryNoteContent = $state("");
+  let promotingNoteId: string | null = $state(null);
 
   async function loadSceneReferenceItems(sceneId: string) {
     const requestId = ++sceneReferenceRequestId;
@@ -277,6 +289,11 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
+    if (e.key === "d" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      discoveryNotesVisible = !discoveryNotesVisible;
+      return;
+    }
     if (e.key === "Escape") {
       if (ui.expandedBeatId) {
         flushPendingSave(ui.expandedBeatId);
@@ -289,6 +306,14 @@
       if (addingBeat) {
         addingBeat = false;
         newBeatContent = "";
+      }
+      if (addingDiscoveryNote) {
+        addingDiscoveryNote = false;
+        newDiscoveryNoteContent = "";
+      }
+      if (editingDiscoveryNoteId) {
+        editingDiscoveryNoteId = null;
+        editingDiscoveryNoteContent = "";
       }
     }
   }
@@ -611,6 +636,92 @@
     loadSceneReferenceItems(sceneId);
   });
 
+  async function loadDiscoveryNotes(sceneId: string) {
+    discoveryNotesLoading = true;
+    try {
+      discoveryNotes = await invoke<DiscoveryNote[]>("get_discovery_notes", { sceneId });
+    } catch (e) {
+      console.error("Failed to load discovery notes:", e);
+      discoveryNotes = [];
+    } finally {
+      discoveryNotesLoading = false;
+    }
+  }
+
+  let lastDiscoveryNotesSceneId: string | null = null;
+  $effect(() => {
+    const sceneId = currentProject.currentScene?.id ?? null;
+    if (sceneId === lastDiscoveryNotesSceneId) return;
+    lastDiscoveryNotesSceneId = sceneId;
+    if (!sceneId) {
+      discoveryNotes = [];
+      return;
+    }
+    loadDiscoveryNotes(sceneId);
+  });
+
+  async function createDiscoveryNote() {
+    if (!currentProject.currentScene || !newDiscoveryNoteContent.trim()) return;
+    creatingDiscoveryNote = true;
+    try {
+      const note = await invoke<DiscoveryNote>("create_discovery_note", {
+        sceneId: currentProject.currentScene.id,
+        content: newDiscoveryNoteContent.trim(),
+        tags: [],
+      });
+      discoveryNotes = [...discoveryNotes, note];
+      addingDiscoveryNote = false;
+      newDiscoveryNoteContent = "";
+    } catch (e) {
+      console.error("Failed to create discovery note:", e);
+    } finally {
+      creatingDiscoveryNote = false;
+    }
+  }
+
+  async function updateDiscoveryNote(noteId: string, content: string) {
+    try {
+      const updated = await invoke<DiscoveryNote>("update_discovery_note", {
+        noteId,
+        content,
+        tags: null,
+      });
+      discoveryNotes = discoveryNotes.map((n) => (n.id === noteId ? updated : n));
+      editingDiscoveryNoteId = null;
+      editingDiscoveryNoteContent = "";
+    } catch (e) {
+      console.error("Failed to update discovery note:", e);
+    }
+  }
+
+  async function deleteDiscoveryNote(noteId: string) {
+    try {
+      await invoke("delete_discovery_note", { noteId });
+      discoveryNotes = discoveryNotes.filter((n) => n.id !== noteId);
+    } catch (e) {
+      console.error("Failed to delete discovery note:", e);
+    }
+  }
+
+  async function promoteNoteToBeat(note: DiscoveryNote) {
+    promotingNoteId = note.id;
+    try {
+      const beat = await invoke<Beat>("promote_discovery_note_to_beat", { noteId: note.id });
+      currentProject.addBeat(beat);
+      discoveryNotes = discoveryNotes.filter((n) => n.id !== note.id);
+      ui.setExpandedBeat(beat.id);
+    } catch (e) {
+      console.error("Failed to promote note to beat:", e);
+    } finally {
+      promotingNoteId = null;
+    }
+  }
+
+  function startAddingDiscoveryNote() {
+    addingDiscoveryNote = true;
+    newDiscoveryNoteContent = "";
+  }
+
   onDestroy(() => {
     flushPendingSave(ui.expandedBeatId ?? undefined);
     if (ui.expandedBeatId) {
@@ -714,7 +825,7 @@
         <!-- Synopsis -->
         <section class="mb-8">
           <div class="flex items-center justify-between mb-2">
-            <h2 class="text-sm font-medium text-text-secondary uppercase tracking-wide">
+            <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">
               Synopsis
             </h2>
             {#if scene.synopsis && !editingSynopsis && !isLocked}
@@ -776,7 +887,7 @@
         <!-- References -->
         <section class="mb-8">
           <div class="flex items-center justify-between mb-2">
-            <h2 class="text-sm font-medium text-text-secondary uppercase tracking-wide">
+            <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">
               References
             </h2>
             {#if sceneReferenceLoading}
@@ -819,10 +930,150 @@
           {/if}
         </section>
 
+        <!-- Discovery Notes (Cmd/Ctrl+D) -->
+        <section class="mb-8">
+          <button
+            type="button"
+            onclick={() => (discoveryNotesVisible = !discoveryNotesVisible)}
+            class="flex items-center justify-between w-full mb-2 text-left group"
+          >
+            <h2
+              class="text-sm font-semibold text-text-primary uppercase tracking-wide group-hover:text-text-primary transition-colors"
+            >
+              Discovery Notes
+            </h2>
+            <span class="text-xs text-text-secondary">
+              {discoveryNotesVisible ? "Hide" : "Show"} (⌘D)
+            </span>
+          </button>
+          {#if discoveryNotesVisible}
+            {#if discoveryNotesLoading}
+              <p class="text-sm text-text-secondary">Loading…</p>
+            {:else}
+              <div class="space-y-3">
+                {#if !addingDiscoveryNote && !isLocked}
+                  <button
+                    type="button"
+                    onclick={startAddingDiscoveryNote}
+                    class="flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors text-sm"
+                  >
+                    <Plus class="w-3.5 h-3.5" />
+                    <span>Add note</span>
+                  </button>
+                {/if}
+                {#if addingDiscoveryNote}
+                  <div class="flex flex-col gap-2 p-3 rounded-lg bg-bg-panel">
+                    <textarea
+                      bind:value={newDiscoveryNoteContent}
+                      placeholder="What did you discover?"
+                      rows="2"
+                      class="w-full px-3 py-2 rounded-md bg-bg-base text-text-primary text-sm placeholder:text-text-secondary/50 resize-none focus:outline-none focus:ring-2 focus:ring-accent"
+                    ></textarea>
+                    <div class="flex gap-2">
+                      <button
+                        type="button"
+                        onclick={createDiscoveryNote}
+                        disabled={!newDiscoveryNoteContent.trim() || creatingDiscoveryNote}
+                        class="px-3 py-1.5 rounded-md bg-accent text-accent-foreground text-sm font-medium disabled:opacity-50"
+                      >
+                        {creatingDiscoveryNote ? "Adding…" : "Add"}
+                      </button>
+                      <button
+                        type="button"
+                        onclick={() => {
+                          addingDiscoveryNote = false;
+                          newDiscoveryNoteContent = "";
+                        }}
+                        class="px-3 py-1.5 rounded-md bg-bg-card text-text-secondary text-sm hover:text-text-primary"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                {/if}
+                {#each discoveryNotes as note}
+                  {@const isEditing = editingDiscoveryNoteId === note.id}
+                  <div class="p-3 rounded-lg bg-bg-panel">
+                    {#if isEditing}
+                      <textarea
+                        bind:value={editingDiscoveryNoteContent}
+                        rows="2"
+                        class="w-full px-3 py-2 rounded-md bg-bg-base text-text-primary text-sm resize-none focus:outline-none focus:ring-2 focus:ring-accent mb-2"
+                      ></textarea>
+                      <div class="flex gap-2">
+                        <button
+                          type="button"
+                          onclick={() => updateDiscoveryNote(note.id, editingDiscoveryNoteContent)}
+                          class="px-3 py-1.5 rounded-md bg-accent text-accent-foreground text-sm font-medium"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onclick={() => {
+                            editingDiscoveryNoteId = null;
+                            editingDiscoveryNoteContent = "";
+                          }}
+                          class="px-3 py-1.5 rounded-md bg-bg-card text-text-secondary text-sm hover:text-text-primary"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    {:else}
+                      <p class="text-sm text-text-primary whitespace-pre-wrap">{note.content}</p>
+                      {#if note.tags && note.tags.length > 0}
+                        <div class="flex flex-wrap gap-1 mt-2">
+                          {#each note.tags as tag}
+                            <span
+                              class="px-1.5 py-0.5 rounded bg-bg-base text-xs text-text-secondary"
+                            >
+                              {tag}
+                            </span>
+                          {/each}
+                        </div>
+                      {/if}
+                      <div class="flex gap-2 mt-2">
+                        <button
+                          type="button"
+                          onclick={() => {
+                            editingDiscoveryNoteId = note.id;
+                            editingDiscoveryNoteContent = note.content;
+                          }}
+                          class="text-xs text-text-secondary hover:text-text-primary"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onclick={() => deleteDiscoveryNote(note.id)}
+                          class="text-xs text-text-secondary hover:text-red-400"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          type="button"
+                          onclick={() => promoteNoteToBeat(note)}
+                          disabled={promotingNoteId === note.id}
+                          class="text-xs text-text-secondary hover:text-accent disabled:opacity-50"
+                        >
+                          {promotingNoteId === note.id ? "Promoting…" : "Promote to beat"}
+                        </button>
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+                {#if discoveryNotes.length === 0 && !addingDiscoveryNote}
+                  <p class="text-sm text-text-secondary">No discovery notes yet.</p>
+                {/if}
+              </div>
+            {/if}
+          {/if}
+        </section>
+
         <!-- Beats -->
         <section>
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-sm font-medium text-text-secondary uppercase tracking-wide">Beats</h2>
+            <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">Beats</h2>
             {#if currentProject.beats.length > 0 && !addingBeat && !isLocked}
               <button
                 onclick={startAddingBeat}
@@ -996,7 +1247,7 @@
         <!-- Scene Prose (if exists and no beats) -->
         {#if scene.prose && currentProject.beats.length === 0}
           <section class="mt-8">
-            <h2 class="text-sm font-medium text-text-secondary uppercase tracking-wide mb-4">
+            <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">
               Content
             </h2>
             <div class="bg-bg-panel rounded-lg p-6">
