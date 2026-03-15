@@ -24,6 +24,10 @@ pub mod menu_ids {
     pub const PROJECT_SETTINGS: &str = "project_settings";
     pub const KINDLING_SETTINGS: &str = "kindling_settings";
     pub const QUICK_START: &str = "quick_start";
+    pub const TOGGLE_SIDEBAR: &str = "toggle_sidebar";
+    pub const TOGGLE_REFERENCES: &str = "toggle_references";
+    pub const SYNC: &str = "sync";
+    pub const COMMAND_PALETTE: &str = "command_palette";
 }
 
 /// Create the application menu
@@ -31,18 +35,22 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
     // Import submenu
     let import_plottr = MenuItemBuilder::new("Plottr (.pltr)")
         .id(menu_ids::IMPORT_PLOTTR)
+        .accelerator("CmdOrCtrl+Shift+O")
         .build(app)?;
 
     let import_ywriter = MenuItemBuilder::new("yWriter 7 (.yw7)")
         .id(menu_ids::IMPORT_YWRITER)
+        .accelerator("CmdOrCtrl+Shift+Y")
         .build(app)?;
 
     let import_markdown = MenuItemBuilder::new("Markdown (.md)")
         .id(menu_ids::IMPORT_MARKDOWN)
+        .accelerator("CmdOrCtrl+Shift+M")
         .build(app)?;
 
     let import_longform = MenuItemBuilder::new("Longform (Index or Vault...)")
         .id(menu_ids::IMPORT_LONGFORM)
+        .accelerator("CmdOrCtrl+Shift+L")
         .build(app)?;
 
     let import_submenu = SubmenuBuilder::new(app, "Import")
@@ -67,6 +75,7 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
     // Settings menu items
     let project_settings = MenuItemBuilder::new("Project Settings...")
         .id(menu_ids::PROJECT_SETTINGS)
+        .accelerator("CmdOrCtrl+Shift+P")
         .build(app)?;
 
     let kindling_settings = MenuItemBuilder::new("Kindling Settings...")
@@ -104,19 +113,47 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .close_window()
         .build()?;
 
+    // View submenu
+    let toggle_sidebar = MenuItemBuilder::new("Toggle Sidebar")
+        .id(menu_ids::TOGGLE_SIDEBAR)
+        .accelerator("CmdOrCtrl+Backslash")
+        .build(app)?;
+
+    let toggle_references = MenuItemBuilder::new("Toggle References Panel")
+        .id(menu_ids::TOGGLE_REFERENCES)
+        .accelerator("CmdOrCtrl+Shift+R")
+        .build(app)?;
+
+    let sync = MenuItemBuilder::new("Sync from Source")
+        .id(menu_ids::SYNC)
+        .accelerator("CmdOrCtrl+Shift+S")
+        .build(app)?;
+
+    let view_submenu = SubmenuBuilder::new(app, "View")
+        .item(&toggle_sidebar)
+        .item(&toggle_references)
+        .item(&sync)
+        .build()?;
+
     // Help submenu
+    let command_palette = MenuItemBuilder::new("Command Palette...")
+        .id(menu_ids::COMMAND_PALETTE)
+        .accelerator("CmdOrCtrl+K")
+        .build(app)?;
+
     let quick_start = MenuItemBuilder::new("Quick Start")
         .id(menu_ids::QUICK_START)
         .accelerator("CmdOrCtrl+Shift+H")
         .build(app)?;
 
     let help_submenu = SubmenuBuilder::new(app, "Help")
+        .item(&command_palette)
         .item(&quick_start)
         .build()?;
 
     // Build the full menu
     let menu = MenuBuilder::new(app)
-        .items(&[&file_submenu, &edit_submenu, &window_submenu, &help_submenu])
+        .items(&[&file_submenu, &edit_submenu, &view_submenu, &window_submenu, &help_submenu])
         .build()?;
 
     app.set_menu(menu)?;

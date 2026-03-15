@@ -15,7 +15,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import ContextMenu from "./ContextMenu.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
-  import { onDestroy, tick } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
   import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
   import { currentProject } from "../stores/project.svelte";
@@ -721,6 +721,12 @@
     addingDiscoveryNote = true;
     newDiscoveryNoteContent = "";
   }
+
+  onMount(() => {
+    const handler = () => (discoveryNotesVisible = !discoveryNotesVisible);
+    window.addEventListener("kindling:toggleDiscoveryNotes", handler);
+    return () => window.removeEventListener("kindling:toggleDiscoveryNotes", handler);
+  });
 
   onDestroy(() => {
     flushPendingSave(ui.expandedBeatId ?? undefined);

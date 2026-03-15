@@ -9,6 +9,7 @@
 -->
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { onMount } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import {
     ChevronDown,
@@ -757,6 +758,12 @@
     showSyncDialog = false;
     syncPreview = null;
   }
+
+  onMount(() => {
+    const handler = () => handleSyncClick();
+    window.addEventListener("kindling:sync", handler);
+    return () => window.removeEventListener("kindling:sync", handler);
+  });
 
   async function handleSyncComplete(summary: ReimportSummary) {
     syncSummary = summary;

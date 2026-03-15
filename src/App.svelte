@@ -17,6 +17,8 @@
   import ReferenceClassificationDialog from "./lib/components/ReferenceClassificationDialog.svelte";
   import QuickStartDialog from "./lib/components/QuickStartDialog.svelte";
   import GuidanceOverlay from "./lib/components/GuidanceOverlay.svelte";
+  import CommandPalette from "./lib/components/CommandPalette.svelte";
+  import { COMMAND_DEFS } from "./lib/commands";
   import { currentProject } from "./lib/stores/project.svelte";
   import { ui } from "./lib/stores/ui.svelte";
   import type { Project, ExportResult } from "./lib/types";
@@ -32,6 +34,7 @@
   let showReferenceClassificationDialog = $state(false);
   let referenceClassificationProjectId = $state<string | null>(null);
   let showQuickStart = $state(false);
+  let showCommandPalette = $state(false);
 
   async function loadRecentProjects() {
     try {
@@ -219,8 +222,20 @@
         case "kindling_settings":
           showKindlingSettings = true;
           break;
+        case "command_palette":
+          showCommandPalette = true;
+          break;
         case "quick_start":
           showQuickStart = true;
+          break;
+        case "toggle_sidebar":
+          ui.toggleSidebar();
+          break;
+        case "toggle_references":
+          ui.toggleReferencesPanel();
+          break;
+        case "sync":
+          window.dispatchEvent(new CustomEvent("kindling:sync"));
           break;
       }
     });
@@ -230,19 +245,83 @@
     };
   });
 
+  // Build command list with actions, filtered by context
+  const paletteCommands = $derived(
+    COMMAND_DEFS.filter((def) => {
+      if (def.requiresProject && !currentProject.value) return false;
+      if (def.requiresSourcePath && !currentProject.value?.source_path) return false;
+      return true;
+    }).map((def) => ({
+      ...def,
+      action: () => runCommand(def.id),
+    }))
+  );
+
+  function runCommand(id: string) {
+    switch (id) {
+      case "export":
+        if (currentProject.value) showExportDialog = true;
+        break;
+      case "close_project":
+        closeProject();
+        break;
+      case "import_plottr":
+        importPlottr();
+        break;
+      case "import_markdown":
+        importMarkdown();
+        break;
+      case "import_longform":
+        openLongformImportDialog();
+        break;
+      case "import_ywriter":
+        importYWriter();
+        break;
+      case "project_settings":
+        if (currentProject.value) showProjectSettings = true;
+        break;
+      case "sync":
+        window.dispatchEvent(new CustomEvent("kindling:sync"));
+        break;
+      case "toggle_sidebar":
+        ui.toggleSidebar();
+        break;
+      case "toggle_references":
+        ui.toggleReferencesPanel();
+        break;
+      case "toggle_discovery_notes":
+        window.dispatchEvent(new CustomEvent("kindling:toggleDiscoveryNotes"));
+        break;
+      case "quick_start":
+        showQuickStart = true;
+        break;
+      case "kindling_settings":
+        showKindlingSettings = true;
+        break;
+    }
+  }
+
   // Global keyboard shortcuts
   function handleKeydown(event: KeyboardEvent) {
+    // Cmd/Ctrl+K: Open command palette
+    if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+      event.preventDefault();
+      showCommandPalette = true;
+      return;
+    }
     // Cmd/Ctrl+E: Open export dialog
     if ((event.metaKey || event.ctrlKey) && event.key === "e") {
       event.preventDefault();
       if (currentProject.value && !showExportDialog) {
         showExportDialog = true;
       }
+      return;
     }
     // Cmd/Ctrl+Shift+H: Open Quick Start
     if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === "H") {
       event.preventDefault();
       showQuickStart = true;
+      return;
     }
   }
 </script>
@@ -269,6 +348,13 @@
     <ErrorToast message={ui.toast.message} onDismiss={() => ui.clearToast()} />
   {/key}
 {/if}
+
+<!-- Command palette (⌘K) -->
+<CommandPalette
+  bind:open={showCommandPalette}
+  commands={paletteCommands}
+  onClose={() => (showCommandPalette = false)}
+/>
 
 <!-- Guidance overlay (first-visit tips, one at a time, modal-style) -->
 <GuidanceOverlay />
