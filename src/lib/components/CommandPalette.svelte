@@ -51,6 +51,13 @@
     }
   });
 
+  // Scroll selected item into view when navigating with arrows
+  $effect(() => {
+    if (!open || filteredCommands.length === 0) return;
+    const el = document.getElementById(`command-palette-item-${selectedIndex}`);
+    el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  });
+
   function handleKeydown(e: KeyboardEvent) {
     if (!open) return;
 
@@ -136,6 +143,7 @@
       {:else}
         {#each filteredCommands as cmd, i}
           <button
+            id="command-palette-item-{i}"
             type="button"
             onclick={() => runCommand(cmd)}
             class="flex w-full items-center justify-between gap-4 px-4 py-2.5 text-left transition-colors {i ===

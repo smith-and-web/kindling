@@ -153,7 +153,13 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
 
     // Build the full menu
     let menu = MenuBuilder::new(app)
-        .items(&[&file_submenu, &edit_submenu, &view_submenu, &window_submenu, &help_submenu])
+        .items(&[
+            &file_submenu,
+            &edit_submenu,
+            &view_submenu,
+            &window_submenu,
+            &help_submenu,
+        ])
         .build()?;
 
     app.set_menu(menu)?;
