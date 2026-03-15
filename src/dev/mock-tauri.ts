@@ -74,8 +74,8 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
     }
 
     case "preview_import": {
-      const path = getArg<string>(args, "path") ?? "/mock/path/outline.md";
-      const format = getArg<string>(args, "format") ?? "markdown";
+      void getArg<string>(args, "path");
+      void getArg<string>(args, "format");
       return {
         project_name: "Sample Project",
         chapter_count: 3,
