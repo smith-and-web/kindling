@@ -10,23 +10,33 @@
     ChevronsRight,
     FileText,
     ListChevronsDownUp,
+    Loader2,
     Kanban,
     BookOpen,
     MapPin,
+    PenTool,
     User,
     Users,
     Zap,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui, type OnboardingStep } from "../stores/ui.svelte";
-  import type { Project } from "../types";
+  import type { ImportPreview, Project } from "../types";
 
   interface Props {
     onImportLongform?: () => void;
     onImportComplete?: (project: Project) => void;
   }
 
-  let { onImportLongform, onImportComplete }: Props = $props();
+  let { onImportComplete }: Props = $props();
+
+  // Guided import wizard state (within import step)
+  type GuidedFormat = "plottr" | "markdown" | "ywriter" | "longform";
+  let guidedPreview = $state<ImportPreview | null>(null);
+  let guidedPath = $state<string | null>(null);
+  let guidedFormat = $state<GuidedFormat | null>(null);
+  let guidedError = $state<string | null>(null);
+  let guidedLoading = $state(false);
 
   const STEP_ORDER: OnboardingStep[] = [
     "welcome",
@@ -36,78 +46,111 @@
     "import",
   ];
 
-  // Import handlers (same logic as StartScreen)
-  async function importPlottr() {
-    const path = await open({
-      multiple: false,
-      filters: [{ name: "Plottr", extensions: ["pltr"] }],
-    });
-
-    if (path) {
-      ui.startImport();
-      try {
-        const project = await invoke<Project>("import_plottr", { path });
-        currentProject.setProject(project);
-        ui.completeOnboarding();
-        ui.setView("editor");
-        onImportComplete?.(project);
-      } catch (e) {
-        console.error("Failed to import Plottr file:", e);
-        ui.showError(`Import failed: ${e}`);
-      } finally {
-        ui.finishImport();
-      }
+  async function trySampleProject() {
+    ui.startImport();
+    try {
+      const project = await invoke<Project>("create_sample_project");
+      currentProject.setProject(project);
+      ui.completeOnboarding();
+      ui.setView("editor");
+      onImportComplete?.(project);
+    } catch (e) {
+      console.error("Failed to create sample project:", e);
+      ui.showError(`Failed to create sample project: ${e}`);
+    } finally {
+      ui.finishImport();
     }
   }
 
-  async function importMarkdown() {
+  const FORMAT_CONFIG: Record<
+    GuidedFormat,
+    { name: string; extensions: string[]; directory?: boolean }
+  > = {
+    plottr: { name: "Plottr", extensions: ["pltr"] },
+    markdown: { name: "Markdown", extensions: ["md", "markdown"] },
+    ywriter: { name: "yWriter 7", extensions: ["yw7"] },
+    longform: { name: "Longform Index", extensions: ["md", "markdown"] },
+  };
+
+  async function startGuidedImport(format: GuidedFormat) {
+    guidedError = null;
+    guidedPreview = null;
+    guidedPath = null;
+    guidedFormat = format;
+    const config = FORMAT_CONFIG[format];
     const path = await open({
       multiple: false,
-      filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+      filters: [{ name: config.name, extensions: config.extensions }],
+      directory: config.directory ?? false,
     });
-
     if (path) {
-      ui.startImport();
-      try {
-        const project = await invoke<Project>("import_markdown", { path });
-        currentProject.setProject(project);
-        ui.completeOnboarding();
-        ui.setView("editor");
-      } catch (e) {
-        console.error("Failed to import Markdown file:", e);
-        ui.showError(`Import failed: ${e}`);
-      } finally {
-        ui.finishImport();
-      }
+      await loadPreview(path, format);
+    } else {
+      guidedFormat = null;
     }
   }
 
-  async function importLongform() {
-    const path = await open({
-      multiple: false,
-      filters: [{ name: "Longform Index", extensions: ["md", "markdown"] }],
-    });
-
-    if (path) {
-      ui.startImport();
-      try {
-        const project = await invoke<Project>("import_longform", { path });
-        currentProject.setProject(project);
-        ui.completeOnboarding();
-        ui.setView("editor");
-        onImportComplete?.(project);
-      } catch (e) {
-        console.error("Failed to import Longform index:", e);
-        ui.showError(`Import failed: ${e}`);
-      } finally {
-        ui.finishImport();
-      }
+  async function loadPreview(path: string, format: GuidedFormat) {
+    guidedLoading = true;
+    guidedError = null;
+    try {
+      const preview = await invoke<ImportPreview>("preview_import", {
+        path,
+        format,
+      });
+      guidedPath = path;
+      guidedPreview = preview;
+    } catch (e) {
+      guidedError = e instanceof Error ? e.message : String(e);
+      guidedPreview = null;
+    } finally {
+      guidedLoading = false;
     }
   }
 
-  function handleLongformImport() {
-    const handler = onImportLongform ?? importLongform;
-    handler();
+  async function confirmGuidedImport() {
+    if (!guidedPath || !guidedFormat) return;
+    const path = guidedPath;
+    const format = guidedFormat;
+    guidedPreview = null;
+    guidedPath = null;
+    guidedFormat = null;
+    guidedError = null;
+
+    ui.startImport();
+    try {
+      let project: Project;
+      switch (format) {
+        case "plottr":
+          project = await invoke<Project>("import_plottr", { path });
+          break;
+        case "markdown":
+          project = await invoke<Project>("import_markdown", { path });
+          break;
+        case "ywriter":
+          project = await invoke<Project>("import_ywriter", { path });
+          break;
+        case "longform":
+          project = await invoke<Project>("import_longform", { path });
+          break;
+      }
+      currentProject.setProject(project);
+      ui.completeOnboarding();
+      ui.setView("editor");
+      onImportComplete?.(project);
+    } catch (e) {
+      console.error("Import failed:", e);
+      ui.showError(`Import failed: ${e}`);
+    } finally {
+      ui.finishImport();
+    }
+  }
+
+  function backFromGuidedPreview() {
+    guidedPreview = null;
+    guidedPath = null;
+    guidedFormat = null;
+    guidedError = null;
   }
 
   function skipOnboarding() {
@@ -190,8 +233,14 @@
 
             <div class="flex flex-col gap-3">
               <button
-                onclick={() => ui.nextStep()}
+                onclick={trySampleProject}
                 class="w-full py-3 px-6 bg-accent hover:bg-flame-orange text-white font-medium rounded-lg transition-colors"
+              >
+                Try Sample Project
+              </button>
+              <button
+                onclick={() => ui.nextStep()}
+                class="w-full py-3 px-6 bg-bg-card hover:bg-beat-header text-text-primary font-medium rounded-lg transition-colors border border-bg-card"
               >
                 Take the Tour
               </button>
@@ -607,64 +656,168 @@
             </div>
           </div>
         {:else if ui.onboardingStep === "import"}
-          <!-- STEP 5: Import (Final Step) -->
+          <!-- STEP 5: Import (Final Step) - Guided wizard -->
           <div>
-            <div class="text-center mb-6">
-              <div
-                class="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-4"
-              >
-                <Check class="w-8 h-8 text-success" />
+            {#if guidedLoading}
+              <div class="flex flex-col items-center py-12">
+                <Loader2 class="w-12 h-12 text-accent animate-spin mb-4" />
+                <p class="text-text-secondary">Reading your outline...</p>
               </div>
-              <h2 class="text-2xl font-heading font-semibold text-text-primary mb-2">
-                Ready to Import
-              </h2>
-              <p class="text-text-secondary">Choose your outline format to get started.</p>
-            </div>
+            {:else if guidedPreview}
+              <!-- Preview step -->
+              <div class="text-center mb-6">
+                <div
+                  class="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-4"
+                >
+                  <Check class="w-8 h-8 text-success" />
+                </div>
+                <h2 class="text-2xl font-heading font-semibold text-text-primary mb-2">
+                  Preview: {guidedPreview.project_name}
+                </h2>
+                <p class="text-text-secondary mb-6">
+                  This outline contains the following. Ready to import?
+                </p>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6 text-left">
+                  <div class="bg-bg-card rounded-lg p-3">
+                    <span class="text-2xl font-semibold text-accent"
+                      >{guidedPreview.chapter_count}</span
+                    >
+                    <span class="text-text-secondary text-sm block">Chapters</span>
+                  </div>
+                  <div class="bg-bg-card rounded-lg p-3">
+                    <span class="text-2xl font-semibold text-accent"
+                      >{guidedPreview.scene_count}</span
+                    >
+                    <span class="text-text-secondary text-sm block">Scenes</span>
+                  </div>
+                  <div class="bg-bg-card rounded-lg p-3">
+                    <span class="text-2xl font-semibold text-accent"
+                      >{guidedPreview.beat_count}</span
+                    >
+                    <span class="text-text-secondary text-sm block">Beats</span>
+                  </div>
+                  {#if guidedPreview.character_count > 0}
+                    <div class="bg-bg-card rounded-lg p-3">
+                      <span class="text-2xl font-semibold text-accent"
+                        >{guidedPreview.character_count}</span
+                      >
+                      <span class="text-text-secondary text-sm block">Characters</span>
+                    </div>
+                  {/if}
+                  {#if guidedPreview.location_count > 0}
+                    <div class="bg-bg-card rounded-lg p-3">
+                      <span class="text-2xl font-semibold text-accent"
+                        >{guidedPreview.location_count}</span
+                      >
+                      <span class="text-text-secondary text-sm block">Locations</span>
+                    </div>
+                  {/if}
+                </div>
+                <div class="flex justify-center gap-3">
+                  <button
+                    onclick={backFromGuidedPreview}
+                    class="px-4 py-2 text-text-secondary hover:text-text-primary transition-colors flex items-center gap-1"
+                  >
+                    <ChevronLeft class="w-4 h-4" />
+                    Choose different file
+                  </button>
+                  <button
+                    onclick={confirmGuidedImport}
+                    class="px-6 py-2 bg-accent hover:bg-flame-orange text-white font-medium rounded-lg transition-colors"
+                  >
+                    Import Project
+                  </button>
+                </div>
+              </div>
+            {:else if guidedError}
+              <div class="mb-6">
+                <p class="text-red-400 text-sm mb-4">{guidedError}</p>
+                <button
+                  onclick={backFromGuidedPreview}
+                  class="px-4 py-2 text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  ← Try a different file
+                </button>
+              </div>
+            {:else}
+              <!-- Choose format -->
+              <div class="text-center mb-6">
+                <div
+                  class="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-4"
+                >
+                  <Check class="w-8 h-8 text-success" />
+                </div>
+                <h2 class="text-2xl font-heading font-semibold text-text-primary mb-2">
+                  Ready to Import
+                </h2>
+                <p class="text-text-secondary">
+                  Choose your outline format. We'll preview it before importing.
+                </p>
+              </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-              <button
-                onclick={importPlottr}
-                class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
-              >
-                <Kanban class="w-12 h-12 text-accent mb-3" />
-                <span class="text-text-primary font-medium">Plottr</span>
-                <span class="text-text-secondary text-sm">.pltr</span>
-              </button>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                <button
+                  onclick={trySampleProject}
+                  class="flex flex-col items-center p-5 bg-accent/10 border-2 border-accent/30 rounded-lg hover:bg-accent/20 transition-colors cursor-pointer"
+                >
+                  <BookOpen class="w-12 h-12 text-accent mb-3" />
+                  <span class="text-text-primary font-medium">Try Sample</span>
+                  <span class="text-text-secondary text-sm">Explore without importing</span>
+                </button>
 
-              <button
-                onclick={importMarkdown}
-                class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
-              >
-                <FileText class="w-12 h-12 text-accent mb-3" />
-                <span class="text-text-primary font-medium">Markdown Outline</span>
-                <span class="text-text-secondary text-sm">Single .md file</span>
-              </button>
+                <button
+                  onclick={() => startGuidedImport("plottr")}
+                  class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
+                >
+                  <Kanban class="w-12 h-12 text-accent mb-3" />
+                  <span class="text-text-primary font-medium">Plottr</span>
+                  <span class="text-text-secondary text-sm">.pltr</span>
+                </button>
 
-              <button
-                onclick={handleLongformImport}
-                class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
-              >
-                <BookOpen class="w-12 h-12 text-accent mb-3" />
-                <span class="text-text-primary font-medium">Longform Project</span>
-                <span class="text-text-secondary text-sm">Index file or vault</span>
-              </button>
-            </div>
+                <button
+                  onclick={() => startGuidedImport("markdown")}
+                  class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
+                >
+                  <FileText class="w-12 h-12 text-accent mb-3" />
+                  <span class="text-text-primary font-medium">Markdown</span>
+                  <span class="text-text-secondary text-sm">.md file</span>
+                </button>
 
-            <div class="flex justify-between items-center pt-4 border-t border-bg-card">
-              <button
-                onclick={() => ui.previousStep()}
-                class="text-text-secondary hover:text-text-primary transition-colors flex items-center gap-1"
-              >
-                <ChevronLeft class="w-4 h-4" />
-                Back to tour
-              </button>
-              <button
-                onclick={skipOnboarding}
-                class="text-text-secondary hover:text-text-primary text-sm transition-colors"
-              >
-                I'll import later
-              </button>
-            </div>
+                <button
+                  onclick={() => startGuidedImport("longform")}
+                  class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
+                >
+                  <BookOpen class="w-12 h-12 text-accent mb-3" />
+                  <span class="text-text-primary font-medium">Longform</span>
+                  <span class="text-text-secondary text-sm">Index file</span>
+                </button>
+
+                <button
+                  onclick={() => startGuidedImport("ywriter")}
+                  class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
+                >
+                  <PenTool class="w-12 h-12 text-accent mb-3" />
+                  <span class="text-text-primary font-medium">yWriter</span>
+                  <span class="text-text-secondary text-sm">.yw7</span>
+                </button>
+              </div>
+
+              <div class="flex justify-between items-center pt-4 border-t border-bg-card">
+                <button
+                  onclick={() => ui.previousStep()}
+                  class="text-text-secondary hover:text-text-primary transition-colors flex items-center gap-1"
+                >
+                  <ChevronLeft class="w-4 h-4" />
+                  Back to tour
+                </button>
+                <button
+                  onclick={skipOnboarding}
+                  class="text-text-secondary hover:text-text-primary text-sm transition-colors"
+                >
+                  I'll import later
+                </button>
+              </div>
+            {/if}
           </div>
         {/if}
       </div>

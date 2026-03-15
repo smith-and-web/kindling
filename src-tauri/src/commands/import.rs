@@ -2,6 +2,7 @@
 //!
 //! Handles importing projects from external formats (Plottr, Markdown, Longform).
 
+use serde::Serialize;
 use tauri::State;
 
 use crate::db;
@@ -11,6 +12,70 @@ use crate::parsers::{
 };
 
 use super::AppState;
+
+/// Preview of an import without inserting into the database
+#[derive(Debug, Serialize)]
+pub struct ImportPreview {
+    pub project_name: String,
+    pub chapter_count: i32,
+    pub scene_count: i32,
+    pub beat_count: i32,
+    pub character_count: i32,
+    pub location_count: i32,
+}
+
+#[tauri::command]
+pub async fn preview_import(path: String, format: String) -> Result<ImportPreview, String> {
+    let format_lower = format.to_lowercase();
+    let preview = match format_lower.as_str() {
+        "plottr" => {
+            let parsed = parse_plottr_file(&path).map_err(|e| e.to_string())?;
+            ImportPreview {
+                project_name: parsed.project.name,
+                chapter_count: parsed.chapters.len() as i32,
+                scene_count: parsed.scenes.len() as i32,
+                beat_count: parsed.beats.len() as i32,
+                character_count: parsed.characters.len() as i32,
+                location_count: parsed.locations.len() as i32,
+            }
+        }
+        "markdown" => {
+            let parsed = parse_markdown_outline(&path).map_err(|e| e.to_string())?;
+            ImportPreview {
+                project_name: parsed.project.name,
+                chapter_count: parsed.chapters.len() as i32,
+                scene_count: parsed.scenes.len() as i32,
+                beat_count: parsed.beats.len() as i32,
+                character_count: 0,
+                location_count: 0,
+            }
+        }
+        "ywriter" => {
+            let parsed = parse_ywriter_file(&path).map_err(|e| e.to_string())?;
+            ImportPreview {
+                project_name: parsed.project.name,
+                chapter_count: parsed.chapters.len() as i32,
+                scene_count: parsed.scenes.len() as i32,
+                beat_count: parsed.beats.len() as i32,
+                character_count: parsed.characters.len() as i32,
+                location_count: parsed.locations.len() as i32,
+            }
+        }
+        "longform" => {
+            let parsed = parse_longform_path(&path).map_err(|e| e.to_string())?;
+            ImportPreview {
+                project_name: parsed.project.name,
+                chapter_count: parsed.chapters.len() as i32,
+                scene_count: parsed.scenes.len() as i32,
+                beat_count: parsed.beats.len() as i32,
+                character_count: parsed.characters.len() as i32,
+                location_count: parsed.locations.len() as i32,
+            }
+        }
+        _ => return Err(format!("Unknown format: {}", format)),
+    };
+    Ok(preview)
+}
 
 #[tauri::command]
 pub async fn import_plottr(path: String, state: State<'_, AppState>) -> Result<Project, String> {

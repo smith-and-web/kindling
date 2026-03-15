@@ -10,6 +10,16 @@
 /** Supported outline import formats */
 export type SourceType = "Plottr" | "Markdown" | "YWriter" | "Scrivener" | "Longform";
 
+/** Preview of an import (before confirming) */
+export interface ImportPreview {
+  project_name: string;
+  chapter_count: number;
+  scene_count: number;
+  beat_count: number;
+  character_count: number;
+  location_count: number;
+}
+
 /** Top-level container for a writing project */
 export interface Project {
   id: string;

@@ -57,6 +57,8 @@ pub fn run() {
             commands::import_ywriter,
             commands::import_markdown,
             commands::import_longform,
+            commands::preview_import,
+            commands::create_sample_project,
             commands::get_project,
             commands::get_recent_projects,
             commands::get_all_projects,

@@ -73,6 +73,31 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       return { ...project, source_path: path, modified_at: new Date().toISOString() } as T;
     }
 
+    case "preview_import": {
+      const path = getArg<string>(args, "path") ?? "/mock/path/outline.md";
+      const format = getArg<string>(args, "format") ?? "markdown";
+      return {
+        project_name: "Sample Project",
+        chapter_count: 3,
+        scene_count: 8,
+        beat_count: 24,
+        character_count: 5,
+        location_count: 2,
+      } as T;
+    }
+
+    case "create_sample_project": {
+      // Mock: return first project as "sample" (real Tauri creates full sample)
+      const project = projects[0]!;
+      return {
+        ...project,
+        name: "Sample Project",
+        source_path: null,
+        source_type: "Markdown",
+        modified_at: new Date().toISOString(),
+      } as T;
+    }
+
     case "get_project": {
       const id = getArg<string>(args, "id") ?? projectId;
       const p = projects.find((x) => x.id === id);

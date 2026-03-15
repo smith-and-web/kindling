@@ -93,6 +93,21 @@
     handler();
   }
 
+  async function trySampleProject() {
+    ui.startImport();
+    try {
+      const project = await invoke<Project>("create_sample_project");
+      currentProject.setProject(project);
+      ui.setView("editor");
+      onImportComplete?.(project);
+    } catch (e) {
+      console.error("Failed to create sample project:", e);
+      ui.showError(`Failed to create sample project: ${e}`);
+    } finally {
+      ui.finishImport();
+    }
+  }
+
   async function importYWriter() {
     const path = await open({
       multiple: false,
@@ -231,7 +246,16 @@
     <!-- Import Options -->
     <div data-testid="import-section" class="bg-bg-panel rounded-lg p-6 mb-8">
       <h2 class="text-xl font-heading font-medium text-text-primary mb-4">Import Your Outline</h2>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <button
+          onclick={trySampleProject}
+          class="flex flex-col items-center p-4 bg-accent/10 border-2 border-accent/30 rounded-lg hover:bg-accent/20 transition-colors cursor-pointer"
+        >
+          <BookOpen class="w-10 h-10 text-accent mb-2" />
+          <span class="text-text-primary font-medium">Sample Project</span>
+          <span class="text-text-secondary text-sm">Try without importing</span>
+        </button>
+
         <button
           onclick={importPlottr}
           class="flex flex-col items-center p-4 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer"
