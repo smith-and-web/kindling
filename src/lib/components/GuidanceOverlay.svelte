@@ -31,9 +31,14 @@
         "Link characters, locations, and items to scenes. Drag items into the scene to link them.",
       position: "right",
     },
+    sync: {
+      message:
+        "Sync from source reimports your outline file when you've made changes elsewhere. Use it to pull in edits from Plottr, Markdown, or your external editor.",
+      position: "left",
+    },
   };
 
-  const ORDER: GuidanceArea[] = ["sidebar", "scenePanel", "references"];
+  const ORDER: GuidanceArea[] = ["sidebar", "scenePanel", "references", "sync"];
 
   const currentArea = $derived.by(() => {
     if (!ui.guidanceEnabled || !currentProject.value || ui.showOnboarding) return null;
@@ -42,10 +47,12 @@
     const sceneVisible = !!currentProject.currentScene;
     const referencesVisible = !ui.referencesPanelCollapsed;
 
+    const hasSourcePath = !!currentProject.value?.source_path;
     const visibility: Record<GuidanceArea, boolean> = {
       sidebar: sidebarVisible,
       scenePanel: sceneVisible,
       references: referencesVisible,
+      sync: sidebarVisible && hasSourcePath,
     };
 
     for (const area of ORDER) {

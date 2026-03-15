@@ -343,6 +343,7 @@ describe("ui store", () => {
       expect(ui.hasSeenTooltip("sidebar")).toBe(false);
       expect(ui.hasSeenTooltip("scenePanel")).toBe(false);
       expect(ui.hasSeenTooltip("references")).toBe(false);
+      expect(ui.hasSeenTooltip("sync")).toBe(false);
 
       ui.markTooltipSeen("sidebar");
       expect(ui.hasSeenTooltip("sidebar")).toBe(true);
@@ -361,6 +362,7 @@ describe("ui store", () => {
       expect(ui.hasSeenTooltip("sidebar")).toBe(false);
       expect(ui.hasSeenTooltip("scenePanel")).toBe(false);
       expect(ui.hasSeenTooltip("references")).toBe(false);
+      expect(ui.hasSeenTooltip("sync")).toBe(false);
     });
   });
 });
