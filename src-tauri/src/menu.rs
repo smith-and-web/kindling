@@ -23,6 +23,7 @@ pub mod menu_ids {
     pub const CLOSE_PROJECT: &str = "close_project";
     pub const PROJECT_SETTINGS: &str = "project_settings";
     pub const KINDLING_SETTINGS: &str = "kindling_settings";
+    pub const QUICK_START: &str = "quick_start";
 }
 
 /// Create the application menu
@@ -103,9 +104,19 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .close_window()
         .build()?;
 
+    // Help submenu
+    let quick_start = MenuItemBuilder::new("Quick Start")
+        .id(menu_ids::QUICK_START)
+        .accelerator("CmdOrCtrl+Shift+H")
+        .build(app)?;
+
+    let help_submenu = SubmenuBuilder::new(app, "Help")
+        .item(&quick_start)
+        .build()?;
+
     // Build the full menu
     let menu = MenuBuilder::new(app)
-        .items(&[&file_submenu, &edit_submenu, &window_submenu])
+        .items(&[&file_submenu, &edit_submenu, &window_submenu, &help_submenu])
         .build()?;
 
     app.set_menu(menu)?;

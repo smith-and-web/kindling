@@ -15,6 +15,7 @@
   import ErrorToast from "./lib/components/ErrorToast.svelte";
   import ImportLongformDialog from "./lib/components/ImportLongformDialog.svelte";
   import ReferenceClassificationDialog from "./lib/components/ReferenceClassificationDialog.svelte";
+  import QuickStartDialog from "./lib/components/QuickStartDialog.svelte";
   import { currentProject } from "./lib/stores/project.svelte";
   import { ui } from "./lib/stores/ui.svelte";
   import type { Project, ExportResult } from "./lib/types";
@@ -29,6 +30,7 @@
   let showLongformImportDialog = $state(false);
   let showReferenceClassificationDialog = $state(false);
   let referenceClassificationProjectId = $state<string | null>(null);
+  let showQuickStart = $state(false);
 
   async function loadRecentProjects() {
     try {
@@ -216,6 +218,9 @@
         case "kindling_settings":
           showKindlingSettings = true;
           break;
+        case "quick_start":
+          showQuickStart = true;
+          break;
       }
     });
 
@@ -233,6 +238,11 @@
         showExportDialog = true;
       }
     }
+    // Cmd/Ctrl+Shift+H: Open Quick Start
+    if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === "H") {
+      event.preventDefault();
+      showQuickStart = true;
+    }
   }
 </script>
 
@@ -248,6 +258,7 @@
       {recentProjects}
       onImportLongform={openLongformImportDialog}
       onImportComplete={openReferenceClassificationDialog}
+      onOpenQuickStart={() => (showQuickStart = true)}
     />
   {/if}
 </main>
@@ -270,6 +281,11 @@
     onClose={closeReferenceClassificationDialog}
     onComplete={handleReferenceClassificationComplete}
   />
+{/if}
+
+<!-- Quick Start Dialog (triggered by Help menu) -->
+{#if showQuickStart}
+  <QuickStartDialog onClose={() => (showQuickStart = false)} />
 {/if}
 
 <!-- Kindling Settings Dialog (triggered by menu) -->

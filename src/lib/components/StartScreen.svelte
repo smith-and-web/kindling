@@ -1,7 +1,16 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
-  import { FileText, Kanban, Trash2, Loader2, Settings, PenTool, BookOpen } from "lucide-svelte";
+  import {
+    FileText,
+    HelpCircle,
+    Kanban,
+    Trash2,
+    Loader2,
+    Settings,
+    PenTool,
+    BookOpen,
+  } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Project } from "../types";
@@ -13,9 +22,15 @@
     recentProjects: Project[];
     onImportLongform?: () => void;
     onImportComplete?: (project: Project) => void;
+    onOpenQuickStart?: () => void;
   }
 
-  let { recentProjects = $bindable(), onImportLongform, onImportComplete }: Props = $props();
+  let {
+    recentProjects = $bindable(),
+    onImportLongform,
+    onImportComplete,
+    onOpenQuickStart,
+  }: Props = $props();
 
   let deletingProjectId = $state<string | null>(null);
   let hoveredProjectId = $state<string | null>(null);
@@ -185,8 +200,19 @@
 </script>
 
 <div class="flex-1 flex flex-col items-center justify-start p-8 relative overflow-hidden">
-  <!-- Settings button in corner -->
-  <div class="absolute top-4 right-4">
+  <!-- Settings and Help buttons in corner -->
+  <div class="absolute top-4 right-4 flex items-center gap-1">
+    {#if onOpenQuickStart}
+      <Tooltip text="Quick Start" position="left">
+        <button
+          onclick={onOpenQuickStart}
+          class="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-card rounded-lg transition-colors"
+          aria-label="Quick Start"
+        >
+          <HelpCircle class="w-5 h-5" />
+        </button>
+      </Tooltip>
+    {/if}
     <Tooltip text="Kindling Settings" position="left">
       <button
         onclick={() => (showSettingsDialog = true)}
