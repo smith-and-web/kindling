@@ -32,7 +32,6 @@
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import ReferenceEditDialog from "./ReferenceEditDialog.svelte";
   import Tooltip from "./Tooltip.svelte";
-  import GuidanceTooltip from "./GuidanceTooltip.svelte";
 
   let activeTab = $state<ReferenceTypeId | null>(null);
   let loading = $state(false);
@@ -725,189 +724,177 @@
   </div>
 
   <!-- Content -->
-  <GuidanceTooltip
-    area="references"
-    message="Link characters, locations, and items to scenes. Drag items into the scene to link them."
-    position="left"
-    visible={!ui.referencesPanelCollapsed}
-  >
-    <div class="flex-1 overflow-y-auto p-2">
-      {#if loading}
-        <div class="flex items-center justify-center p-4">
-          <span class="text-text-secondary text-sm">Loading...</span>
+  <div class="flex-1 overflow-y-auto p-2">
+    {#if loading}
+      <div class="flex items-center justify-center p-4">
+        <span class="text-text-secondary text-sm">Loading...</span>
+      </div>
+    {:else if !activeTab}
+      <div class="flex items-center justify-center p-4">
+        <span class="text-text-secondary text-sm">
+          No reference types enabled. Use the settings cog to enable them.
+        </span>
+      </div>
+    {:else if activeItems.length === 0}
+      <div class="flex items-center justify-center p-4">
+        <span class="text-text-secondary text-sm">
+          No {activeTypeOption?.label.toLowerCase() ?? "references"}
+        </span>
+      </div>
+    {:else}
+      {#if currentProject.currentScene}
+        <div class="flex items-center justify-between px-1 pb-2 text-xs text-text-secondary">
+          <span class="uppercase tracking-wide">Linked to this scene</span>
+          {#if sceneReferenceLoading}
+            <span>Loading…</span>
+          {/if}
         </div>
-      {:else if !activeTab}
-        <div class="flex items-center justify-center p-4">
-          <span class="text-text-secondary text-sm">
-            No reference types enabled. Use the settings cog to enable them.
-          </span>
-        </div>
-      {:else if activeItems.length === 0}
-        <div class="flex items-center justify-center p-4">
-          <span class="text-text-secondary text-sm">
-            No {activeTypeOption?.label.toLowerCase() ?? "references"}
-          </span>
-        </div>
-      {:else}
-        {#if currentProject.currentScene}
-          <div class="flex items-center justify-between px-1 pb-2 text-xs text-text-secondary">
-            <span class="uppercase tracking-wide">Linked to this scene</span>
-            {#if sceneReferenceLoading}
-              <span>Loading…</span>
-            {/if}
+        {#if sceneReferenceError}
+          <div class="px-1 pb-2 text-xs text-red-400">{sceneReferenceError}</div>
+        {:else if linkedItems.length === 0 && !sceneReferenceLoading}
+          <div class="px-1 pb-2 text-xs text-text-secondary">
+            No references linked to this scene yet.
           </div>
-          {#if sceneReferenceError}
-            <div class="px-1 pb-2 text-xs text-red-400">{sceneReferenceError}</div>
-          {:else if linkedItems.length === 0 && !sceneReferenceLoading}
-            <div class="px-1 pb-2 text-xs text-text-secondary">
-              No references linked to this scene yet.
+        {/if}
+      {/if}
+      <div class="space-y-2">
+        {#each activeItems as reference, index (reference.id)}
+          {@const isExpanded = expandedIds.has(reference.id)}
+          {@const attributes = formatAttributes(reference.attributes)}
+          {@const notes = getNotes(reference.attributes)}
+          {@const isLinked = currentProject.currentScene ? linkedIds.has(reference.id) : false}
+          {@const canDrag = !currentProject.currentScene || isLinked}
+          {#if currentProject.currentScene && linkedItems.length > 0 && index === linkedItems.length}
+            <div
+              class="border-t border-bg-card pt-3 mt-3 text-xs text-text-secondary uppercase tracking-wide"
+            >
+              All references
             </div>
           {/if}
-        {/if}
-        <div class="space-y-2">
-          {#each activeItems as reference, index (reference.id)}
-            {@const isExpanded = expandedIds.has(reference.id)}
-            {@const attributes = formatAttributes(reference.attributes)}
-            {@const notes = getNotes(reference.attributes)}
-            {@const isLinked = currentProject.currentScene ? linkedIds.has(reference.id) : false}
-            {@const canDrag = !currentProject.currentScene || isLinked}
-            {#if currentProject.currentScene && linkedItems.length > 0 && index === linkedItems.length}
+          <div
+            class="bg-bg-card rounded-lg overflow-hidden"
+            class:ring-2={dragOverId === reference.id}
+            class:ring-accent={dragOverId === reference.id}
+            style:opacity={draggedId === reference.id ? 0.5 : 1}
+            data-drag-item={reference.id}
+            role="listitem"
+          >
+            <div class="w-full flex items-center gap-3 p-3 hover:bg-beat-header transition-colors">
+              <!-- Drag handle -->
               <div
-                class="border-t border-bg-card pt-3 mt-3 text-xs text-text-secondary uppercase tracking-wide"
+                class="text-text-secondary/50 cursor-grab active:cursor-grabbing shrink-0 hover:text-text-secondary"
+                class:opacity-40={!canDrag}
+                onmousedown={(e) => onDragHandleMouseDown(e, reference.id, canDrag)}
+                role="button"
+                tabindex="-1"
+                aria-label="Drag to reorder"
               >
-                All references
+                <GripVertical class="w-4 h-4" />
               </div>
-            {/if}
-            <div
-              class="bg-bg-card rounded-lg overflow-hidden"
-              class:ring-2={dragOverId === reference.id}
-              class:ring-accent={dragOverId === reference.id}
-              style:opacity={draggedId === reference.id ? 0.5 : 1}
-              data-drag-item={reference.id}
-              role="listitem"
-            >
-              <div
-                class="w-full flex items-center gap-3 p-3 hover:bg-beat-header transition-colors"
+              {#if currentProject.currentScene}
+                <Tooltip text={isLinked ? "Unlink from scene" : "Link to scene"} position="bottom">
+                  <button
+                    onclick={() => toggleSceneLink(reference)}
+                    class={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-xs transition-colors ${
+                      isLinked
+                        ? "border-accent/60 text-accent hover:border-accent"
+                        : "border-bg-card text-text-secondary hover:text-text-primary hover:border-accent/40"
+                    }`}
+                    aria-label={isLinked ? "Unlink from scene" : "Link to scene"}
+                  >
+                    <Link2 class="w-3 h-3" />
+                    <span>{isLinked ? "Unlink" : "Link"}</span>
+                  </button>
+                </Tooltip>
+              {/if}
+              <!-- Clickable area for expand/collapse -->
+              <button
+                onclick={() => toggleExpanded(reference.id)}
+                class="flex-1 flex items-center gap-3 text-left"
               >
-                <!-- Drag handle -->
+                <!-- Reference icon -->
                 <div
-                  class="text-text-secondary/50 cursor-grab active:cursor-grabbing shrink-0 hover:text-text-secondary"
-                  class:opacity-40={!canDrag}
-                  onmousedown={(e) => onDragHandleMouseDown(e, reference.id, canDrag)}
-                  role="button"
-                  tabindex="-1"
-                  aria-label="Drag to reorder"
+                  class={`w-8 h-8 rounded-full ${iconBgClass} flex items-center justify-center shrink-0`}
                 >
-                  <GripVertical class="w-4 h-4" />
-                </div>
-                {#if currentProject.currentScene}
-                  <Tooltip
-                    text={isLinked ? "Unlink from scene" : "Link to scene"}
-                    position="bottom"
-                  >
-                    <button
-                      onclick={() => toggleSceneLink(reference)}
-                      class={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-xs transition-colors ${
-                        isLinked
-                          ? "border-accent/60 text-accent hover:border-accent"
-                          : "border-bg-card text-text-secondary hover:text-text-primary hover:border-accent/40"
-                      }`}
-                      aria-label={isLinked ? "Unlink from scene" : "Link to scene"}
-                    >
-                      <Link2 class="w-3 h-3" />
-                      <span>{isLinked ? "Unlink" : "Link"}</span>
-                    </button>
-                  </Tooltip>
-                {/if}
-                <!-- Clickable area for expand/collapse -->
-                <button
-                  onclick={() => toggleExpanded(reference.id)}
-                  class="flex-1 flex items-center gap-3 text-left"
-                >
-                  <!-- Reference icon -->
-                  <div
-                    class={`w-8 h-8 rounded-full ${iconBgClass} flex items-center justify-center shrink-0`}
-                  >
-                    {#if ActiveIcon}
-                      <ActiveIcon class={`w-4 h-4 ${iconTextClass}`} />
-                    {/if}
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-text-primary font-medium text-sm truncate">{reference.name}</p>
-                    {#if reference.description}
-                      <p class="text-text-secondary text-xs truncate">
-                        {stripHtml(reference.description)}
-                      </p>
-                    {/if}
-                  </div>
-                  <ChevronDown
-                    class="w-4 h-4 text-text-secondary transition-transform shrink-0 {isExpanded
-                      ? 'rotate-180'
-                      : ''}"
-                  />
-                </button>
-              </div>
-
-              {#if isExpanded}
-                <div class="px-3 pb-3 border-t border-bg-panel">
-                  {#if reference.description}
-                    <div
-                      class="text-text-primary text-sm mt-3 leading-relaxed max-w-none wrap-break-word [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
-                    >
-                      <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-                      {@html reference.description}
-                    </div>
+                  {#if ActiveIcon}
+                    <ActiveIcon class={`w-4 h-4 ${iconTextClass}`} />
                   {/if}
-
-                  {#if notes}
-                    <p class="text-text-primary text-sm mt-3 leading-relaxed wrap-break-word">
-                      {notes}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-text-primary font-medium text-sm truncate">{reference.name}</p>
+                  {#if reference.description}
+                    <p class="text-text-secondary text-xs truncate">
+                      {stripHtml(reference.description)}
                     </p>
                   {/if}
-
-                  {#if attributes.length > 0}
-                    <div class="mt-3 space-y-1.5">
-                      {#each attributes as [key, value] (key)}
-                        <div class="flex gap-2 text-xs">
-                          <span class="text-text-secondary font-medium shrink-0">{key}:</span>
-                          <span class="text-text-primary wrap-break-word">{value}</span>
-                        </div>
-                      {/each}
-                    </div>
-                  {/if}
-
-                  {#if !reference.description && !notes && attributes.length === 0}
-                    <p class="text-text-secondary text-sm mt-3 italic">No additional details</p>
-                  {/if}
-
-                  <div class="flex items-center gap-2 mt-4">
-                    <Tooltip text="Edit" position="bottom">
-                      <button
-                        onclick={() => openEditDialog(reference)}
-                        class="text-text-secondary hover:text-text-primary p-1"
-                        aria-label="Edit reference"
-                      >
-                        <Pencil class="w-4 h-4" />
-                      </button>
-                    </Tooltip>
-                    <Tooltip text="Delete" position="bottom">
-                      <button
-                        onclick={() => (deleteTarget = reference)}
-                        class="text-text-secondary hover:text-red-400 p-1"
-                        aria-label="Delete reference"
-                      >
-                        <Trash2 class="w-4 h-4" />
-                      </button>
-                    </Tooltip>
-                  </div>
                 </div>
-              {/if}
+                <ChevronDown
+                  class="w-4 h-4 text-text-secondary transition-transform shrink-0 {isExpanded
+                    ? 'rotate-180'
+                    : ''}"
+                />
+              </button>
             </div>
-          {/each}
-        </div>
-      {/if}
-    </div>
-  </GuidanceTooltip>
+
+            {#if isExpanded}
+              <div class="px-3 pb-3 border-t border-bg-panel">
+                {#if reference.description}
+                  <div
+                    class="text-text-primary text-sm mt-3 leading-relaxed max-w-none wrap-break-word [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
+                  >
+                    <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+                    {@html reference.description}
+                  </div>
+                {/if}
+
+                {#if notes}
+                  <p class="text-text-primary text-sm mt-3 leading-relaxed wrap-break-word">
+                    {notes}
+                  </p>
+                {/if}
+
+                {#if attributes.length > 0}
+                  <div class="mt-3 space-y-1.5">
+                    {#each attributes as [key, value] (key)}
+                      <div class="flex gap-2 text-xs">
+                        <span class="text-text-secondary font-medium shrink-0">{key}:</span>
+                        <span class="text-text-primary wrap-break-word">{value}</span>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+
+                {#if !reference.description && !notes && attributes.length === 0}
+                  <p class="text-text-secondary text-sm mt-3 italic">No additional details</p>
+                {/if}
+
+                <div class="flex items-center gap-2 mt-4">
+                  <Tooltip text="Edit" position="bottom">
+                    <button
+                      onclick={() => openEditDialog(reference)}
+                      class="text-text-secondary hover:text-text-primary p-1"
+                      aria-label="Edit reference"
+                    >
+                      <Pencil class="w-4 h-4" />
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Delete" position="bottom">
+                    <button
+                      onclick={() => (deleteTarget = reference)}
+                      class="text-text-secondary hover:text-red-400 p-1"
+                      aria-label="Delete reference"
+                    >
+                      <Trash2 class="w-4 h-4" />
+                    </button>
+                  </Tooltip>
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </div>
 </aside>
 
 <!-- Collapsed panel toggle -->

@@ -16,6 +16,7 @@
   import ImportLongformDialog from "./lib/components/ImportLongformDialog.svelte";
   import ReferenceClassificationDialog from "./lib/components/ReferenceClassificationDialog.svelte";
   import QuickStartDialog from "./lib/components/QuickStartDialog.svelte";
+  import GuidanceOverlay from "./lib/components/GuidanceOverlay.svelte";
   import { currentProject } from "./lib/stores/project.svelte";
   import { ui } from "./lib/stores/ui.svelte";
   import type { Project, ExportResult } from "./lib/types";
@@ -268,6 +269,9 @@
     <ErrorToast message={ui.toast.message} onDismiss={() => ui.clearToast()} />
   {/key}
 {/if}
+
+<!-- Guidance overlay (first-visit tips, one at a time, modal-style) -->
+<GuidanceOverlay />
 
 <!-- Onboarding overlay (shown on first launch) -->
 <Onboarding
