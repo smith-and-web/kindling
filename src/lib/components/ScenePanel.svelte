@@ -31,6 +31,7 @@
   } from "../types";
   import NovelEditor from "./NovelEditor.svelte";
   import Tooltip from "./Tooltip.svelte";
+  import GuidanceTooltip from "./GuidanceTooltip.svelte";
 
   // Check if scene is locked (either directly or via parent chapter)
   const isLocked = $derived(
@@ -735,530 +736,539 @@
 <div data-testid="scene-panel" class="flex-1 flex flex-col h-full overflow-hidden">
   {#if currentProject.currentScene}
     {@const scene = currentProject.currentScene}
-    <div class="flex-1 overflow-y-auto">
-      <div class="max-w-3xl mx-auto p-8">
-        <!-- Scene Title -->
-        <header class="mb-8">
-          <div class="flex items-center gap-3">
-            <h1
-              data-testid="scene-title"
-              class="text-3xl font-heading font-semibold text-text-primary"
-            >
-              {scene.title}
-            </h1>
-            {#if isLocked}
-              <span
-                class="flex items-center gap-1 px-2 py-1 bg-amber-500/10 text-amber-500 rounded-lg text-sm"
+    <GuidanceTooltip
+      area="scenePanel"
+      message="Edit beats and scenes here. Add discovery notes with ⌘D."
+      position="bottom"
+    >
+      <div class="flex-1 overflow-y-auto">
+        <div class="max-w-3xl mx-auto p-8">
+          <!-- Scene Title -->
+          <header class="mb-8">
+            <div class="flex items-center gap-3">
+              <h1
+                data-testid="scene-title"
+                class="text-3xl font-heading font-semibold text-text-primary"
               >
-                <Lock class="w-4 h-4" />
-                Locked
-              </span>
-            {/if}
-          </div>
-          {#if currentProject.currentChapter}
-            <p class="text-text-secondary text-sm mt-1">
-              {currentProject.currentChapter.title}
-            </p>
-          {/if}
-          <div class="mt-4 flex flex-wrap gap-4">
-            <div class="flex flex-col gap-1">
-              <label for="scene-type" class="text-xs text-text-secondary">Scene type</label>
-              <div class="relative">
-                <select
-                  id="scene-type"
-                  value={scene.scene_type ?? "normal"}
-                  onchange={(event) => handleSceneTypeChange(event, scene)}
-                  class="appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer disabled:opacity-60"
-                  disabled={isLocked || metadataSaving}
+                {scene.title}
+              </h1>
+              {#if isLocked}
+                <span
+                  class="flex items-center gap-1 px-2 py-1 bg-amber-500/10 text-amber-500 rounded-lg text-sm"
                 >
-                  {#each sceneTypeOptions as option (option.value)}
-                    <option value={option.value}>{option.label}</option>
-                  {/each}
-                </select>
-                <ChevronDown
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
-                />
-              </div>
-            </div>
-            <div class="flex flex-col gap-1">
-              <label for="scene-status" class="text-xs text-text-secondary">Status</label>
-              <div class="relative">
-                <select
-                  id="scene-status"
-                  value={scene.scene_status ?? "draft"}
-                  onchange={(event) => handleSceneStatusChange(event, scene)}
-                  class="appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer disabled:opacity-60"
-                  disabled={isLocked || metadataSaving}
-                >
-                  {#each sceneStatusOptions as option (option.value)}
-                    <option value={option.value}>{option.label}</option>
-                  {/each}
-                </select>
-                <ChevronDown
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
-                />
-              </div>
-            </div>
-          </div>
-          {#if metadataError}
-            <p class="text-xs text-red-400 mt-2">{metadataError}</p>
-          {/if}
-        </header>
-
-        <!-- Locked Banner -->
-        {#if isLocked}
-          <div class="mb-8 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-            <div class="flex items-center gap-2 text-amber-500">
-              <Lock class="w-4 h-4" />
-              <span class="font-medium">This scene is locked</span>
-            </div>
-            <p class="text-text-secondary text-sm mt-1">
-              {#if currentProject.currentChapter?.locked}
-                The parent chapter is locked. Unlock the chapter to edit this scene.
-              {:else}
-                Unlock this scene from the sidebar to make changes.
+                  <Lock class="w-4 h-4" />
+                  Locked
+                </span>
               {/if}
-            </p>
-          </div>
-        {/if}
-
-        <!-- Synopsis -->
-        <section class="mb-8">
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">
-              Synopsis
-            </h2>
-            {#if scene.synopsis && !editingSynopsis && !isLocked}
-              <Tooltip text="Edit synopsis" position="left">
-                <button
-                  onclick={startEditingSynopsis}
-                  class="text-text-secondary hover:text-text-primary transition-colors p-1"
-                  aria-label="Edit synopsis"
-                >
-                  <Pencil class="w-3.5 h-3.5" />
-                </button>
-              </Tooltip>
+            </div>
+            {#if currentProject.currentChapter}
+              <p class="text-text-secondary text-sm mt-1">
+                {currentProject.currentChapter.title}
+              </p>
             {/if}
-          </div>
-          {#if editingSynopsis && !isLocked}
-            <div class="relative">
-              <textarea
-                class="w-full min-h-[100px] bg-bg-card rounded-lg p-4 text-text-primary font-prose italic leading-relaxed resize-y border border-accent focus:outline-none"
-                placeholder="Write a brief synopsis for this scene..."
-                bind:value={synopsisText}
-                oninput={(e) => handleSynopsisInput(e.currentTarget.value)}
-              ></textarea>
-              {#if synopsisSaving}
-                <div
-                  class="absolute bottom-3 right-3 flex items-center gap-1.5 text-text-secondary/50"
-                >
-                  <Loader2 class="w-3.5 h-3.5 animate-spin" />
-                  <span class="text-xs">Saving...</span>
+            <div class="mt-4 flex flex-wrap gap-4">
+              <div class="flex flex-col gap-1">
+                <label for="scene-type" class="text-xs text-text-secondary">Scene type</label>
+                <div class="relative">
+                  <select
+                    id="scene-type"
+                    value={scene.scene_type ?? "normal"}
+                    onchange={(event) => handleSceneTypeChange(event, scene)}
+                    class="appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer disabled:opacity-60"
+                    disabled={isLocked || metadataSaving}
+                  >
+                    {#each sceneTypeOptions as option (option.value)}
+                      <option value={option.value}>{option.label}</option>
+                    {/each}
+                  </select>
+                  <ChevronDown
+                    class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                  />
                 </div>
-              {/if}
+              </div>
+              <div class="flex flex-col gap-1">
+                <label for="scene-status" class="text-xs text-text-secondary">Status</label>
+                <div class="relative">
+                  <select
+                    id="scene-status"
+                    value={scene.scene_status ?? "draft"}
+                    onchange={(event) => handleSceneStatusChange(event, scene)}
+                    class="appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer disabled:opacity-60"
+                    disabled={isLocked || metadataSaving}
+                  >
+                    {#each sceneStatusOptions as option (option.value)}
+                      <option value={option.value}>{option.label}</option>
+                    {/each}
+                  </select>
+                  <ChevronDown
+                    class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                  />
+                </div>
+              </div>
             </div>
-            <p class="text-text-secondary text-xs mt-2">
-              Press Escape to close. Changes are saved automatically.
-            </p>
-          {:else if scene.synopsis}
-            <div class="bg-bg-panel rounded-lg p-4 border-l-2 border-accent">
-              <p class="text-text-primary font-prose italic">
-                {scene.synopsis}
+            {#if metadataError}
+              <p class="text-xs text-red-400 mt-2">{metadataError}</p>
+            {/if}
+          </header>
+
+          <!-- Locked Banner -->
+          {#if isLocked}
+            <div class="mb-8 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <div class="flex items-center gap-2 text-amber-500">
+                <Lock class="w-4 h-4" />
+                <span class="font-medium">This scene is locked</span>
+              </div>
+              <p class="text-text-secondary text-sm mt-1">
+                {#if currentProject.currentChapter?.locked}
+                  The parent chapter is locked. Unlock the chapter to edit this scene.
+                {:else}
+                  Unlock this scene from the sidebar to make changes.
+                {/if}
               </p>
             </div>
-          {:else if !isLocked}
-            <button
-              onclick={startEditingSynopsis}
-              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-bg-card text-text-secondary hover:text-text-primary hover:border-accent transition-colors"
-            >
-              <Plus class="w-4 h-4" />
-              <span class="text-sm">Add Synopsis</span>
-            </button>
-          {:else}
-            <div
-              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-bg-card text-text-secondary/50"
-            >
-              <Lock class="w-4 h-4" />
-              <span class="text-sm">Scene is locked</span>
-            </div>
           {/if}
-        </section>
 
-        <!-- References -->
-        <section class="mb-8">
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">
-              References
-            </h2>
-            {#if sceneReferenceLoading}
-              <span class="text-xs text-text-secondary">Loading…</span>
-            {/if}
-          </div>
-          {#if sceneReferenceError}
-            <p class="text-xs text-red-400">{sceneReferenceError}</p>
-          {:else}
-            {@const hasSceneReferences = sceneReferenceOptions.some(
-              (option) => (sceneReferenceItems[option.id]?.length ?? 0) > 0
-            )}
-            {#if hasSceneReferences}
-              <div class="space-y-4">
-                {#each sceneReferenceOptions as option (option.id)}
-                  {@const items = sceneReferenceItems[option.id] ?? []}
-                  {#if items.length > 0}
-                    {@const Icon = option.icon}
-                    <div>
-                      <div class="flex items-center gap-2 text-xs text-text-secondary">
-                        <Icon class={`w-3.5 h-3.5 ${option.accentClass}`} />
-                        <span class="font-medium">{option.label}</span>
-                      </div>
-                      <div class="mt-2 flex flex-wrap gap-2">
-                        {#each items as item (item.id)}
-                          <span class="px-2 py-1 rounded-md bg-bg-panel text-text-primary text-xs">
-                            {item.name}
-                          </span>
-                        {/each}
-                      </div>
-                    </div>
-                  {/if}
-                {/each}
-              </div>
-            {:else if !sceneReferenceLoading}
-              <div class="text-sm text-text-secondary">
-                No linked items, objectives, or organizations.
-              </div>
-            {/if}
-          {/if}
-        </section>
-
-        <!-- Discovery Notes (Cmd/Ctrl+D) -->
-        <section class="mb-8">
-          <button
-            type="button"
-            onclick={() => (discoveryNotesVisible = !discoveryNotesVisible)}
-            class="flex items-center justify-between w-full mb-2 text-left group"
-          >
-            <h2
-              class="text-sm font-semibold text-text-primary uppercase tracking-wide group-hover:text-text-primary transition-colors"
-            >
-              Discovery Notes
-            </h2>
-            <span class="text-xs text-text-secondary">
-              {discoveryNotesVisible ? "Hide" : "Show"} (⌘D)
-            </span>
-          </button>
-          {#if discoveryNotesVisible}
-            {#if discoveryNotesLoading}
-              <p class="text-sm text-text-secondary">Loading…</p>
-            {:else}
-              <div class="space-y-3">
-                {#if !addingDiscoveryNote && !isLocked}
+          <!-- Synopsis -->
+          <section class="mb-8">
+            <div class="flex items-center justify-between mb-2">
+              <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">
+                Synopsis
+              </h2>
+              {#if scene.synopsis && !editingSynopsis && !isLocked}
+                <Tooltip text="Edit synopsis" position="left">
                   <button
-                    type="button"
-                    onclick={startAddingDiscoveryNote}
-                    class="flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors text-sm"
+                    onclick={startEditingSynopsis}
+                    class="text-text-secondary hover:text-text-primary transition-colors p-1"
+                    aria-label="Edit synopsis"
                   >
-                    <Plus class="w-3.5 h-3.5" />
-                    <span>Add note</span>
+                    <Pencil class="w-3.5 h-3.5" />
                   </button>
-                {/if}
-                {#if addingDiscoveryNote}
-                  <div class="flex flex-col gap-2 p-3 rounded-lg bg-bg-panel">
-                    <textarea
-                      bind:value={newDiscoveryNoteContent}
-                      placeholder="What did you discover?"
-                      rows="2"
-                      class="w-full px-3 py-2 rounded-md bg-bg-base text-text-primary text-sm placeholder:text-text-secondary/50 resize-none focus:outline-none focus:ring-2 focus:ring-accent"
-                    ></textarea>
-                    <div class="flex gap-2">
-                      <button
-                        type="button"
-                        onclick={createDiscoveryNote}
-                        disabled={!newDiscoveryNoteContent.trim() || creatingDiscoveryNote}
-                        class="px-3 py-1.5 rounded-md bg-accent text-accent-foreground text-sm font-medium disabled:opacity-50"
-                      >
-                        {creatingDiscoveryNote ? "Adding…" : "Add"}
-                      </button>
-                      <button
-                        type="button"
-                        onclick={() => {
-                          addingDiscoveryNote = false;
-                          newDiscoveryNoteContent = "";
-                        }}
-                        class="px-3 py-1.5 rounded-md bg-bg-card text-text-secondary text-sm hover:text-text-primary"
-                      >
-                        Cancel
-                      </button>
-                    </div>
+                </Tooltip>
+              {/if}
+            </div>
+            {#if editingSynopsis && !isLocked}
+              <div class="relative">
+                <textarea
+                  class="w-full min-h-[100px] bg-bg-card rounded-lg p-4 text-text-primary font-prose italic leading-relaxed resize-y border border-accent focus:outline-none"
+                  placeholder="Write a brief synopsis for this scene..."
+                  bind:value={synopsisText}
+                  oninput={(e) => handleSynopsisInput(e.currentTarget.value)}
+                ></textarea>
+                {#if synopsisSaving}
+                  <div
+                    class="absolute bottom-3 right-3 flex items-center gap-1.5 text-text-secondary/50"
+                  >
+                    <Loader2 class="w-3.5 h-3.5 animate-spin" />
+                    <span class="text-xs">Saving...</span>
                   </div>
                 {/if}
-                {#each discoveryNotes as note}
-                  {@const isEditing = editingDiscoveryNoteId === note.id}
-                  <div class="p-3 rounded-lg bg-bg-panel">
-                    {#if isEditing}
+              </div>
+              <p class="text-text-secondary text-xs mt-2">
+                Press Escape to close. Changes are saved automatically.
+              </p>
+            {:else if scene.synopsis}
+              <div class="bg-bg-panel rounded-lg p-4 border-l-2 border-accent">
+                <p class="text-text-primary font-prose italic">
+                  {scene.synopsis}
+                </p>
+              </div>
+            {:else if !isLocked}
+              <button
+                onclick={startEditingSynopsis}
+                class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-bg-card text-text-secondary hover:text-text-primary hover:border-accent transition-colors"
+              >
+                <Plus class="w-4 h-4" />
+                <span class="text-sm">Add Synopsis</span>
+              </button>
+            {:else}
+              <div
+                class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-bg-card text-text-secondary/50"
+              >
+                <Lock class="w-4 h-4" />
+                <span class="text-sm">Scene is locked</span>
+              </div>
+            {/if}
+          </section>
+
+          <!-- References -->
+          <section class="mb-8">
+            <div class="flex items-center justify-between mb-2">
+              <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">
+                References
+              </h2>
+              {#if sceneReferenceLoading}
+                <span class="text-xs text-text-secondary">Loading…</span>
+              {/if}
+            </div>
+            {#if sceneReferenceError}
+              <p class="text-xs text-red-400">{sceneReferenceError}</p>
+            {:else}
+              {@const hasSceneReferences = sceneReferenceOptions.some(
+                (option) => (sceneReferenceItems[option.id]?.length ?? 0) > 0
+              )}
+              {#if hasSceneReferences}
+                <div class="space-y-4">
+                  {#each sceneReferenceOptions as option (option.id)}
+                    {@const items = sceneReferenceItems[option.id] ?? []}
+                    {#if items.length > 0}
+                      {@const Icon = option.icon}
+                      <div>
+                        <div class="flex items-center gap-2 text-xs text-text-secondary">
+                          <Icon class={`w-3.5 h-3.5 ${option.accentClass}`} />
+                          <span class="font-medium">{option.label}</span>
+                        </div>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                          {#each items as item (item.id)}
+                            <span
+                              class="px-2 py-1 rounded-md bg-bg-panel text-text-primary text-xs"
+                            >
+                              {item.name}
+                            </span>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+                  {/each}
+                </div>
+              {:else if !sceneReferenceLoading}
+                <div class="text-sm text-text-secondary">
+                  No linked items, objectives, or organizations.
+                </div>
+              {/if}
+            {/if}
+          </section>
+
+          <!-- Discovery Notes (Cmd/Ctrl+D) -->
+          <section class="mb-8">
+            <button
+              type="button"
+              onclick={() => (discoveryNotesVisible = !discoveryNotesVisible)}
+              class="flex items-center justify-between w-full mb-2 text-left group"
+            >
+              <h2
+                class="text-sm font-semibold text-text-primary uppercase tracking-wide group-hover:text-text-primary transition-colors"
+              >
+                Discovery Notes
+              </h2>
+              <span class="text-xs text-text-secondary">
+                {discoveryNotesVisible ? "Hide" : "Show"} (⌘D)
+              </span>
+            </button>
+            {#if discoveryNotesVisible}
+              {#if discoveryNotesLoading}
+                <p class="text-sm text-text-secondary">Loading…</p>
+              {:else}
+                <div class="space-y-3">
+                  {#if !addingDiscoveryNote && !isLocked}
+                    <button
+                      type="button"
+                      onclick={startAddingDiscoveryNote}
+                      class="flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors text-sm"
+                    >
+                      <Plus class="w-3.5 h-3.5" />
+                      <span>Add note</span>
+                    </button>
+                  {/if}
+                  {#if addingDiscoveryNote}
+                    <div class="flex flex-col gap-2 p-3 rounded-lg bg-bg-panel">
                       <textarea
-                        bind:value={editingDiscoveryNoteContent}
+                        bind:value={newDiscoveryNoteContent}
+                        placeholder="What did you discover?"
                         rows="2"
-                        class="w-full px-3 py-2 rounded-md bg-bg-base text-text-primary text-sm resize-none focus:outline-none focus:ring-2 focus:ring-accent mb-2"
+                        class="w-full px-3 py-2 rounded-md bg-bg-base text-text-primary text-sm placeholder:text-text-secondary/50 resize-none focus:outline-none focus:ring-2 focus:ring-accent"
                       ></textarea>
                       <div class="flex gap-2">
                         <button
                           type="button"
-                          onclick={() => updateDiscoveryNote(note.id, editingDiscoveryNoteContent)}
-                          class="px-3 py-1.5 rounded-md bg-accent text-accent-foreground text-sm font-medium"
+                          onclick={createDiscoveryNote}
+                          disabled={!newDiscoveryNoteContent.trim() || creatingDiscoveryNote}
+                          class="px-3 py-1.5 rounded-md bg-accent text-accent-foreground text-sm font-medium disabled:opacity-50"
                         >
-                          Save
+                          {creatingDiscoveryNote ? "Adding…" : "Add"}
                         </button>
                         <button
                           type="button"
                           onclick={() => {
-                            editingDiscoveryNoteId = null;
-                            editingDiscoveryNoteContent = "";
+                            addingDiscoveryNote = false;
+                            newDiscoveryNoteContent = "";
                           }}
                           class="px-3 py-1.5 rounded-md bg-bg-card text-text-secondary text-sm hover:text-text-primary"
                         >
                           Cancel
                         </button>
                       </div>
-                    {:else}
-                      <p class="text-sm text-text-primary whitespace-pre-wrap">{note.content}</p>
-                      {#if note.tags && note.tags.length > 0}
-                        <div class="flex flex-wrap gap-1 mt-2">
-                          {#each note.tags as tag}
-                            <span
-                              class="px-1.5 py-0.5 rounded bg-bg-base text-xs text-text-secondary"
-                            >
-                              {tag}
-                            </span>
-                          {/each}
-                        </div>
-                      {/if}
-                      <div class="flex gap-2 mt-2">
-                        <button
-                          type="button"
-                          onclick={() => {
-                            editingDiscoveryNoteId = note.id;
-                            editingDiscoveryNoteContent = note.content;
-                          }}
-                          class="text-xs text-text-secondary hover:text-text-primary"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onclick={() => deleteDiscoveryNote(note.id)}
-                          class="text-xs text-text-secondary hover:text-red-400"
-                        >
-                          Delete
-                        </button>
-                        <button
-                          type="button"
-                          onclick={() => promoteNoteToBeat(note)}
-                          disabled={promotingNoteId === note.id}
-                          class="text-xs text-text-secondary hover:text-accent disabled:opacity-50"
-                        >
-                          {promotingNoteId === note.id ? "Promoting…" : "Promote to beat"}
-                        </button>
-                      </div>
-                    {/if}
-                  </div>
-                {/each}
-                {#if discoveryNotes.length === 0 && !addingDiscoveryNote}
-                  <p class="text-sm text-text-secondary">No discovery notes yet.</p>
-                {/if}
-              </div>
-            {/if}
-          {/if}
-        </section>
-
-        <!-- Beats -->
-        <section>
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">Beats</h2>
-            {#if currentProject.beats.length > 0 && !addingBeat && !isLocked}
-              <button
-                onclick={startAddingBeat}
-                class="flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors text-sm"
-              >
-                <Plus class="w-3.5 h-3.5" />
-                <span>Add Beat</span>
-              </button>
-            {/if}
-          </div>
-          {#if currentProject.beats.length > 0}
-            <div class="space-y-4">
-              {#each currentProject.beats as beat, index}
-                {@const isExpanded = ui.expandedBeatId === beat.id}
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <article
-                  data-drag-beat={beat.id}
-                  data-testid="beat-item"
-                  class="bg-bg-panel rounded-lg overflow-hidden select-none relative"
-                  class:ring-2={dragOverBeatId === beat.id}
-                  class:ring-accent={dragOverBeatId === beat.id}
-                  use:registerBeatRef={beat.id}
-                  onmouseenter={() => (hoveredBeatId = beat.id)}
-                  onmouseleave={() => (hoveredBeatId = null)}
-                >
-                  <!-- Beat Header (clickable to expand) -->
-                  <!-- svelte-ignore a11y_no_static_element_interactions -->
-                  <div
-                    class="w-full bg-beat-header px-4 py-2 flex items-center gap-2 hover:bg-beat-header/80 transition-colors cursor-pointer"
-                    oncontextmenu={(e) => !isLocked && openBeatContextMenu(e, beat)}
-                  >
-                    {#if !isLocked}
-                      <div
-                        data-testid="beat-drag-handle"
-                        onmousedown={(e) => onBeatDragHandleMouseDown(e, beat.id)}
-                        class="cursor-grab active:cursor-grabbing p-0.5 text-text-secondary hover:text-text-primary transition-opacity shrink-0"
-                        class:opacity-0={hoveredBeatId !== beat.id}
-                        class:opacity-100={hoveredBeatId === beat.id}
-                        role="button"
-                        tabindex="-1"
-                        aria-label="Drag to reorder"
-                      >
-                        <GripVertical class="w-3.5 h-3.5" />
-                      </div>
-                    {/if}
-                    <button
-                      data-testid="beat-header"
-                      onclick={() => toggleBeat(beat.id)}
-                      class="flex-1 flex items-center gap-3 text-left min-w-0"
-                    >
-                      <span class="text-text-secondary shrink-0">
-                        {#if isExpanded}
-                          <ChevronDown class="w-4 h-4" />
-                        {:else}
-                          <ChevronRight class="w-4 h-4" />
-                        {/if}
-                      </span>
-                      <span
-                        class="w-6 h-6 rounded-full bg-accent text-white text-xs font-medium flex items-center justify-center shrink-0"
-                      >
-                        {index + 1}
-                      </span>
-                      <p class="text-text-primary text-sm font-medium flex-1 truncate">
-                        {beat.content}
-                      </p>
-                      {#if beat.prose}
-                        <span class="text-xs text-text-secondary shrink-0" title="Word count">
-                          {getBeatWordCount(beat.prose)}w
-                        </span>
-                      {/if}
-                    </button>
-                    {#if !isLocked}
-                      <button
-                        data-testid="beat-menu-button"
-                        onclick={(e) => openBeatContextMenu(e, beat)}
-                        class="p-1 text-text-secondary hover:text-text-primary transition-opacity shrink-0"
-                        class:opacity-0={hoveredBeatId !== beat.id}
-                        class:opacity-100={hoveredBeatId === beat.id}
-                        aria-label="Beat menu"
-                      >
-                        <MoreVertical class="w-3.5 h-3.5" />
-                      </button>
-                    {/if}
-                  </div>
-
-                  <!-- Expanded Beat Content -->
-                  {#if isExpanded}
-                    <div class="border-t border-bg-card relative" style="height: 50rem;">
-                      <NovelEditor
-                        bind:this={novelEditorRef}
-                        content={beat.prose || ""}
-                        placeholder={isLocked
-                          ? "Scene is locked"
-                          : "Write your prose for this beat..."}
-                        readonly={isLocked}
-                        saveStatus={localSaveStatus}
-                        onUpdate={handleEditorUpdate(beat.id)}
-                      />
-                    </div>
-                  {:else if beat.prose}
-                    <!-- Show preview of prose when collapsed -->
-                    <div class="px-4 py-3 border-t border-bg-card">
-                      <p
-                        class="text-text-primary font-prose leading-relaxed whitespace-pre-wrap line-clamp-3"
-                      >
-                        {stripHtml(beat.prose)}
-                      </p>
                     </div>
                   {/if}
-                </article>
-              {/each}
-            </div>
-          {:else if !addingBeat && !isLocked}
-            <button
-              onclick={startAddingBeat}
-              class="w-full flex items-center justify-center gap-2 px-4 py-8 rounded-lg border border-dashed border-bg-card text-text-secondary hover:text-text-primary hover:border-accent transition-colors"
-            >
-              <Plus class="w-4 h-4" />
-              <span class="text-sm">Add Your First Beat</span>
-            </button>
-          {:else if !addingBeat && isLocked}
-            <div
-              class="w-full flex items-center justify-center gap-2 px-4 py-8 rounded-lg border border-dashed border-bg-card text-text-secondary/50"
-            >
-              <Lock class="w-4 h-4" />
-              <span class="text-sm">Scene is locked</span>
-            </div>
-          {/if}
+                  {#each discoveryNotes as note}
+                    {@const isEditing = editingDiscoveryNoteId === note.id}
+                    <div class="p-3 rounded-lg bg-bg-panel">
+                      {#if isEditing}
+                        <textarea
+                          bind:value={editingDiscoveryNoteContent}
+                          rows="2"
+                          class="w-full px-3 py-2 rounded-md bg-bg-base text-text-primary text-sm resize-none focus:outline-none focus:ring-2 focus:ring-accent mb-2"
+                        ></textarea>
+                        <div class="flex gap-2">
+                          <button
+                            type="button"
+                            onclick={() =>
+                              updateDiscoveryNote(note.id, editingDiscoveryNoteContent)}
+                            class="px-3 py-1.5 rounded-md bg-accent text-accent-foreground text-sm font-medium"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onclick={() => {
+                              editingDiscoveryNoteId = null;
+                              editingDiscoveryNoteContent = "";
+                            }}
+                            class="px-3 py-1.5 rounded-md bg-bg-card text-text-secondary text-sm hover:text-text-primary"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      {:else}
+                        <p class="text-sm text-text-primary whitespace-pre-wrap">{note.content}</p>
+                        {#if note.tags && note.tags.length > 0}
+                          <div class="flex flex-wrap gap-1 mt-2">
+                            {#each note.tags as tag}
+                              <span
+                                class="px-1.5 py-0.5 rounded bg-bg-base text-xs text-text-secondary"
+                              >
+                                {tag}
+                              </span>
+                            {/each}
+                          </div>
+                        {/if}
+                        <div class="flex gap-2 mt-2">
+                          <button
+                            type="button"
+                            onclick={() => {
+                              editingDiscoveryNoteId = note.id;
+                              editingDiscoveryNoteContent = note.content;
+                            }}
+                            class="text-xs text-text-secondary hover:text-text-primary"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onclick={() => deleteDiscoveryNote(note.id)}
+                            class="text-xs text-text-secondary hover:text-red-400"
+                          >
+                            Delete
+                          </button>
+                          <button
+                            type="button"
+                            onclick={() => promoteNoteToBeat(note)}
+                            disabled={promotingNoteId === note.id}
+                            class="text-xs text-text-secondary hover:text-accent disabled:opacity-50"
+                          >
+                            {promotingNoteId === note.id ? "Promoting…" : "Promote to beat"}
+                          </button>
+                        </div>
+                      {/if}
+                    </div>
+                  {/each}
+                  {#if discoveryNotes.length === 0 && !addingDiscoveryNote}
+                    <p class="text-sm text-text-secondary">No discovery notes yet.</p>
+                  {/if}
+                </div>
+              {/if}
+            {/if}
+          </section>
 
-          <!-- Add Beat Input -->
-          {#if addingBeat && !isLocked}
-            <div class="mt-4 bg-bg-panel rounded-lg p-4">
-              <input
-                type="text"
-                class="w-full bg-bg-card rounded-lg px-4 py-3 text-text-primary text-sm border border-accent focus:outline-none"
-                placeholder="Describe what happens in this beat..."
-                bind:value={newBeatContent}
-                onkeydown={handleNewBeatKeydown}
-                disabled={creatingBeat}
-              />
-              <div class="flex items-center justify-between mt-3">
-                <p class="text-text-secondary text-xs">Press Enter to create, Escape to cancel</p>
-                <div class="flex gap-2">
-                  <button
-                    onclick={() => {
-                      addingBeat = false;
-                      newBeatContent = "";
-                    }}
-                    class="px-3 py-1.5 text-text-secondary hover:text-text-primary text-sm transition-colors"
-                    disabled={creatingBeat}
+          <!-- Beats -->
+          <section>
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">Beats</h2>
+              {#if currentProject.beats.length > 0 && !addingBeat && !isLocked}
+                <button
+                  onclick={startAddingBeat}
+                  class="flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors text-sm"
+                >
+                  <Plus class="w-3.5 h-3.5" />
+                  <span>Add Beat</span>
+                </button>
+              {/if}
+            </div>
+            {#if currentProject.beats.length > 0}
+              <div class="space-y-4">
+                {#each currentProject.beats as beat, index}
+                  {@const isExpanded = ui.expandedBeatId === beat.id}
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <article
+                    data-drag-beat={beat.id}
+                    data-testid="beat-item"
+                    class="bg-bg-panel rounded-lg overflow-hidden select-none relative"
+                    class:ring-2={dragOverBeatId === beat.id}
+                    class:ring-accent={dragOverBeatId === beat.id}
+                    use:registerBeatRef={beat.id}
+                    onmouseenter={() => (hoveredBeatId = beat.id)}
+                    onmouseleave={() => (hoveredBeatId = null)}
                   >
-                    Cancel
-                  </button>
-                  <button
-                    onclick={createBeat}
-                    disabled={creatingBeat || !newBeatContent.trim()}
-                    class="px-3 py-1.5 bg-accent text-white text-sm rounded hover:bg-accent/80 transition-colors disabled:opacity-50"
-                  >
-                    {#if creatingBeat}
-                      <Loader2 class="w-4 h-4 animate-spin" />
-                    {:else}
-                      Create Beat
+                    <!-- Beat Header (clickable to expand) -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <div
+                      class="w-full bg-beat-header px-4 py-2 flex items-center gap-2 hover:bg-beat-header/80 transition-colors cursor-pointer"
+                      oncontextmenu={(e) => !isLocked && openBeatContextMenu(e, beat)}
+                    >
+                      {#if !isLocked}
+                        <div
+                          data-testid="beat-drag-handle"
+                          onmousedown={(e) => onBeatDragHandleMouseDown(e, beat.id)}
+                          class="cursor-grab active:cursor-grabbing p-0.5 text-text-secondary hover:text-text-primary transition-opacity shrink-0"
+                          class:opacity-0={hoveredBeatId !== beat.id}
+                          class:opacity-100={hoveredBeatId === beat.id}
+                          role="button"
+                          tabindex="-1"
+                          aria-label="Drag to reorder"
+                        >
+                          <GripVertical class="w-3.5 h-3.5" />
+                        </div>
+                      {/if}
+                      <button
+                        data-testid="beat-header"
+                        onclick={() => toggleBeat(beat.id)}
+                        class="flex-1 flex items-center gap-3 text-left min-w-0"
+                      >
+                        <span class="text-text-secondary shrink-0">
+                          {#if isExpanded}
+                            <ChevronDown class="w-4 h-4" />
+                          {:else}
+                            <ChevronRight class="w-4 h-4" />
+                          {/if}
+                        </span>
+                        <span
+                          class="w-6 h-6 rounded-full bg-accent text-white text-xs font-medium flex items-center justify-center shrink-0"
+                        >
+                          {index + 1}
+                        </span>
+                        <p class="text-text-primary text-sm font-medium flex-1 truncate">
+                          {beat.content}
+                        </p>
+                        {#if beat.prose}
+                          <span class="text-xs text-text-secondary shrink-0" title="Word count">
+                            {getBeatWordCount(beat.prose)}w
+                          </span>
+                        {/if}
+                      </button>
+                      {#if !isLocked}
+                        <button
+                          data-testid="beat-menu-button"
+                          onclick={(e) => openBeatContextMenu(e, beat)}
+                          class="p-1 text-text-secondary hover:text-text-primary transition-opacity shrink-0"
+                          class:opacity-0={hoveredBeatId !== beat.id}
+                          class:opacity-100={hoveredBeatId === beat.id}
+                          aria-label="Beat menu"
+                        >
+                          <MoreVertical class="w-3.5 h-3.5" />
+                        </button>
+                      {/if}
+                    </div>
+
+                    <!-- Expanded Beat Content -->
+                    {#if isExpanded}
+                      <div class="border-t border-bg-card relative" style="height: 50rem;">
+                        <NovelEditor
+                          bind:this={novelEditorRef}
+                          content={beat.prose || ""}
+                          placeholder={isLocked
+                            ? "Scene is locked"
+                            : "Write your prose for this beat..."}
+                          readonly={isLocked}
+                          saveStatus={localSaveStatus}
+                          onUpdate={handleEditorUpdate(beat.id)}
+                        />
+                      </div>
+                    {:else if beat.prose}
+                      <!-- Show preview of prose when collapsed -->
+                      <div class="px-4 py-3 border-t border-bg-card">
+                        <p
+                          class="text-text-primary font-prose leading-relaxed whitespace-pre-wrap line-clamp-3"
+                        >
+                          {stripHtml(beat.prose)}
+                        </p>
+                      </div>
                     {/if}
-                  </button>
+                  </article>
+                {/each}
+              </div>
+            {:else if !addingBeat && !isLocked}
+              <button
+                onclick={startAddingBeat}
+                class="w-full flex items-center justify-center gap-2 px-4 py-8 rounded-lg border border-dashed border-bg-card text-text-secondary hover:text-text-primary hover:border-accent transition-colors"
+              >
+                <Plus class="w-4 h-4" />
+                <span class="text-sm">Add Your First Beat</span>
+              </button>
+            {:else if !addingBeat && isLocked}
+              <div
+                class="w-full flex items-center justify-center gap-2 px-4 py-8 rounded-lg border border-dashed border-bg-card text-text-secondary/50"
+              >
+                <Lock class="w-4 h-4" />
+                <span class="text-sm">Scene is locked</span>
+              </div>
+            {/if}
+
+            <!-- Add Beat Input -->
+            {#if addingBeat && !isLocked}
+              <div class="mt-4 bg-bg-panel rounded-lg p-4">
+                <input
+                  type="text"
+                  class="w-full bg-bg-card rounded-lg px-4 py-3 text-text-primary text-sm border border-accent focus:outline-none"
+                  placeholder="Describe what happens in this beat..."
+                  bind:value={newBeatContent}
+                  onkeydown={handleNewBeatKeydown}
+                  disabled={creatingBeat}
+                />
+                <div class="flex items-center justify-between mt-3">
+                  <p class="text-text-secondary text-xs">Press Enter to create, Escape to cancel</p>
+                  <div class="flex gap-2">
+                    <button
+                      onclick={() => {
+                        addingBeat = false;
+                        newBeatContent = "";
+                      }}
+                      class="px-3 py-1.5 text-text-secondary hover:text-text-primary text-sm transition-colors"
+                      disabled={creatingBeat}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onclick={createBeat}
+                      disabled={creatingBeat || !newBeatContent.trim()}
+                      class="px-3 py-1.5 bg-accent text-white text-sm rounded hover:bg-accent/80 transition-colors disabled:opacity-50"
+                    >
+                      {#if creatingBeat}
+                        <Loader2 class="w-4 h-4 animate-spin" />
+                      {:else}
+                        Create Beat
+                      {/if}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          {/if}
-        </section>
-
-        <!-- Scene Prose (if exists and no beats) -->
-        {#if scene.prose && currentProject.beats.length === 0}
-          <section class="mt-8">
-            <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">
-              Content
-            </h2>
-            <div class="bg-bg-panel rounded-lg p-6">
-              <p class="text-text-primary font-prose leading-relaxed whitespace-pre-wrap">
-                {scene.prose}
-              </p>
-            </div>
+            {/if}
           </section>
-        {/if}
+
+          <!-- Scene Prose (if exists and no beats) -->
+          {#if scene.prose && currentProject.beats.length === 0}
+            <section class="mt-8">
+              <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">
+                Content
+              </h2>
+              <div class="bg-bg-panel rounded-lg p-6">
+                <p class="text-text-primary font-prose leading-relaxed whitespace-pre-wrap">
+                  {scene.prose}
+                </p>
+              </div>
+            </section>
+          {/if}
+        </div>
       </div>
-    </div>
+    </GuidanceTooltip>
   {:else}
     <!-- Empty State -->
     <div

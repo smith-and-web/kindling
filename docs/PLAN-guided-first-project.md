@@ -81,7 +81,7 @@
 
 ---
 
-### Phase C: Contextual Tooltips & Preferences
+### Phase C: Contextual Tooltips & Preferences ✅ DONE
 
 **Goal:** First-visit tooltips and persistent guidance preference.
 

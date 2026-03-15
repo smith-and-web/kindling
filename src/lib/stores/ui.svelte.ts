@@ -36,6 +36,12 @@ const SIDEBAR_WIDTH = 256; // w-64
 // Onboarding storage
 const ONBOARDING_COMPLETED_KEY = "kindling:onboardingCompleted";
 
+// Guidance preferences (Phase C)
+const GUIDANCE_ENABLED_KEY = "kindling:guidanceEnabled";
+const TOOLTIP_SEEN_PREFIX = "kindling:tooltipSeen:";
+
+export type GuidanceArea = "sidebar" | "scenePanel" | "references";
+
 const ONBOARDING_STEPS: OnboardingStep[] = [
   "welcome",
   "tour-sidebar",
@@ -63,6 +69,10 @@ class UIStore {
   private _onboardingStep = $state<OnboardingStep>("welcome");
   private _onboardingCompleted = $state(false);
 
+  // Guidance state (Phase C)
+  private _guidanceEnabled = $state(true);
+  private _tooltipSeenVersion = $state(0); // Bump to trigger re-check of localStorage
+
   constructor() {
     // Load saved panel width from localStorage
     if (typeof window !== "undefined") {
@@ -79,6 +89,10 @@ class UIStore {
       this._onboardingCompleted = onboardingCompleted === "true";
       // Show onboarding if not completed
       this._showOnboarding = !this._onboardingCompleted;
+
+      // Load guidance preference (default true when not set)
+      const guidanceStored = localStorage.getItem(GUIDANCE_ENABLED_KEY);
+      this._guidanceEnabled = guidanceStored === null ? true : guidanceStored === "true";
 
       // Clamp width on window resize
       window.addEventListener("resize", () => {
@@ -289,6 +303,41 @@ class UIStore {
     this._onboardingCompleted = false;
     if (typeof window !== "undefined") {
       localStorage.removeItem(ONBOARDING_COMPLETED_KEY);
+    }
+  }
+
+  // Guidance getters/setters (Phase C)
+  get guidanceEnabled() {
+    return this._guidanceEnabled;
+  }
+
+  setGuidanceEnabled(enabled: boolean) {
+    this._guidanceEnabled = enabled;
+    if (typeof window !== "undefined") {
+      localStorage.setItem(GUIDANCE_ENABLED_KEY, String(enabled));
+    }
+  }
+
+  hasSeenTooltip(area: GuidanceArea): boolean {
+    void this._tooltipSeenVersion; // Subscribe to updates
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem(TOOLTIP_SEEN_PREFIX + area) === "true";
+  }
+
+  markTooltipSeen(area: GuidanceArea) {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(TOOLTIP_SEEN_PREFIX + area, "true");
+      this._tooltipSeenVersion += 1;
+    }
+  }
+
+  // For testing: reset guidance tooltips
+  resetGuidanceTooltips() {
+    if (typeof window !== "undefined") {
+      (["sidebar", "scenePanel", "references"] as GuidanceArea[]).forEach((area) => {
+        localStorage.removeItem(TOOLTIP_SEEN_PREFIX + area);
+      });
+      this._tooltipSeenVersion += 1;
     }
   }
 }

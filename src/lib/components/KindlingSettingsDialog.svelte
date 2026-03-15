@@ -9,8 +9,9 @@
 -->
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { X, Loader2, Settings, User } from "lucide-svelte";
+  import { X, Loader2, Settings, User, Lightbulb } from "lucide-svelte";
   import type { AppSettings } from "../types";
+  import { ui } from "../stores/ui.svelte";
   import Tooltip from "./Tooltip.svelte";
 
   let {
@@ -143,6 +144,27 @@
           These settings apply to all your projects. Your contact information will appear on
           manuscript title pages when exporting.
         </p>
+
+        <!-- Section: Guidance -->
+        <fieldset>
+          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+            <Lightbulb class="w-4 h-4" />
+            Guidance
+          </legend>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={ui.guidanceEnabled}
+              onchange={(e) => ui.setGuidanceEnabled((e.target as HTMLInputElement).checked)}
+              class="rounded border-bg-card text-accent focus:ring-accent"
+            />
+            <span class="text-sm text-text-primary">Show guidance tips</span>
+          </label>
+          <p class="text-xs text-text-secondary mt-1 ml-6">
+            Contextual tips on first visit to sidebar, scene panel, and references. Can be disabled
+            for experienced users.
+          </p>
+        </fieldset>
 
         <!-- Section: Author Information -->
         <fieldset>

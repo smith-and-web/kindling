@@ -323,6 +323,46 @@ describe("ui store", () => {
       expect(localStorageMock.removeItem).toHaveBeenCalledWith("kindling:onboardingCompleted");
     });
   });
+
+  describe("guidance (Phase C)", () => {
+    it("should default guidanceEnabled to true when not set", () => {
+      expect(ui.guidanceEnabled).toBe(true);
+    });
+
+    it("should set and persist guidanceEnabled", () => {
+      ui.setGuidanceEnabled(false);
+      expect(ui.guidanceEnabled).toBe(false);
+      expect(localStorageMock.setItem).toHaveBeenCalledWith("kindling:guidanceEnabled", "false");
+
+      ui.setGuidanceEnabled(true);
+      expect(ui.guidanceEnabled).toBe(true);
+      expect(localStorageMock.setItem).toHaveBeenCalledWith("kindling:guidanceEnabled", "true");
+    });
+
+    it("should track tooltip seen per area", () => {
+      expect(ui.hasSeenTooltip("sidebar")).toBe(false);
+      expect(ui.hasSeenTooltip("scenePanel")).toBe(false);
+      expect(ui.hasSeenTooltip("references")).toBe(false);
+
+      ui.markTooltipSeen("sidebar");
+      expect(ui.hasSeenTooltip("sidebar")).toBe(true);
+      expect(ui.hasSeenTooltip("scenePanel")).toBe(false);
+      expect(localStorageMock.setItem).toHaveBeenCalledWith("kindling:tooltipSeen:sidebar", "true");
+
+      ui.markTooltipSeen("references");
+      expect(ui.hasSeenTooltip("references")).toBe(true);
+    });
+
+    it("should reset guidance tooltips", () => {
+      ui.markTooltipSeen("sidebar");
+      expect(ui.hasSeenTooltip("sidebar")).toBe(true);
+
+      ui.resetGuidanceTooltips();
+      expect(ui.hasSeenTooltip("sidebar")).toBe(false);
+      expect(ui.hasSeenTooltip("scenePanel")).toBe(false);
+      expect(ui.hasSeenTooltip("references")).toBe(false);
+    });
+  });
 });
 
 // Test initialization from localStorage (requires fresh module import)
