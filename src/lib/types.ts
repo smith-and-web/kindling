@@ -8,7 +8,10 @@
  */
 
 /** Supported outline import formats */
-export type SourceType = "Plottr" | "Markdown" | "YWriter" | "Scrivener" | "Longform";
+export type SourceType = "Plottr" | "Markdown" | "YWriter" | "Scrivener" | "Longform" | "Blank";
+
+/** Rolling outline planning status for chapters and scenes */
+export type PlanningStatus = "fixed" | "flexible" | "undefined";
 
 /** Preview of an import (before confirming) */
 export interface ImportPreview {
@@ -71,6 +74,10 @@ export interface Chapter {
   locked: boolean;
   /** True if this chapter is a Part header (section heading). Part chapters group subsequent chapters until the next Part. */
   is_part: boolean;
+  /** Brief description of the chapter */
+  synopsis: string | null;
+  /** Rolling outline planning status */
+  planning_status: PlanningStatus;
 }
 
 /** A scene is the primary unit of writing, containing beats and prose */
@@ -90,6 +97,8 @@ export interface Scene {
   locked: boolean;
   scene_type: SceneType;
   scene_status: SceneStatus;
+  /** Rolling outline planning status */
+  planning_status: PlanningStatus;
 }
 
 export type SceneType = "normal" | "notes" | "todo" | "unused";

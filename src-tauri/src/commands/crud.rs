@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use crate::db;
 use crate::models::{
-    Beat, Chapter, Character, DiscoveryNote, Location, Project, ReferenceItem, Scene,
-    SceneReferenceState, SceneStatus, SceneType,
+    Beat, Chapter, Character, DiscoveryNote, Location, PlanningStatus, Project, ReferenceItem,
+    Scene, SceneReferenceState, SceneStatus, SceneType, SourceType,
 };
 
 use super::AppState;
@@ -166,6 +166,8 @@ pub async fn create_chapter(
         archived: false,
         locked: false,
         is_part: is_part.unwrap_or(false),
+        synopsis: None,
+        planning_status: PlanningStatus::Fixed,
     };
 
     db::insert_chapter(&conn, &chapter).map_err(|e| e.to_string())?;
@@ -221,10 +223,12 @@ pub async fn duplicate_chapter(
         project_id: original.project_id,
         title: format!("{} (copy)", original.title),
         position: max_pos + 1,
-        source_id: None, // Don't copy source_id
+        source_id: None,
         archived: false,
         locked: false,
         is_part: original.is_part,
+        synopsis: None,
+        planning_status: PlanningStatus::Fixed,
     };
 
     db::insert_chapter(&conn, &new_chapter).map_err(|e| e.to_string())?;
@@ -244,6 +248,7 @@ pub async fn duplicate_chapter(
             locked: false,
             scene_type: scene.scene_type,
             scene_status: scene.scene_status,
+            planning_status: PlanningStatus::Fixed,
         };
         db::insert_scene(&conn, &new_scene).map_err(|e| e.to_string())?;
 
@@ -337,6 +342,22 @@ pub async fn create_scene(
     // Get next position
     let position = db::get_max_scene_position(&conn, &chapter_uuid).map_err(|e| e.to_string())? + 1;
 
+    // Blank projects: new scenes default to Undefined; imported projects default to Fixed
+    let planning_status = if let Some(project_id) =
+        db::get_chapter_project_id(&conn, &chapter_uuid).map_err(|e| e.to_string())?
+    {
+        if let Some(project) = db::get_project(&conn, &project_id).map_err(|e| e.to_string())? {
+            match project.source_type {
+                SourceType::Blank => PlanningStatus::Undefined,
+                _ => PlanningStatus::Fixed,
+            }
+        } else {
+            PlanningStatus::Fixed
+        }
+    } else {
+        PlanningStatus::Fixed
+    };
+
     let scene = Scene {
         id: Uuid::new_v4(),
         chapter_id: chapter_uuid,
@@ -349,6 +370,7 @@ pub async fn create_scene(
         locked: false,
         scene_type: SceneType::Normal,
         scene_status: SceneStatus::Draft,
+        planning_status,
     };
 
     db::insert_scene(&conn, &scene).map_err(|e| e.to_string())?;
@@ -446,6 +468,66 @@ pub async fn update_scene_metadata(
 }
 
 #[tauri::command]
+pub async fn update_scene_planning_status(
+    scene_id: String,
+    planning_status: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let status = PlanningStatus::parse(&planning_status);
+
+    db::update_scene_planning_status(&conn, &uuid, &status).map_err(|e| e.to_string())?;
+
+    if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn update_chapter_planning_status(
+    chapter_id: String,
+    planning_status: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let status = PlanningStatus::parse(&planning_status);
+
+    db::update_chapter_planning_status(&conn, &uuid, &status).map_err(|e| e.to_string())?;
+
+    if let Some(project_id) = db::get_chapter_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn update_chapter_synopsis(
+    chapter_id: String,
+    synopsis: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    if db::is_chapter_locked(&conn, &uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot edit a locked chapter".to_string());
+    }
+
+    db::update_chapter_synopsis(&conn, &uuid, synopsis.as_deref()).map_err(|e| e.to_string())?;
+
+    if let Some(project_id) = db::get_chapter_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn rename_scene(
     scene_id: String,
     title: String,
@@ -494,11 +576,12 @@ pub async fn duplicate_scene(
         synopsis: original.synopsis,
         prose: original.prose,
         position: max_pos + 1,
-        source_id: None, // Don't copy source_id
+        source_id: None,
         archived: false,
         locked: false,
         scene_type: original.scene_type,
         scene_status: original.scene_status,
+        planning_status: PlanningStatus::Fixed,
     };
 
     db::insert_scene(&conn, &new_scene).map_err(|e| e.to_string())?;

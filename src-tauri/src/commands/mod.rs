@@ -14,6 +14,7 @@
 //! - [`settings`]: App-wide settings
 
 mod archive;
+mod blank_project;
 mod crud;
 mod export;
 mod import;
@@ -26,6 +27,7 @@ mod sync;
 
 // Re-export everything for backwards compatibility with lib.rs
 pub use archive::*;
+pub use blank_project::*;
 pub use crud::*;
 pub use export::*;
 pub use import::*;

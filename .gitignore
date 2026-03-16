@@ -39,6 +39,9 @@ npm-debug.log*
 # Claude Code
 .claude/
 
+# Cursor plans (local planning docs, not for version control)
+.cursor/plans/
+
 # Test coverage
 coverage/
 coverage-rust/

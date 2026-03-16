@@ -24,7 +24,9 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
             title TEXT NOT NULL,
             position INTEGER NOT NULL,
-            source_id TEXT
+            source_id TEXT,
+            synopsis TEXT,
+            planning_status TEXT NOT NULL DEFAULT 'fixed'
         );
 
         CREATE TABLE IF NOT EXISTS scenes (
@@ -36,7 +38,8 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             position INTEGER NOT NULL,
             source_id TEXT,
             scene_type TEXT NOT NULL DEFAULT 'normal',
-            scene_status TEXT NOT NULL DEFAULT 'draft'
+            scene_status TEXT NOT NULL DEFAULT 'draft',
+            planning_status TEXT NOT NULL DEFAULT 'fixed'
         );
 
         CREATE TABLE IF NOT EXISTS beats (
@@ -357,6 +360,37 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
         )?;
         conn.execute(
             "CREATE INDEX idx_discovery_notes_scene ON discovery_notes(scene_id)",
+            [],
+        )?;
+    }
+
+    // Migration: Add planning_status and synopsis to chapters
+    let chapter_columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(chapters)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if !chapter_columns.contains(&"planning_status".to_string()) {
+        conn.execute(
+            "ALTER TABLE chapters ADD COLUMN planning_status TEXT NOT NULL DEFAULT 'fixed'",
+            [],
+        )?;
+    }
+    if !chapter_columns.contains(&"synopsis".to_string()) {
+        conn.execute("ALTER TABLE chapters ADD COLUMN synopsis TEXT", [])?;
+    }
+
+    // Migration: Add planning_status to scenes
+    let scene_columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(scenes)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if !scene_columns.contains(&"planning_status".to_string()) {
+        conn.execute(
+            "ALTER TABLE scenes ADD COLUMN planning_status TEXT NOT NULL DEFAULT 'fixed'",
             [],
         )?;
     }

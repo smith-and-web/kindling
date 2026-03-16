@@ -1,10 +1,18 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { currentProject } from "./project.svelte";
-import type { Project, ReferenceTypeId, Scene } from "../types";
+import type { Chapter, PlanningStatus, Project, ReferenceTypeId, Scene } from "../types";
 
-const defaultSceneMeta: Pick<Scene, "scene_type" | "scene_status"> = {
+const defaultPlanningStatus: PlanningStatus = "fixed";
+
+const defaultSceneMeta: Pick<Scene, "scene_type" | "scene_status" | "planning_status"> = {
   scene_type: "normal",
   scene_status: "draft",
+  planning_status: defaultPlanningStatus,
+};
+
+const defaultChapterMeta: Pick<Chapter, "synopsis" | "planning_status"> = {
+  synopsis: null,
+  planning_status: defaultPlanningStatus,
 };
 
 describe("currentProject store", () => {
@@ -54,6 +62,7 @@ describe("currentProject store", () => {
         archived: false,
         locked: false,
         is_part: false,
+        ...defaultChapterMeta,
       },
     ]);
     currentProject.setScenes([
@@ -116,6 +125,7 @@ describe("currentProject store", () => {
         archived: false,
         locked: false,
         is_part: false,
+        ...defaultChapterMeta,
       },
     ];
 
@@ -132,6 +142,7 @@ describe("currentProject store", () => {
       archived: false,
       locked: false,
       is_part: false,
+      ...defaultChapterMeta,
     };
     const chapter2 = {
       id: "ch-2",
@@ -141,6 +152,7 @@ describe("currentProject store", () => {
       archived: false,
       locked: false,
       is_part: false,
+      ...defaultChapterMeta,
     };
 
     currentProject.setChapters([chapter1]);
@@ -159,6 +171,7 @@ describe("currentProject store", () => {
       archived: false,
       locked: false,
       is_part: false,
+      ...defaultChapterMeta,
     };
     const chapter2 = {
       id: "ch-2",
@@ -168,6 +181,7 @@ describe("currentProject store", () => {
       archived: false,
       locked: false,
       is_part: false,
+      ...defaultChapterMeta,
     };
     const chapter3 = {
       id: "ch-3",
@@ -177,6 +191,7 @@ describe("currentProject store", () => {
       archived: false,
       locked: false,
       is_part: false,
+      ...defaultChapterMeta,
     };
 
     currentProject.setChapters([chapter1, chapter3]);
@@ -198,6 +213,7 @@ describe("currentProject store", () => {
       archived: false,
       locked: false,
       is_part: false,
+      ...defaultChapterMeta,
     };
     const chapter2 = {
       id: "ch-2",
@@ -207,6 +223,7 @@ describe("currentProject store", () => {
       archived: false,
       locked: false,
       is_part: false,
+      ...defaultChapterMeta,
     };
 
     currentProject.setChapters([chapter1]);
@@ -280,6 +297,7 @@ describe("currentProject store", () => {
       archived: false,
       locked: false,
       is_part: false,
+      ...defaultChapterMeta,
     };
 
     currentProject.setCurrentChapter(mockChapter);
@@ -347,6 +365,7 @@ describe("currentProject store", () => {
         archived: false,
         locked: false,
         is_part: false,
+        ...defaultChapterMeta,
       },
       {
         id: "ch-2",
@@ -356,6 +375,7 @@ describe("currentProject store", () => {
         archived: false,
         locked: false,
         is_part: false,
+        ...defaultChapterMeta,
       },
       {
         id: "ch-3",
@@ -365,6 +385,7 @@ describe("currentProject store", () => {
         archived: false,
         locked: false,
         is_part: false,
+        ...defaultChapterMeta,
       },
     ];
     currentProject.setChapters(chapters);
@@ -390,6 +411,7 @@ describe("currentProject store", () => {
         archived: false,
         locked: false,
         is_part: false,
+        ...defaultChapterMeta,
       },
       {
         id: "ch-2",
@@ -399,6 +421,7 @@ describe("currentProject store", () => {
         archived: false,
         locked: false,
         is_part: false,
+        ...defaultChapterMeta,
       },
     ];
     currentProject.setChapters(chapters);
@@ -473,6 +496,7 @@ describe("currentProject store", () => {
         archived: false,
         locked: false,
         is_part: false,
+        ...defaultChapterMeta,
       },
       {
         id: "ch-2",
@@ -482,6 +506,7 @@ describe("currentProject store", () => {
         archived: false,
         locked: false,
         is_part: false,
+        ...defaultChapterMeta,
       },
     ];
     currentProject.setChapters(chapters);
@@ -501,6 +526,7 @@ describe("currentProject store", () => {
       archived: false,
       locked: false,
       is_part: false,
+      ...defaultChapterMeta,
     };
     const scene = {
       id: "sc-1",
@@ -540,6 +566,7 @@ describe("currentProject store", () => {
       archived: false,
       locked: false,
       is_part: false,
+      ...defaultChapterMeta,
     };
     const chapter2 = {
       id: "ch-2",
@@ -549,6 +576,7 @@ describe("currentProject store", () => {
       archived: false,
       locked: false,
       is_part: false,
+      ...defaultChapterMeta,
     };
 
     currentProject.setChapters([chapter1, chapter2]);
@@ -782,6 +810,7 @@ describe("currentProject store", () => {
       archived: false,
       locked: false,
       is_part: false,
+      ...defaultChapterMeta,
     };
     currentProject.setChapters([chapter]);
 
@@ -801,6 +830,7 @@ describe("currentProject store", () => {
       archived: false,
       locked: false,
       is_part: false,
+      ...defaultChapterMeta,
     };
     currentProject.setChapters([chapter]);
     currentProject.setCurrentChapter(chapter);
@@ -820,6 +850,7 @@ describe("currentProject store", () => {
       archived: false,
       locked: false,
       is_part: false,
+      ...defaultChapterMeta,
     };
     const chapter2 = {
       id: "ch-2",
@@ -829,6 +860,7 @@ describe("currentProject store", () => {
       archived: false,
       locked: false,
       is_part: false,
+      ...defaultChapterMeta,
     };
     currentProject.setChapters([chapter1, chapter2]);
     currentProject.setCurrentChapter(chapter1);

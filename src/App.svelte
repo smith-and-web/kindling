@@ -18,6 +18,7 @@
   import QuickStartDialog from "./lib/components/QuickStartDialog.svelte";
   import GuidanceOverlay from "./lib/components/GuidanceOverlay.svelte";
   import CommandPalette from "./lib/components/CommandPalette.svelte";
+  import RenameDialog from "./lib/components/RenameDialog.svelte";
   import { COMMAND_DEFS } from "./lib/commands";
   import { currentProject } from "./lib/stores/project.svelte";
   import { ui } from "./lib/stores/ui.svelte";
@@ -35,6 +36,7 @@
   let referenceClassificationProjectId = $state<string | null>(null);
   let showQuickStart = $state(false);
   let showCommandPalette = $state(false);
+  let showNewProjectDialog = $state(false);
 
   async function loadRecentProjects() {
     try {
@@ -184,6 +186,13 @@
     showLongformImportDialog = true;
   }
 
+  async function createNewProject(name: string) {
+    const project = await invoke<Project>("create_blank_project", { name });
+    currentProject.setProject(null);
+    currentProject.setProject(project);
+    ui.setView("editor");
+  }
+
   function closeProject() {
     currentProject.setProject(null);
   }
@@ -194,6 +203,9 @@
       const menuId = event.payload;
 
       switch (menuId) {
+        case "new_project":
+          showNewProjectDialog = true;
+          break;
         case "import_plottr":
           importPlottr();
           break;
@@ -339,6 +351,7 @@
       onImportLongform={openLongformImportDialog}
       onImportComplete={openReferenceClassificationDialog}
       onOpenQuickStart={() => (showQuickStart = true)}
+      onNewProject={() => (showNewProjectDialog = true)}
     />
   {/if}
 </main>
@@ -370,6 +383,16 @@
     projectId={referenceClassificationProjectId}
     onClose={closeReferenceClassificationDialog}
     onComplete={handleReferenceClassificationComplete}
+  />
+{/if}
+
+<!-- New Project Dialog (triggered by File menu or StartScreen) -->
+{#if showNewProjectDialog}
+  <RenameDialog
+    title="New Project"
+    currentName="My Project"
+    onSave={createNewProject}
+    onClose={() => (showNewProjectDialog = false)}
   />
 {/if}
 

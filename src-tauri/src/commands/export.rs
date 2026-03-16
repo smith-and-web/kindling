@@ -3864,7 +3864,7 @@ mod tests {
 
     #[test]
     fn test_add_scene_to_docx() {
-        use crate::models::{Beat, Scene, SceneStatus, SceneType};
+        use crate::models::{Beat, PlanningStatus, Scene, SceneStatus, SceneType};
         use uuid::Uuid;
 
         let scene = Scene {
@@ -3879,6 +3879,7 @@ mod tests {
             source_id: None,
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
+            planning_status: PlanningStatus::Fixed,
         };
 
         let beats = vec![Beat {
@@ -4148,7 +4149,7 @@ mod tests {
 
     #[test]
     fn test_add_chapter_to_docx() {
-        use crate::models::{Beat, Chapter, Scene, SceneStatus, SceneType};
+        use crate::models::{Beat, Chapter, PlanningStatus, Scene, SceneStatus, SceneType};
         use std::collections::HashMap;
         use uuid::Uuid;
 
@@ -4161,6 +4162,8 @@ mod tests {
             archived: false,
             source_id: None,
             is_part: false,
+            synopsis: None,
+            planning_status: PlanningStatus::Fixed,
         };
 
         let scene = Scene {
@@ -4175,6 +4178,7 @@ mod tests {
             source_id: None,
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
+            planning_status: PlanningStatus::Fixed,
         };
 
         let beat = Beat {
@@ -4211,7 +4215,7 @@ mod tests {
 
     #[test]
     fn test_add_chapter_with_multiple_scenes() {
-        use crate::models::{Beat, Chapter, Scene, SceneStatus, SceneType};
+        use crate::models::{Beat, Chapter, PlanningStatus, Scene, SceneStatus, SceneType};
         use std::collections::HashMap;
         use uuid::Uuid;
 
@@ -4224,6 +4228,8 @@ mod tests {
             archived: false,
             source_id: None,
             is_part: false,
+            synopsis: None,
+            planning_status: PlanningStatus::Fixed,
         };
 
         let scene1 = Scene {
@@ -4238,6 +4244,7 @@ mod tests {
             source_id: None,
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
+            planning_status: PlanningStatus::Fixed,
         };
 
         let scene2 = Scene {
@@ -4252,6 +4259,7 @@ mod tests {
             source_id: None,
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
+            planning_status: PlanningStatus::Fixed,
         };
 
         let beat1 = Beat {

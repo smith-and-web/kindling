@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::models::{
-    Beat, Chapter, Character, DiscoveryNote, Location, Project, ReferenceItem, Scene,
-    SceneCharacterRef, SceneLocationRef, SceneReferenceItemRef, SceneReferenceState, SceneStatus,
-    SceneType, SnapshotMetadata, SnapshotTrigger, SourceType,
+    Beat, Chapter, Character, DiscoveryNote, Location, PlanningStatus, Project, ReferenceItem,
+    Scene, SceneCharacterRef, SceneLocationRef, SceneReferenceItemRef, SceneReferenceState,
+    SceneStatus, SceneType, SnapshotMetadata, SnapshotTrigger, SourceType,
 };
 
 // ============================================================================
@@ -151,10 +151,52 @@ pub fn delete_project(conn: &Connection, id: &Uuid) -> Result<()> {
 // Chapter Queries
 // ============================================================================
 
+/// Build a Chapter from a row selected with columns:
+/// id, project_id, title, position, source_id, archived, locked, is_part, synopsis, planning_status
+fn chapter_from_row(row: &rusqlite::Row) -> Chapter {
+    Chapter {
+        id: Uuid::parse_str(&row.get::<_, String>(0).unwrap()).unwrap(),
+        project_id: Uuid::parse_str(&row.get::<_, String>(1).unwrap()).unwrap(),
+        title: row.get(2).unwrap(),
+        position: row.get(3).unwrap(),
+        source_id: row.get(4).unwrap(),
+        archived: row.get::<_, i32>(5).unwrap_or(0) != 0,
+        locked: row.get::<_, i32>(6).unwrap_or(0) != 0,
+        is_part: row.get::<_, i32>(7).unwrap_or(0) != 0,
+        synopsis: row.get(8).unwrap_or(None),
+        planning_status: row
+            .get::<_, String>(9)
+            .map(|s| PlanningStatus::parse(&s))
+            .unwrap_or_default(),
+    }
+}
+
+/// Build a Scene from a row selected with columns:
+/// id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status
+fn scene_from_row(row: &rusqlite::Row) -> Scene {
+    Scene {
+        id: Uuid::parse_str(&row.get::<_, String>(0).unwrap()).unwrap(),
+        chapter_id: Uuid::parse_str(&row.get::<_, String>(1).unwrap()).unwrap(),
+        title: row.get(2).unwrap(),
+        synopsis: row.get(3).unwrap(),
+        prose: row.get(4).unwrap(),
+        position: row.get(5).unwrap(),
+        source_id: row.get(6).unwrap(),
+        archived: row.get::<_, i32>(7).unwrap_or(0) != 0,
+        locked: row.get::<_, i32>(8).unwrap_or(0) != 0,
+        scene_type: SceneType::parse(&row.get::<_, String>(9).unwrap_or_default()),
+        scene_status: SceneStatus::parse(&row.get::<_, String>(10).unwrap_or_default()),
+        planning_status: row
+            .get::<_, String>(11)
+            .map(|s| PlanningStatus::parse(&s))
+            .unwrap_or_default(),
+    }
+}
+
 pub fn insert_chapter(conn: &Connection, chapter: &Chapter) -> Result<()> {
     conn.execute(
-        "INSERT INTO chapters (id, project_id, title, position, source_id, archived, locked, is_part)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO chapters (id, project_id, title, position, source_id, archived, locked, is_part, synopsis, planning_status)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             chapter.id.to_string(),
             chapter.project_id.to_string(),
@@ -164,6 +206,8 @@ pub fn insert_chapter(conn: &Connection, chapter: &Chapter) -> Result<()> {
             chapter.archived as i32,
             chapter.locked as i32,
             chapter.is_part as i32,
+            chapter.synopsis,
+            chapter.planning_status.as_str(),
         ],
     )?;
     Ok(())
@@ -203,22 +247,13 @@ pub fn shift_chapters_after_position(
 
 pub fn get_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chapter>> {
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, title, position, source_id, archived, locked, is_part
+        "SELECT id, project_id, title, position, source_id, archived, locked, is_part, synopsis, planning_status
          FROM chapters WHERE project_id = ?1 AND archived = 0 ORDER BY position",
     )?;
 
     let chapters = stmt
         .query_map(params![project_id.to_string()], |row| {
-            Ok(Chapter {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                title: row.get(2)?,
-                position: row.get(3)?,
-                source_id: row.get(4)?,
-                archived: row.get::<_, i32>(5)? != 0,
-                locked: row.get::<_, i32>(6)? != 0,
-                is_part: row.get::<_, i32>(7).unwrap_or(0) != 0,
-            })
+            Ok(chapter_from_row(row))
         })?
         .filter_map(|r| r.ok())
         .collect();
@@ -232,8 +267,8 @@ pub fn get_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chapter>
 
 pub fn insert_scene(conn: &Connection, scene: &Scene) -> Result<()> {
     conn.execute(
-        "INSERT INTO scenes (id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        "INSERT INTO scenes (id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
         params![
             scene.id.to_string(),
             scene.chapter_id.to_string(),
@@ -246,6 +281,7 @@ pub fn insert_scene(conn: &Connection, scene: &Scene) -> Result<()> {
             scene.locked as i32,
             scene.scene_type.as_str(),
             scene.scene_status.as_str(),
+            scene.planning_status.as_str(),
         ],
     )?;
     Ok(())
@@ -315,25 +351,13 @@ pub fn move_scene_to_chapter(
 
 pub fn get_scenes(conn: &Connection, chapter_id: &Uuid) -> Result<Vec<Scene>> {
     let mut stmt = conn.prepare(
-        "SELECT id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status
+        "SELECT id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status
          FROM scenes WHERE chapter_id = ?1 AND archived = 0 ORDER BY position",
     )?;
 
     let scenes = stmt
         .query_map(params![chapter_id.to_string()], |row| {
-            Ok(Scene {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                chapter_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                title: row.get(2)?,
-                synopsis: row.get(3)?,
-                prose: row.get(4)?,
-                position: row.get(5)?,
-                source_id: row.get(6)?,
-                archived: row.get::<_, i32>(7)? != 0,
-                locked: row.get::<_, i32>(8)? != 0,
-                scene_type: SceneType::parse(&row.get::<_, String>(9)?),
-                scene_status: SceneStatus::parse(&row.get::<_, String>(10)?),
-            })
+            Ok(scene_from_row(row))
         })?
         .filter_map(|r| r.ok())
         .collect();
@@ -1657,7 +1681,7 @@ pub fn find_chapter_by_source_id(
     source_id: &str,
 ) -> Result<Option<Chapter>> {
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, title, position, source_id, archived, locked, is_part
+        "SELECT id, project_id, title, position, source_id, archived, locked, is_part, synopsis, planning_status
          FROM chapters WHERE project_id = ?1 AND source_id = ?2",
     )?;
 
@@ -1673,6 +1697,11 @@ pub fn find_chapter_by_source_id(
             archived: row.get::<_, i32>(5)? != 0,
             locked: row.get::<_, i32>(6)? != 0,
             is_part: row.get::<_, i32>(7).unwrap_or(0) != 0,
+            synopsis: row.get(8).unwrap_or(None),
+            planning_status: row
+                .get::<_, String>(9)
+                .map(|s| PlanningStatus::parse(&s))
+                .unwrap_or_default(),
         }))
     } else {
         Ok(None)
@@ -1686,7 +1715,7 @@ pub fn find_scene_by_source_id(
     source_id: &str,
 ) -> Result<Option<Scene>> {
     let mut stmt = conn.prepare(
-        "SELECT id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status
+        "SELECT id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status
          FROM scenes WHERE chapter_id = ?1 AND source_id = ?2",
     )?;
 
@@ -1705,6 +1734,10 @@ pub fn find_scene_by_source_id(
             locked: row.get::<_, i32>(8)? != 0,
             scene_type: SceneType::parse(&row.get::<_, String>(9)?),
             scene_status: SceneStatus::parse(&row.get::<_, String>(10)?),
+            planning_status: row
+                .get::<_, String>(11)
+                .map(|s| PlanningStatus::parse(&s))
+                .unwrap_or_default(),
         }))
     } else {
         Ok(None)
@@ -1813,6 +1846,42 @@ pub fn update_scene_metadata(
     Ok(())
 }
 
+pub fn update_scene_planning_status(
+    conn: &Connection,
+    scene_id: &Uuid,
+    planning_status: &PlanningStatus,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE scenes SET planning_status = ?1 WHERE id = ?2",
+        params![planning_status.as_str(), scene_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn update_chapter_planning_status(
+    conn: &Connection,
+    chapter_id: &Uuid,
+    planning_status: &PlanningStatus,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE chapters SET planning_status = ?1 WHERE id = ?2",
+        params![planning_status.as_str(), chapter_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn update_chapter_synopsis(
+    conn: &Connection,
+    chapter_id: &Uuid,
+    synopsis: Option<&str>,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE chapters SET synopsis = ?1 WHERE id = ?2",
+        params![synopsis, chapter_id.to_string()],
+    )?;
+    Ok(())
+}
+
 /// Update a beat's content and position (preserves prose)
 pub fn update_beat(conn: &Connection, beat_id: &Uuid, content: &str, position: i32) -> Result<()> {
     conn.execute(
@@ -1838,7 +1907,7 @@ pub fn get_all_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chap
 /// Get all scenes for a project across all chapters (for reimport stats)
 pub fn get_all_project_scenes(conn: &Connection, project_id: &Uuid) -> Result<Vec<Scene>> {
     let mut stmt = conn.prepare(
-        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id, s.archived, s.locked, s.scene_type, s.scene_status
+        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id, s.archived, s.locked, s.scene_type, s.scene_status, s.planning_status
          FROM scenes s
          JOIN chapters c ON s.chapter_id = c.id
          WHERE c.project_id = ?1
@@ -1847,19 +1916,7 @@ pub fn get_all_project_scenes(conn: &Connection, project_id: &Uuid) -> Result<Ve
 
     let scenes = stmt
         .query_map(params![project_id.to_string()], |row| {
-            Ok(Scene {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                chapter_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                title: row.get(2)?,
-                synopsis: row.get(3)?,
-                prose: row.get(4)?,
-                position: row.get(5)?,
-                source_id: row.get(6)?,
-                archived: row.get::<_, i32>(7)? != 0,
-                locked: row.get::<_, i32>(8)? != 0,
-                scene_type: SceneType::parse(&row.get::<_, String>(9)?),
-                scene_status: SceneStatus::parse(&row.get::<_, String>(10)?),
-            })
+            Ok(scene_from_row(row))
         })?
         .filter_map(|r| r.ok())
         .collect();
@@ -1933,22 +1990,13 @@ pub fn restore_scene(conn: &Connection, scene_id: &Uuid) -> Result<()> {
 
 pub fn get_archived_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chapter>> {
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, title, position, source_id, archived, locked, is_part
+        "SELECT id, project_id, title, position, source_id, archived, locked, is_part, synopsis, planning_status
          FROM chapters WHERE project_id = ?1 AND archived = 1 ORDER BY position",
     )?;
 
     let chapters = stmt
         .query_map(params![project_id.to_string()], |row| {
-            Ok(Chapter {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                title: row.get(2)?,
-                position: row.get(3)?,
-                source_id: row.get(4)?,
-                archived: row.get::<_, i32>(5)? != 0,
-                locked: row.get::<_, i32>(6)? != 0,
-                is_part: row.get::<_, i32>(7).unwrap_or(0) != 0,
-            })
+            Ok(chapter_from_row(row))
         })?
         .filter_map(|r| r.ok())
         .collect();
@@ -1958,7 +2006,7 @@ pub fn get_archived_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec
 
 pub fn get_archived_scenes(conn: &Connection, project_id: &Uuid) -> Result<Vec<Scene>> {
     let mut stmt = conn.prepare(
-        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id, s.archived, s.locked, s.scene_type, s.scene_status
+        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id, s.archived, s.locked, s.scene_type, s.scene_status, s.planning_status
          FROM scenes s
          JOIN chapters c ON s.chapter_id = c.id
          WHERE c.project_id = ?1 AND s.archived = 1
@@ -1967,19 +2015,7 @@ pub fn get_archived_scenes(conn: &Connection, project_id: &Uuid) -> Result<Vec<S
 
     let scenes = stmt
         .query_map(params![project_id.to_string()], |row| {
-            Ok(Scene {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                chapter_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                title: row.get(2)?,
-                synopsis: row.get(3)?,
-                prose: row.get(4)?,
-                position: row.get(5)?,
-                source_id: row.get(6)?,
-                archived: row.get::<_, i32>(7)? != 0,
-                locked: row.get::<_, i32>(8)? != 0,
-                scene_type: SceneType::parse(&row.get::<_, String>(9)?),
-                scene_status: SceneStatus::parse(&row.get::<_, String>(10)?),
-            })
+            Ok(scene_from_row(row))
         })?
         .filter_map(|r| r.ok())
         .collect();
@@ -2076,22 +2112,13 @@ pub fn rename_scene(conn: &Connection, scene_id: &Uuid, title: &str) -> Result<(
 
 pub fn get_chapter_by_id(conn: &Connection, chapter_id: &Uuid) -> Result<Option<Chapter>> {
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, title, position, source_id, archived, locked, is_part
+        "SELECT id, project_id, title, position, source_id, archived, locked, is_part, synopsis, planning_status
          FROM chapters WHERE id = ?1",
     )?;
 
     let chapter = stmt
         .query_row(params![chapter_id.to_string()], |row| {
-            Ok(Chapter {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                title: row.get(2)?,
-                position: row.get(3)?,
-                source_id: row.get(4)?,
-                archived: row.get::<_, i32>(5)? != 0,
-                locked: row.get::<_, i32>(6)? != 0,
-                is_part: row.get::<_, i32>(7).unwrap_or(0) != 0,
-            })
+            Ok(chapter_from_row(row))
         })
         .optional()?;
 
@@ -2100,26 +2127,12 @@ pub fn get_chapter_by_id(conn: &Connection, chapter_id: &Uuid) -> Result<Option<
 
 pub fn get_scene_by_id(conn: &Connection, scene_id: &Uuid) -> Result<Option<Scene>> {
     let mut stmt = conn.prepare(
-        "SELECT id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status
+        "SELECT id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status
          FROM scenes WHERE id = ?1",
     )?;
 
     let scene = stmt
-        .query_row(params![scene_id.to_string()], |row| {
-            Ok(Scene {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                chapter_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                title: row.get(2)?,
-                synopsis: row.get(3)?,
-                prose: row.get(4)?,
-                position: row.get(5)?,
-                source_id: row.get(6)?,
-                archived: row.get::<_, i32>(7)? != 0,
-                locked: row.get::<_, i32>(8)? != 0,
-                scene_type: SceneType::parse(&row.get::<_, String>(9)?),
-                scene_status: SceneStatus::parse(&row.get::<_, String>(10)?),
-            })
-        })
+        .query_row(params![scene_id.to_string()], |row| Ok(scene_from_row(row)))
         .optional()?;
 
     Ok(scene)
@@ -2374,22 +2387,13 @@ pub fn get_all_chapters_including_archived(
     project_id: &Uuid,
 ) -> Result<Vec<Chapter>> {
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, title, position, source_id, archived, locked, is_part
+        "SELECT id, project_id, title, position, source_id, archived, locked, is_part, synopsis, planning_status
          FROM chapters WHERE project_id = ?1 ORDER BY position",
     )?;
 
     let chapters = stmt
         .query_map(params![project_id.to_string()], |row| {
-            Ok(Chapter {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                title: row.get(2)?,
-                position: row.get(3)?,
-                source_id: row.get(4)?,
-                archived: row.get::<_, i32>(5)? != 0,
-                locked: row.get::<_, i32>(6)? != 0,
-                is_part: row.get::<_, i32>(7).unwrap_or(0) != 0,
-            })
+            Ok(chapter_from_row(row))
         })?
         .filter_map(|r| r.ok())
         .collect();
@@ -2403,7 +2407,7 @@ pub fn get_all_scenes_including_archived(
     project_id: &Uuid,
 ) -> Result<Vec<Scene>> {
     let mut stmt = conn.prepare(
-        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id, s.archived, s.locked, s.scene_type, s.scene_status
+        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id, s.archived, s.locked, s.scene_type, s.scene_status, s.planning_status
          FROM scenes s
          JOIN chapters c ON s.chapter_id = c.id
          WHERE c.project_id = ?1
@@ -2412,19 +2416,7 @@ pub fn get_all_scenes_including_archived(
 
     let scenes = stmt
         .query_map(params![project_id.to_string()], |row| {
-            Ok(Scene {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                chapter_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                title: row.get(2)?,
-                synopsis: row.get(3)?,
-                prose: row.get(4)?,
-                position: row.get(5)?,
-                source_id: row.get(6)?,
-                archived: row.get::<_, i32>(7)? != 0,
-                locked: row.get::<_, i32>(8)? != 0,
-                scene_type: SceneType::parse(&row.get::<_, String>(9)?),
-                scene_status: SceneStatus::parse(&row.get::<_, String>(10)?),
-            })
+            Ok(scene_from_row(row))
         })?
         .filter_map(|r| r.ok())
         .collect();
@@ -2614,6 +2606,8 @@ mod tests {
             archived: false,
             locked: false,
             is_part: false,
+            synopsis: None,
+            planning_status: PlanningStatus::Fixed,
         };
         insert_chapter(conn, &chapter).unwrap();
         chapter
@@ -2632,6 +2626,7 @@ mod tests {
             locked: false,
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
+            planning_status: PlanningStatus::Fixed,
         };
         insert_scene(conn, &scene).unwrap();
         scene
@@ -2727,6 +2722,8 @@ mod tests {
             archived: false,
             locked: false,
             is_part: false,
+            synopsis: None,
+            planning_status: PlanningStatus::Fixed,
         };
         let ch2 = Chapter {
             id: Uuid::new_v4(),
@@ -2737,6 +2734,8 @@ mod tests {
             archived: false,
             locked: false,
             is_part: false,
+            synopsis: None,
+            planning_status: PlanningStatus::Fixed,
         };
         insert_chapter(&conn, &ch1).unwrap();
         insert_chapter(&conn, &ch2).unwrap();
@@ -2831,6 +2830,8 @@ mod tests {
             archived: false,
             locked: false,
             is_part: false,
+            synopsis: None,
+            planning_status: PlanningStatus::Fixed,
         };
         insert_chapter(&conn, &chapter2).unwrap();
 

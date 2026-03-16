@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::PlanningStatus;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Chapter {
     pub id: Uuid,
@@ -17,6 +19,9 @@ pub struct Chapter {
     /// Part chapters group subsequent chapters until the next Part.
     #[serde(default)]
     pub is_part: bool,
+    pub synopsis: Option<String>,
+    #[serde(default)]
+    pub planning_status: PlanningStatus,
 }
 
 impl Chapter {
@@ -30,6 +35,8 @@ impl Chapter {
             archived: false,
             locked: false,
             is_part: false,
+            synopsis: None,
+            planning_status: PlanningStatus::Fixed,
         }
     }
 

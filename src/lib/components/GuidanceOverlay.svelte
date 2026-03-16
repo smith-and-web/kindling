@@ -36,7 +36,14 @@
         "Sync from source reimports your outline file when you've made changes elsewhere. Use it to pull in edits from Plottr, Markdown, or your external editor.",
       position: "left",
     },
+    planningStatus: {
+      message:
+        "Use planning status (Fixed, Flexible, Undefined) to control how much structure each scene has. Start loose and tighten as you go.",
+      position: "center",
+    },
   };
+
+  // planningStatus is shown as an inline banner in ScenePanel, not in this overlay sequence
 
   const ORDER: GuidanceArea[] = ["sidebar", "scenePanel", "references", "sync"];
 
@@ -53,6 +60,7 @@
       scenePanel: sceneVisible,
       references: referencesVisible,
       sync: sidebarVisible && hasSourcePath,
+      planningStatus: sceneVisible,
     };
 
     for (const area of ORDER) {
