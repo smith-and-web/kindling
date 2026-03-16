@@ -252,113 +252,72 @@ fn restore_replace_current(
     let project_id = data.project.id;
 
     // Begin transaction
-    conn.execute("BEGIN TRANSACTION", [])
-        .map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
     // Delete all existing project content
-    if let Err(e) = db::delete_all_project_content(conn, &project_id) {
-        conn.execute("ROLLBACK", []).ok();
-        return Err(e.to_string());
-    }
+    db::delete_all_project_content(&tx, &project_id).map_err(|e| e.to_string())?;
 
     // Insert chapters
     for chapter in &data.chapters {
-        if let Err(e) = db::insert_chapter(conn, chapter) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_chapter(&tx, chapter).map_err(|e| e.to_string())?;
     }
 
     // Insert scenes
     for scene in &data.scenes {
-        if let Err(e) = db::insert_scene(conn, scene) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_scene(&tx, scene).map_err(|e| e.to_string())?;
     }
 
     // Insert beats
     for beat in &data.beats {
-        if let Err(e) = db::insert_beat(conn, beat) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_beat(&tx, beat).map_err(|e| e.to_string())?;
     }
 
     // Insert characters
     for character in &data.characters {
-        if let Err(e) = db::insert_character(conn, character) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_character(&tx, character).map_err(|e| e.to_string())?;
     }
 
     // Insert locations
     for location in &data.locations {
-        if let Err(e) = db::insert_location(conn, location) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_location(&tx, location).map_err(|e| e.to_string())?;
     }
 
     // Insert reference items
     for item in &data.reference_items {
-        if let Err(e) = db::insert_reference_item(conn, item) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_reference_item(&tx, item).map_err(|e| e.to_string())?;
     }
 
     // Insert scene-character references
     for r in &data.scene_character_refs {
-        if let Err(e) = db::add_scene_character_ref(conn, &r.scene_id, &r.character_id) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::add_scene_character_ref(&tx, &r.scene_id, &r.character_id)
+            .map_err(|e| e.to_string())?;
     }
 
     // Insert scene-location references
     for r in &data.scene_location_refs {
-        if let Err(e) = db::add_scene_location_ref(conn, &r.scene_id, &r.location_id) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::add_scene_location_ref(&tx, &r.scene_id, &r.location_id).map_err(|e| e.to_string())?;
     }
 
     // Insert scene-reference-item references
     for r in &data.scene_reference_item_refs {
-        if let Err(e) = db::add_scene_reference_item_ref(conn, &r.scene_id, &r.reference_item_id) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::add_scene_reference_item_ref(&tx, &r.scene_id, &r.reference_item_id)
+            .map_err(|e| e.to_string())?;
     }
 
     // Insert scene reference state entries
     for state in &data.scene_reference_states {
-        if let Err(e) = db::insert_scene_reference_state(conn, state) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_scene_reference_state(&tx, state).map_err(|e| e.to_string())?;
     }
 
     // Insert discovery notes
     for note in &data.discovery_notes {
-        if let Err(e) = db::insert_discovery_note(conn, note) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_discovery_note(&tx, note).map_err(|e| e.to_string())?;
     }
 
-    // Update project modified time
-    if let Err(e) = db::update_project_modified(conn, &project_id) {
-        conn.execute("ROLLBACK", []).ok();
-        return Err(e.to_string());
-    }
+    db::update_project_modified(&tx, &project_id).map_err(|e| e.to_string())?;
 
-    // Commit transaction
-    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
 
-    // Return the restored project
     db::get_project(conn, &project_id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "Failed to retrieve restored project".to_string())
@@ -402,8 +361,7 @@ fn restore_create_new(
     }
 
     // Begin transaction
-    conn.execute("BEGIN TRANSACTION", [])
-        .map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
     // Create new project
     let now = chrono::Utc::now().to_rfc3339();
@@ -422,10 +380,7 @@ fn restore_create_new(
         reference_types: data.project.reference_types,
     };
 
-    if let Err(e) = db::insert_project(conn, &new_project) {
-        conn.execute("ROLLBACK", []).ok();
-        return Err(e.to_string());
-    }
+    db::insert_project(&tx, &new_project).map_err(|e| e.to_string())?;
 
     // Insert chapters with remapped IDs
     for chapter in &data.chapters {
@@ -441,10 +396,7 @@ fn restore_create_new(
             synopsis: chapter.synopsis.clone(),
             planning_status: chapter.planning_status,
         };
-        if let Err(e) = db::insert_chapter(conn, &new_chapter) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_chapter(&tx, &new_chapter).map_err(|e| e.to_string())?;
     }
 
     // Insert scenes with remapped IDs
@@ -463,10 +415,7 @@ fn restore_create_new(
             scene_status: scene.scene_status,
             planning_status: scene.planning_status,
         };
-        if let Err(e) = db::insert_scene(conn, &new_scene) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_scene(&tx, &new_scene).map_err(|e| e.to_string())?;
     }
 
     // Insert beats with remapped IDs
@@ -479,10 +428,7 @@ fn restore_create_new(
             position: beat.position,
             source_id: beat.source_id.clone(),
         };
-        if let Err(e) = db::insert_beat(conn, &new_beat) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_beat(&tx, &new_beat).map_err(|e| e.to_string())?;
     }
 
     // Insert characters with remapped IDs
@@ -495,10 +441,7 @@ fn restore_create_new(
             attributes: character.attributes.clone(),
             source_id: character.source_id.clone(),
         };
-        if let Err(e) = db::insert_character(conn, &new_character) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_character(&tx, &new_character).map_err(|e| e.to_string())?;
     }
 
     // Insert locations with remapped IDs
@@ -511,10 +454,7 @@ fn restore_create_new(
             attributes: location.attributes.clone(),
             source_id: location.source_id.clone(),
         };
-        if let Err(e) = db::insert_location(conn, &new_location) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_location(&tx, &new_location).map_err(|e| e.to_string())?;
     }
 
     // Insert reference items with remapped IDs
@@ -528,41 +468,31 @@ fn restore_create_new(
             attributes: item.attributes.clone(),
             source_id: item.source_id.clone(),
         };
-        if let Err(e) = db::insert_reference_item(conn, &new_item) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_reference_item(&tx, &new_item).map_err(|e| e.to_string())?;
     }
 
     // Insert scene-character references with remapped IDs
     for r in &data.scene_character_refs {
         let new_scene_id = id_map.get(&r.scene_id).unwrap();
         let new_character_id = id_map.get(&r.character_id).unwrap();
-        if let Err(e) = db::add_scene_character_ref(conn, new_scene_id, new_character_id) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::add_scene_character_ref(&tx, new_scene_id, new_character_id)
+            .map_err(|e| e.to_string())?;
     }
 
     // Insert scene-location references with remapped IDs
     for r in &data.scene_location_refs {
         let new_scene_id = id_map.get(&r.scene_id).unwrap();
         let new_location_id = id_map.get(&r.location_id).unwrap();
-        if let Err(e) = db::add_scene_location_ref(conn, new_scene_id, new_location_id) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::add_scene_location_ref(&tx, new_scene_id, new_location_id)
+            .map_err(|e| e.to_string())?;
     }
 
     // Insert scene-reference-item references with remapped IDs
     for r in &data.scene_reference_item_refs {
         let new_scene_id = id_map.get(&r.scene_id).unwrap();
         let new_reference_item_id = id_map.get(&r.reference_item_id).unwrap();
-        if let Err(e) = db::add_scene_reference_item_ref(conn, new_scene_id, new_reference_item_id)
-        {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::add_scene_reference_item_ref(&tx, new_scene_id, new_reference_item_id)
+            .map_err(|e| e.to_string())?;
     }
 
     // Insert scene reference state entries with remapped IDs
@@ -579,10 +509,7 @@ fn restore_create_new(
             position: state.position,
             expanded: state.expanded,
         };
-        if let Err(e) = db::insert_scene_reference_state(conn, &new_state) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_scene_reference_state(&tx, &new_state).map_err(|e| e.to_string())?;
     }
 
     // Insert discovery notes with remapped IDs
@@ -596,14 +523,10 @@ fn restore_create_new(
             position: note.position,
             created_at: note.created_at.clone(),
         };
-        if let Err(e) = db::insert_discovery_note(conn, &new_note) {
-            conn.execute("ROLLBACK", []).ok();
-            return Err(e.to_string());
-        }
+        db::insert_discovery_note(&tx, &new_note).map_err(|e| e.to_string())?;
     }
 
-    // Commit transaction
-    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
 
     Ok(new_project)
 }

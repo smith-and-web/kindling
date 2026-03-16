@@ -179,33 +179,31 @@ pub async fn create_sample_project(state: State<'_, AppState>) -> Result<Project
         source_id: None,
     };
 
-    conn.execute("BEGIN TRANSACTION", [])
-        .map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
-    db::insert_project(&conn, &project).map_err(|e| e.to_string())?;
-    db::insert_chapter(&conn, &chapter).map_err(|e| e.to_string())?;
+    db::insert_project(&tx, &project).map_err(|e| e.to_string())?;
+    db::insert_chapter(&tx, &chapter).map_err(|e| e.to_string())?;
 
     for scene in &scenes {
-        db::insert_scene(&conn, scene).map_err(|e| e.to_string())?;
+        db::insert_scene(&tx, scene).map_err(|e| e.to_string())?;
     }
 
     for beat in &[beat1_1, beat1_2, beat2_1, beat2_2, beat3_1] {
-        db::insert_beat(&conn, beat).map_err(|e| e.to_string())?;
+        db::insert_beat(&tx, beat).map_err(|e| e.to_string())?;
     }
 
-    db::insert_character(&conn, &character).map_err(|e| e.to_string())?;
-    db::insert_location(&conn, &location).map_err(|e| e.to_string())?;
-    db::insert_reference_item(&conn, &reference_item).map_err(|e| e.to_string())?;
+    db::insert_character(&tx, &character).map_err(|e| e.to_string())?;
+    db::insert_location(&tx, &location).map_err(|e| e.to_string())?;
+    db::insert_reference_item(&tx, &reference_item).map_err(|e| e.to_string())?;
 
-    // Link character and location to scenes
-    db::add_scene_character_ref(&conn, &scene1_id, &character_id).map_err(|e| e.to_string())?;
-    db::add_scene_character_ref(&conn, &scene2_id, &character_id).map_err(|e| e.to_string())?;
-    db::add_scene_character_ref(&conn, &scene3_id, &character_id).map_err(|e| e.to_string())?;
-    db::add_scene_location_ref(&conn, &scene2_id, &location_id).map_err(|e| e.to_string())?;
-    db::add_scene_location_ref(&conn, &scene3_id, &location_id).map_err(|e| e.to_string())?;
-    db::add_scene_reference_item_ref(&conn, &scene2_id, &ref_item_id).map_err(|e| e.to_string())?;
+    db::add_scene_character_ref(&tx, &scene1_id, &character_id).map_err(|e| e.to_string())?;
+    db::add_scene_character_ref(&tx, &scene2_id, &character_id).map_err(|e| e.to_string())?;
+    db::add_scene_character_ref(&tx, &scene3_id, &character_id).map_err(|e| e.to_string())?;
+    db::add_scene_location_ref(&tx, &scene2_id, &location_id).map_err(|e| e.to_string())?;
+    db::add_scene_location_ref(&tx, &scene3_id, &location_id).map_err(|e| e.to_string())?;
+    db::add_scene_reference_item_ref(&tx, &scene2_id, &ref_item_id).map_err(|e| e.to_string())?;
 
-    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
 
     Ok(project)
 }

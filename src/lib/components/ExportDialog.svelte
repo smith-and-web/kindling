@@ -8,7 +8,6 @@
   - Destination folder/file picker
 -->
 <script lang="ts">
-  /* eslint-disable no-undef */
   import { invoke } from "@tauri-apps/api/core";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import {

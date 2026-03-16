@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, OptionalExtension, Result};
+use rusqlite::{params, types::Type, Connection, OptionalExtension, Result};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -7,6 +7,11 @@ use crate::models::{
     Scene, SceneCharacterRef, SceneLocationRef, SceneReferenceItemRef, SceneReferenceState,
     SceneStatus, SceneType, SnapshotMetadata, SnapshotTrigger, SourceType,
 };
+
+fn parse_uuid(s: &str) -> rusqlite::Result<Uuid> {
+    Uuid::parse_str(s)
+        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, Type::Text, Box::new(e)))
+}
 
 // ============================================================================
 // Project Queries
@@ -53,7 +58,7 @@ pub fn get_project(conn: &Connection, id: &Uuid) -> Result<Option<Project>> {
 
     if let Some(row) = rows.next()? {
         Ok(Some(Project {
-            id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+            id: parse_uuid(&row.get::<_, String>(0)?)?,
             name: row.get(1)?,
             source_type: SourceType::parse(&row.get::<_, String>(2)?)
                 .unwrap_or(SourceType::Markdown),
@@ -80,7 +85,7 @@ pub fn get_recent_projects(conn: &Connection, limit: usize) -> Result<Vec<Projec
     let projects = stmt
         .query_map(params![limit as i64], |row| {
             Ok(Project {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
                 name: row.get(1)?,
                 source_type: SourceType::parse(&row.get::<_, String>(2)?)
                     .unwrap_or(SourceType::Markdown),
@@ -94,8 +99,7 @@ pub fn get_recent_projects(conn: &Connection, limit: usize) -> Result<Vec<Projec
                 reference_types: parse_reference_types(row.get(10)?),
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(projects)
 }
@@ -109,7 +113,7 @@ pub fn get_all_projects(conn: &Connection) -> Result<Vec<Project>> {
     let projects = stmt
         .query_map([], |row| {
             Ok(Project {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
                 name: row.get(1)?,
                 source_type: SourceType::parse(&row.get::<_, String>(2)?)
                     .unwrap_or(SourceType::Markdown),
@@ -123,8 +127,7 @@ pub fn get_all_projects(conn: &Connection) -> Result<Vec<Project>> {
                 reference_types: parse_reference_types(row.get(10)?),
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(projects)
 }
@@ -153,13 +156,13 @@ pub fn delete_project(conn: &Connection, id: &Uuid) -> Result<()> {
 
 /// Build a Chapter from a row selected with columns:
 /// id, project_id, title, position, source_id, archived, locked, is_part, synopsis, planning_status
-fn chapter_from_row(row: &rusqlite::Row) -> Chapter {
-    Chapter {
-        id: Uuid::parse_str(&row.get::<_, String>(0).unwrap()).unwrap(),
-        project_id: Uuid::parse_str(&row.get::<_, String>(1).unwrap()).unwrap(),
-        title: row.get(2).unwrap(),
-        position: row.get(3).unwrap(),
-        source_id: row.get(4).unwrap(),
+fn chapter_from_row(row: &rusqlite::Row) -> rusqlite::Result<Chapter> {
+    Ok(Chapter {
+        id: parse_uuid(&row.get::<_, String>(0)?)?,
+        project_id: parse_uuid(&row.get::<_, String>(1)?)?,
+        title: row.get(2)?,
+        position: row.get(3)?,
+        source_id: row.get(4)?,
         archived: row.get::<_, i32>(5).unwrap_or(0) != 0,
         locked: row.get::<_, i32>(6).unwrap_or(0) != 0,
         is_part: row.get::<_, i32>(7).unwrap_or(0) != 0,
@@ -168,20 +171,20 @@ fn chapter_from_row(row: &rusqlite::Row) -> Chapter {
             .get::<_, String>(9)
             .map(|s| PlanningStatus::parse(&s))
             .unwrap_or_default(),
-    }
+    })
 }
 
 /// Build a Scene from a row selected with columns:
 /// id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status
-fn scene_from_row(row: &rusqlite::Row) -> Scene {
-    Scene {
-        id: Uuid::parse_str(&row.get::<_, String>(0).unwrap()).unwrap(),
-        chapter_id: Uuid::parse_str(&row.get::<_, String>(1).unwrap()).unwrap(),
-        title: row.get(2).unwrap(),
-        synopsis: row.get(3).unwrap(),
-        prose: row.get(4).unwrap(),
-        position: row.get(5).unwrap(),
-        source_id: row.get(6).unwrap(),
+fn scene_from_row(row: &rusqlite::Row) -> rusqlite::Result<Scene> {
+    Ok(Scene {
+        id: parse_uuid(&row.get::<_, String>(0)?)?,
+        chapter_id: parse_uuid(&row.get::<_, String>(1)?)?,
+        title: row.get(2)?,
+        synopsis: row.get(3)?,
+        prose: row.get(4)?,
+        position: row.get(5)?,
+        source_id: row.get(6)?,
         archived: row.get::<_, i32>(7).unwrap_or(0) != 0,
         locked: row.get::<_, i32>(8).unwrap_or(0) != 0,
         scene_type: SceneType::parse(&row.get::<_, String>(9).unwrap_or_default()),
@@ -190,7 +193,7 @@ fn scene_from_row(row: &rusqlite::Row) -> Scene {
             .get::<_, String>(11)
             .map(|s| PlanningStatus::parse(&s))
             .unwrap_or_default(),
-    }
+    })
 }
 
 pub fn insert_chapter(conn: &Connection, chapter: &Chapter) -> Result<()> {
@@ -221,15 +224,14 @@ pub fn get_max_chapter_position(conn: &Connection, project_id: &Uuid) -> Result<
 }
 
 pub fn reorder_chapters(conn: &Connection, project_id: &Uuid, chapter_ids: &[Uuid]) -> Result<()> {
-    conn.execute("BEGIN TRANSACTION", [])?;
+    let tx = conn.unchecked_transaction()?;
     for (idx, id) in chapter_ids.iter().enumerate() {
-        conn.execute(
+        tx.execute(
             "UPDATE chapters SET position = ?1 WHERE id = ?2 AND project_id = ?3",
             params![idx as i32, id.to_string(), project_id.to_string()],
         )?;
     }
-    conn.execute("COMMIT", [])?;
-    Ok(())
+    tx.commit()
 }
 
 /// Shift all chapters at or after the given position up by 1 to make room for insertion
@@ -252,11 +254,8 @@ pub fn get_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chapter>
     )?;
 
     let chapters = stmt
-        .query_map(params![project_id.to_string()], |row| {
-            Ok(chapter_from_row(row))
-        })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .query_map(params![project_id.to_string()], chapter_from_row)?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(chapters)
 }
@@ -299,7 +298,7 @@ pub fn get_chapter_project_id(conn: &Connection, chapter_id: &Uuid) -> Result<Op
     let mut rows = stmt.query(params![chapter_id.to_string()])?;
 
     if let Some(row) = rows.next()? {
-        Ok(Some(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap()))
+        Ok(Some(parse_uuid(&row.get::<_, String>(0)?)?))
     } else {
         Ok(None)
     }
@@ -314,22 +313,21 @@ pub fn get_scene_project_id(conn: &Connection, scene_id: &Uuid) -> Result<Option
     let mut rows = stmt.query(params![scene_id.to_string()])?;
 
     if let Some(row) = rows.next()? {
-        Ok(Some(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap()))
+        Ok(Some(parse_uuid(&row.get::<_, String>(0)?)?))
     } else {
         Ok(None)
     }
 }
 
 pub fn reorder_scenes(conn: &Connection, chapter_id: &Uuid, scene_ids: &[Uuid]) -> Result<()> {
-    conn.execute("BEGIN TRANSACTION", [])?;
+    let tx = conn.unchecked_transaction()?;
     for (idx, id) in scene_ids.iter().enumerate() {
-        conn.execute(
+        tx.execute(
             "UPDATE scenes SET position = ?1 WHERE id = ?2 AND chapter_id = ?3",
             params![idx as i32, id.to_string(), chapter_id.to_string()],
         )?;
     }
-    conn.execute("COMMIT", [])?;
-    Ok(())
+    tx.commit()
 }
 
 pub fn move_scene_to_chapter(
@@ -356,11 +354,8 @@ pub fn get_scenes(conn: &Connection, chapter_id: &Uuid) -> Result<Vec<Scene>> {
     )?;
 
     let scenes = stmt
-        .query_map(params![chapter_id.to_string()], |row| {
-            Ok(scene_from_row(row))
-        })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .query_map(params![chapter_id.to_string()], scene_from_row)?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(scenes)
 }
@@ -402,16 +397,15 @@ pub fn get_beats(conn: &Connection, scene_id: &Uuid) -> Result<Vec<Beat>> {
     let beats = stmt
         .query_map(params![scene_id.to_string()], |row| {
             Ok(Beat {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                scene_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
+                scene_id: parse_uuid(&row.get::<_, String>(1)?)?,
                 content: row.get(2)?,
                 prose: row.get(3)?,
                 position: row.get(4)?,
                 source_id: row.get(5)?,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(beats)
 }
@@ -439,8 +433,8 @@ pub fn get_beat(conn: &Connection, beat_id: &Uuid) -> Result<Option<Beat>> {
     let opt = stmt
         .query_row(params![beat_id.to_string()], |row| {
             Ok(Beat {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                scene_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
+                scene_id: parse_uuid(&row.get::<_, String>(1)?)?,
                 content: row.get(2)?,
                 prose: row.get(3)?,
                 position: row.get(4)?,
@@ -525,16 +519,15 @@ pub fn get_discovery_notes(conn: &Connection, scene_id: &Uuid) -> Result<Vec<Dis
     let notes = stmt
         .query_map(params![scene_id.to_string()], |row| {
             Ok(DiscoveryNote {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                scene_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
+                scene_id: parse_uuid(&row.get::<_, String>(1)?)?,
                 content: row.get(2)?,
                 tags: parse_tags(row.get(3)?),
                 position: row.get(4)?,
                 created_at: row.get(5)?,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(notes)
 }
@@ -570,8 +563,8 @@ pub fn get_discovery_note(conn: &Connection, note_id: &Uuid) -> Result<Option<Di
     let opt = stmt
         .query_row(params![note_id.to_string()], |row| {
             Ok(DiscoveryNote {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                scene_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
+                scene_id: parse_uuid(&row.get::<_, String>(1)?)?,
                 content: row.get(2)?,
                 tags: parse_tags(row.get(3)?),
                 position: row.get(4)?,
@@ -620,16 +613,15 @@ pub fn get_characters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Charac
     let mut characters: Vec<Character> = stmt
         .query_map(params![project_id.to_string()], |row| {
             Ok(Character {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
+                project_id: parse_uuid(&row.get::<_, String>(1)?)?,
                 name: row.get(2)?,
                 description: row.get(3)?,
                 attributes: HashMap::new(),
                 source_id: row.get(4)?,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     // Load attributes for each character
     for character in &mut characters {
@@ -643,8 +635,7 @@ pub fn get_characters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Charac
                     row.get::<_, Option<String>>(1)?.unwrap_or_default(),
                 ))
             })?
-            .filter_map(|r| r.ok())
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
 
         character.attributes = attrs.into_iter().collect();
     }
@@ -657,7 +648,7 @@ pub fn get_character_project_id(conn: &Connection, character_id: &Uuid) -> Resul
     let mut rows = stmt.query(params![character_id.to_string()])?;
 
     if let Some(row) = rows.next()? {
-        Ok(Some(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap()))
+        Ok(Some(parse_uuid(&row.get::<_, String>(0)?)?))
     } else {
         Ok(None)
     }
@@ -672,8 +663,8 @@ pub fn get_character_by_id(conn: &Connection, character_id: &Uuid) -> Result<Opt
 
     if let Some(row) = rows.next()? {
         let mut character = Character {
-            id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-            project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+            id: parse_uuid(&row.get::<_, String>(0)?)?,
+            project_id: parse_uuid(&row.get::<_, String>(1)?)?,
             name: row.get(2)?,
             description: row.get(3)?,
             attributes: HashMap::new(),
@@ -689,8 +680,7 @@ pub fn get_character_by_id(conn: &Connection, character_id: &Uuid) -> Result<Opt
                     row.get::<_, Option<String>>(1)?.unwrap_or_default(),
                 ))
             })?
-            .filter_map(|r| r.ok())
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
         character.attributes = attrs.into_iter().collect();
 
         Ok(Some(character))
@@ -773,16 +763,15 @@ pub fn get_locations(conn: &Connection, project_id: &Uuid) -> Result<Vec<Locatio
     let mut locations: Vec<Location> = stmt
         .query_map(params![project_id.to_string()], |row| {
             Ok(Location {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
+                project_id: parse_uuid(&row.get::<_, String>(1)?)?,
                 name: row.get(2)?,
                 description: row.get(3)?,
                 attributes: HashMap::new(),
                 source_id: row.get(4)?,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     // Load attributes for each location
     for location in &mut locations {
@@ -796,8 +785,7 @@ pub fn get_locations(conn: &Connection, project_id: &Uuid) -> Result<Vec<Locatio
                     row.get::<_, Option<String>>(1)?.unwrap_or_default(),
                 ))
             })?
-            .filter_map(|r| r.ok())
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
 
         location.attributes = attrs.into_iter().collect();
     }
@@ -810,7 +798,7 @@ pub fn get_location_project_id(conn: &Connection, location_id: &Uuid) -> Result<
     let mut rows = stmt.query(params![location_id.to_string()])?;
 
     if let Some(row) = rows.next()? {
-        Ok(Some(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap()))
+        Ok(Some(parse_uuid(&row.get::<_, String>(0)?)?))
     } else {
         Ok(None)
     }
@@ -825,8 +813,8 @@ pub fn get_location_by_id(conn: &Connection, location_id: &Uuid) -> Result<Optio
 
     if let Some(row) = rows.next()? {
         let mut location = Location {
-            id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-            project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+            id: parse_uuid(&row.get::<_, String>(0)?)?,
+            project_id: parse_uuid(&row.get::<_, String>(1)?)?,
             name: row.get(2)?,
             description: row.get(3)?,
             attributes: HashMap::new(),
@@ -842,8 +830,7 @@ pub fn get_location_by_id(conn: &Connection, location_id: &Uuid) -> Result<Optio
                     row.get::<_, Option<String>>(1)?.unwrap_or_default(),
                 ))
             })?
-            .filter_map(|r| r.ok())
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
         location.attributes = attrs.into_iter().collect();
 
         Ok(Some(location))
@@ -930,8 +917,8 @@ pub fn get_reference_items(
     let mut items: Vec<ReferenceItem> = stmt
         .query_map(params![project_id.to_string(), reference_type], |row| {
             Ok(ReferenceItem {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
+                project_id: parse_uuid(&row.get::<_, String>(1)?)?,
                 reference_type: row.get(2)?,
                 name: row.get(3)?,
                 description: row.get(4)?,
@@ -939,8 +926,7 @@ pub fn get_reference_items(
                 source_id: row.get(5)?,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     for item in &mut items {
         let mut attr_stmt = conn.prepare(
@@ -954,8 +940,7 @@ pub fn get_reference_items(
                     row.get::<_, Option<String>>(1)?.unwrap_or_default(),
                 ))
             })?
-            .filter_map(|r| r.ok())
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
 
         item.attributes = attrs.into_iter().collect();
     }
@@ -972,8 +957,8 @@ pub fn get_all_reference_items(conn: &Connection, project_id: &Uuid) -> Result<V
     let mut items: Vec<ReferenceItem> = stmt
         .query_map(params![project_id.to_string()], |row| {
             Ok(ReferenceItem {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
+                project_id: parse_uuid(&row.get::<_, String>(1)?)?,
                 reference_type: row.get(2)?,
                 name: row.get(3)?,
                 description: row.get(4)?,
@@ -981,8 +966,7 @@ pub fn get_all_reference_items(conn: &Connection, project_id: &Uuid) -> Result<V
                 source_id: row.get(5)?,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     for item in &mut items {
         let mut attr_stmt = conn.prepare(
@@ -996,8 +980,7 @@ pub fn get_all_reference_items(conn: &Connection, project_id: &Uuid) -> Result<V
                     row.get::<_, Option<String>>(1)?.unwrap_or_default(),
                 ))
             })?
-            .filter_map(|r| r.ok())
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
 
         item.attributes = attrs.into_iter().collect();
     }
@@ -1013,7 +996,7 @@ pub fn get_reference_item_project_id(
     let mut rows = stmt.query(params![reference_item_id.to_string()])?;
 
     if let Some(row) = rows.next()? {
-        Ok(Some(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap()))
+        Ok(Some(parse_uuid(&row.get::<_, String>(0)?)?))
     } else {
         Ok(None)
     }
@@ -1031,8 +1014,8 @@ pub fn get_reference_item_by_id(
 
     if let Some(row) = rows.next()? {
         let mut item = ReferenceItem {
-            id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-            project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+            id: parse_uuid(&row.get::<_, String>(0)?)?,
+            project_id: parse_uuid(&row.get::<_, String>(1)?)?,
             reference_type: row.get(2)?,
             name: row.get(3)?,
             description: row.get(4)?,
@@ -1050,8 +1033,7 @@ pub fn get_reference_item_by_id(
                     row.get::<_, Option<String>>(1)?.unwrap_or_default(),
                 ))
             })?
-            .filter_map(|r| r.ok())
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
         item.attributes = attrs.into_iter().collect();
 
         Ok(Some(item))
@@ -1156,10 +1138,9 @@ pub fn get_scene_ids_for_character(conn: &Connection, character_id: &Uuid) -> Re
         conn.prepare("SELECT scene_id FROM scene_character_refs WHERE character_id = ?1")?;
     let ids = stmt
         .query_map(params![character_id.to_string()], |row| {
-            Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+            parse_uuid(&row.get::<_, String>(0)?)
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(ids)
 }
 
@@ -1168,10 +1149,9 @@ pub fn get_scene_ids_for_location(conn: &Connection, location_id: &Uuid) -> Resu
         conn.prepare("SELECT scene_id FROM scene_location_refs WHERE location_id = ?1")?;
     let ids = stmt
         .query_map(params![location_id.to_string()], |row| {
-            Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+            parse_uuid(&row.get::<_, String>(0)?)
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(ids)
 }
 
@@ -1183,10 +1163,9 @@ pub fn get_scene_ids_for_reference_item(
         .prepare("SELECT scene_id FROM scene_reference_item_refs WHERE reference_item_id = ?1")?;
     let ids = stmt
         .query_map(params![reference_item_id.to_string()], |row| {
-            Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+            parse_uuid(&row.get::<_, String>(0)?)
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(ids)
 }
 
@@ -1196,10 +1175,9 @@ pub fn get_scene_characters(conn: &Connection, scene_id: &Uuid) -> Result<Vec<Uu
 
     let ids = stmt
         .query_map(params![scene_id.to_string()], |row| {
-            Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+            parse_uuid(&row.get::<_, String>(0)?)
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(ids)
 }
@@ -1210,10 +1188,9 @@ pub fn get_scene_locations(conn: &Connection, scene_id: &Uuid) -> Result<Vec<Uui
 
     let ids = stmt
         .query_map(params![scene_id.to_string()], |row| {
-            Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+            parse_uuid(&row.get::<_, String>(0)?)
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(ids)
 }
@@ -1232,15 +1209,14 @@ pub fn get_scene_reference_states(
     let states = stmt
         .query_map(params![scene_id.to_string()], |row| {
             Ok(SceneReferenceState {
-                scene_id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                scene_id: parse_uuid(&row.get::<_, String>(0)?)?,
                 reference_type: row.get(1)?,
-                reference_id: Uuid::parse_str(&row.get::<_, String>(2)?).unwrap(),
+                reference_id: parse_uuid(&row.get::<_, String>(2)?)?,
                 position: row.get(3)?,
                 expanded: row.get::<_, i32>(4)? != 0,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(states)
 }
@@ -1259,15 +1235,14 @@ pub fn get_scene_reference_states_for_reference(
     let states = stmt
         .query_map(params![reference_type, reference_id.to_string()], |row| {
             Ok(SceneReferenceState {
-                scene_id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                scene_id: parse_uuid(&row.get::<_, String>(0)?)?,
                 reference_type: row.get(1)?,
-                reference_id: Uuid::parse_str(&row.get::<_, String>(2)?).unwrap(),
+                reference_id: parse_uuid(&row.get::<_, String>(2)?)?,
                 position: row.get(3)?,
                 expanded: row.get::<_, i32>(4)? != 0,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(states)
 }
@@ -1359,12 +1334,11 @@ pub fn build_default_scene_reference_state(
          WHERE scr.scene_id = ?1
          ORDER BY c.name",
     )?;
-    let character_rows = character_stmt
+    let character_rows: Vec<Uuid> = character_stmt
         .query_map(params![scene_id.to_string()], |row| {
-            Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+            parse_uuid(&row.get::<_, String>(0)?)
         })?
-        .filter_map(|r| r.ok())
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
     for (position, character_id) in character_rows.into_iter().enumerate() {
         states.push(SceneReferenceState {
             scene_id: *scene_id,
@@ -1382,12 +1356,11 @@ pub fn build_default_scene_reference_state(
          WHERE slr.scene_id = ?1
          ORDER BY l.name",
     )?;
-    let location_rows = location_stmt
+    let location_rows: Vec<Uuid> = location_stmt
         .query_map(params![scene_id.to_string()], |row| {
-            Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
+            parse_uuid(&row.get::<_, String>(0)?)
         })?
-        .filter_map(|r| r.ok())
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
     for (position, location_id) in location_rows.into_iter().enumerate() {
         states.push(SceneReferenceState {
             scene_id: *scene_id,
@@ -1405,15 +1378,14 @@ pub fn build_default_scene_reference_state(
          WHERE srir.scene_id = ?1
          ORDER BY ri.reference_type, ri.name",
     )?;
-    let reference_rows = reference_stmt
+    let reference_rows: Vec<(Uuid, String)> = reference_stmt
         .query_map(params![scene_id.to_string()], |row| {
             Ok((
-                Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                parse_uuid(&row.get::<_, String>(0)?)?,
                 row.get::<_, String>(1)?,
             ))
         })?
-        .filter_map(|r| r.ok())
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
 
     let mut type_positions: HashMap<String, i32> = HashMap::new();
     for (reference_id, reference_type) in reference_rows {
@@ -1525,8 +1497,8 @@ pub fn get_scene_reference_items(
     let mut items: Vec<ReferenceItem> = stmt
         .query_map(params![scene_id.to_string(), reference_type], |row| {
             Ok(ReferenceItem {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
+                project_id: parse_uuid(&row.get::<_, String>(1)?)?,
                 reference_type: row.get(2)?,
                 name: row.get(3)?,
                 description: row.get(4)?,
@@ -1534,8 +1506,7 @@ pub fn get_scene_reference_items(
                 source_id: row.get(5)?,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     for item in &mut items {
         let mut attr_stmt = conn.prepare(
@@ -1548,8 +1519,7 @@ pub fn get_scene_reference_items(
                     row.get::<_, Option<String>>(1)?.unwrap_or_default(),
                 ))
             })?
-            .filter_map(|r| r.ok())
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
 
         item.attributes = attrs.into_iter().collect();
     }
@@ -1590,84 +1560,75 @@ pub fn get_scene_beat_count(conn: &Connection, scene_id: &Uuid) -> Result<i32> {
 
 /// Delete a chapter and all its scenes, beats, and references
 pub fn delete_chapter(conn: &Connection, chapter_id: &Uuid) -> Result<()> {
-    conn.execute("BEGIN TRANSACTION", [])?;
+    let tx = conn.unchecked_transaction()?;
 
-    // Delete scene references for all scenes in this chapter
-    conn.execute(
+    tx.execute(
         "DELETE FROM scene_character_refs WHERE scene_id IN (SELECT id FROM scenes WHERE chapter_id = ?1)",
         params![chapter_id.to_string()],
     )?;
-    conn.execute(
+    tx.execute(
         "DELETE FROM scene_location_refs WHERE scene_id IN (SELECT id FROM scenes WHERE chapter_id = ?1)",
         params![chapter_id.to_string()],
     )?;
-    conn.execute(
+    tx.execute(
         "DELETE FROM scene_reference_item_refs WHERE scene_id IN (SELECT id FROM scenes WHERE chapter_id = ?1)",
         params![chapter_id.to_string()],
     )?;
-    conn.execute(
+    tx.execute(
         "DELETE FROM scene_reference_state WHERE scene_id IN (SELECT id FROM scenes WHERE chapter_id = ?1)",
         params![chapter_id.to_string()],
     )?;
 
-    // Delete beats for all scenes in this chapter
-    conn.execute(
+    tx.execute(
         "DELETE FROM beats WHERE scene_id IN (SELECT id FROM scenes WHERE chapter_id = ?1)",
         params![chapter_id.to_string()],
     )?;
 
-    // Delete all scenes in this chapter
-    conn.execute(
+    tx.execute(
         "DELETE FROM scenes WHERE chapter_id = ?1",
         params![chapter_id.to_string()],
     )?;
 
-    // Delete the chapter itself
-    conn.execute(
+    tx.execute(
         "DELETE FROM chapters WHERE id = ?1",
         params![chapter_id.to_string()],
     )?;
 
-    conn.execute("COMMIT", [])?;
-    Ok(())
+    tx.commit()
 }
 
 /// Delete a scene and all its beats and references
 pub fn delete_scene(conn: &Connection, scene_id: &Uuid) -> Result<()> {
-    conn.execute("BEGIN TRANSACTION", [])?;
+    let tx = conn.unchecked_transaction()?;
 
-    // Delete scene references
-    conn.execute(
+    tx.execute(
         "DELETE FROM scene_character_refs WHERE scene_id = ?1",
         params![scene_id.to_string()],
     )?;
-    conn.execute(
+    tx.execute(
         "DELETE FROM scene_location_refs WHERE scene_id = ?1",
         params![scene_id.to_string()],
     )?;
-    conn.execute(
+    tx.execute(
         "DELETE FROM scene_reference_item_refs WHERE scene_id = ?1",
         params![scene_id.to_string()],
     )?;
-    conn.execute(
+    tx.execute(
         "DELETE FROM scene_reference_state WHERE scene_id = ?1",
         params![scene_id.to_string()],
     )?;
 
-    // Delete beats
-    conn.execute(
+    tx.execute(
         "DELETE FROM beats WHERE scene_id = ?1",
         params![scene_id.to_string()],
     )?;
 
-    // Delete the scene
-    conn.execute(
+    tx.execute(
         "DELETE FROM scenes WHERE id = ?1",
         params![scene_id.to_string()],
     )?;
 
-    conn.execute("COMMIT", [])?;
-    Ok(())
+    tx.commit()
 }
 
 // ============================================================================
@@ -1689,8 +1650,8 @@ pub fn find_chapter_by_source_id(
 
     if let Some(row) = rows.next()? {
         Ok(Some(Chapter {
-            id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-            project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+            id: parse_uuid(&row.get::<_, String>(0)?)?,
+            project_id: parse_uuid(&row.get::<_, String>(1)?)?,
             title: row.get(2)?,
             position: row.get(3)?,
             source_id: row.get(4)?,
@@ -1723,8 +1684,8 @@ pub fn find_scene_by_source_id(
 
     if let Some(row) = rows.next()? {
         Ok(Some(Scene {
-            id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-            chapter_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+            id: parse_uuid(&row.get::<_, String>(0)?)?,
+            chapter_id: parse_uuid(&row.get::<_, String>(1)?)?,
             title: row.get(2)?,
             synopsis: row.get(3)?,
             prose: row.get(4)?,
@@ -1759,8 +1720,8 @@ pub fn find_beat_by_source_id(
 
     if let Some(row) = rows.next()? {
         Ok(Some(Beat {
-            id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-            scene_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+            id: parse_uuid(&row.get::<_, String>(0)?)?,
+            scene_id: parse_uuid(&row.get::<_, String>(1)?)?,
             content: row.get(2)?,
             prose: row.get(3)?,
             position: row.get(4)?,
@@ -1915,11 +1876,8 @@ pub fn get_all_project_scenes(conn: &Connection, project_id: &Uuid) -> Result<Ve
     )?;
 
     let scenes = stmt
-        .query_map(params![project_id.to_string()], |row| {
-            Ok(scene_from_row(row))
-        })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .query_map(params![project_id.to_string()], scene_from_row)?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(scenes)
 }
@@ -1938,16 +1896,15 @@ pub fn get_all_project_beats(conn: &Connection, project_id: &Uuid) -> Result<Vec
     let beats = stmt
         .query_map(params![project_id.to_string()], |row| {
             Ok(Beat {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                scene_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
+                scene_id: parse_uuid(&row.get::<_, String>(1)?)?,
                 content: row.get(2)?,
                 prose: row.get(3)?,
                 position: row.get(4)?,
                 source_id: row.get(5)?,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(beats)
 }
@@ -1995,11 +1952,8 @@ pub fn get_archived_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec
     )?;
 
     let chapters = stmt
-        .query_map(params![project_id.to_string()], |row| {
-            Ok(chapter_from_row(row))
-        })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .query_map(params![project_id.to_string()], chapter_from_row)?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(chapters)
 }
@@ -2014,11 +1968,8 @@ pub fn get_archived_scenes(conn: &Connection, project_id: &Uuid) -> Result<Vec<S
     )?;
 
     let scenes = stmt
-        .query_map(params![project_id.to_string()], |row| {
-            Ok(scene_from_row(row))
-        })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .query_map(params![project_id.to_string()], scene_from_row)?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(scenes)
 }
@@ -2117,9 +2068,7 @@ pub fn get_chapter_by_id(conn: &Connection, chapter_id: &Uuid) -> Result<Option<
     )?;
 
     let chapter = stmt
-        .query_row(params![chapter_id.to_string()], |row| {
-            Ok(chapter_from_row(row))
-        })
+        .query_row(params![chapter_id.to_string()], chapter_from_row)
         .optional()?;
 
     Ok(chapter)
@@ -2132,7 +2081,7 @@ pub fn get_scene_by_id(conn: &Connection, scene_id: &Uuid) -> Result<Option<Scen
     )?;
 
     let scene = stmt
-        .query_row(params![scene_id.to_string()], |row| Ok(scene_from_row(row)))
+        .query_row(params![scene_id.to_string()], scene_from_row)
         .optional()?;
 
     Ok(scene)
@@ -2178,8 +2127,8 @@ pub fn get_snapshots_for_project(
     let snapshots = stmt
         .query_map(params![project_id.to_string()], |row| {
             Ok(SnapshotMetadata {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
+                project_id: parse_uuid(&row.get::<_, String>(1)?)?,
                 name: row.get(2)?,
                 description: row.get(3)?,
                 trigger_type: SnapshotTrigger::parse(&row.get::<_, String>(4)?)
@@ -2195,8 +2144,7 @@ pub fn get_snapshots_for_project(
                 schema_version: row.get(13)?,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(snapshots)
 }
@@ -2213,8 +2161,8 @@ pub fn get_snapshot_by_id(
     let snapshot = stmt
         .query_row(params![snapshot_id.to_string()], |row| {
             Ok(SnapshotMetadata {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                project_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
+                project_id: parse_uuid(&row.get::<_, String>(1)?)?,
                 name: row.get(2)?,
                 description: row.get(3)?,
                 trigger_type: SnapshotTrigger::parse(&row.get::<_, String>(4)?)
@@ -2259,12 +2207,11 @@ pub fn get_all_scene_character_refs(
     let refs = stmt
         .query_map(params![project_id.to_string()], |row| {
             Ok(SceneCharacterRef {
-                scene_id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                character_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                scene_id: parse_uuid(&row.get::<_, String>(0)?)?,
+                character_id: parse_uuid(&row.get::<_, String>(1)?)?,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(refs)
 }
@@ -2285,12 +2232,11 @@ pub fn get_all_scene_location_refs(
     let refs = stmt
         .query_map(params![project_id.to_string()], |row| {
             Ok(SceneLocationRef {
-                scene_id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                location_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                scene_id: parse_uuid(&row.get::<_, String>(0)?)?,
+                location_id: parse_uuid(&row.get::<_, String>(1)?)?,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(refs)
 }
@@ -2311,15 +2257,14 @@ pub fn get_all_scene_reference_states(
     let states = stmt
         .query_map(params![project_id.to_string()], |row| {
             Ok(SceneReferenceState {
-                scene_id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                scene_id: parse_uuid(&row.get::<_, String>(0)?)?,
                 reference_type: row.get(1)?,
-                reference_id: Uuid::parse_str(&row.get::<_, String>(2)?).unwrap(),
+                reference_id: parse_uuid(&row.get::<_, String>(2)?)?,
                 position: row.get(3)?,
                 expanded: row.get::<_, i32>(4)? != 0,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(states)
 }
@@ -2341,16 +2286,15 @@ pub fn get_all_discovery_notes_for_project(
     let notes = stmt
         .query_map(params![project_id.to_string()], |row| {
             Ok(DiscoveryNote {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                scene_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
+                scene_id: parse_uuid(&row.get::<_, String>(1)?)?,
                 content: row.get(2)?,
                 tags: parse_tags(row.get(3)?),
                 position: row.get(4)?,
                 created_at: row.get(5)?,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(notes)
 }
@@ -2371,12 +2315,11 @@ pub fn get_all_scene_reference_item_refs(
     let refs = stmt
         .query_map(params![project_id.to_string()], |row| {
             Ok(SceneReferenceItemRef {
-                scene_id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                reference_item_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                scene_id: parse_uuid(&row.get::<_, String>(0)?)?,
+                reference_item_id: parse_uuid(&row.get::<_, String>(1)?)?,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(refs)
 }
@@ -2392,11 +2335,8 @@ pub fn get_all_chapters_including_archived(
     )?;
 
     let chapters = stmt
-        .query_map(params![project_id.to_string()], |row| {
-            Ok(chapter_from_row(row))
-        })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .query_map(params![project_id.to_string()], chapter_from_row)?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(chapters)
 }
@@ -2415,11 +2355,8 @@ pub fn get_all_scenes_including_archived(
     )?;
 
     let scenes = stmt
-        .query_map(params![project_id.to_string()], |row| {
-            Ok(scene_from_row(row))
-        })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .query_map(params![project_id.to_string()], scene_from_row)?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(scenes)
 }
@@ -2438,16 +2375,15 @@ pub fn get_all_beats_for_project(conn: &Connection, project_id: &Uuid) -> Result
     let beats = stmt
         .query_map(params![project_id.to_string()], |row| {
             Ok(Beat {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                scene_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+                id: parse_uuid(&row.get::<_, String>(0)?)?,
+                scene_id: parse_uuid(&row.get::<_, String>(1)?)?,
                 content: row.get(2)?,
                 prose: row.get(3)?,
                 position: row.get(4)?,
                 source_id: row.get(5)?,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(beats)
 }

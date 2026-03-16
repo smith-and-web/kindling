@@ -5,7 +5,6 @@
   Similar to ArchivePanel but for versioning/restore points.
 -->
 <script lang="ts">
-  /* eslint-disable no-undef */
   import {
     X,
     Clock,

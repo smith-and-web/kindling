@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable no-undef */
   import {
     FileText,
     ChevronRight,
@@ -770,7 +769,7 @@
   });
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 <div data-testid="scene-panel" class="flex-1 flex flex-col h-full overflow-hidden">
   {#if currentProject.currentScene}

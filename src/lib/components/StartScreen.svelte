@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { open } from "@tauri-apps/plugin-dialog";
+  import { runImport, type ImportType } from "../utils/import";
   import {
     FileText,
     HelpCircle,
@@ -41,70 +41,18 @@
   let showSettingsDialog = $state(false);
   let showAllProjects = $state(false);
 
-  async function importPlottr() {
-    const path = await open({
-      multiple: false,
-      filters: [{ name: "Plottr", extensions: ["pltr"] }],
-    });
-
-    if (path) {
-      ui.startImport();
-      try {
-        const project = await invoke<Project>("import_plottr", { path });
-        currentProject.setProject(project);
-        ui.setView("editor");
-        onImportComplete?.(project);
-      } catch (e) {
-        console.error("Failed to import Plottr file:", e);
-        ui.showError(`Import failed: ${e}`);
-      } finally {
-        ui.finishImport();
-      }
-    }
+  async function handleImport(type: ImportType) {
+    const project = await runImport(type);
+    if (!project) return;
+    currentProject.setProject(project);
+    ui.setView("editor");
+    onImportComplete?.(project);
   }
 
-  async function importMarkdown() {
-    const path = await open({
-      multiple: false,
-      filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
-    });
-
-    if (path) {
-      ui.startImport();
-      try {
-        const project = await invoke<Project>("import_markdown", { path });
-        currentProject.setProject(project);
-        ui.setView("editor");
-      } catch (e) {
-        console.error("Failed to import Markdown file:", e);
-        ui.showError(`Import failed: ${e}`);
-      } finally {
-        ui.finishImport();
-      }
-    }
-  }
-
-  async function importLongform() {
-    const path = await open({
-      multiple: false,
-      filters: [{ name: "Longform Index", extensions: ["md", "markdown"] }],
-    });
-
-    if (path) {
-      ui.startImport();
-      try {
-        const project = await invoke<Project>("import_longform", { path });
-        currentProject.setProject(project);
-        ui.setView("editor");
-        onImportComplete?.(project);
-      } catch (e) {
-        console.error("Failed to import Longform index:", e);
-        ui.showError(`Import failed: ${e}`);
-      } finally {
-        ui.finishImport();
-      }
-    }
-  }
+  const importPlottr = () => handleImport("plottr");
+  const importMarkdown = () => handleImport("markdown");
+  const importYWriter = () => handleImport("ywriter");
+  const importLongform = () => handleImport("longform");
 
   function handleLongformImport() {
     const handler = onImportLongform ?? importLongform;
@@ -123,28 +71,6 @@
       ui.showError(`Failed to create sample project: ${e}`);
     } finally {
       ui.finishImport();
-    }
-  }
-
-  async function importYWriter() {
-    const path = await open({
-      multiple: false,
-      filters: [{ name: "yWriter 7", extensions: ["yw7"] }],
-    });
-
-    if (path) {
-      ui.startImport();
-      try {
-        const project = await invoke<Project>("import_ywriter", { path });
-        currentProject.setProject(project);
-        ui.setView("editor");
-        onImportComplete?.(project);
-      } catch (e) {
-        console.error("Failed to import yWriter file:", e);
-        ui.showError(`Import failed: ${e}`);
-      } finally {
-        ui.finishImport();
-      }
     }
   }
 

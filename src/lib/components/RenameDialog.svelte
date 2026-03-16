@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable no-undef, svelte/prefer-writable-derived */
   import { X, Loader2 } from "lucide-svelte";
   import Tooltip from "./Tooltip.svelte";
 
@@ -15,15 +14,10 @@
     onClose: () => void;
   } = $props();
 
-  let newName = $state("");
+  let newName = $state(currentName);
   let saving = $state(false);
   let error = $state<string | null>(null);
   let inputRef: HTMLInputElement | null = $state(null);
-
-  // Initialize newName from currentName
-  $effect(() => {
-    newName = currentName;
-  });
 
   // Focus input on mount
   $effect(() => {
@@ -68,7 +62,7 @@
   }
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 <!-- Backdrop -->
 <div

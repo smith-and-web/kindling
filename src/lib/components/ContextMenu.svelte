@@ -1,19 +1,19 @@
-<script lang="ts">
-  /* eslint-disable no-undef */
-  import { ChevronRight } from "lucide-svelte";
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  type IconComponent = any;
+<script module lang="ts">
+  import type { ComponentType } from "svelte";
 
   export interface MenuItem {
     label: string;
-    icon?: IconComponent;
+    icon?: ComponentType;
     action: () => void | Promise<void>;
     disabled?: boolean;
     danger?: boolean;
     divider?: boolean;
     children?: MenuItem[];
   }
+</script>
+
+<script lang="ts">
+  import { ChevronRight } from "lucide-svelte";
 
   let {
     items,
@@ -124,7 +124,7 @@
   }
 </script>
 
-<svelte:window on:click={handleClickOutside} on:keydown={handleKeydown} />
+<svelte:window onclick={handleClickOutside} onkeydown={handleKeydown} />
 
 <div
   bind:this={menuRef}

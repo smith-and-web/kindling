@@ -648,6 +648,60 @@ describe("currentProject store", () => {
     expect(currentProject.beats).toEqual([]);
   });
 
+  it("should remove a beat", () => {
+    const beats = [
+      { id: "b-1", scene_id: "sc-1", content: "Beat 1", position: 0, prose: null },
+      { id: "b-2", scene_id: "sc-1", content: "Beat 2", position: 1, prose: null },
+    ];
+    currentProject.setBeats(beats);
+
+    currentProject.removeBeat("b-1");
+
+    expect(currentProject.beats).toHaveLength(1);
+    expect(currentProject.beats[0].id).toBe("b-2");
+  });
+
+  it("should handle removing non-existent beat", () => {
+    const beats = [{ id: "b-1", scene_id: "sc-1", content: "Beat 1", position: 0, prose: null }];
+    currentProject.setBeats(beats);
+
+    currentProject.removeBeat("non-existent");
+
+    expect(currentProject.beats).toHaveLength(1);
+  });
+
+  it("should reorder beats", () => {
+    const beats = [
+      { id: "b-1", scene_id: "sc-1", content: "Beat 1", position: 0, prose: null },
+      { id: "b-2", scene_id: "sc-1", content: "Beat 2", position: 1, prose: null },
+      { id: "b-3", scene_id: "sc-1", content: "Beat 3", position: 2, prose: null },
+    ];
+    currentProject.setBeats(beats);
+
+    currentProject.reorderBeats(["b-3", "b-1", "b-2"]);
+
+    expect(currentProject.beats[0].id).toBe("b-3");
+    expect(currentProject.beats[0].position).toBe(0);
+    expect(currentProject.beats[1].id).toBe("b-1");
+    expect(currentProject.beats[1].position).toBe(1);
+    expect(currentProject.beats[2].id).toBe("b-2");
+    expect(currentProject.beats[2].position).toBe(2);
+  });
+
+  it("should handle reorder beats with invalid ids", () => {
+    const beats = [
+      { id: "b-1", scene_id: "sc-1", content: "Beat 1", position: 0, prose: null },
+      { id: "b-2", scene_id: "sc-1", content: "Beat 2", position: 1, prose: null },
+    ];
+    currentProject.setBeats(beats);
+
+    currentProject.reorderBeats(["b-2", "invalid-id", "b-1"]);
+
+    expect(currentProject.beats).toHaveLength(2);
+    expect(currentProject.beats[0].id).toBe("b-2");
+    expect(currentProject.beats[1].id).toBe("b-1");
+  });
+
   it("should manage beats", () => {
     const beats = [
       { id: "b-1", scene_id: "sc-1", content: "Beat 1", position: 0, prose: null },
@@ -739,8 +793,8 @@ describe("currentProject store", () => {
     expect(currentProject.beats[1]).toEqual(beat2);
   });
 
-  it("should update scene synopsis", () => {
-    const scene = {
+  it("should update scene synopsis and leave other scenes unchanged", () => {
+    const scene1 = {
       id: "sc-1",
       chapter_id: "ch-1",
       title: "Scene 1",
@@ -752,11 +806,24 @@ describe("currentProject store", () => {
       ...defaultSceneMeta,
       is_part: false,
     };
-    currentProject.setScenes([scene]);
+    const scene2 = {
+      id: "sc-2",
+      chapter_id: "ch-1",
+      title: "Scene 2",
+      synopsis: "Other synopsis",
+      position: 1,
+      prose: null,
+      archived: false,
+      locked: false,
+      ...defaultSceneMeta,
+      is_part: false,
+    };
+    currentProject.setScenes([scene1, scene2]);
 
     currentProject.updateSceneSynopsis("sc-1", "Updated synopsis");
 
     expect(currentProject.scenes[0].synopsis).toBe("Updated synopsis");
+    expect(currentProject.scenes[1].synopsis).toBe("Other synopsis");
   });
 
   it("should update scene synopsis and currentScene when it matches", () => {
@@ -949,8 +1016,8 @@ describe("currentProject store", () => {
     expect(currentProject.scenes[1].title).toBe("Updated Scene 2");
   });
 
-  it("should refresh current scene", () => {
-    const scene = {
+  it("should refresh current scene and leave other scenes unchanged", () => {
+    const scene1 = {
       id: "sc-1",
       chapter_id: "ch-1",
       title: "Original Title",
@@ -962,11 +1029,23 @@ describe("currentProject store", () => {
       ...defaultSceneMeta,
       is_part: false,
     };
-    currentProject.setScenes([scene]);
-    currentProject.setCurrentScene(scene);
+    const scene2 = {
+      id: "sc-2",
+      chapter_id: "ch-1",
+      title: "Other Scene",
+      synopsis: "Other",
+      position: 1,
+      prose: null,
+      archived: false,
+      locked: false,
+      ...defaultSceneMeta,
+      is_part: false,
+    };
+    currentProject.setScenes([scene1, scene2]);
+    currentProject.setCurrentScene(scene1);
 
     const updatedScene = {
-      ...scene,
+      ...scene1,
       title: "Refreshed Title",
       prose: "Some prose",
     };
@@ -975,6 +1054,6 @@ describe("currentProject store", () => {
     expect(currentProject.currentScene?.title).toBe("Refreshed Title");
     expect(currentProject.currentScene?.prose).toBe("Some prose");
     expect(currentProject.scenes[0].title).toBe("Refreshed Title");
-    expect(currentProject.scenes[0].prose).toBe("Some prose");
+    expect(currentProject.scenes[1].title).toBe("Other Scene");
   });
 });

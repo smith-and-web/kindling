@@ -63,6 +63,7 @@ class UIStore {
   private _importProgress = $state(0);
   private _importStatus = $state("");
   private _toast = $state<{ id: number; message: string } | null>(null);
+  private _toastIdCounter = 0;
 
   // Onboarding state
   private _showOnboarding = $state(false);
@@ -74,34 +75,27 @@ class UIStore {
   private _tooltipSeenVersion = $state(0); // Bump to trigger re-check of localStorage
 
   constructor() {
-    // Load saved panel width from localStorage
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(REFERENCES_PANEL_STORAGE_KEY);
-      if (saved) {
-        const width = parseInt(saved, 10);
-        if (!isNaN(width) && width >= REFERENCES_PANEL_MIN_WIDTH) {
-          this._referencesPanelWidth = width;
-        }
+    const saved = localStorage.getItem(REFERENCES_PANEL_STORAGE_KEY);
+    if (saved) {
+      const width = parseInt(saved, 10);
+      if (!isNaN(width) && width >= REFERENCES_PANEL_MIN_WIDTH) {
+        this._referencesPanelWidth = width;
       }
-
-      // Load onboarding completion status
-      const onboardingCompleted = localStorage.getItem(ONBOARDING_COMPLETED_KEY);
-      this._onboardingCompleted = onboardingCompleted === "true";
-      // Show onboarding if not completed
-      this._showOnboarding = !this._onboardingCompleted;
-
-      // Load guidance preference (default true when not set)
-      const guidanceStored = localStorage.getItem(GUIDANCE_ENABLED_KEY);
-      this._guidanceEnabled = guidanceStored === null ? true : guidanceStored === "true";
-
-      // Clamp width on window resize
-      window.addEventListener("resize", () => {
-        const maxWidth = this.referencesPanelMaxWidth;
-        if (this._referencesPanelWidth > maxWidth) {
-          this._referencesPanelWidth = maxWidth;
-        }
-      });
     }
+
+    const onboardingCompleted = localStorage.getItem(ONBOARDING_COMPLETED_KEY);
+    this._onboardingCompleted = onboardingCompleted === "true";
+    this._showOnboarding = !this._onboardingCompleted;
+
+    const guidanceStored = localStorage.getItem(GUIDANCE_ENABLED_KEY);
+    this._guidanceEnabled = guidanceStored === null ? true : guidanceStored === "true";
+
+    window.addEventListener("resize", () => {
+      const maxWidth = this.referencesPanelMaxWidth;
+      if (this._referencesPanelWidth > maxWidth) {
+        this._referencesPanelWidth = maxWidth;
+      }
+    });
   }
 
   get currentView() {
@@ -133,8 +127,6 @@ class UIStore {
   }
 
   get referencesPanelMaxWidth() {
-    // Dynamic max: 50% of window minus sidebar width (when expanded)
-    if (typeof window === "undefined") return 600;
     const sidebarWidth = this._sidebarCollapsed ? 0 : SIDEBAR_WIDTH;
     const availableWidth = window.innerWidth - sidebarWidth;
     return Math.max(REFERENCES_PANEL_MIN_WIDTH, Math.floor(availableWidth * 0.5));
@@ -144,10 +136,7 @@ class UIStore {
     const maxWidth = this.referencesPanelMaxWidth;
     const clamped = Math.max(REFERENCES_PANEL_MIN_WIDTH, Math.min(maxWidth, width));
     this._referencesPanelWidth = clamped;
-    // Persist to localStorage
-    if (typeof window !== "undefined") {
-      localStorage.setItem(REFERENCES_PANEL_STORAGE_KEY, String(clamped));
-    }
+    localStorage.setItem(REFERENCES_PANEL_STORAGE_KEY, String(clamped));
   }
 
   get focusMode() {
@@ -232,7 +221,7 @@ class UIStore {
   }
 
   showError(message: string) {
-    this._toast = { id: Date.now(), message };
+    this._toast = { id: ++this._toastIdCounter, message };
   }
 
   clearToast() {
@@ -287,9 +276,7 @@ class UIStore {
   completeOnboarding() {
     this._showOnboarding = false;
     this._onboardingCompleted = true;
-    if (typeof window !== "undefined") {
-      localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
-    }
+    localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
   }
 
   skipOnboarding() {
@@ -301,9 +288,7 @@ class UIStore {
     this._showOnboarding = true;
     this._onboardingStep = "welcome";
     this._onboardingCompleted = false;
-    if (typeof window !== "undefined") {
-      localStorage.removeItem(ONBOARDING_COMPLETED_KEY);
-    }
+    localStorage.removeItem(ONBOARDING_COMPLETED_KEY);
   }
 
   // Guidance getters/setters (Phase C)
@@ -313,34 +298,27 @@ class UIStore {
 
   setGuidanceEnabled(enabled: boolean) {
     this._guidanceEnabled = enabled;
-    if (typeof window !== "undefined") {
-      localStorage.setItem(GUIDANCE_ENABLED_KEY, String(enabled));
-    }
+    localStorage.setItem(GUIDANCE_ENABLED_KEY, String(enabled));
   }
 
   hasSeenTooltip(area: GuidanceArea): boolean {
-    void this._tooltipSeenVersion; // Subscribe to updates
-    if (typeof window === "undefined") return true;
+    void this._tooltipSeenVersion;
     return localStorage.getItem(TOOLTIP_SEEN_PREFIX + area) === "true";
   }
 
   markTooltipSeen(area: GuidanceArea) {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(TOOLTIP_SEEN_PREFIX + area, "true");
-      this._tooltipSeenVersion += 1;
-    }
+    localStorage.setItem(TOOLTIP_SEEN_PREFIX + area, "true");
+    this._tooltipSeenVersion += 1;
   }
 
   // For testing: reset guidance tooltips
   resetGuidanceTooltips() {
-    if (typeof window !== "undefined") {
-      (["sidebar", "scenePanel", "references", "sync", "planningStatus"] as GuidanceArea[]).forEach(
-        (area) => {
-          localStorage.removeItem(TOOLTIP_SEEN_PREFIX + area);
-        }
-      );
-      this._tooltipSeenVersion += 1;
-    }
+    (["sidebar", "scenePanel", "references", "sync", "planningStatus"] as GuidanceArea[]).forEach(
+      (area) => {
+        localStorage.removeItem(TOOLTIP_SEEN_PREFIX + area);
+      }
+    );
+    this._tooltipSeenVersion += 1;
   }
 }
 

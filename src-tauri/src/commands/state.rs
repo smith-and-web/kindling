@@ -22,7 +22,8 @@ impl AppState {
         let db_path = app_data_dir.join("kindling.db");
         let conn = Connection::open(&db_path)?;
 
-        // Initialize schema
+        conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+
         initialize_schema(&conn)?;
 
         Ok(Self {
