@@ -18,6 +18,8 @@
   import QuickStartDialog from "./lib/components/QuickStartDialog.svelte";
   import GuidanceOverlay from "./lib/components/GuidanceOverlay.svelte";
   import CommandPalette from "./lib/components/CommandPalette.svelte";
+  import UpdateBanner from "./lib/components/UpdateBanner.svelte";
+  import { checkForUpdate } from "./lib/updater";
   import RenameDialog from "./lib/components/RenameDialog.svelte";
   import { COMMAND_DEFS } from "./lib/commands";
   import { currentProject } from "./lib/stores/project.svelte";
@@ -197,6 +199,14 @@
     currentProject.setProject(null);
   }
 
+  // Check for updates on launch (delayed so it doesn't block startup)
+  onMount(() => {
+    const t = setTimeout(() => {
+      checkForUpdate();
+    }, 3000);
+    return () => clearTimeout(t);
+  });
+
   // Handle menu events from Tauri
   onMount(() => {
     const unlisten = listen<string>("menu-event", (event) => {
@@ -339,6 +349,8 @@
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
+
+<UpdateBanner />
 
 <main class="flex h-screen w-screen overflow-hidden bg-bg-primary">
   {#if currentProject.value}
