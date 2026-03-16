@@ -55,6 +55,10 @@ export async function skipOnboardingIfPresent() {
       { timeout: 5000, timeoutMsg: "Onboarding did not close" }
     );
   }
+  // Disable guidance tooltips so the overlay doesn't intercept clicks
+  await browser.execute(() => {
+    window.__KINDLING_TEST__?.disableGuidance();
+  });
 }
 
 /**
@@ -251,11 +255,15 @@ export async function typeProse(text) {
   const editor = await $('[data-testid="beat-prose-editor"] .novel-editor-content');
   await editor.click(); // Focus the editor
   // Clear existing content and type new text
-  await browser.execute((el, newText) => {
-    el.innerHTML = `<p>${newText}</p>`;
-    // Dispatch input event so TipTap processes it
-    el.dispatchEvent(new InputEvent("input", { bubbles: true }));
-  }, editor, text);
+  await browser.execute(
+    (el, newText) => {
+      el.innerHTML = `<p>${newText}</p>`;
+      // Dispatch input event so TipTap processes it
+      el.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    },
+    editor,
+    text
+  );
 }
 
 /**

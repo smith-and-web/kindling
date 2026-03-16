@@ -18,6 +18,7 @@ declare global {
     __KINDLING_TEST__?: {
       invoke: typeof invoke;
       importProject: (path: string) => Promise<Project>;
+      disableGuidance: () => void;
     };
   }
 }
@@ -65,6 +66,10 @@ async function importProject(
 }
 
 // Always expose for E2E testing - the test helper checks for this
-window.__KINDLING_TEST__ = { invoke, importProject };
+window.__KINDLING_TEST__ = {
+  invoke,
+  importProject,
+  disableGuidance: () => ui.setGuidanceEnabled(false),
+};
 
 export default app;
