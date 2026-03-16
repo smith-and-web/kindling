@@ -7,8 +7,8 @@ describe("COMMAND_DEFS", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("has unique shortcuts", () => {
-    const shortcuts = COMMAND_DEFS.map((c) => c.shortcut);
+  it("has unique shortcuts among commands that have one", () => {
+    const shortcuts = COMMAND_DEFS.map((c) => c.shortcut).filter((s) => s !== "");
     expect(new Set(shortcuts).size).toBe(shortcuts.length);
   });
 
@@ -31,6 +31,8 @@ describe("COMMAND_DEFS", () => {
     expect(ids).toContain("toggle_sidebar");
     expect(ids).toContain("quick_start");
     expect(ids).toContain("sync");
+    expect(ids).toContain("quit");
+    expect(ids).toContain("about");
   });
 });
 
