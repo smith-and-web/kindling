@@ -1,8 +1,8 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
-  import { open } from "@tauri-apps/plugin-dialog";
   import { onMount } from "svelte";
+  import { runImport, type ImportType } from "./lib/utils/import";
   import Onboarding from "./lib/components/Onboarding.svelte";
   import ReferencesPanel from "./lib/components/ReferencesPanel.svelte";
   import ScenePanel from "./lib/components/ScenePanel.svelte";
@@ -79,110 +79,22 @@
     }
   });
 
-  // Import functions (same as StartScreen)
-  async function importPlottr() {
-    const path = await open({
-      multiple: false,
-      filters: [{ name: "Plottr", extensions: ["pltr"] }],
-    });
+  const HAS_REFERENCES: ImportType[] = ["plottr", "ywriter", "longform", "longformVault"];
 
-    if (path) {
-      ui.startImport();
-      try {
-        const project = await invoke<Project>("import_plottr", { path });
-        activateImportedProject(project);
-        openReferenceClassificationDialog(project);
-      } catch (e) {
-        console.error("Failed to import Plottr file:", e);
-        ui.showError(`Import failed: ${e}`);
-      } finally {
-        ui.finishImport();
-      }
+  async function handleImport(type: ImportType) {
+    const project = await runImport(type);
+    if (!project) return;
+    activateImportedProject(project);
+    if (HAS_REFERENCES.includes(type)) {
+      openReferenceClassificationDialog(project);
     }
   }
 
-  async function importMarkdown() {
-    const path = await open({
-      multiple: false,
-      filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
-    });
-
-    if (path) {
-      ui.startImport();
-      try {
-        const project = await invoke<Project>("import_markdown", { path });
-        activateImportedProject(project);
-      } catch (e) {
-        console.error("Failed to import Markdown file:", e);
-        ui.showError(`Import failed: ${e}`);
-      } finally {
-        ui.finishImport();
-      }
-    }
-  }
-
-  async function importYWriter() {
-    const path = await open({
-      multiple: false,
-      filters: [{ name: "yWriter 7", extensions: ["yw7"] }],
-    });
-
-    if (path) {
-      ui.startImport();
-      try {
-        const project = await invoke<Project>("import_ywriter", { path });
-        activateImportedProject(project);
-        openReferenceClassificationDialog(project);
-      } catch (e) {
-        console.error("Failed to import yWriter file:", e);
-        ui.showError(`Import failed: ${e}`);
-      } finally {
-        ui.finishImport();
-      }
-    }
-  }
-
-  async function importLongform() {
-    const path = await open({
-      multiple: false,
-      filters: [{ name: "Longform Index", extensions: ["md", "markdown"] }],
-    });
-
-    if (path) {
-      ui.startImport();
-      try {
-        const project = await invoke<Project>("import_longform", { path });
-        activateImportedProject(project);
-        openReferenceClassificationDialog(project);
-      } catch (e) {
-        console.error("Failed to import Longform index:", e);
-        ui.showError(`Import failed: ${e}`);
-      } finally {
-        ui.finishImport();
-      }
-    }
-  }
-
-  async function importLongformVault() {
-    const path = await open({
-      directory: true,
-      multiple: false,
-    });
-
-    if (path) {
-      ui.startImport();
-      try {
-        const project = await invoke<Project>("import_longform", { path });
-        activateImportedProject(project);
-        openReferenceClassificationDialog(project);
-      } catch (e) {
-        console.error("Failed to import Longform vault:", e);
-        ui.showError(`Import failed: ${e}`);
-      } finally {
-        ui.finishImport();
-      }
-    }
-  }
+  const importPlottr = () => handleImport("plottr");
+  const importMarkdown = () => handleImport("markdown");
+  const importYWriter = () => handleImport("ywriter");
+  const importLongform = () => handleImport("longform");
+  const importLongformVault = () => handleImport("longformVault");
 
   function openLongformImportDialog() {
     showLongformImportDialog = true;

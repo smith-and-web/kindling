@@ -227,8 +227,8 @@ pub async fn duplicate_chapter(
         archived: false,
         locked: false,
         is_part: original.is_part,
-        synopsis: None,
-        planning_status: PlanningStatus::Fixed,
+        synopsis: original.synopsis.clone(),
+        planning_status: original.planning_status,
     };
 
     db::insert_chapter(&conn, &new_chapter).map_err(|e| e.to_string())?;
@@ -581,7 +581,7 @@ pub async fn duplicate_scene(
         locked: false,
         scene_type: original.scene_type,
         scene_status: original.scene_status,
-        planning_status: PlanningStatus::Fixed,
+        planning_status: original.planning_status,
     };
 
     db::insert_scene(&conn, &new_scene).map_err(|e| e.to_string())?;
@@ -1247,15 +1247,10 @@ pub async fn save_scene_reference_state(
     let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
-    conn.execute("BEGIN TRANSACTION", [])
-        .map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
-    db::delete_scene_reference_states_for_type(&conn, &scene_uuid, &reference_type).map_err(
-        |e| {
-            let _ = conn.execute("ROLLBACK", []);
-            e.to_string()
-        },
-    )?;
+    db::delete_scene_reference_states_for_type(&tx, &scene_uuid, &reference_type)
+        .map_err(|e| e.to_string())?;
 
     let mut reference_ids = Vec::new();
     for state_update in &states {
@@ -1269,64 +1264,41 @@ pub async fn save_scene_reference_state(
             position: state_update.position,
             expanded: state_update.expanded,
         };
-        db::insert_scene_reference_state(&conn, &state).map_err(|e| {
-            let _ = conn.execute("ROLLBACK", []);
-            e.to_string()
-        })?;
+        db::insert_scene_reference_state(&tx, &state).map_err(|e| e.to_string())?;
     }
 
     match reference_type.as_str() {
         "characters" => {
-            db::clear_scene_character_refs(&conn, &scene_uuid).map_err(|e| {
-                let _ = conn.execute("ROLLBACK", []);
-                e.to_string()
-            })?;
+            db::clear_scene_character_refs(&tx, &scene_uuid).map_err(|e| e.to_string())?;
             for reference_id in reference_ids {
-                db::add_scene_character_ref(&conn, &scene_uuid, &reference_id).map_err(|e| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    e.to_string()
-                })?;
+                db::add_scene_character_ref(&tx, &scene_uuid, &reference_id)
+                    .map_err(|e| e.to_string())?;
             }
         }
         "locations" => {
-            db::clear_scene_location_refs(&conn, &scene_uuid).map_err(|e| {
-                let _ = conn.execute("ROLLBACK", []);
-                e.to_string()
-            })?;
+            db::clear_scene_location_refs(&tx, &scene_uuid).map_err(|e| e.to_string())?;
             for reference_id in reference_ids {
-                db::add_scene_location_ref(&conn, &scene_uuid, &reference_id).map_err(|e| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    e.to_string()
-                })?;
+                db::add_scene_location_ref(&tx, &scene_uuid, &reference_id)
+                    .map_err(|e| e.to_string())?;
             }
         }
         _ => {
-            db::clear_scene_reference_item_refs_for_type(&conn, &scene_uuid, &reference_type)
-                .map_err(|e| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    e.to_string()
-                })?;
+            db::clear_scene_reference_item_refs_for_type(&tx, &scene_uuid, &reference_type)
+                .map_err(|e| e.to_string())?;
             for reference_id in reference_ids {
-                db::add_scene_reference_item_ref(&conn, &scene_uuid, &reference_id).map_err(
-                    |e| {
-                        let _ = conn.execute("ROLLBACK", []);
-                        e.to_string()
-                    },
-                )?;
+                db::add_scene_reference_item_ref(&tx, &scene_uuid, &reference_id)
+                    .map_err(|e| e.to_string())?;
             }
         }
     }
 
     if let Some(project_id) =
-        db::get_scene_project_id(&conn, &scene_uuid).map_err(|e| e.to_string())?
+        db::get_scene_project_id(&tx, &scene_uuid).map_err(|e| e.to_string())?
     {
-        db::update_project_modified(&conn, &project_id).map_err(|e| {
-            let _ = conn.execute("ROLLBACK", []);
-            e.to_string()
-        })?;
+        db::update_project_modified(&tx, &project_id).map_err(|e| e.to_string())?;
     }
 
-    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -1345,8 +1317,7 @@ pub async fn reclassify_references(
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
-    conn.execute("BEGIN TRANSACTION", [])
-        .map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
     let result: Result<Project, String> = (|| {
         for change in &changes {
@@ -1358,11 +1329,11 @@ pub async fn reclassify_references(
             }
 
             let current_character =
-                db::get_character_by_id(&conn, &reference_uuid).map_err(|e| e.to_string())?;
+                db::get_character_by_id(&tx, &reference_uuid).map_err(|e| e.to_string())?;
             let current_location =
-                db::get_location_by_id(&conn, &reference_uuid).map_err(|e| e.to_string())?;
+                db::get_location_by_id(&tx, &reference_uuid).map_err(|e| e.to_string())?;
             let current_reference_item =
-                db::get_reference_item_by_id(&conn, &reference_uuid).map_err(|e| e.to_string())?;
+                db::get_reference_item_by_id(&tx, &reference_uuid).map_err(|e| e.to_string())?;
 
             let (current_type, scene_states) = if current_character.is_some() {
                 let states = db::get_scene_reference_states_for_reference(
@@ -1397,12 +1368,11 @@ pub async fn reclassify_references(
             }
 
             let scene_ids = if current_type == "characters" {
-                db::get_scene_ids_for_character(&conn, &reference_uuid)
-                    .map_err(|e| e.to_string())?
+                db::get_scene_ids_for_character(&tx, &reference_uuid).map_err(|e| e.to_string())?
             } else if current_type == "locations" {
-                db::get_scene_ids_for_location(&conn, &reference_uuid).map_err(|e| e.to_string())?
+                db::get_scene_ids_for_location(&tx, &reference_uuid).map_err(|e| e.to_string())?
             } else {
-                db::get_scene_ids_for_reference_item(&conn, &reference_uuid)
+                db::get_scene_ids_for_reference_item(&tx, &reference_uuid)
                     .map_err(|e| e.to_string())?
             };
 
@@ -1428,7 +1398,7 @@ pub async fn reclassify_references(
                         position: max_position + 1,
                         expanded: state.expanded,
                     };
-                    db::insert_scene_reference_state(&conn, &next_state)
+                    db::insert_scene_reference_state(&tx, &next_state)
                         .map_err(|e| e.to_string())?;
                 }
             }
@@ -1446,13 +1416,12 @@ pub async fn reclassify_references(
                                 attributes: character.attributes,
                                 source_id: character.source_id,
                             };
-                            db::insert_location(&conn, &location).map_err(|e| e.to_string())?;
+                            db::insert_location(&tx, &location).map_err(|e| e.to_string())?;
                             for scene_id in &scene_ids {
-                                db::add_scene_location_ref(&conn, scene_id, &location.id)
+                                db::add_scene_location_ref(&tx, scene_id, &location.id)
                                     .map_err(|e| e.to_string())?;
                             }
-                            db::delete_character(&conn, &character.id)
-                                .map_err(|e| e.to_string())?;
+                            db::delete_character(&tx, &character.id).map_err(|e| e.to_string())?;
                         }
                         "items" | "objectives" | "organizations" => {
                             let item = ReferenceItem {
@@ -1464,17 +1433,16 @@ pub async fn reclassify_references(
                                 attributes: character.attributes,
                                 source_id: character.source_id,
                             };
-                            db::insert_reference_item(&conn, &item).map_err(|e| e.to_string())?;
+                            db::insert_reference_item(&tx, &item).map_err(|e| e.to_string())?;
                             for scene_id in &scene_ids {
-                                db::add_scene_reference_item_ref(&conn, scene_id, &item.id)
+                                db::add_scene_reference_item_ref(&tx, scene_id, &item.id)
                                     .map_err(|e| e.to_string())?;
                             }
-                            db::delete_character(&conn, &character.id)
-                                .map_err(|e| e.to_string())?;
+                            db::delete_character(&tx, &character.id).map_err(|e| e.to_string())?;
                         }
                         _ => {}
                     }
-                    db::delete_scene_character_refs_for_character(&conn, &reference_uuid)
+                    db::delete_scene_character_refs_for_character(&tx, &reference_uuid)
                         .map_err(|e| e.to_string())?;
                 }
                 "locations" => {
@@ -1489,12 +1457,12 @@ pub async fn reclassify_references(
                                 attributes: location.attributes,
                                 source_id: location.source_id,
                             };
-                            db::insert_character(&conn, &character).map_err(|e| e.to_string())?;
+                            db::insert_character(&tx, &character).map_err(|e| e.to_string())?;
                             for scene_id in &scene_ids {
-                                db::add_scene_character_ref(&conn, scene_id, &character.id)
+                                db::add_scene_character_ref(&tx, scene_id, &character.id)
                                     .map_err(|e| e.to_string())?;
                             }
-                            db::delete_location(&conn, &location.id).map_err(|e| e.to_string())?;
+                            db::delete_location(&tx, &location.id).map_err(|e| e.to_string())?;
                         }
                         "items" | "objectives" | "organizations" => {
                             let item = ReferenceItem {
@@ -1506,16 +1474,16 @@ pub async fn reclassify_references(
                                 attributes: location.attributes,
                                 source_id: location.source_id,
                             };
-                            db::insert_reference_item(&conn, &item).map_err(|e| e.to_string())?;
+                            db::insert_reference_item(&tx, &item).map_err(|e| e.to_string())?;
                             for scene_id in &scene_ids {
-                                db::add_scene_reference_item_ref(&conn, scene_id, &item.id)
+                                db::add_scene_reference_item_ref(&tx, scene_id, &item.id)
                                     .map_err(|e| e.to_string())?;
                             }
-                            db::delete_location(&conn, &location.id).map_err(|e| e.to_string())?;
+                            db::delete_location(&tx, &location.id).map_err(|e| e.to_string())?;
                         }
                         _ => {}
                     }
-                    db::delete_scene_location_refs_for_location(&conn, &reference_uuid)
+                    db::delete_scene_location_refs_for_location(&tx, &reference_uuid)
                         .map_err(|e| e.to_string())?;
                 }
                 _ => {
@@ -1530,14 +1498,13 @@ pub async fn reclassify_references(
                                 attributes: item.attributes,
                                 source_id: item.source_id,
                             };
-                            db::insert_character(&conn, &character).map_err(|e| e.to_string())?;
+                            db::insert_character(&tx, &character).map_err(|e| e.to_string())?;
                             for scene_id in &scene_ids {
-                                db::add_scene_character_ref(&conn, scene_id, &character.id)
+                                db::add_scene_character_ref(&tx, scene_id, &character.id)
                                     .map_err(|e| e.to_string())?;
                             }
-                            db::delete_reference_item(&conn, &item.id)
-                                .map_err(|e| e.to_string())?;
-                            db::delete_scene_reference_item_refs_for_item(&conn, &reference_uuid)
+                            db::delete_reference_item(&tx, &item.id).map_err(|e| e.to_string())?;
+                            db::delete_scene_reference_item_refs_for_item(&tx, &reference_uuid)
                                 .map_err(|e| e.to_string())?;
                         }
                         "locations" => {
@@ -1549,18 +1516,17 @@ pub async fn reclassify_references(
                                 attributes: item.attributes,
                                 source_id: item.source_id,
                             };
-                            db::insert_location(&conn, &location).map_err(|e| e.to_string())?;
+                            db::insert_location(&tx, &location).map_err(|e| e.to_string())?;
                             for scene_id in &scene_ids {
-                                db::add_scene_location_ref(&conn, scene_id, &location.id)
+                                db::add_scene_location_ref(&tx, scene_id, &location.id)
                                     .map_err(|e| e.to_string())?;
                             }
-                            db::delete_reference_item(&conn, &item.id)
-                                .map_err(|e| e.to_string())?;
-                            db::delete_scene_reference_item_refs_for_item(&conn, &reference_uuid)
+                            db::delete_reference_item(&tx, &item.id).map_err(|e| e.to_string())?;
+                            db::delete_scene_reference_item_refs_for_item(&tx, &reference_uuid)
                                 .map_err(|e| e.to_string())?;
                         }
                         "items" | "objectives" | "organizations" => {
-                            db::update_reference_item_type(&conn, &item.id, &target_type)
+                            db::update_reference_item_type(&tx, &item.id, &target_type)
                                 .map_err(|e| e.to_string())?;
                         }
                         _ => {}
@@ -1569,21 +1535,21 @@ pub async fn reclassify_references(
             }
         }
 
-        let mut project = db::get_project(&conn, &project_uuid)
+        let mut project = db::get_project(&tx, &project_uuid)
             .map_err(|e| e.to_string())?
             .ok_or_else(|| "Project not found".to_string())?;
 
         let mut types = HashSet::new();
-        let characters = db::get_characters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+        let characters = db::get_characters(&tx, &project_uuid).map_err(|e| e.to_string())?;
         if !characters.is_empty() {
             types.insert("characters".to_string());
         }
-        let locations = db::get_locations(&conn, &project_uuid).map_err(|e| e.to_string())?;
+        let locations = db::get_locations(&tx, &project_uuid).map_err(|e| e.to_string())?;
         if !locations.is_empty() {
             types.insert("locations".to_string());
         }
         let reference_items =
-            db::get_all_reference_items(&conn, &project_uuid).map_err(|e| e.to_string())?;
+            db::get_all_reference_items(&tx, &project_uuid).map_err(|e| e.to_string())?;
         for item in reference_items {
             types.insert(item.reference_type);
         }
@@ -1592,18 +1558,19 @@ pub async fn reclassify_references(
         }
         project.reference_types = types.into_iter().collect();
 
-        db::update_project(&conn, &project).map_err(|e| e.to_string())?;
-        db::update_project_modified(&conn, &project_uuid).map_err(|e| e.to_string())?;
+        db::update_project(&tx, &project).map_err(|e| e.to_string())?;
+        db::update_project_modified(&tx, &project_uuid).map_err(|e| e.to_string())?;
 
-        conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
         Ok(project)
     })();
 
-    if result.is_err() {
-        let _ = conn.execute("ROLLBACK", []);
+    match result {
+        Ok(project) => {
+            tx.commit().map_err(|e| e.to_string())?;
+            Ok(project)
+        }
+        Err(e) => Err(e),
     }
-
-    result
 }
 
 #[tauri::command]

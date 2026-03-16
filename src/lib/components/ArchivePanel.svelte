@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable no-undef */
   import { X, Archive, RotateCcw, Trash2, Loader2, Book, FileText } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import type { Chapter, Scene, ArchivedItems } from "../types";
@@ -125,7 +124,7 @@
   }
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 <!-- Backdrop -->
 <div

@@ -64,14 +64,13 @@ pub async fn create_blank_project(
         planning_status: PlanningStatus::Undefined,
     };
 
-    conn.execute("BEGIN TRANSACTION", [])
-        .map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
-    db::insert_project(&conn, &project).map_err(|e| e.to_string())?;
-    db::insert_chapter(&conn, &chapter).map_err(|e| e.to_string())?;
-    db::insert_scene(&conn, &scene).map_err(|e| e.to_string())?;
+    db::insert_project(&tx, &project).map_err(|e| e.to_string())?;
+    db::insert_chapter(&tx, &chapter).map_err(|e| e.to_string())?;
+    db::insert_scene(&tx, &scene).map_err(|e| e.to_string())?;
 
-    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
 
     Ok(project)
 }

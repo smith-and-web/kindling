@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable no-undef */
   import { Loader2, Plus, Trash2, X } from "lucide-svelte";
   import type { ReferenceItem } from "../types";
   import type { ReferenceTypeOption } from "../referenceTypes";

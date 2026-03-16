@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable no-undef */
   import { invoke } from "@tauri-apps/api/core";
   import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
   import type {

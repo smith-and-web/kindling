@@ -66,12 +66,11 @@
   import SnapshotsPanel from "./SnapshotsPanel.svelte";
   import Tooltip from "./Tooltip.svelte";
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  type IconComponent = any;
+  import type { ComponentType } from "svelte";
 
   interface MenuItem {
     label: string;
-    icon?: IconComponent;
+    icon?: ComponentType;
     action: () => void | Promise<void>;
     disabled?: boolean;
     danger?: boolean;
@@ -135,7 +134,7 @@
   const sceneTypeFilterOptions: {
     type: SceneType;
     label: string;
-    icon: IconComponent;
+    icon: ComponentType;
   }[] = [
     { type: "notes", label: "Notes", icon: StickyNote },
     { type: "todo", label: "ToDo", icon: CheckSquare },

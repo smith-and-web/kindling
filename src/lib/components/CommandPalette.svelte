@@ -23,6 +23,7 @@
   } = $props();
 
   let query = $state("");
+  // eslint-disable-next-line svelte/prefer-writable-derived -- mutated by arrow key navigation
   let selectedIndex = $state(0);
 
   const filteredCommands = $derived.by(() => {

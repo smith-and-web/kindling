@@ -147,18 +147,15 @@ pub async fn reimport_project(
         prose_preserved: 0,
     };
 
-    conn.execute("BEGIN TRANSACTION", [])
-        .map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
     // Process chapters
     for new_chapter in &parsed.chapters {
         if let Some(source_id) = &new_chapter.source_id {
             // Try to find existing chapter by source_id
-            if let Some(existing) = db::find_chapter_by_source_id(&conn, &project_uuid, source_id)
-                .map_err(|e| {
-                let _ = conn.execute("ROLLBACK", []);
-                e.to_string()
-            })? {
+            if let Some(existing) = db::find_chapter_by_source_id(&tx, &project_uuid, source_id)
+                .map_err(|e| e.to_string())?
+            {
                 // Update existing chapter
                 db::update_chapter(
                     &conn,
@@ -166,10 +163,7 @@ pub async fn reimport_project(
                     &new_chapter.title,
                     new_chapter.position,
                 )
-                .map_err(|e| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    e.to_string()
-                })?;
+                .map_err(|e| e.to_string())?;
                 summary.chapters_updated += 1;
             } else {
                 // Insert new chapter with project's actual UUID
@@ -185,20 +179,14 @@ pub async fn reimport_project(
                     synopsis: None,
                     planning_status: PlanningStatus::Fixed,
                 };
-                db::insert_chapter(&conn, &chapter_to_insert).map_err(|e| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    e.to_string()
-                })?;
+                db::insert_chapter(&tx, &chapter_to_insert).map_err(|e| e.to_string())?;
                 summary.chapters_added += 1;
             }
         }
     }
 
     // Build a map from parsed chapter source_id to our DB chapter
-    let db_chapters = db::get_chapters(&conn, &project_uuid).map_err(|e| {
-        let _ = conn.execute("ROLLBACK", []);
-        e.to_string()
-    })?;
+    let db_chapters = db::get_chapters(&tx, &project_uuid).map_err(|e| e.to_string())?;
     let chapter_source_to_db: HashMap<String, &Chapter> = db_chapters
         .iter()
         .filter_map(|c| c.source_id.as_ref().map(|sid| (sid.clone(), c)))
@@ -215,25 +203,17 @@ pub async fn reimport_project(
     for new_scene in &parsed.scenes {
         if let Some(source_id) = &new_scene.source_id {
             // Find the DB chapter this scene belongs to
-            let parsed_chapter_source_id = parsed_chapter_id_to_source
-                .get(&new_scene.chapter_id)
-                .ok_or_else(|| {
-                let _ = conn.execute("ROLLBACK", []);
-                "Scene references unknown chapter".to_string()
-            })?;
+            let parsed_chapter_source_id =
+                parsed_chapter_id_to_source
+                    .get(&new_scene.chapter_id)
+                    .ok_or_else(|| "Scene references unknown chapter".to_string())?;
             let db_chapter = chapter_source_to_db
                 .get(parsed_chapter_source_id)
-                .ok_or_else(|| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    "Could not find DB chapter for scene".to_string()
-                })?;
+                .ok_or_else(|| "Could not find DB chapter for scene".to_string())?;
 
             // Try to find existing scene by source_id
-            if let Some(existing) = db::find_scene_by_source_id(&conn, &db_chapter.id, source_id)
-                .map_err(|e| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    e.to_string()
-                })?
+            if let Some(existing) = db::find_scene_by_source_id(&tx, &db_chapter.id, source_id)
+                .map_err(|e| e.to_string())?
             {
                 // Update existing scene (preserving prose!)
                 db::update_scene(
@@ -245,10 +225,7 @@ pub async fn reimport_project(
                     &new_scene.scene_type,
                     &new_scene.scene_status,
                 )
-                .map_err(|e| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    e.to_string()
-                })?;
+                .map_err(|e| e.to_string())?;
                 summary.scenes_updated += 1;
                 if existing.prose.is_some() {
                     summary.prose_preserved += 1;
@@ -269,20 +246,14 @@ pub async fn reimport_project(
                     scene_status: new_scene.scene_status,
                     planning_status: PlanningStatus::Fixed,
                 };
-                db::insert_scene(&conn, &scene_to_insert).map_err(|e| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    e.to_string()
-                })?;
+                db::insert_scene(&tx, &scene_to_insert).map_err(|e| e.to_string())?;
                 summary.scenes_added += 1;
             }
         }
     }
 
     // Build scene source_id to DB scene map
-    let db_scenes = db::get_all_project_scenes(&conn, &project_uuid).map_err(|e| {
-        let _ = conn.execute("ROLLBACK", []);
-        e.to_string()
-    })?;
+    let db_scenes = db::get_all_project_scenes(&tx, &project_uuid).map_err(|e| e.to_string())?;
     let scene_source_to_db: HashMap<String, &Scene> = db_scenes
         .iter()
         .filter_map(|s| s.source_id.as_ref().map(|sid| (sid.clone(), s)))
@@ -301,30 +272,18 @@ pub async fn reimport_project(
             // Find the DB scene this beat belongs to
             let parsed_scene_source_id = parsed_scene_id_to_source
                 .get(&new_beat.scene_id)
-                .ok_or_else(|| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    "Beat references unknown scene".to_string()
-                })?;
+                .ok_or_else(|| "Beat references unknown scene".to_string())?;
             let db_scene = scene_source_to_db
                 .get(parsed_scene_source_id)
-                .ok_or_else(|| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    "Could not find DB scene for beat".to_string()
-                })?;
+                .ok_or_else(|| "Could not find DB scene for beat".to_string())?;
 
             // Try to find existing beat by source_id
-            if let Some(existing) = db::find_beat_by_source_id(&conn, &db_scene.id, source_id)
-                .map_err(|e| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    e.to_string()
-                })?
+            if let Some(existing) = db::find_beat_by_source_id(&tx, &db_scene.id, source_id)
+                .map_err(|e| e.to_string())?
             {
                 // Update existing beat (preserving prose!)
-                db::update_beat(&conn, &existing.id, &new_beat.content, new_beat.position)
-                    .map_err(|e| {
-                        let _ = conn.execute("ROLLBACK", []);
-                        e.to_string()
-                    })?;
+                db::update_beat(&tx, &existing.id, &new_beat.content, new_beat.position)
+                    .map_err(|e| e.to_string())?;
                 summary.beats_updated += 1;
                 if existing.prose.is_some() {
                     summary.prose_preserved += 1;
@@ -339,17 +298,14 @@ pub async fn reimport_project(
                     position: new_beat.position,
                     source_id: new_beat.source_id.clone(),
                 };
-                db::insert_beat(&conn, &beat_to_insert).map_err(|e| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    e.to_string()
-                })?;
+                db::insert_beat(&tx, &beat_to_insert).map_err(|e| e.to_string())?;
                 summary.beats_added += 1;
             }
         }
     }
 
-    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
-    db::update_project_modified(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    db::update_project_modified(&tx, &project_uuid).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
 
     Ok(summary)
 }
@@ -773,14 +729,10 @@ pub async fn apply_sync(
         prose_preserved: 0,
     };
 
-    conn.execute("BEGIN TRANSACTION", [])
-        .map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
     // Get existing DB data
-    let db_chapters = db::get_chapters(&conn, &project_uuid).map_err(|e| {
-        let _ = conn.execute("ROLLBACK", []);
-        e.to_string()
-    })?;
+    let db_chapters = db::get_chapters(&tx, &project_uuid).map_err(|e| e.to_string())?;
     let chapter_source_to_db: HashMap<String, Chapter> = db_chapters
         .into_iter()
         .filter_map(|c| c.source_id.clone().map(|sid| (sid, c)))
@@ -799,10 +751,7 @@ pub async fn apply_sync(
                         &new_chapter.title,
                         new_chapter.position,
                     )
-                    .map_err(|e| {
-                        let _ = conn.execute("ROLLBACK", []);
-                        e.to_string()
-                    })?;
+                    .map_err(|e| e.to_string())?;
                     summary.chapters_updated += 1;
                 }
             } else {
@@ -821,10 +770,7 @@ pub async fn apply_sync(
                         synopsis: None,
                         planning_status: PlanningStatus::Fixed,
                     };
-                    db::insert_chapter(&conn, &chapter_to_insert).map_err(|e| {
-                        let _ = conn.execute("ROLLBACK", []);
-                        e.to_string()
-                    })?;
+                    db::insert_chapter(&tx, &chapter_to_insert).map_err(|e| e.to_string())?;
                     summary.chapters_added += 1;
                 }
             }
@@ -832,10 +778,7 @@ pub async fn apply_sync(
     }
 
     // Refresh chapter map after inserts
-    let db_chapters = db::get_chapters(&conn, &project_uuid).map_err(|e| {
-        let _ = conn.execute("ROLLBACK", []);
-        e.to_string()
-    })?;
+    let db_chapters = db::get_chapters(&tx, &project_uuid).map_err(|e| e.to_string())?;
     let chapter_source_to_db: HashMap<String, &Chapter> = db_chapters
         .iter()
         .filter_map(|c| c.source_id.as_ref().map(|sid| (sid.clone(), c)))
@@ -849,10 +792,7 @@ pub async fn apply_sync(
         .collect();
 
     // Get existing scenes
-    let db_scenes = db::get_all_project_scenes(&conn, &project_uuid).map_err(|e| {
-        let _ = conn.execute("ROLLBACK", []);
-        e.to_string()
-    })?;
+    let db_scenes = db::get_all_project_scenes(&tx, &project_uuid).map_err(|e| e.to_string())?;
     let scene_source_to_db: HashMap<String, Scene> = db_scenes
         .into_iter()
         .filter_map(|s| s.source_id.clone().map(|sid| (sid, s)))
@@ -862,18 +802,13 @@ pub async fn apply_sync(
     for new_scene in &parsed.scenes {
         if let Some(source_id) = &new_scene.source_id {
             // Find the DB chapter this scene belongs to
-            let parsed_chapter_source_id = parsed_chapter_id_to_source
-                .get(&new_scene.chapter_id)
-                .ok_or_else(|| {
-                let _ = conn.execute("ROLLBACK", []);
-                "Scene references unknown chapter".to_string()
-            })?;
+            let parsed_chapter_source_id =
+                parsed_chapter_id_to_source
+                    .get(&new_scene.chapter_id)
+                    .ok_or_else(|| "Scene references unknown chapter".to_string())?;
             let db_chapter = chapter_source_to_db
                 .get(parsed_chapter_source_id)
-                .ok_or_else(|| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    "Could not find DB chapter for scene".to_string()
-                })?;
+                .ok_or_else(|| "Could not find DB chapter for scene".to_string())?;
 
             if let Some(existing) = scene_source_to_db.get(source_id) {
                 // Check which changes user accepted
@@ -905,10 +840,7 @@ pub async fn apply_sync(
                         &new_scene.scene_type,
                         &new_scene.scene_status,
                     )
-                    .map_err(|e| {
-                        let _ = conn.execute("ROLLBACK", []);
-                        e.to_string()
-                    })?;
+                    .map_err(|e| e.to_string())?;
                     summary.scenes_updated += 1;
                 }
                 if existing.prose.is_some() {
@@ -932,10 +864,7 @@ pub async fn apply_sync(
                         scene_status: new_scene.scene_status,
                         planning_status: PlanningStatus::Fixed,
                     };
-                    db::insert_scene(&conn, &scene_to_insert).map_err(|e| {
-                        let _ = conn.execute("ROLLBACK", []);
-                        e.to_string()
-                    })?;
+                    db::insert_scene(&tx, &scene_to_insert).map_err(|e| e.to_string())?;
                     summary.scenes_added += 1;
                 }
             }
@@ -943,10 +872,7 @@ pub async fn apply_sync(
     }
 
     // Refresh scene map after inserts
-    let db_scenes = db::get_all_project_scenes(&conn, &project_uuid).map_err(|e| {
-        let _ = conn.execute("ROLLBACK", []);
-        e.to_string()
-    })?;
+    let db_scenes = db::get_all_project_scenes(&tx, &project_uuid).map_err(|e| e.to_string())?;
     let scene_source_to_db: HashMap<String, &Scene> = db_scenes
         .iter()
         .filter_map(|s| s.source_id.as_ref().map(|sid| (sid.clone(), s)))
@@ -960,10 +886,7 @@ pub async fn apply_sync(
         .collect();
 
     // Get existing beats
-    let db_beats = db::get_all_project_beats(&conn, &project_uuid).map_err(|e| {
-        let _ = conn.execute("ROLLBACK", []);
-        e.to_string()
-    })?;
+    let db_beats = db::get_all_project_beats(&tx, &project_uuid).map_err(|e| e.to_string())?;
     let beat_source_to_db: HashMap<String, Beat> = db_beats
         .into_iter()
         .filter_map(|b| b.source_id.clone().map(|sid| (sid, b)))
@@ -975,26 +898,17 @@ pub async fn apply_sync(
             // Find the DB scene this beat belongs to
             let parsed_scene_source_id = parsed_scene_id_to_source
                 .get(&new_beat.scene_id)
-                .ok_or_else(|| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    "Beat references unknown scene".to_string()
-                })?;
+                .ok_or_else(|| "Beat references unknown scene".to_string())?;
             let db_scene = scene_source_to_db
                 .get(parsed_scene_source_id)
-                .ok_or_else(|| {
-                    let _ = conn.execute("ROLLBACK", []);
-                    "Could not find DB scene for beat".to_string()
-                })?;
+                .ok_or_else(|| "Could not find DB scene for beat".to_string())?;
 
             if let Some(existing) = beat_source_to_db.get(source_id) {
                 // Check if user accepted the content change
                 let change_id = format!("beat-content-{}", existing.id);
                 if accepted_set.contains(&change_id) && existing.content != new_beat.content {
-                    db::update_beat(&conn, &existing.id, &new_beat.content, new_beat.position)
-                        .map_err(|e| {
-                            let _ = conn.execute("ROLLBACK", []);
-                            e.to_string()
-                        })?;
+                    db::update_beat(&tx, &existing.id, &new_beat.content, new_beat.position)
+                        .map_err(|e| e.to_string())?;
                     summary.beats_updated += 1;
                 }
                 if existing.prose.is_some() {
@@ -1012,18 +926,15 @@ pub async fn apply_sync(
                         position: new_beat.position,
                         source_id: new_beat.source_id.clone(),
                     };
-                    db::insert_beat(&conn, &beat_to_insert).map_err(|e| {
-                        let _ = conn.execute("ROLLBACK", []);
-                        e.to_string()
-                    })?;
+                    db::insert_beat(&tx, &beat_to_insert).map_err(|e| e.to_string())?;
                     summary.beats_added += 1;
                 }
             }
         }
     }
 
-    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
-    db::update_project_modified(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    db::update_project_modified(&tx, &project_uuid).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
 
     Ok(summary)
 }

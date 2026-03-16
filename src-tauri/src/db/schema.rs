@@ -173,8 +173,6 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_snapshots_project ON snapshots(project_id);
         CREATE INDEX IF NOT EXISTS idx_discovery_notes_scene ON discovery_notes(scene_id);
 
-        -- Enable foreign key support
-        PRAGMA foreign_keys = ON;
         "#,
     )?;
 
