@@ -165,6 +165,8 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         archived: false,
         locked: false,
         is_part: isPart,
+        synopsis: null,
+        planning_status: "fixed",
       };
       chapters.push(ch);
       return ch as T;
@@ -193,6 +195,7 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         locked: false,
         scene_type: "normal",
         scene_status: "draft",
+        planning_status: "fixed",
       };
       scenes.push(sc);
       return sc as T;

@@ -438,6 +438,8 @@ fn restore_create_new(
             archived: chapter.archived,
             locked: chapter.locked,
             is_part: chapter.is_part,
+            synopsis: chapter.synopsis.clone(),
+            planning_status: chapter.planning_status,
         };
         if let Err(e) = db::insert_chapter(conn, &new_chapter) {
             conn.execute("ROLLBACK", []).ok();
@@ -459,6 +461,7 @@ fn restore_create_new(
             locked: scene.locked,
             scene_type: scene.scene_type,
             scene_status: scene.scene_status,
+            planning_status: scene.planning_status,
         };
         if let Err(e) = db::insert_scene(conn, &new_scene) {
             conn.execute("ROLLBACK", []).ok();

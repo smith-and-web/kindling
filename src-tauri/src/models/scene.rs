@@ -3,6 +3,33 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
+pub enum PlanningStatus {
+    #[default]
+    Fixed,
+    Flexible,
+    Undefined,
+}
+
+impl PlanningStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PlanningStatus::Fixed => "fixed",
+            PlanningStatus::Flexible => "flexible",
+            PlanningStatus::Undefined => "undefined",
+        }
+    }
+
+    pub fn parse(raw: &str) -> Self {
+        match raw.trim().to_lowercase().as_str() {
+            "flexible" => PlanningStatus::Flexible,
+            "undefined" => PlanningStatus::Undefined,
+            _ => PlanningStatus::Fixed,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
 pub enum SceneType {
     #[default]
     Normal,
@@ -76,6 +103,8 @@ pub struct Scene {
     pub scene_type: SceneType,
     #[serde(default)]
     pub scene_status: SceneStatus,
+    #[serde(default)]
+    pub planning_status: PlanningStatus,
 }
 
 impl Scene {
@@ -92,6 +121,7 @@ impl Scene {
             locked: false,
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
+            planning_status: PlanningStatus::Fixed,
         }
     }
 

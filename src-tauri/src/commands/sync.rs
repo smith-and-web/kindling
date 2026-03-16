@@ -8,7 +8,7 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::db;
-use crate::models::{Beat, Chapter, Scene};
+use crate::models::{Beat, Chapter, PlanningStatus, Scene};
 use crate::parsers::{
     parse_longform_index, parse_markdown_outline, parse_plottr_file, parse_ywriter_file,
 };
@@ -132,6 +132,9 @@ pub async fn reimport_project(
                 scene_location_refs: Vec::new(),
             }
         }
+        crate::models::SourceType::Blank => {
+            return Err("Blank projects have no source to reimport".to_string());
+        }
     };
 
     let mut summary = ReimportSummary {
@@ -179,6 +182,8 @@ pub async fn reimport_project(
                     archived: false,
                     locked: false,
                     is_part: new_chapter.is_part,
+                    synopsis: None,
+                    planning_status: PlanningStatus::Fixed,
                 };
                 db::insert_chapter(&conn, &chapter_to_insert).map_err(|e| {
                     let _ = conn.execute("ROLLBACK", []);
@@ -262,6 +267,7 @@ pub async fn reimport_project(
                     locked: false,
                     scene_type: new_scene.scene_type,
                     scene_status: new_scene.scene_status,
+                    planning_status: PlanningStatus::Fixed,
                 };
                 db::insert_scene(&conn, &scene_to_insert).map_err(|e| {
                     let _ = conn.execute("ROLLBACK", []);
@@ -414,6 +420,9 @@ pub async fn get_sync_preview(
                 scene_character_refs: Vec::new(),
                 scene_location_refs: Vec::new(),
             }
+        }
+        crate::models::SourceType::Blank => {
+            return Err("Blank projects have no source to reimport".to_string());
         }
     };
 
@@ -746,6 +755,9 @@ pub async fn apply_sync(
                 scene_location_refs: Vec::new(),
             }
         }
+        crate::models::SourceType::Blank => {
+            return Err("Blank projects have no source to reimport".to_string());
+        }
     };
 
     let accepted_set: HashSet<String> = accepted_change_ids.into_iter().collect();
@@ -806,6 +818,8 @@ pub async fn apply_sync(
                         archived: false,
                         locked: false,
                         is_part: new_chapter.is_part,
+                        synopsis: None,
+                        planning_status: PlanningStatus::Fixed,
                     };
                     db::insert_chapter(&conn, &chapter_to_insert).map_err(|e| {
                         let _ = conn.execute("ROLLBACK", []);
@@ -916,6 +930,7 @@ pub async fn apply_sync(
                         locked: false,
                         scene_type: new_scene.scene_type,
                         scene_status: new_scene.scene_status,
+                        planning_status: PlanningStatus::Fixed,
                     };
                     db::insert_scene(&conn, &scene_to_insert).map_err(|e| {
                         let _ = conn.execute("ROLLBACK", []);

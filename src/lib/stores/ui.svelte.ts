@@ -40,7 +40,7 @@ const ONBOARDING_COMPLETED_KEY = "kindling:onboardingCompleted";
 const GUIDANCE_ENABLED_KEY = "kindling:guidanceEnabled";
 const TOOLTIP_SEEN_PREFIX = "kindling:tooltipSeen:";
 
-export type GuidanceArea = "sidebar" | "scenePanel" | "references" | "sync";
+export type GuidanceArea = "sidebar" | "scenePanel" | "references" | "sync" | "planningStatus";
 
 const ONBOARDING_STEPS: OnboardingStep[] = [
   "welcome",
@@ -334,9 +334,11 @@ class UIStore {
   // For testing: reset guidance tooltips
   resetGuidanceTooltips() {
     if (typeof window !== "undefined") {
-      (["sidebar", "scenePanel", "references", "sync"] as GuidanceArea[]).forEach((area) => {
-        localStorage.removeItem(TOOLTIP_SEEN_PREFIX + area);
-      });
+      (["sidebar", "scenePanel", "references", "sync", "planningStatus"] as GuidanceArea[]).forEach(
+        (area) => {
+          localStorage.removeItem(TOOLTIP_SEEN_PREFIX + area);
+        }
+      );
       this._tooltipSeenVersion += 1;
     }
   }

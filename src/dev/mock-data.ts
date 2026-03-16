@@ -40,6 +40,8 @@ export const mockChapters: Chapter[] = [
     archived: false,
     locked: false,
     is_part: true,
+    synopsis: null,
+    planning_status: "fixed",
   },
   {
     id: "ch-2",
@@ -50,6 +52,8 @@ export const mockChapters: Chapter[] = [
     archived: false,
     locked: false,
     is_part: false,
+    synopsis: null,
+    planning_status: "fixed",
   },
   {
     id: "ch-3",
@@ -60,6 +64,8 @@ export const mockChapters: Chapter[] = [
     archived: false,
     locked: false,
     is_part: false,
+    synopsis: null,
+    planning_status: "fixed",
   },
   {
     id: "ch-4",
@@ -70,6 +76,8 @@ export const mockChapters: Chapter[] = [
     archived: false,
     locked: false,
     is_part: true,
+    synopsis: null,
+    planning_status: "fixed",
   },
   {
     id: "ch-5",
@@ -80,6 +88,8 @@ export const mockChapters: Chapter[] = [
     archived: false,
     locked: false,
     is_part: false,
+    synopsis: null,
+    planning_status: "fixed",
   },
   {
     id: "ch-6",
@@ -90,6 +100,8 @@ export const mockChapters: Chapter[] = [
     archived: false,
     locked: false,
     is_part: false,
+    synopsis: null,
+    planning_status: "fixed",
   },
 ];
 
@@ -106,6 +118,7 @@ export const mockScenes: Scene[] = [
     locked: false,
     scene_type: "normal",
     scene_status: "draft",
+    planning_status: "fixed",
   },
   {
     id: "sc-2",
@@ -119,6 +132,7 @@ export const mockScenes: Scene[] = [
     locked: false,
     scene_type: "normal",
     scene_status: "draft",
+    planning_status: "fixed",
   },
   {
     id: "sc-3",
@@ -132,6 +146,7 @@ export const mockScenes: Scene[] = [
     locked: false,
     scene_type: "normal",
     scene_status: "draft",
+    planning_status: "fixed",
   },
   {
     id: "sc-4",
@@ -145,6 +160,7 @@ export const mockScenes: Scene[] = [
     locked: false,
     scene_type: "normal",
     scene_status: "draft",
+    planning_status: "fixed",
   },
   {
     id: "sc-5",
@@ -158,6 +174,7 @@ export const mockScenes: Scene[] = [
     locked: false,
     scene_type: "normal",
     scene_status: "draft",
+    planning_status: "fixed",
   },
   {
     id: "sc-6",
@@ -171,6 +188,7 @@ export const mockScenes: Scene[] = [
     locked: false,
     scene_type: "normal",
     scene_status: "draft",
+    planning_status: "fixed",
   },
   {
     id: "sc-7",
@@ -184,6 +202,7 @@ export const mockScenes: Scene[] = [
     locked: false,
     scene_type: "normal",
     scene_status: "draft",
+    planning_status: "fixed",
   },
   {
     id: "sc-8",
@@ -197,6 +216,7 @@ export const mockScenes: Scene[] = [
     locked: false,
     scene_type: "normal",
     scene_status: "draft",
+    planning_status: "fixed",
   },
 ];
 
