@@ -29,6 +29,8 @@ pub mod menu_ids {
     pub const TOGGLE_REFERENCES: &str = "toggle_references";
     pub const SYNC: &str = "sync";
     pub const COMMAND_PALETTE: &str = "command_palette";
+    pub const ABOUT: &str = "about";
+    pub const QUIT: &str = "quit";
 }
 
 /// Create the application menu
@@ -89,6 +91,11 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .accelerator("CmdOrCtrl+N")
         .build(app)?;
 
+    let quit = MenuItemBuilder::new("Quit Kindling")
+        .id(menu_ids::QUIT)
+        .accelerator("CmdOrCtrl+Q")
+        .build(app)?;
+
     // Build File submenu
     let file_submenu = SubmenuBuilder::new(app, "File")
         .item(&new_project)
@@ -100,6 +107,8 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .separator()
         .item(&project_settings)
         .item(&kindling_settings)
+        .separator()
+        .item(&quit)
         .build()?;
 
     // Build Edit submenu with standard items
@@ -144,6 +153,10 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .build()?;
 
     // Help submenu
+    let about = MenuItemBuilder::new("About Kindling...")
+        .id(menu_ids::ABOUT)
+        .build(app)?;
+
     let command_palette = MenuItemBuilder::new("Command Palette...")
         .id(menu_ids::COMMAND_PALETTE)
         .accelerator("CmdOrCtrl+K")
@@ -155,6 +168,8 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .build(app)?;
 
     let help_submenu = SubmenuBuilder::new(app, "Help")
+        .item(&about)
+        .separator()
         .item(&command_palette)
         .item(&quick_start)
         .build()?;

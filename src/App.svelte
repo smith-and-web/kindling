@@ -1,8 +1,10 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
+  import { exit } from "@tauri-apps/plugin-process";
   import { onMount } from "svelte";
   import { runImport, type ImportType } from "./lib/utils/import";
+  import AboutDialog from "./lib/components/AboutDialog.svelte";
   import Onboarding from "./lib/components/Onboarding.svelte";
   import ReferencesPanel from "./lib/components/ReferencesPanel.svelte";
   import ScenePanel from "./lib/components/ScenePanel.svelte";
@@ -39,6 +41,7 @@
   let showQuickStart = $state(false);
   let showCommandPalette = $state(false);
   let showNewProjectDialog = $state(false);
+  let showAboutDialog = $state(false);
 
   async function loadRecentProjects() {
     try {
@@ -171,6 +174,12 @@
         case "sync":
           window.dispatchEvent(new CustomEvent("kindling:sync"));
           break;
+        case "about":
+          showAboutDialog = true;
+          break;
+        case "quit":
+          exit(0);
+          break;
       }
     });
 
@@ -231,6 +240,12 @@
         break;
       case "kindling_settings":
         showKindlingSettings = true;
+        break;
+      case "about":
+        showAboutDialog = true;
+        break;
+      case "quit":
+        exit(0);
         break;
     }
   }
@@ -375,4 +390,9 @@
 <!-- Export Success Dialog -->
 {#if exportResult}
   <ExportSuccessDialog result={exportResult} onClose={() => (exportResult = null)} />
+{/if}
+
+<!-- About Dialog -->
+{#if showAboutDialog}
+  <AboutDialog onClose={() => (showAboutDialog = false)} />
 {/if}

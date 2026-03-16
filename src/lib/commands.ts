@@ -36,8 +36,16 @@ export const COMMAND_DEFS: CommandDef[] = [
     label: "Close project",
     shortcut: "⌘W",
     category: "File",
-    keywords: ["close", "exit"],
+    keywords: ["close"],
     requiresProject: true,
+  },
+  {
+    id: "quit",
+    label: "Quit Kindling",
+    shortcut: "⌘Q",
+    category: "File",
+    keywords: ["quit", "exit"],
+    requiresProject: false,
   },
   {
     id: "import_plottr",
@@ -115,6 +123,14 @@ export const COMMAND_DEFS: CommandDef[] = [
     requiresProject: true,
   },
   // Help
+  {
+    id: "about",
+    label: "About Kindling",
+    shortcut: "",
+    category: "Help",
+    keywords: ["about", "version", "info"],
+    requiresProject: false,
+  },
   {
     id: "quick_start",
     label: "Quick start guide",

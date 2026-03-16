@@ -12,3 +12,23 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: vi.fn(),
   save: vi.fn(),
 }));
+
+// Mock @tauri-apps/plugin-process
+vi.mock("@tauri-apps/plugin-process", () => ({
+  exit: vi.fn(),
+  relaunch: vi.fn(),
+}));
+
+// Mock @tauri-apps/api/app
+vi.mock("@tauri-apps/api/app", () => ({
+  getVersion: vi.fn().mockResolvedValue("1.0.0"),
+  getName: vi.fn().mockResolvedValue("Kindling"),
+  getTauriVersion: vi.fn().mockResolvedValue("2.0.0"),
+}));
+
+// Mock @tauri-apps/plugin-opener
+vi.mock("@tauri-apps/plugin-opener", () => ({
+  openUrl: vi.fn(),
+  openPath: vi.fn(),
+  revealItemInDir: vi.fn(),
+}));
