@@ -112,6 +112,20 @@ describe("ui store", () => {
       expect(localStorageMock.setItem).toHaveBeenCalled();
     });
 
+    it("should compute max width with sidebar collapsed", () => {
+      ui.sidebarCollapsed = true;
+      const maxWidth = ui.referencesPanelMaxWidth;
+      expect(maxWidth).toBeGreaterThanOrEqual(200);
+    });
+
+    it("should not change width on resize when already within bounds", () => {
+      ui.setReferencesPanelWidth(200);
+
+      window.dispatchEvent(new Event("resize"));
+
+      expect(ui.referencesPanelWidth).toBe(200);
+    });
+
     it("should clamp panel width on window resize", () => {
       // Set a large width
       ui.setReferencesPanelWidth(1000);
@@ -293,6 +307,13 @@ describe("ui store", () => {
       expect(ui.onboardingStep).toBe("welcome");
     });
 
+    it("should not go past last step", () => {
+      ui.startOnboarding();
+      ui.goToStep("import");
+      ui.nextStep();
+      expect(ui.onboardingStep).toBe("import");
+    });
+
     it("should go to specific step", () => {
       ui.startOnboarding();
       ui.goToStep("tour-editor");
@@ -400,6 +421,43 @@ describe("ui store initialization", () => {
     expect(freshUi.referencesPanelWidth).toBe(288); // default
 
     // Cleanup
+    store = {};
+  });
+
+  it("should load guidanceEnabled=false from localStorage", async () => {
+    store["kindling:guidanceEnabled"] = "false";
+
+    vi.resetModules();
+
+    const { ui: freshUi } = await import("./ui.svelte");
+
+    expect(freshUi.guidanceEnabled).toBe(false);
+
+    store = {};
+  });
+
+  it("should load guidanceEnabled=true when stored as 'true'", async () => {
+    store["kindling:guidanceEnabled"] = "true";
+
+    vi.resetModules();
+
+    const { ui: freshUi } = await import("./ui.svelte");
+
+    expect(freshUi.guidanceEnabled).toBe(true);
+
+    store = {};
+  });
+
+  it("should load onboardingCompleted from localStorage", async () => {
+    store["kindling:onboardingCompleted"] = "true";
+
+    vi.resetModules();
+
+    const { ui: freshUi } = await import("./ui.svelte");
+
+    expect(freshUi.onboardingCompleted).toBe(true);
+    expect(freshUi.showOnboarding).toBe(false);
+
     store = {};
   });
 
