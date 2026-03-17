@@ -165,6 +165,37 @@ export interface Location {
 /** Supported reference types for the References panel */
 export type ReferenceTypeId = "characters" | "locations" | "items" | "objectives" | "organizations";
 
+/** Supported field types for custom fields */
+export type FieldType = "text" | "number" | "date" | "select" | "multiselect" | "checkbox" | "url";
+
+/** Entity types that support custom fields */
+export type FieldEntityType = "character" | "location" | "scene" | "item" | "objective" | "organization";
+
+/** Project-level definition for a custom field */
+export interface FieldDefinition {
+  id: string;
+  project_id: string;
+  entity_type: FieldEntityType;
+  name: string;
+  field_type: FieldType;
+  /** JSON-encoded options for select/multiselect fields */
+  options: string | null;
+  default_value: string | null;
+  position: number;
+  required: boolean;
+  visible: boolean;
+  created_at: string;
+}
+
+/** A stored value for a custom field on a specific entity */
+export interface FieldValue {
+  id: string;
+  field_definition_id: string;
+  entity_id: string;
+  /** JSON-encoded value */
+  value: string | null;
+}
+
 /** Generic reference card used for extended reference types */
 export interface ReferenceItem {
   id: string;

@@ -22,6 +22,8 @@
     ReferenceTypeId,
     SceneReferenceState,
     SceneReferenceStateUpdate,
+    FieldDefinition,
+    FieldValue,
   } from "../types";
   import {
     DEFAULT_REFERENCE_TYPES,
@@ -58,6 +60,8 @@
     reference?: ReferenceItem;
   } | null>(null);
   let deleteTarget = $state<ReferenceItem | null>(null);
+  let fieldDefsMap = $state<Record<string, FieldDefinition[]>>({});
+  let fieldValuesMap = $state<Record<string, Record<string, string | null>>>({});
   let activeTypeOption = $derived(getReferenceTypeOption(activeTab));
   let activeSceneStates = $derived(
     activeTab && currentProject.currentScene
@@ -138,6 +142,46 @@
       }
       if (next.locations) {
         currentProject.setLocations(next.locations);
+      }
+
+      // Load field definitions for each entity type
+      const entityTypeMap: Record<string, string> = {
+        characters: "character",
+        locations: "location",
+        items: "item",
+        objectives: "objective",
+        organizations: "organization",
+      };
+      const defsMap: Record<string, FieldDefinition[]> = {};
+      for (const type of enabledTypes) {
+        const entityType = entityTypeMap[type] ?? type;
+        try {
+          defsMap[type] = await invoke<FieldDefinition[]>("get_field_definitions", {
+            projectId: project.id,
+            entityType,
+          });
+        } catch {
+          defsMap[type] = [];
+        }
+      }
+      fieldDefsMap = defsMap;
+
+      // Load field values for all entities in bulk
+      const allEntityIds = Object.values(next).flat().map((item) => item.id);
+      if (allEntityIds.length > 0) {
+        try {
+          const allValues = await invoke<FieldValue[]>("get_field_values_bulk", {
+            entityIds: allEntityIds,
+          });
+          const vMap: Record<string, Record<string, string | null>> = {};
+          for (const v of allValues) {
+            if (!vMap[v.entity_id]) vMap[v.entity_id] = {};
+            vMap[v.entity_id][v.field_definition_id] = v.value;
+          }
+          fieldValuesMap = vMap;
+        } catch {
+          fieldValuesMap = {};
+        }
       }
     } catch (e) {
       console.error("Failed to load references:", e);
@@ -401,23 +445,53 @@
     name: string;
     description: string | null;
     attributes: Record<string, string>;
+    fieldValues?: Record<string, string | null>;
   }) {
     if (!currentProject.value || !editDialog) return;
 
     try {
+      let entityId: string | null = null;
+
       if (editDialog.mode === "create") {
         await invoke("create_reference", {
           projectId: currentProject.value.id,
           referenceType: editDialog.referenceType.id,
-          reference: data,
+          reference: {
+            name: data.name,
+            description: data.description,
+            attributes: data.attributes,
+          },
         });
       } else if (editDialog.reference) {
+        entityId = editDialog.reference.id;
         await invoke("update_reference", {
           referenceId: editDialog.reference.id,
           referenceType: editDialog.referenceType.id,
-          reference: data,
+          reference: {
+            name: data.name,
+            description: data.description,
+            attributes: data.attributes,
+          },
         });
       }
+
+      if (data.fieldValues && entityId) {
+        for (const [defId, value] of Object.entries(data.fieldValues)) {
+          if (value === null || value === undefined || value === "") {
+            await invoke("clear_field_value", {
+              fieldDefinitionId: defId,
+              entityId,
+            });
+          } else {
+            await invoke("set_field_value", {
+              fieldDefinitionId: defId,
+              entityId,
+              value,
+            });
+          }
+        }
+      }
+
       await loadReferences();
     } catch (e) {
       console.error("Failed to save reference:", e);
@@ -837,6 +911,9 @@
             </div>
 
             {#if isExpanded}
+              {@const refFieldDefs = (activeTab ? fieldDefsMap[activeTab] ?? [] : []).filter((d) => d.visible)}
+              {@const refFieldValues = fieldValuesMap[reference.id] ?? {}}
+              {@const hasFieldValues = refFieldDefs.some((d) => refFieldValues[d.id] != null && refFieldValues[d.id] !== "")}
               <div class="px-3 pb-3 border-t border-bg-panel">
                 {#if reference.description}
                   <div
@@ -853,6 +930,30 @@
                   </p>
                 {/if}
 
+                {#if hasFieldValues}
+                  <div class="mt-3 space-y-1.5">
+                    {#each refFieldDefs as def (def.id)}
+                      {@const fv = refFieldValues[def.id]}
+                      {#if fv != null && fv !== ""}
+                        <div class="flex gap-2 text-xs">
+                          <span class="text-text-secondary font-medium shrink-0">{def.name}:</span>
+                          <span class="text-text-primary wrap-break-word">
+                            {#if def.field_type === "checkbox"}
+                              {fv === "true" ? "Yes" : "No"}
+                            {:else if def.field_type === "multiselect"}
+                              {(() => { try { return (JSON.parse(fv) as string[]).join(", "); } catch { return fv; } })()}
+                            {:else if def.field_type === "url"}
+                              <a href={fv} target="_blank" rel="noopener noreferrer" class="text-accent hover:underline">{fv}</a>
+                            {:else}
+                              {fv}
+                            {/if}
+                          </span>
+                        </div>
+                      {/if}
+                    {/each}
+                  </div>
+                {/if}
+
                 {#if attributes.length > 0}
                   <div class="mt-3 space-y-1.5">
                     {#each attributes as [key, value] (key)}
@@ -864,7 +965,7 @@
                   </div>
                 {/if}
 
-                {#if !reference.description && !notes && attributes.length === 0}
+                {#if !reference.description && !notes && attributes.length === 0 && !hasFieldValues}
                   <p class="text-text-secondary text-sm mt-3 italic">No additional details</p>
                 {/if}
 
@@ -914,6 +1015,7 @@
   <ReferenceEditDialog
     referenceType={editDialog.referenceType}
     reference={editDialog.reference}
+    projectId={currentProject.value?.id ?? ""}
     onClose={() => (editDialog = null)}
     onSave={handleSaveReference}
   />

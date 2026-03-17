@@ -144,6 +144,17 @@ pub fn run() {
             // App settings commands
             commands::get_app_settings,
             commands::update_app_settings,
+            // Custom field commands
+            commands::get_field_definitions,
+            commands::get_all_field_definitions,
+            commands::create_field_definition,
+            commands::update_field_definition,
+            commands::delete_field_definition,
+            commands::reorder_field_definitions,
+            commands::get_field_values,
+            commands::get_field_values_bulk,
+            commands::set_field_value,
+            commands::clear_field_value,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
