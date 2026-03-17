@@ -24,6 +24,7 @@
     Book,
     Image as ImageIcon,
     ScrollText,
+    PenTool,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import type {
@@ -41,6 +42,8 @@
     TreatmentLevel,
     TreatmentFormat,
     TreatmentOptions,
+    ScrivenerExportMode,
+    ScrivenerExportOptions,
   } from "../types";
   import Tooltip from "./Tooltip.svelte";
 
@@ -60,7 +63,9 @@
     onSuccess: (result: ExportResult) => void;
   } = $props();
 
-  let exportFormat = $state<"markdown" | "longform" | "docx" | "epub" | "treatment">("docx");
+  let exportFormat = $state<"markdown" | "longform" | "docx" | "epub" | "treatment" | "scrivener">(
+    "docx"
+  );
   let includeBeatMarkers = $state(false);
   let includeSynopsis = $state(false);
   let pageBreaksBetweenChapters = $state(true);
@@ -79,6 +84,10 @@
   let treatmentLevel = $state<TreatmentLevel>("five_page");
   let treatmentFormat = $state<TreatmentFormat>("docx");
   let treatmentFilePath = $state("");
+  let scrivenerMode = $state<ScrivenerExportMode>("create_new");
+  let scrivenerPath = $state("");
+  let scrivenerBackup = $state(true);
+  let scrivenerIncludeUnmatched = $state(true);
   let deleteExisting = $state(false);
   let createSnapshot = $state(false);
   let outputPath = $state("");
@@ -162,9 +171,14 @@
 
   // Reset treatment file path when treatment output format changes
   $effect(() => {
-    // Access treatmentFormat to track it
     void treatmentFormat;
     treatmentFilePath = "";
+  });
+
+  // Reset scrivener path when mode changes
+  $effect(() => {
+    void scrivenerMode;
+    scrivenerPath = "";
   });
 
   // Fetch word count when dialog opens (for project-level export)
@@ -201,7 +215,8 @@
       (exportFormat === "epub" &&
         epubFilePath.length > 0 &&
         (!includeCoverImage || coverImagePath.length > 0)) ||
-      (exportFormat === "treatment" && treatmentFilePath.length > 0)
+      (exportFormat === "treatment" && treatmentFilePath.length > 0) ||
+      (exportFormat === "scrivener" && scrivenerPath.length > 0)
   );
 
   async function selectDestination() {
@@ -270,6 +285,30 @@
     if (path) {
       treatmentFilePath = path;
       error = null;
+    }
+  }
+
+  async function selectScrivenerPath() {
+    if (scrivenerMode === "create_new") {
+      const path = await save({
+        title: "Save Scrivener Project",
+        defaultPath: `${currentProject.value?.name || "Export"}.scriv`,
+        filters: [{ name: "Scrivener Project", extensions: ["scriv"] }],
+      });
+      if (path) {
+        scrivenerPath = path;
+        error = null;
+      }
+    } else {
+      const path = await open({
+        directory: true,
+        title: "Select Existing .scriv Bundle",
+        defaultPath: currentProject.value?.source_path || undefined,
+      });
+      if (path) {
+        scrivenerPath = path;
+        error = null;
+      }
     }
   }
 
@@ -358,6 +397,19 @@
         };
 
         result = await invoke<ExportResult>("generate_treatment", {
+          projectId: currentProject.value.id,
+          options,
+        });
+      } else if (exportFormat === "scrivener") {
+        const options: ScrivenerExportOptions = {
+          mode: scrivenerMode,
+          output_path: scrivenerPath,
+          backup: scrivenerBackup,
+          include_unmatched: scrivenerIncludeUnmatched,
+          create_snapshot: createSnapshot,
+        };
+
+        result = await invoke<ExportResult>("export_to_scrivener", {
           projectId: currentProject.value.id,
           options,
         });
@@ -466,7 +518,7 @@
       <!-- Format Selection - Card Style -->
       <fieldset>
         <legend class="block text-sm font-medium text-text-secondary mb-3">Export Format</legend>
-        <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <label
             class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
             'docx'
@@ -604,6 +656,35 @@
             >
             <span class="text-xs text-text-secondary mt-0.5">.docx / .txt</span>
             {#if exportFormat === "treatment"}
+              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
+            {/if}
+          </label>
+
+          <label
+            class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
+            'scrivener'
+              ? 'border-accent bg-accent/5'
+              : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+          >
+            <input
+              type="radio"
+              name="format"
+              value="scrivener"
+              bind:group={exportFormat}
+              class="sr-only"
+            />
+            <PenTool
+              class="w-8 h-8 mb-2 {exportFormat === 'scrivener'
+                ? 'text-accent'
+                : 'text-text-secondary'}"
+            />
+            <span
+              class="text-sm font-medium {exportFormat === 'scrivener'
+                ? 'text-text-primary'
+                : 'text-text-secondary'}">Scrivener</span
+            >
+            <span class="text-xs text-text-secondary mt-0.5">.scriv</span>
+            {#if exportFormat === "scrivener"}
               <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
             {/if}
           </label>
@@ -1137,6 +1218,146 @@
                 aria-label="Choose save location"
               >
                 <FileText class="w-5 h-5" />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+      {:else if exportFormat === "scrivener"}
+        <!-- Scrivener Export Options -->
+        <fieldset>
+          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+            <PenTool class="w-4 h-4" />
+            Export Mode
+          </legend>
+          <div class="space-y-2">
+            <label
+              class="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all {scrivenerMode ===
+              'create_new'
+                ? 'bg-accent/10 border border-accent/30'
+                : 'bg-bg-card/50 hover:bg-bg-card border border-transparent'}"
+            >
+              <div>
+                <span class="text-sm text-text-primary">Create New</span>
+                <p class="text-xs text-text-secondary mt-0.5">
+                  Build a fresh .scriv project from your outline
+                </p>
+              </div>
+              <input
+                type="radio"
+                name="scrivener-mode"
+                value="create_new"
+                bind:group={scrivenerMode}
+                class="accent-accent"
+              />
+            </label>
+            <label
+              class="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all {scrivenerMode ===
+              'update'
+                ? 'bg-accent/10 border border-accent/30'
+                : 'bg-bg-card/50 hover:bg-bg-card border border-transparent'}"
+            >
+              <div>
+                <span class="text-sm text-text-primary">Update Existing</span>
+                <p class="text-xs text-text-secondary mt-0.5">
+                  Write prose back into an existing .scriv bundle
+                </p>
+              </div>
+              <input
+                type="radio"
+                name="scrivener-mode"
+                value="update"
+                bind:group={scrivenerMode}
+                class="accent-accent"
+              />
+            </label>
+          </div>
+        </fieldset>
+
+        {#if scrivenerMode === "update"}
+          <!-- Update-mode-specific options -->
+          <fieldset>
+            <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+              <Type class="w-4 h-4" />
+              Update Options
+            </legend>
+            <div class="space-y-2">
+              <label
+                class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+              >
+                <div>
+                  <span class="text-sm text-text-primary">Backup before updating</span>
+                  <p class="text-xs text-text-secondary mt-0.5">
+                    Creates a timestamped copy of the .scriv bundle
+                  </p>
+                </div>
+                <div class="relative">
+                  <input type="checkbox" bind:checked={scrivenerBackup} class="peer sr-only" />
+                  <div
+                    class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                  ></div>
+                  <div
+                    class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                  ></div>
+                </div>
+              </label>
+
+              <label
+                class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+              >
+                <div>
+                  <span class="text-sm text-text-primary">Include unmatched scenes</span>
+                  <p class="text-xs text-text-secondary mt-0.5">
+                    Create new Scrivener documents for scenes without matches
+                  </p>
+                </div>
+                <div class="relative">
+                  <input
+                    type="checkbox"
+                    bind:checked={scrivenerIncludeUnmatched}
+                    class="peer sr-only"
+                  />
+                  <div
+                    class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                  ></div>
+                  <div
+                    class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                  ></div>
+                </div>
+              </label>
+            </div>
+          </fieldset>
+        {/if}
+
+        <!-- Save/Select Location -->
+        <div>
+          <label
+            for="scrivener-destination"
+            class="block text-sm font-medium text-text-secondary mb-2"
+          >
+            {scrivenerMode === "create_new" ? "Save Location" : "Select .scriv Bundle"}
+          </label>
+          <div class="flex gap-2">
+            <input
+              id="scrivener-destination"
+              type="text"
+              readonly
+              value={scrivenerPath}
+              placeholder={scrivenerMode === "create_new"
+                ? "Choose where to save..."
+                : "Select existing .scriv folder..."}
+              class="flex-1 bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer truncate"
+              onclick={selectScrivenerPath}
+            />
+            <Tooltip text="Browse" position="top">
+              <button
+                type="button"
+                onclick={selectScrivenerPath}
+                class="px-3 py-2.5 bg-bg-card text-text-secondary rounded-lg hover:bg-beat-header hover:text-text-primary transition-colors border border-bg-card"
+                aria-label={scrivenerMode === "create_new"
+                  ? "Choose save location"
+                  : "Select .scriv bundle"}
+              >
+                <FolderOpen class="w-5 h-5" />
               </button>
             </Tooltip>
           </div>
