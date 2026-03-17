@@ -79,10 +79,12 @@ pub async fn create_field_definition(
 
 #[tauri::command]
 pub async fn update_field_definition(
+    project_id: String,
     definition_id: String,
     definition: FieldDefinitionUpdate,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let def_uuid = Uuid::parse_str(&definition_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
@@ -96,7 +98,9 @@ pub async fn update_field_definition(
         definition.required.unwrap_or(false),
         definition.visible.unwrap_or(true),
     )
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+    db::update_project_modified(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]

@@ -354,6 +354,18 @@
     }
   }
 
+  async function linkAllSuggestions() {
+    for (const s of [...suggestions]) {
+      await linkSuggestion(s);
+    }
+  }
+
+  async function dismissAllSuggestions() {
+    for (const s of [...suggestions]) {
+      await dismissSuggestion(s);
+    }
+  }
+
   async function saveSceneReferenceState(
     referenceType: ReferenceTypeId,
     updates: SceneReferenceStateUpdate[]
@@ -909,6 +921,22 @@
           {#if suggestionsLoading}
             <p class="text-xs text-text-secondary px-1 py-2">Detecting...</p>
           {:else}
+            {#if suggestions.length > 1}
+              <div class="flex items-center justify-end gap-2 px-1 pb-1">
+                <button
+                  onclick={linkAllSuggestions}
+                  class="text-[10px] text-accent hover:text-accent/80 transition-colors"
+                >
+                  Link All
+                </button>
+                <button
+                  onclick={dismissAllSuggestions}
+                  class="text-[10px] text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  Dismiss All
+                </button>
+              </div>
+            {/if}
             {#each suggestions as s}
               <SuggestionCard
                 suggestion={s}

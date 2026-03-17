@@ -94,6 +94,7 @@
         });
       } else if (editingDef.id) {
         await invoke("update_field_definition", {
+          projectId,
           definitionId: editingDef.id,
           definition: {
             name: editingDef.name.trim(),
