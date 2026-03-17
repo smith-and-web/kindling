@@ -464,6 +464,18 @@ export interface TreatmentOptions {
   create_snapshot?: boolean;
 }
 
+/** Export mode for Scrivener */
+export type ScrivenerExportMode = "create_new" | "update";
+
+/** Options for Scrivener export */
+export interface ScrivenerExportOptions {
+  mode: ScrivenerExportMode;
+  output_path: string;
+  backup?: boolean;
+  include_unmatched?: boolean;
+  create_snapshot?: boolean;
+}
+
 /** Result of an export operation */
 export interface ExportResult {
   /** Path where export was saved */

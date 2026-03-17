@@ -139,6 +139,7 @@ pub fn run() {
             commands::export_to_epub,
             commands::get_project_word_count,
             commands::generate_treatment,
+            commands::export_to_scrivener,
             // Snapshot commands
             commands::create_snapshot,
             commands::list_snapshots,

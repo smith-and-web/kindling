@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 use zip::write::FileOptions;
@@ -4191,6 +4191,476 @@ pub async fn generate_treatment(
     })
 }
 
+// =============================================================================
+// Scrivener Export
+// =============================================================================
+
+/// Export mode for Scrivener
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScrivenerExportMode {
+    /// Create a fresh .scriv bundle
+    CreateNew,
+    /// Update an existing .scriv bundle (match by source_id or title)
+    Update,
+}
+
+/// Options for Scrivener export
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScrivenerExportOptions {
+    pub mode: ScrivenerExportMode,
+    pub output_path: String,
+    /// Create a backup of the existing .scriv before updating
+    #[serde(default = "default_backup")]
+    pub backup: bool,
+    /// Create new Scrivener documents for scenes without matches (update mode)
+    #[serde(default)]
+    pub include_unmatched: bool,
+    /// Create a project snapshot before exporting
+    #[serde(default)]
+    pub create_snapshot: bool,
+}
+
+fn default_backup() -> bool {
+    true
+}
+
+/// Gather beat prose for a scene, concatenated
+fn gather_scene_prose(conn: &rusqlite::Connection, scene: &Scene) -> Result<String, String> {
+    let beats = db::queries::get_beats(conn, &scene.id).map_err(|e| e.to_string())?;
+    let mut parts: Vec<String> = Vec::new();
+
+    if let Some(ref prose) = scene.prose {
+        if !prose.trim().is_empty() {
+            parts.push(prose.clone());
+        }
+    }
+
+    for beat in &beats {
+        if let Some(ref prose) = beat.prose {
+            if !prose.trim().is_empty() {
+                parts.push(prose.clone());
+            }
+        }
+    }
+
+    if parts.is_empty() {
+        Ok(String::new())
+    } else {
+        Ok(parts.join("\n"))
+    }
+}
+
+/// Export project to a Scrivener .scriv bundle
+#[tauri::command]
+pub async fn export_to_scrivener(
+    project_id: String,
+    options: ScrivenerExportOptions,
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ExportResult, String> {
+    let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+
+    if options.create_snapshot {
+        let snapshot_options = super::CreateSnapshotOptions {
+            name: "Pre-Scrivener-export snapshot".to_string(),
+            description: Some("Automatic snapshot created before Scrivener export".to_string()),
+            trigger_type: SnapshotTrigger::Export,
+        };
+        super::create_snapshot(
+            project_id.clone(),
+            snapshot_options,
+            app_handle.clone(),
+            state.clone(),
+        )
+        .await?;
+    }
+
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let project = db::queries::get_project(&conn, &project_uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Project not found: {}", project_id))?;
+
+    let chapters = db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+    let scriv_path = PathBuf::from(&options.output_path);
+
+    match options.mode {
+        ScrivenerExportMode::CreateNew => {
+            create_new_scriv_bundle(&conn, &project, &active_chapters, &scriv_path)
+        }
+        ScrivenerExportMode::Update => {
+            update_existing_scriv_bundle(&conn, &project, &active_chapters, &scriv_path, &options)
+        }
+    }
+}
+
+fn create_new_scriv_bundle(
+    conn: &rusqlite::Connection,
+    project: &Project,
+    chapters: &[&Chapter],
+    scriv_path: &Path,
+) -> Result<ExportResult, String> {
+    use crate::parsers::scrivener;
+
+    // Create the .scriv directory structure
+    let data_dir = scriv_path.join("Files").join("Data");
+    fs::create_dir_all(&data_dir)
+        .map_err(|e| format!("Failed to create .scriv directory: {}", e))?;
+    fs::create_dir_all(scriv_path.join("Settings"))
+        .map_err(|e| format!("Failed to create Settings directory: {}", e))?;
+
+    let now = chrono::Utc::now()
+        .format("%Y-%m-%d %H:%M:%S %z")
+        .to_string();
+    let mut export_chapters: Vec<scrivener::ExportChapter> = Vec::new();
+    let mut files_created: usize = 0;
+    let mut chapters_exported: usize = 0;
+    let mut scenes_exported: usize = 0;
+
+    for chapter in chapters {
+        let ch_uuid = Uuid::new_v4().to_string().to_uppercase();
+
+        if chapter.is_part {
+            // Parts become text items (section separators)
+            let part_dir = data_dir.join(&ch_uuid);
+            fs::create_dir_all(&part_dir)
+                .map_err(|e| format!("Failed to create Part directory: {}", e))?;
+
+            let synopsis = chapter.synopsis.as_deref().unwrap_or("");
+            if !synopsis.is_empty() {
+                let rtf = scrivener::html_to_rtf(&format!("<p>{}</p>", synopsis));
+                fs::write(part_dir.join("content.rtf"), &rtf)
+                    .map_err(|e| format!("Failed to write part RTF: {}", e))?;
+                files_created += 1;
+            }
+
+            export_chapters.push(scrivener::ExportChapter {
+                uuid: ch_uuid,
+                title: chapter.title.clone(),
+                is_part: true,
+                created: now.clone(),
+                modified: now.clone(),
+                scenes: Vec::new(),
+            });
+            chapters_exported += 1;
+        } else {
+            let scenes = db::queries::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
+            let active_scenes: Vec<Scene> = scenes.into_iter().filter(|s| !s.archived).collect();
+
+            let mut export_scenes: Vec<scrivener::ExportScene> = Vec::new();
+
+            for scene in &active_scenes {
+                let sc_uuid = Uuid::new_v4().to_string().to_uppercase();
+                let scene_dir = data_dir.join(&sc_uuid);
+                fs::create_dir_all(&scene_dir)
+                    .map_err(|e| format!("Failed to create scene directory: {}", e))?;
+
+                let html = gather_scene_prose(conn, scene)?;
+                if !html.is_empty() {
+                    let rtf = scrivener::html_to_rtf(&html);
+                    fs::write(scene_dir.join("content.rtf"), &rtf)
+                        .map_err(|e| format!("Failed to write scene RTF: {}", e))?;
+                } else {
+                    let rtf = scrivener::html_to_rtf("");
+                    fs::write(scene_dir.join("content.rtf"), &rtf)
+                        .map_err(|e| format!("Failed to write empty RTF: {}", e))?;
+                }
+                files_created += 1;
+
+                export_scenes.push(scrivener::ExportScene {
+                    uuid: sc_uuid,
+                    title: scene.title.clone(),
+                    created: now.clone(),
+                    modified: now.clone(),
+                });
+                scenes_exported += 1;
+            }
+
+            // Create chapter folder data dir (for chapter-level content if needed)
+            let ch_dir = data_dir.join(&ch_uuid);
+            fs::create_dir_all(&ch_dir)
+                .map_err(|e| format!("Failed to create chapter directory: {}", e))?;
+
+            export_chapters.push(scrivener::ExportChapter {
+                uuid: ch_uuid,
+                title: chapter.title.clone(),
+                is_part: false,
+                created: now.clone(),
+                modified: now.clone(),
+                scenes: export_scenes,
+            });
+            chapters_exported += 1;
+        }
+    }
+
+    // Generate and write the .scrivx file
+    let scrivx_xml =
+        scrivener::generate_scrivx(&project.name, &export_chapters).map_err(|e| e.to_string())?;
+
+    let scrivx_filename = format!("{}.scrivx", sanitize_filename(&project.name));
+    fs::write(scriv_path.join(&scrivx_filename), &scrivx_xml)
+        .map_err(|e| format!("Failed to write .scrivx: {}", e))?;
+    files_created += 1;
+
+    Ok(ExportResult {
+        output_path: scriv_path.to_string_lossy().to_string(),
+        files_created,
+        chapters_exported,
+        scenes_exported,
+    })
+}
+
+fn update_existing_scriv_bundle(
+    conn: &rusqlite::Connection,
+    _project: &Project,
+    chapters: &[&Chapter],
+    scriv_path: &Path,
+    options: &ScrivenerExportOptions,
+) -> Result<ExportResult, String> {
+    use crate::parsers::scrivener;
+
+    // Verify the .scriv bundle exists
+    if !scriv_path.is_dir() {
+        return Err(format!(
+            "Scrivener bundle not found: {}",
+            scriv_path.display()
+        ));
+    }
+
+    // Backup if requested
+    if options.backup {
+        let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+        let backup_name = format!(
+            "{}_backup_{}.scriv",
+            scriv_path.file_stem().unwrap_or_default().to_string_lossy(),
+            timestamp
+        );
+        let backup_path = scriv_path.parent().unwrap_or(scriv_path).join(backup_name);
+        copy_dir_recursive(scriv_path, &backup_path)?;
+    }
+
+    // Find and parse the .scrivx file
+    let scrivx_path = find_scrivx_file(scriv_path)?;
+    let scrivx_content =
+        fs::read_to_string(&scrivx_path).map_err(|e| format!("Failed to read .scrivx: {}", e))?;
+    let scrivx_doc = scrivener::parse_scrivx(&scrivx_content).map_err(|e| e.to_string())?;
+
+    // Build a map of existing Scrivener documents (uuid → title)
+    let existing_docs = scrivener::collect_text_documents(&scrivx_doc.binder);
+    let mut uuid_by_title: HashMap<String, String> = HashMap::new();
+    let mut uuid_by_source_id: HashMap<String, String> = HashMap::new();
+
+    for doc in &existing_docs {
+        uuid_by_title
+            .entry(doc.title.to_lowercase())
+            .or_insert_with(|| doc.uuid.clone());
+    }
+
+    // Also build reverse: for scenes that have source_ids matching Scrivener UUIDs
+    for doc in &existing_docs {
+        uuid_by_source_id.insert(doc.uuid.clone(), doc.uuid.clone());
+    }
+
+    let data_dir = scriv_path.join("Files").join("Data");
+    let mut files_created: usize = 0;
+    let mut chapters_exported: usize = 0;
+    let mut scenes_exported: usize = 0;
+    let now = chrono::Utc::now()
+        .format("%Y-%m-%d %H:%M:%S %z")
+        .to_string();
+
+    // Track new items that need to be added to the .scrivx
+    let mut new_chapters: Vec<scrivener::ExportChapter> = Vec::new();
+
+    for chapter in chapters {
+        if chapter.is_part {
+            chapters_exported += 1;
+            continue;
+        }
+
+        let scenes = db::queries::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
+        let active_scenes: Vec<Scene> = scenes.into_iter().filter(|s| !s.archived).collect();
+
+        let mut new_scenes_for_chapter: Vec<scrivener::ExportScene> = Vec::new();
+
+        for scene in &active_scenes {
+            // Try to match: source_id first, then title
+            let matched_uuid = scene
+                .source_id
+                .as_ref()
+                .and_then(|sid| uuid_by_source_id.get(sid))
+                .or_else(|| uuid_by_title.get(&scene.title.to_lowercase()))
+                .cloned();
+
+            if let Some(ref scriv_uuid) = matched_uuid {
+                // Update existing document
+                let scene_dir = data_dir.join(scriv_uuid);
+                fs::create_dir_all(&scene_dir)
+                    .map_err(|e| format!("Failed to create scene directory: {}", e))?;
+
+                let html = gather_scene_prose(conn, scene)?;
+                let rtf = scrivener::html_to_rtf(&html);
+                fs::write(scene_dir.join("content.rtf"), &rtf)
+                    .map_err(|e| format!("Failed to write RTF: {}", e))?;
+                files_created += 1;
+                scenes_exported += 1;
+            } else if options.include_unmatched {
+                // Create new document
+                let sc_uuid = Uuid::new_v4().to_string().to_uppercase();
+                let scene_dir = data_dir.join(&sc_uuid);
+                fs::create_dir_all(&scene_dir)
+                    .map_err(|e| format!("Failed to create scene directory: {}", e))?;
+
+                let html = gather_scene_prose(conn, scene)?;
+                let rtf = scrivener::html_to_rtf(&html);
+                fs::write(scene_dir.join("content.rtf"), &rtf)
+                    .map_err(|e| format!("Failed to write RTF: {}", e))?;
+                files_created += 1;
+                scenes_exported += 1;
+
+                new_scenes_for_chapter.push(scrivener::ExportScene {
+                    uuid: sc_uuid,
+                    title: scene.title.clone(),
+                    created: now.clone(),
+                    modified: now.clone(),
+                });
+            }
+        }
+
+        if !new_scenes_for_chapter.is_empty() {
+            let ch_uuid = Uuid::new_v4().to_string().to_uppercase();
+            let ch_dir = data_dir.join(&ch_uuid);
+            fs::create_dir_all(&ch_dir)
+                .map_err(|e| format!("Failed to create chapter dir: {}", e))?;
+
+            new_chapters.push(scrivener::ExportChapter {
+                uuid: ch_uuid,
+                title: chapter.title.clone(),
+                is_part: false,
+                created: now.clone(),
+                modified: now.clone(),
+                scenes: new_scenes_for_chapter,
+            });
+        }
+
+        chapters_exported += 1;
+    }
+
+    // If there are new items, regenerate the .scrivx with the new items appended
+    if !new_chapters.is_empty() {
+        let updated_xml = append_to_scrivx(&scrivx_content, &new_chapters)?;
+        fs::write(&scrivx_path, &updated_xml)
+            .map_err(|e| format!("Failed to update .scrivx: {}", e))?;
+    }
+
+    Ok(ExportResult {
+        output_path: scriv_path.to_string_lossy().to_string(),
+        files_created,
+        chapters_exported,
+        scenes_exported,
+    })
+}
+
+/// Find the .scrivx file inside a .scriv bundle
+fn find_scrivx_file(scriv_path: &Path) -> Result<PathBuf, String> {
+    let entries =
+        fs::read_dir(scriv_path).map_err(|e| format!("Failed to read .scriv directory: {}", e))?;
+
+    for entry in entries.flatten() {
+        if let Some(ext) = entry.path().extension() {
+            if ext == "scrivx" {
+                return Ok(entry.path());
+            }
+        }
+    }
+
+    Err("No .scrivx file found in the .scriv bundle".to_string())
+}
+
+/// Recursively copy a directory
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
+    fs::create_dir_all(dst).map_err(|e| format!("Failed to create backup directory: {}", e))?;
+
+    let entries =
+        fs::read_dir(src).map_err(|e| format!("Failed to read source directory: {}", e))?;
+
+    for entry in entries.flatten() {
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+
+        if src_path.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            fs::copy(&src_path, &dst_path)
+                .map_err(|e| format!("Failed to copy file {}: {}", src_path.display(), e))?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Append new chapters/scenes to an existing .scrivx XML
+/// Inserts new BinderItems at the end of the Draft folder's Children
+fn append_to_scrivx(
+    existing_xml: &str,
+    new_chapters: &[crate::parsers::scrivener::ExportChapter],
+) -> Result<String, String> {
+    use crate::parsers::scrivener;
+
+    // Parse existing to find where to inject
+    let doc = scrivener::parse_scrivx(existing_xml).map_err(|e| e.to_string())?;
+
+    // Find the Draft folder
+    let draft = doc
+        .binder
+        .iter()
+        .find(|item| item.item_type == "DraftFolder")
+        .ok_or("No Draft folder found in .scrivx")?;
+
+    // Build the new items as XML fragments
+    let mut new_items_xml = String::new();
+    for chapter in new_chapters {
+        let xml_fragment = scrivener::generate_scrivx("_temp_", std::slice::from_ref(chapter))
+            .map_err(|e| e.to_string())?;
+
+        // Extract just the folder BinderItem from the generated XML
+        if let Some(start) = xml_fragment.find("<BinderItem") {
+            // Find the matching end — the first BinderItem in Children of Draft
+            if let Some(children_start) = xml_fragment[start..].find("<Children>") {
+                let children_offset = start + children_start + "<Children>".len();
+                if let Some(children_end) = xml_fragment[children_offset..].find("</Children>") {
+                    let inner = &xml_fragment[children_offset..children_offset + children_end];
+                    new_items_xml.push_str(inner.trim());
+                }
+            }
+        }
+    }
+
+    // Find the closing </Children> of the DraftFolder and insert before it
+    // We look for the draft folder's Children closing tag
+    // Simple approach: find the DraftFolder UUID and then its </Children> tag
+    let draft_marker = format!("UUID=\"{}\"", draft.uuid);
+    if let Some(draft_pos) = existing_xml.find(&draft_marker) {
+        // Find the last </Children> before the Draft folder's </BinderItem>
+        let after_draft = &existing_xml[draft_pos..];
+        if let Some(children_end_pos) = after_draft.find("</Children>") {
+            let insert_pos = draft_pos + children_end_pos;
+            let mut result = String::with_capacity(existing_xml.len() + new_items_xml.len());
+            result.push_str(&existing_xml[..insert_pos]);
+            result.push_str("\n      ");
+            result.push_str(&new_items_xml);
+            result.push('\n');
+            result.push_str(&existing_xml[insert_pos..]);
+            return Ok(result);
+        }
+    }
+
+    Err("Could not find insertion point in .scrivx".to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -5497,5 +5967,452 @@ mod tests {
             result.parts[0].chapters[0].scenes[0].beat_summaries[0],
             "Opens case file"
         );
+    }
+
+    // =========================================================================
+    // Scrivener Export Tests
+    // =========================================================================
+
+    #[test]
+    fn test_create_new_scriv_bundle() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                project_id.to_string(),
+                "Scriv Test",
+                "blank",
+                "2024-01-01T00:00:00Z",
+                "2024-01-01T00:00:00Z",
+                "novel",
+            ],
+        ).unwrap();
+
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Chapter 1", 0, false, false],
+        ).unwrap();
+
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![sc_id.to_string(), ch_id.to_string(), "Opening", "<p>Hello world.</p>", 0, false],
+        ).unwrap();
+
+        let scriv_dir = dir.path().join("Test.scriv");
+        let project = db::queries::get_project(&conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(&conn, &project_id).unwrap();
+        let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+        let result =
+            create_new_scriv_bundle(&conn, &project, &active_chapters, &scriv_dir).unwrap();
+
+        assert_eq!(result.chapters_exported, 1);
+        assert_eq!(result.scenes_exported, 1);
+        assert!(result.files_created >= 2); // 1 scene RTF + 1 .scrivx
+
+        // Verify directory structure
+        assert!(scriv_dir.join("Files").join("Data").exists());
+        assert!(scriv_dir.join("Settings").exists());
+
+        // Verify .scrivx exists
+        let scrivx_path = find_scrivx_file(&scriv_dir).unwrap();
+        assert!(scrivx_path.exists());
+
+        // Verify .scrivx is valid XML and contains our chapter
+        let xml = std::fs::read_to_string(&scrivx_path).unwrap();
+        assert!(xml.contains("Chapter 1"));
+        assert!(xml.contains("Opening"));
+    }
+
+    #[test]
+    fn test_create_new_scriv_bundle_with_parts() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "Parts Test", "blank", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+
+        // Part (is_part = true)
+        let part_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![part_id.to_string(), project_id.to_string(), "Act One", 0, true, false],
+        ).unwrap();
+
+        // Chapter under the part
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Chapter 1", 1, false, false],
+        ).unwrap();
+
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![sc_id.to_string(), ch_id.to_string(), "Scene 1", "<p>Content</p>", 0, false],
+        ).unwrap();
+
+        let scriv_dir = dir.path().join("Parts.scriv");
+        let project = db::queries::get_project(&conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(&conn, &project_id).unwrap();
+        let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+        let result =
+            create_new_scriv_bundle(&conn, &project, &active_chapters, &scriv_dir).unwrap();
+
+        assert_eq!(result.chapters_exported, 2); // Part + Chapter
+        assert_eq!(result.scenes_exported, 1);
+    }
+
+    #[test]
+    fn test_copy_dir_recursive() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("source");
+        std::fs::create_dir_all(src.join("sub")).unwrap();
+        std::fs::write(src.join("file.txt"), "hello").unwrap();
+        std::fs::write(src.join("sub").join("nested.txt"), "world").unwrap();
+
+        let dst = dir.path().join("backup");
+        copy_dir_recursive(&src, &dst).unwrap();
+
+        assert!(dst.join("file.txt").exists());
+        assert!(dst.join("sub").join("nested.txt").exists());
+        assert_eq!(
+            std::fs::read_to_string(dst.join("file.txt")).unwrap(),
+            "hello"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dst.join("sub").join("nested.txt")).unwrap(),
+            "world"
+        );
+    }
+
+    #[test]
+    fn test_find_scrivx_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let scriv_dir = dir.path().join("Test.scriv");
+        std::fs::create_dir_all(&scriv_dir).unwrap();
+        std::fs::write(scriv_dir.join("Test.scrivx"), "<xml/>").unwrap();
+
+        let result = find_scrivx_file(&scriv_dir.to_path_buf()).unwrap();
+        assert!(result.to_string_lossy().ends_with(".scrivx"));
+    }
+
+    #[test]
+    fn test_find_scrivx_file_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let scriv_dir = dir.path().join("Empty.scriv");
+        std::fs::create_dir_all(&scriv_dir).unwrap();
+
+        let result = find_scrivx_file(&scriv_dir.to_path_buf());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_gather_scene_prose_scene_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "Test", "blank", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Ch", 0, false, false],
+        ).unwrap();
+
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![sc_id.to_string(), ch_id.to_string(), "Sc", "<p>Scene prose</p>", 0, false],
+        ).unwrap();
+
+        let scene = db::queries::get_scenes(&conn, &ch_id)
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        let prose = gather_scene_prose(&conn, &scene).unwrap();
+        assert_eq!(prose, "<p>Scene prose</p>");
+    }
+
+    #[test]
+    fn test_gather_scene_prose_with_beats() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "Test", "blank", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Ch", 0, false, false],
+        ).unwrap();
+
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, position, archived) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![sc_id.to_string(), ch_id.to_string(), "Sc", 0, false],
+        ).unwrap();
+
+        let beat_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO beats (id, scene_id, content, prose, position) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![beat_id.to_string(), sc_id.to_string(), "Beat 1", "<p>Beat content</p>", 0],
+        ).unwrap();
+
+        let scene = db::queries::get_scenes(&conn, &ch_id)
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        let prose = gather_scene_prose(&conn, &scene).unwrap();
+        assert_eq!(prose, "<p>Beat content</p>");
+    }
+
+    #[test]
+    fn test_update_existing_scriv_bundle_with_matching() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "Update Test", "scrivener", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Chapter 1", 0, false, false],
+        ).unwrap();
+
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived, source_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![sc_id.to_string(), ch_id.to_string(), "Scene A", "<p>Updated prose</p>", 0, false, "EXISTING-UUID"],
+        ).unwrap();
+
+        // Create an existing .scriv bundle
+        let scriv_dir = dir.path().join("Existing.scriv");
+        let data_dir = scriv_dir.join("Files").join("Data").join("EXISTING-UUID");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        std::fs::write(data_dir.join("content.rtf"), "old content").unwrap();
+
+        let scrivx = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="TEST-123" Version="2.0">
+  <Binder>
+    <BinderItem UUID="DRAFT-1" Type="DraftFolder" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Draft</Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+      <Children>
+        <BinderItem UUID="EXISTING-UUID" Type="Text" Created="2024-01-01" Modified="2024-01-01">
+          <Title>Scene A</Title>
+          <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+        </BinderItem>
+      </Children>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#;
+        std::fs::write(scriv_dir.join("Existing.scrivx"), scrivx).unwrap();
+
+        let project = db::queries::get_project(&conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(&conn, &project_id).unwrap();
+        let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+        let options = ScrivenerExportOptions {
+            mode: ScrivenerExportMode::Update,
+            output_path: scriv_dir.to_string_lossy().to_string(),
+            backup: false,
+            include_unmatched: false,
+            create_snapshot: false,
+        };
+
+        let result = update_existing_scriv_bundle(
+            &conn,
+            &project,
+            &active_chapters,
+            &scriv_dir.to_path_buf(),
+            &options,
+        )
+        .unwrap();
+
+        assert_eq!(result.scenes_exported, 1);
+        assert_eq!(result.files_created, 1);
+
+        // Verify the RTF was updated
+        let rtf_content = std::fs::read_to_string(data_dir.join("content.rtf")).unwrap();
+        assert!(rtf_content.contains("Updated prose"));
+        assert!(rtf_content.starts_with("{\\rtf1"));
+    }
+
+    #[test]
+    fn test_update_scriv_with_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "Backup Test", "scrivener", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+
+        // Create a minimal .scriv
+        let scriv_dir = dir.path().join("Backup.scriv");
+        std::fs::create_dir_all(scriv_dir.join("Files").join("Data")).unwrap();
+        let scrivx = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="TEST-BACKUP" Version="2.0">
+  <Binder>
+    <BinderItem UUID="DRAFT-1" Type="DraftFolder" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Draft</Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+      <Children></Children>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#;
+        std::fs::write(scriv_dir.join("Backup.scrivx"), scrivx).unwrap();
+
+        let project = db::queries::get_project(&conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(&conn, &project_id).unwrap();
+        let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+        let options = ScrivenerExportOptions {
+            mode: ScrivenerExportMode::Update,
+            output_path: scriv_dir.to_string_lossy().to_string(),
+            backup: true,
+            include_unmatched: false,
+            create_snapshot: false,
+        };
+
+        update_existing_scriv_bundle(
+            &conn,
+            &project,
+            &active_chapters,
+            &scriv_dir.to_path_buf(),
+            &options,
+        )
+        .unwrap();
+
+        // Verify backup was created
+        let entries: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains("backup"))
+            .collect();
+        assert_eq!(entries.len(), 1);
+        let backup_dir = entries[0].path();
+        assert!(backup_dir.join("Backup.scrivx").exists());
+    }
+
+    #[test]
+    fn test_update_scriv_title_matching() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "Title Match", "blank", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Ch 1", 0, false, false],
+        ).unwrap();
+
+        // Scene with title matching a Scrivener doc (case-insensitive)
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![sc_id.to_string(), ch_id.to_string(), "the opening", "<p>Matched by title</p>", 0, false],
+        ).unwrap();
+
+        let scriv_dir = dir.path().join("TitleMatch.scriv");
+        let data_dir = scriv_dir.join("Files").join("Data").join("TITLE-UUID");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        std::fs::write(data_dir.join("content.rtf"), "old").unwrap();
+
+        let scrivx = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="TM-1" Version="2.0">
+  <Binder>
+    <BinderItem UUID="DRAFT-1" Type="DraftFolder" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Draft</Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+      <Children>
+        <BinderItem UUID="TITLE-UUID" Type="Text" Created="2024-01-01" Modified="2024-01-01">
+          <Title>The Opening</Title>
+          <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+        </BinderItem>
+      </Children>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#;
+        std::fs::write(scriv_dir.join("TitleMatch.scrivx"), scrivx).unwrap();
+
+        let project = db::queries::get_project(&conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(&conn, &project_id).unwrap();
+        let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+        let options = ScrivenerExportOptions {
+            mode: ScrivenerExportMode::Update,
+            output_path: scriv_dir.to_string_lossy().to_string(),
+            backup: false,
+            include_unmatched: false,
+            create_snapshot: false,
+        };
+
+        let result = update_existing_scriv_bundle(
+            &conn,
+            &project,
+            &active_chapters,
+            &scriv_dir.to_path_buf(),
+            &options,
+        )
+        .unwrap();
+
+        assert_eq!(result.scenes_exported, 1);
+        let rtf = std::fs::read_to_string(data_dir.join("content.rtf")).unwrap();
+        assert!(rtf.contains("Matched by title"));
     }
 }
