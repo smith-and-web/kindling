@@ -15,6 +15,8 @@
     Lightbulb,
     Info,
     X,
+    LayoutGrid,
+    AlignLeft,
   } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import ContextMenu from "./ContextMenu.svelte";
@@ -27,6 +29,7 @@
   import type {
     Beat,
     DiscoveryNote,
+    EditorMode,
     PlanningStatus,
     ReferenceItem,
     ReferenceTypeId,
@@ -755,16 +758,123 @@
     newDiscoveryNoteContent = "";
   }
 
+  // Page View state
+  let switchingMode = $state(false);
+  let pageProseContent = $state("");
+  let pageProseSaveTimeout: ReturnType<typeof setTimeout> | null = null;
+  let pageProseSaveStatus = $state<"idle" | "saving" | "error">("idle");
+  let showSwitchToBeatConfirm = $state(false);
+
+  // Sync page prose content when scene changes
+  let lastPageViewSceneId: string | null = null;
+  $effect(() => {
+    const scene = currentProject.currentScene;
+    if (!scene || scene.editor_mode !== "page") return;
+    if (scene.id === lastPageViewSceneId) return;
+    lastPageViewSceneId = scene.id;
+    pageProseContent = scene.prose ?? "";
+  });
+
+  async function switchEditorMode(targetMode: EditorMode) {
+    const scene = currentProject.currentScene;
+    if (!scene || switchingMode) return;
+
+    if (targetMode === "beat" && scene.editor_mode === "page") {
+      showSwitchToBeatConfirm = true;
+      return;
+    }
+
+    await doSwitchMode(targetMode);
+  }
+
+  async function doSwitchMode(targetMode: EditorMode) {
+    const scene = currentProject.currentScene;
+    if (!scene || switchingMode) return;
+
+    switchingMode = true;
+    try {
+      if (scene.editor_mode === "page" && pageProseSaveTimeout) {
+        clearTimeout(pageProseSaveTimeout);
+        pageProseSaveTimeout = null;
+        await invoke("save_scene_page_prose", {
+          sceneId: scene.id,
+          prose: pageProseContent,
+        });
+      }
+
+      const updated = await invoke<Scene>("switch_scene_editor_mode", {
+        sceneId: scene.id,
+        mode: targetMode,
+      });
+      currentProject.refreshCurrentScene(updated);
+
+      if (targetMode === "page") {
+        lastPageViewSceneId = updated.id;
+        pageProseContent = updated.prose ?? "";
+      }
+    } catch (e) {
+      console.error("Failed to switch editor mode:", e);
+      ui.showError("Failed to switch editor mode");
+    } finally {
+      switchingMode = false;
+    }
+  }
+
+  function handlePageProseUpdate(html: string) {
+    pageProseContent = html;
+    if (pageProseSaveTimeout) clearTimeout(pageProseSaveTimeout);
+    pageProseSaveStatus = "idle";
+    pageProseSaveTimeout = setTimeout(() => savePageProse(), 500);
+  }
+
+  async function savePageProse() {
+    const scene = currentProject.currentScene;
+    if (!scene) return;
+    pageProseSaveStatus = "saving";
+    try {
+      await invoke("save_scene_page_prose", {
+        sceneId: scene.id,
+        prose: pageProseContent,
+      });
+      pageProseSaveStatus = "idle";
+    } catch (e) {
+      console.error("Failed to save page prose:", e);
+      pageProseSaveStatus = "error";
+    }
+  }
+
+  function getPageWordCount(): number {
+    if (!pageProseContent) return 0;
+    return stripHtml(pageProseContent)
+      .split(/\s+/)
+      .filter((w) => w.length > 0).length;
+  }
+
   onMount(() => {
-    const handler = () => (discoveryNotesVisible = !discoveryNotesVisible);
-    window.addEventListener("kindling:toggleDiscoveryNotes", handler);
-    return () => window.removeEventListener("kindling:toggleDiscoveryNotes", handler);
+    const dnHandler = () => (discoveryNotesVisible = !discoveryNotesVisible);
+    window.addEventListener("kindling:toggleDiscoveryNotes", dnHandler);
+
+    const emHandler = () => {
+      const scene = currentProject.currentScene;
+      if (!scene || scene.planning_status !== "fixed") return;
+      switchEditorMode(scene.editor_mode === "page" ? "beat" : "page");
+    };
+    window.addEventListener("kindling:toggleEditorMode", emHandler);
+
+    return () => {
+      window.removeEventListener("kindling:toggleDiscoveryNotes", dnHandler);
+      window.removeEventListener("kindling:toggleEditorMode", emHandler);
+    };
   });
 
   onDestroy(() => {
     flushPendingSave(ui.expandedBeatId ?? undefined);
     if (ui.expandedBeatId) {
       syncPendingProse(ui.expandedBeatId);
+    }
+    if (pageProseSaveTimeout) {
+      clearTimeout(pageProseSaveTimeout);
+      savePageProse();
     }
   });
 </script>
@@ -869,6 +979,39 @@
               </div>
             </div>
           </div>
+          {#if (scene.planning_status ?? "fixed") === "fixed"}
+            <div class="flex flex-col gap-1">
+              <span class="text-xs text-text-secondary">View</span>
+              <div class="flex bg-bg-card rounded-lg p-0.5">
+                <Tooltip text="Beat cards" position="top">
+                  <button
+                    onclick={() => switchEditorMode("beat")}
+                    disabled={switchingMode || isLocked}
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors {scene.editor_mode ===
+                    'beat'
+                      ? 'bg-accent text-white'
+                      : 'text-text-secondary hover:text-text-primary'}"
+                  >
+                    <LayoutGrid class="w-3.5 h-3.5" />
+                    Beats
+                  </button>
+                </Tooltip>
+                <Tooltip text="Full page prose" position="top">
+                  <button
+                    onclick={() => switchEditorMode("page")}
+                    disabled={switchingMode || isLocked}
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors {scene.editor_mode ===
+                    'page'
+                      ? 'bg-accent text-white'
+                      : 'text-text-secondary hover:text-text-primary'}"
+                  >
+                    <AlignLeft class="w-3.5 h-3.5" />
+                    Page
+                  </button>
+                </Tooltip>
+              </div>
+            </div>
+          {/if}
           {#if metadataError}
             <p class="text-xs text-red-400 mt-2">{metadataError}</p>
           {/if}
@@ -1263,8 +1406,29 @@
           </section>
         {/if}
 
-        <!-- Beats (Fixed only) -->
-        {#if (scene.planning_status ?? "fixed") === "fixed"}
+        <!-- Page View (Fixed + Page mode) -->
+        {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode === "page"}
+          <section>
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">
+                Scene Prose
+              </h2>
+              <span class="text-xs text-text-secondary">{getPageWordCount()} words</span>
+            </div>
+            <div class="bg-bg-panel rounded-lg overflow-hidden" style="min-height: 50rem;">
+              <NovelEditor
+                content={pageProseContent}
+                placeholder={isLocked ? "Scene is locked" : "Write your scene prose here..."}
+                readonly={isLocked}
+                saveStatus={pageProseSaveStatus}
+                onUpdate={handlePageProseUpdate}
+              />
+            </div>
+          </section>
+        {/if}
+
+        <!-- Beats (Fixed + Beat mode only) -->
+        {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode !== "page"}
           <section>
             <div class="flex items-center justify-between mb-4">
               <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">Beats</h2>
@@ -1439,8 +1603,8 @@
           </section>
         {/if}
 
-        <!-- Scene Prose (Fixed only, if exists and no beats) -->
-        {#if (scene.planning_status ?? "fixed") === "fixed" && scene.prose && currentProject.beats.length === 0}
+        <!-- Scene Prose fallback (Fixed + Beat mode only, if exists and no beats) -->
+        {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode !== "page" && scene.prose && currentProject.beats.length === 0}
           <section class="mt-8">
             <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">
               Content
@@ -1482,5 +1646,17 @@
     message="Are you sure you want to delete this beat? Any prose will be merged into the previous beat."
     onConfirm={executeDeleteBeat}
     onCancel={() => (deleteBeatDialog = null)}
+  />
+{/if}
+
+{#if showSwitchToBeatConfirm}
+  <ConfirmDialog
+    title="Switch to Beat View"
+    message="Switching to Beat View will not split your page prose back into beats. Your prose will remain on the scene and you can edit individual beats separately. Continue?"
+    onConfirm={() => {
+      showSwitchToBeatConfirm = false;
+      doSwitchMode("beat");
+    }}
+    onCancel={() => (showSwitchToBeatConfirm = false)}
   />
 {/if}

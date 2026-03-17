@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use crate::db;
 use crate::models::{
-    Beat, Chapter, Character, DiscoveryNote, Location, PlanningStatus, Project, ReferenceItem,
-    Scene, SceneReferenceState, SceneStatus, SceneType, SourceType,
+    Beat, Chapter, Character, DiscoveryNote, EditorMode, Location, PlanningStatus, Project,
+    ReferenceItem, Scene, SceneReferenceState, SceneStatus, SceneType, SourceType,
 };
 
 use super::AppState;
@@ -249,6 +249,7 @@ pub async fn duplicate_chapter(
             scene_type: scene.scene_type,
             scene_status: scene.scene_status,
             planning_status: PlanningStatus::Fixed,
+            editor_mode: scene.editor_mode,
         };
         db::insert_scene(&conn, &new_scene).map_err(|e| e.to_string())?;
 
@@ -371,6 +372,7 @@ pub async fn create_scene(
         scene_type: SceneType::Normal,
         scene_status: SceneStatus::Draft,
         planning_status,
+        editor_mode: EditorMode::Beat,
     };
 
     db::insert_scene(&conn, &scene).map_err(|e| e.to_string())?;
@@ -402,6 +404,39 @@ pub async fn save_scene_prose(
     db::update_scene_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())?;
 
     // Update project modified time
+    if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn switch_scene_editor_mode(
+    scene_id: String,
+    mode: String,
+    state: State<'_, AppState>,
+) -> Result<Scene, String> {
+    let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    db::switch_scene_editor_mode(&conn, &uuid, &mode).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn save_scene_page_prose(
+    scene_id: String,
+    prose: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    if db::is_scene_locked(&conn, &uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot edit a locked scene".to_string());
+    }
+
+    db::save_scene_page_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())?;
+
     if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
         let _ = db::update_project_modified(&conn, &project_id);
     }
@@ -582,6 +617,7 @@ pub async fn duplicate_scene(
         scene_type: original.scene_type,
         scene_status: original.scene_status,
         planning_status: original.planning_status,
+        editor_mode: original.editor_mode,
     };
 
     db::insert_scene(&conn, &new_scene).map_err(|e| e.to_string())?;

@@ -3864,7 +3864,7 @@ mod tests {
 
     #[test]
     fn test_add_scene_to_docx() {
-        use crate::models::{Beat, PlanningStatus, Scene, SceneStatus, SceneType};
+        use crate::models::{Beat, EditorMode, PlanningStatus, Scene, SceneStatus, SceneType};
         use uuid::Uuid;
 
         let scene = Scene {
@@ -3880,6 +3880,7 @@ mod tests {
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
             planning_status: PlanningStatus::Fixed,
+            editor_mode: EditorMode::Beat,
         };
 
         let beats = vec![Beat {
@@ -4149,7 +4150,9 @@ mod tests {
 
     #[test]
     fn test_add_chapter_to_docx() {
-        use crate::models::{Beat, Chapter, PlanningStatus, Scene, SceneStatus, SceneType};
+        use crate::models::{
+            Beat, Chapter, EditorMode, PlanningStatus, Scene, SceneStatus, SceneType,
+        };
         use std::collections::HashMap;
         use uuid::Uuid;
 
@@ -4179,6 +4182,7 @@ mod tests {
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
             planning_status: PlanningStatus::Fixed,
+            editor_mode: EditorMode::Beat,
         };
 
         let beat = Beat {
@@ -4215,7 +4219,9 @@ mod tests {
 
     #[test]
     fn test_add_chapter_with_multiple_scenes() {
-        use crate::models::{Beat, Chapter, PlanningStatus, Scene, SceneStatus, SceneType};
+        use crate::models::{
+            Beat, Chapter, EditorMode, PlanningStatus, Scene, SceneStatus, SceneType,
+        };
         use std::collections::HashMap;
         use uuid::Uuid;
 
@@ -4245,6 +4251,7 @@ mod tests {
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
             planning_status: PlanningStatus::Fixed,
+            editor_mode: EditorMode::Beat,
         };
 
         let scene2 = Scene {
@@ -4260,6 +4267,7 @@ mod tests {
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
             planning_status: PlanningStatus::Fixed,
+            editor_mode: EditorMode::Beat,
         };
 
         let beat1 = Beat {

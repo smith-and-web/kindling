@@ -119,6 +119,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
   {
     id: "sc-2",
@@ -133,6 +134,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
   {
     id: "sc-3",
@@ -147,6 +149,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
   {
     id: "sc-4",
@@ -161,6 +164,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
   {
     id: "sc-5",
@@ -175,6 +179,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
   {
     id: "sc-6",
@@ -189,6 +194,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
   {
     id: "sc-7",
@@ -203,6 +209,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
   {
     id: "sc-8",
@@ -217,6 +224,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
 ];
 

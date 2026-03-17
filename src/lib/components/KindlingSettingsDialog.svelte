@@ -154,7 +154,8 @@
           <div class="flex gap-3">
             {#each [{ value: "dark", label: "Dark" }, { value: "light", label: "Light" }, { value: "system", label: "System" }] as opt}
               <label
-                class="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors {ui.theme === opt.value
+                class="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors {ui.theme ===
+                opt.value
                   ? 'border-accent bg-accent/10 text-text-primary'
                   : 'border-bg-card bg-bg-card text-text-secondary hover:text-text-primary'}"
               >

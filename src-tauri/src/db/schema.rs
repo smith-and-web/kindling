@@ -39,7 +39,8 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             source_id TEXT,
             scene_type TEXT NOT NULL DEFAULT 'normal',
             scene_status TEXT NOT NULL DEFAULT 'draft',
-            planning_status TEXT NOT NULL DEFAULT 'fixed'
+            planning_status TEXT NOT NULL DEFAULT 'fixed',
+            editor_mode TEXT NOT NULL DEFAULT 'beat'
         );
 
         CREATE TABLE IF NOT EXISTS beats (
@@ -389,6 +390,20 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
     if !scene_columns.contains(&"planning_status".to_string()) {
         conn.execute(
             "ALTER TABLE scenes ADD COLUMN planning_status TEXT NOT NULL DEFAULT 'fixed'",
+            [],
+        )?;
+    }
+
+    // Migration: Add editor_mode to scenes
+    let scene_cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(scenes)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if !scene_cols.contains(&"editor_mode".to_string()) {
+        conn.execute(
+            "ALTER TABLE scenes ADD COLUMN editor_mode TEXT NOT NULL DEFAULT 'beat'",
             [],
         )?;
     }

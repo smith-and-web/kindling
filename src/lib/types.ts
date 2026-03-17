@@ -99,7 +99,11 @@ export interface Scene {
   scene_status: SceneStatus;
   /** Rolling outline planning status */
   planning_status: PlanningStatus;
+  /** Editor mode: beat cards or full-page prose */
+  editor_mode: EditorMode;
 }
+
+export type EditorMode = "beat" | "page";
 
 export type SceneType = "normal" | "notes" | "todo" | "unused";
 

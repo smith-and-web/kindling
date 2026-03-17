@@ -99,6 +99,8 @@ pub fn run() {
             commands::update_chapter_planning_status,
             commands::update_chapter_synopsis,
             commands::save_scene_prose,
+            commands::switch_scene_editor_mode,
+            commands::save_scene_page_prose,
             commands::reorder_chapters,
             commands::reorder_scenes,
             commands::move_scene_to_chapter,
