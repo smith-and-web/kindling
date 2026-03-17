@@ -151,10 +151,12 @@ fn detect_references_with_index(
     let plain = strip_html(&raw_html);
 
     // Tokenise on whitespace, keeping track of character offsets
+    let mut cursor = 0usize;
     let tokens: Vec<(usize, &str)> = plain
         .split_whitespace()
         .map(|tok| {
-            let offset = tok.as_ptr() as usize - plain.as_ptr() as usize;
+            let offset = plain[cursor..].find(tok).unwrap() + cursor;
+            cursor = offset + tok.len();
             (offset, tok)
         })
         .collect();

@@ -140,7 +140,7 @@
     <p class="text-xs text-text-secondary">No tags defined yet.</p>
   {:else}
     <div class="space-y-0.5">
-      {#each getRootTags() as tag (tag.id)}
+      {#each getRootTags() as tag}
         {@const children = getChildTags(tag.id)}
         <div>
           <div class="flex items-center gap-2 py-1.5 px-2 bg-bg-card rounded-lg text-sm group">
@@ -187,7 +187,7 @@
           </div>
           {#if children.length > 0}
             <div class="ml-4 mt-0.5 space-y-0.5">
-              {#each children as child (child.id)}
+              {#each children as child}
                 {@const grandchildren = getChildTags(child.id)}
                 <div>
                   <div
@@ -238,7 +238,7 @@
                   </div>
                   {#if grandchildren.length > 0}
                     <div class="ml-4 mt-0.5 space-y-0.5">
-                      {#each grandchildren as gc (gc.id)}
+                      {#each grandchildren as gc}
                         <div
                           class="flex items-center gap-2 py-1 px-2 bg-bg-card/30 rounded text-xs group"
                         >

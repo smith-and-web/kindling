@@ -10,6 +10,11 @@ use crate::db::initialize_schema;
 
 /// Global application state managed by Tauri.
 /// Contains the SQLite database connection wrapped in a Mutex for thread safety.
+///
+/// Commands use `conn.unchecked_transaction()` because `MutexGuard` yields
+/// `&Connection` (not `&mut Connection`). Rollback is still automatic on drop;
+/// the only difference from `transaction()` is that Rust won't prevent concurrent
+/// `execute` calls at compile time (which the Mutex already prevents at runtime).
 pub struct AppState {
     pub db: Mutex<Connection>,
 }

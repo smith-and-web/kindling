@@ -476,6 +476,15 @@ export interface ScrivenerExportOptions {
   create_snapshot?: boolean;
 }
 
+/** Preview of how scenes map to Scrivener documents */
+export interface ScrivenerMatchPreview {
+  scene_id: string;
+  scene_title: string;
+  chapter_title: string;
+  matched_scriv_title: string | null;
+  match_method: string | null;
+}
+
 /** Result of an export operation */
 export interface ExportResult {
   /** Path where export was saved */

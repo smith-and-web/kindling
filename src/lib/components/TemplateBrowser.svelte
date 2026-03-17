@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { onMount } from "svelte";
   import { BookOpen, ChevronDown, ChevronRight, Layout, Loader2, X } from "lucide-svelte";
   import type { ProjectType, StoryTemplate } from "../types";
   import Tooltip from "./Tooltip.svelte";
@@ -25,7 +26,7 @@
 
   const selectedTemplate = $derived(filteredTemplates.find((t) => t.id === selectedId) ?? null);
 
-  $effect(() => {
+  onMount(() => {
     loadTemplates();
   });
 

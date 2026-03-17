@@ -101,25 +101,33 @@ pub async fn update_field_definition(
 
 #[tauri::command]
 pub async fn delete_field_definition(
+    project_id: String,
     definition_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let def_uuid = Uuid::parse_str(&definition_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    db::delete_field_definition(&conn, &def_uuid).map_err(|e| e.to_string())
+    db::delete_field_definition(&conn, &def_uuid).map_err(|e| e.to_string())?;
+    db::update_project_modified(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn reorder_field_definitions(
+    project_id: String,
     definition_ids: Vec<String>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let uuids: Vec<Uuid> = definition_ids
         .iter()
         .map(|id| Uuid::parse_str(id).map_err(|e| e.to_string()))
         .collect::<Result<Vec<Uuid>, String>>()?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    db::reorder_field_definitions(&conn, &uuids).map_err(|e| e.to_string())
+    db::reorder_field_definitions(&conn, &uuids).map_err(|e| e.to_string())?;
+    db::update_project_modified(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]

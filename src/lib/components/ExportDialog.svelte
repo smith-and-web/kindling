@@ -45,6 +45,7 @@
     ScrivenerExportMode,
     ScrivenerExportOptions,
   } from "../types";
+  import ScrivenerMatchDialog from "./ScrivenerMatchDialog.svelte";
   import Tooltip from "./Tooltip.svelte";
 
   const LAST_EXPORT_PATH_KEY = "kindling:lastExportPath";
@@ -88,6 +89,7 @@
   let scrivenerPath = $state("");
   let scrivenerBackup = $state(true);
   let scrivenerIncludeUnmatched = $state(true);
+  let showMatchPreview = $state(false);
   let deleteExisting = $state(false);
   let createSnapshot = $state(false);
   let outputPath = $state("");
@@ -201,7 +203,7 @@
   });
 
   // Format word count for display (rounded to nearest 1000)
-  const formattedWordCount = $derived(() => {
+  const formattedWordCount = $derived.by(() => {
     if (wordCount === null) return null;
     if (wordCount < 1000) return `${wordCount} words`;
     const rounded = Math.round(wordCount / 1000) * 1000;
@@ -401,6 +403,13 @@
           options,
         });
       } else if (exportFormat === "scrivener") {
+        if (scrivenerMode === "update" && !showMatchPreview) {
+          showMatchPreview = true;
+          exporting = false;
+          return;
+        }
+        showMatchPreview = false;
+
         const options: ScrivenerExportOptions = {
           mode: scrivenerMode,
           output_path: scrivenerPath,
@@ -495,8 +504,8 @@
             <Hash class="w-3.5 h-3.5 text-text-secondary" />
             {#if loadingWordCount}
               <span class="text-xs text-text-secondary">...</span>
-            {:else if formattedWordCount()}
-              <span class="text-xs text-text-secondary">{formattedWordCount()}</span>
+            {:else if formattedWordCount}
+              <span class="text-xs text-text-secondary">{formattedWordCount}</span>
             {/if}
           </div>
         {/if}
@@ -1620,3 +1629,12 @@
     </div>
   </div>
 </div>
+
+{#if showMatchPreview && currentProject.value}
+  <ScrivenerMatchDialog
+    projectId={currentProject.value.id}
+    scrivPath={scrivenerPath}
+    onConfirm={handleExport}
+    onCancel={() => (showMatchPreview = false)}
+  />
+{/if}

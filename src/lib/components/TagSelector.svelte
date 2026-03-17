@@ -76,10 +76,25 @@
       createAndAdd();
     }
   }
+
+  function handleClickOutside(e: MouseEvent) {
+    if (showDropdown && dropdownRef && !dropdownRef.contains(e.target as Node)) {
+      showDropdown = false;
+    }
+  }
+
+  let dropdownRef: HTMLDivElement | null = $state(null);
+
+  $effect(() => {
+    if (showDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  });
 </script>
 
 <div class="inline-flex flex-wrap gap-1 items-center">
-  {#each appliedTags as tag (tag.id)}
+  {#each appliedTags as tag}
     <span
       class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full"
       style:background-color={tag.color ? `${tag.color}20` : "var(--color-bg-card)"}
@@ -97,7 +112,7 @@
     </span>
   {/each}
 
-  <div class="relative">
+  <div class="relative" bind:this={dropdownRef}>
     <button
       onclick={() => (showDropdown = !showDropdown)}
       class="inline-flex items-center gap-0.5 text-xs text-text-secondary hover:text-text-primary px-1.5 py-0.5 rounded border border-dashed border-text-secondary/30 hover:border-text-secondary/60"
@@ -121,7 +136,7 @@
           />
         </div>
         <div class="max-h-40 overflow-y-auto">
-          {#each availableTags as tag (tag.id)}
+          {#each availableTags as tag}
             <button
               onclick={() => {
                 addTag(tag);
