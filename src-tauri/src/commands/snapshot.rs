@@ -378,6 +378,8 @@ fn restore_create_new(
         description: data.project.description,
         word_target: data.project.word_target,
         reference_types: data.project.reference_types,
+        project_type: data.project.project_type,
+        target_page_count: data.project.target_page_count,
     };
 
     db::insert_project(&tx, &new_project).map_err(|e| e.to_string())?;

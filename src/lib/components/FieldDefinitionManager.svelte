@@ -151,7 +151,7 @@
   }
 
   const needsOptions = $derived(
-    editingDef?.field_type === "select" || editingDef?.field_type === "multiselect",
+    editingDef?.field_type === "select" || editingDef?.field_type === "multiselect"
   );
 
   const inputClass =
@@ -281,11 +281,21 @@
 
       <div class="flex items-center gap-4">
         <label class="inline-flex items-center gap-1.5 text-sm text-text-primary cursor-pointer">
-          <input type="checkbox" class="accent-accent" bind:checked={editingDef.required} disabled={saving} />
+          <input
+            type="checkbox"
+            class="accent-accent"
+            bind:checked={editingDef.required}
+            disabled={saving}
+          />
           Required
         </label>
         <label class="inline-flex items-center gap-1.5 text-sm text-text-primary cursor-pointer">
-          <input type="checkbox" class="accent-accent" bind:checked={editingDef.visible} disabled={saving} />
+          <input
+            type="checkbox"
+            class="accent-accent"
+            bind:checked={editingDef.visible}
+            disabled={saving}
+          />
           Visible
         </label>
       </div>

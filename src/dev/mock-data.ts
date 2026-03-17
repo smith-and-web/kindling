@@ -28,6 +28,8 @@ export const mockProject: Project = {
   description: "A tale of two siblings bound by fire and memory.",
   word_target: 80000,
   reference_types: ["characters", "locations", "items", "objectives", "organizations"],
+  project_type: "novel",
+  target_page_count: null,
 };
 
 export const mockChapters: Chapter[] = [

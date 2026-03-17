@@ -21,8 +21,8 @@ pub fn insert_project(conn: &Connection, project: &Project) -> Result<()> {
     let reference_types_json =
         serde_json::to_string(&project.reference_types).unwrap_or_else(|_| "[]".to_string());
     conn.execute(
-        "INSERT INTO projects (id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        "INSERT INTO projects (id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types, project_type, target_page_count)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         params![
             project.id.to_string(),
             project.name,
@@ -35,6 +35,8 @@ pub fn insert_project(conn: &Connection, project: &Project) -> Result<()> {
             project.description,
             project.word_target,
             reference_types_json,
+            project.project_type,
+            project.target_page_count,
         ],
     )?;
     Ok(())
@@ -48,29 +50,38 @@ fn parse_reference_types(raw: Option<String>) -> Vec<String> {
     }
 }
 
+/// Build a Project from a row selected with columns:
+/// id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types, project_type, target_page_count
+fn project_from_row(row: &rusqlite::Row) -> rusqlite::Result<Project> {
+    Ok(Project {
+        id: parse_uuid(&row.get::<_, String>(0)?)?,
+        name: row.get(1)?,
+        source_type: SourceType::parse(&row.get::<_, String>(2)?).unwrap_or(SourceType::Markdown),
+        source_path: row.get(3)?,
+        created_at: row.get(4)?,
+        modified_at: row.get(5)?,
+        author_pen_name: row.get(6)?,
+        genre: row.get(7)?,
+        description: row.get(8)?,
+        word_target: row.get(9)?,
+        reference_types: parse_reference_types(row.get(10)?),
+        project_type: row
+            .get::<_, String>(11)
+            .unwrap_or_else(|_| Project::default_project_type()),
+        target_page_count: row.get(12)?,
+    })
+}
+
 pub fn get_project(conn: &Connection, id: &Uuid) -> Result<Option<Project>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types
+        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types, project_type, target_page_count
          FROM projects WHERE id = ?1",
     )?;
 
     let mut rows = stmt.query(params![id.to_string()])?;
 
     if let Some(row) = rows.next()? {
-        Ok(Some(Project {
-            id: parse_uuid(&row.get::<_, String>(0)?)?,
-            name: row.get(1)?,
-            source_type: SourceType::parse(&row.get::<_, String>(2)?)
-                .unwrap_or(SourceType::Markdown),
-            source_path: row.get(3)?,
-            created_at: row.get(4)?,
-            modified_at: row.get(5)?,
-            author_pen_name: row.get(6)?,
-            genre: row.get(7)?,
-            description: row.get(8)?,
-            word_target: row.get(9)?,
-            reference_types: parse_reference_types(row.get(10)?),
-        }))
+        Ok(Some(project_from_row(row)?))
     } else {
         Ok(None)
     }
@@ -78,27 +89,12 @@ pub fn get_project(conn: &Connection, id: &Uuid) -> Result<Option<Project>> {
 
 pub fn get_recent_projects(conn: &Connection, limit: usize) -> Result<Vec<Project>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types
+        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types, project_type, target_page_count
          FROM projects ORDER BY modified_at DESC LIMIT ?1",
     )?;
 
     let projects = stmt
-        .query_map(params![limit as i64], |row| {
-            Ok(Project {
-                id: parse_uuid(&row.get::<_, String>(0)?)?,
-                name: row.get(1)?,
-                source_type: SourceType::parse(&row.get::<_, String>(2)?)
-                    .unwrap_or(SourceType::Markdown),
-                source_path: row.get(3)?,
-                created_at: row.get(4)?,
-                modified_at: row.get(5)?,
-                author_pen_name: row.get(6)?,
-                genre: row.get(7)?,
-                description: row.get(8)?,
-                word_target: row.get(9)?,
-                reference_types: parse_reference_types(row.get(10)?),
-            })
-        })?
+        .query_map(params![limit as i64], project_from_row)?
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(projects)
@@ -106,27 +102,12 @@ pub fn get_recent_projects(conn: &Connection, limit: usize) -> Result<Vec<Projec
 
 pub fn get_all_projects(conn: &Connection) -> Result<Vec<Project>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types
+        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types, project_type, target_page_count
          FROM projects ORDER BY modified_at DESC",
     )?;
 
     let projects = stmt
-        .query_map([], |row| {
-            Ok(Project {
-                id: parse_uuid(&row.get::<_, String>(0)?)?,
-                name: row.get(1)?,
-                source_type: SourceType::parse(&row.get::<_, String>(2)?)
-                    .unwrap_or(SourceType::Markdown),
-                source_path: row.get(3)?,
-                created_at: row.get(4)?,
-                modified_at: row.get(5)?,
-                author_pen_name: row.get(6)?,
-                genre: row.get(7)?,
-                description: row.get(8)?,
-                word_target: row.get(9)?,
-                reference_types: parse_reference_types(row.get(10)?),
-            })
-        })?
+        .query_map([], project_from_row)?
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(projects)
@@ -395,8 +376,7 @@ pub fn switch_scene_editor_mode(conn: &Connection, scene_id: &Uuid, mode: &str) 
         params![mode, scene_id.to_string()],
     )?;
 
-    get_scene_by_id(conn, scene_id)?
-        .ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)
+    get_scene_by_id(conn, scene_id)?.ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)
 }
 
 pub fn save_scene_page_prose(conn: &Connection, scene_id: &Uuid, prose: &str) -> Result<()> {
@@ -2512,7 +2492,7 @@ pub fn update_project(conn: &Connection, project: &Project) -> Result<()> {
     let reference_types_json =
         serde_json::to_string(&project.reference_types).unwrap_or_else(|_| "[]".to_string());
     conn.execute(
-        "UPDATE projects SET name = ?1, source_type = ?2, source_path = ?3, modified_at = ?4, author_pen_name = ?5, genre = ?6, description = ?7, word_target = ?8, reference_types = ?9 WHERE id = ?10",
+        "UPDATE projects SET name = ?1, source_type = ?2, source_path = ?3, modified_at = ?4, author_pen_name = ?5, genre = ?6, description = ?7, word_target = ?8, reference_types = ?9, project_type = ?10, target_page_count = ?11 WHERE id = ?12",
         params![
             project.name,
             project.source_type.as_str(),
@@ -2523,6 +2503,8 @@ pub fn update_project(conn: &Connection, project: &Project) -> Result<()> {
             project.description,
             project.word_target,
             reference_types_json,
+            project.project_type,
+            project.target_page_count,
             project.id.to_string(),
         ],
     )?;

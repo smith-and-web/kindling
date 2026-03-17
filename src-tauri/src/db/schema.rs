@@ -17,7 +17,9 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             genre TEXT,
             description TEXT,
             word_target INTEGER,
-            reference_types TEXT
+            reference_types TEXT,
+            project_type TEXT NOT NULL DEFAULT 'novel',
+            target_page_count INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS chapters (
@@ -360,6 +362,18 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
     }
     if !columns.contains(&"reference_types".to_string()) {
         conn.execute("ALTER TABLE projects ADD COLUMN reference_types TEXT", [])?;
+    }
+    if !columns.contains(&"project_type".to_string()) {
+        conn.execute(
+            "ALTER TABLE projects ADD COLUMN project_type TEXT NOT NULL DEFAULT 'novel'",
+            [],
+        )?;
+    }
+    if !columns.contains(&"target_page_count".to_string()) {
+        conn.execute(
+            "ALTER TABLE projects ADD COLUMN target_page_count INTEGER",
+            [],
+        )?;
     }
 
     // Migration: Add scene reference tables if missing

@@ -63,6 +63,8 @@ pub fn run() {
             commands::preview_import,
             commands::create_sample_project,
             commands::create_blank_project,
+            commands::create_screenplay_project,
+            commands::get_page_count_estimate,
             commands::get_project,
             commands::get_recent_projects,
             commands::get_all_projects,

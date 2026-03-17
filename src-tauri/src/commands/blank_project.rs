@@ -36,6 +36,8 @@ pub async fn create_blank_project(
         description: None,
         word_target: None,
         reference_types: Project::default_reference_types(),
+        project_type: Project::default_project_type(),
+        target_page_count: None,
     };
 
     let chapter = Chapter {

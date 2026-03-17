@@ -9,10 +9,7 @@ use uuid::Uuid;
 // ============================================================================
 
 #[tauri::command]
-pub async fn get_tags(
-    project_id: String,
-    state: State<'_, AppState>,
-) -> Result<Vec<Tag>, String> {
+pub async fn get_tags(project_id: String, state: State<'_, AppState>) -> Result<Vec<Tag>, String> {
     let uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     db::get_tags(&conn, &uuid).map_err(|e| e.to_string())
@@ -79,20 +76,14 @@ pub async fn update_tag(
 }
 
 #[tauri::command]
-pub async fn delete_tag(
-    tag_id: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn delete_tag(tag_id: String, state: State<'_, AppState>) -> Result<(), String> {
     let uuid = Uuid::parse_str(&tag_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     db::delete_tag(&conn, &uuid).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn reorder_tags(
-    tag_ids: Vec<String>,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn reorder_tags(tag_ids: Vec<String>, state: State<'_, AppState>) -> Result<(), String> {
     let uuids: Vec<Uuid> = tag_ids
         .iter()
         .map(|id| Uuid::parse_str(id).map_err(|e| e.to_string()))
@@ -197,8 +188,8 @@ pub async fn filter_entities(
 ) -> Result<Vec<String>, String> {
     let uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let ids = db::filter_entities(&conn, &uuid, &entity_type, &filter_json)
-        .map_err(|e| e.to_string())?;
+    let ids =
+        db::filter_entities(&conn, &uuid, &entity_type, &filter_json).map_err(|e| e.to_string())?;
     Ok(ids.iter().map(|id| id.to_string()).collect())
 }
 

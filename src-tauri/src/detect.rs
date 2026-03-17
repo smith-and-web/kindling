@@ -80,12 +80,9 @@ pub fn build_name_index(
     for ri in &reference_items {
         let key = ri.name.trim().to_lowercase();
         if !key.is_empty() {
-            index.entry(key).or_insert((
-                ri.id,
-                ri.reference_type.clone(),
-                ri.name.clone(),
-                1.0,
-            ));
+            index
+                .entry(key)
+                .or_insert((ri.id, ri.reference_type.clone(), ri.name.clone(), 1.0));
         }
     }
 
@@ -168,11 +165,7 @@ fn detect_references_with_index(
 
     for n in 1..=max_n {
         for window in tokens.windows(n) {
-            let combined: String = window
-                .iter()
-                .map(|(_, t)| *t)
-                .collect::<Vec<_>>()
-                .join(" ");
+            let combined: String = window.iter().map(|(_, t)| *t).collect::<Vec<_>>().join(" ");
 
             let normalized = combined.to_lowercase();
             // Strip trailing punctuation for matching
@@ -210,14 +203,12 @@ fn detect_references_with_index(
     }
 
     // Filter out already-linked references
-    let linked_characters: HashSet<Uuid> =
-        db::get_scene_characters(conn, scene_id)?
-            .into_iter()
-            .collect();
-    let linked_locations: HashSet<Uuid> =
-        db::get_scene_locations(conn, scene_id)?
-            .into_iter()
-            .collect();
+    let linked_characters: HashSet<Uuid> = db::get_scene_characters(conn, scene_id)?
+        .into_iter()
+        .collect();
+    let linked_locations: HashSet<Uuid> = db::get_scene_locations(conn, scene_id)?
+        .into_iter()
+        .collect();
 
     let linked_ref_items: HashSet<Uuid> = {
         let mut stmt = conn.prepare(

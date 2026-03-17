@@ -38,7 +38,29 @@
     SceneType,
   } from "../types";
   import NovelEditor from "./NovelEditor.svelte";
+  import SluglineInput from "./SluglineInput.svelte";
   import Tooltip from "./Tooltip.svelte";
+
+  const isScreenplay = $derived(currentProject.value?.project_type === "screenplay");
+
+  function countWordsInHtml(html: string | null | undefined): number {
+    if (!html) return 0;
+    const text = html
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return text ? text.split(/\s+/).length : 0;
+  }
+
+  const scenePageEstimate = $derived.by(() => {
+    if (!isScreenplay || !currentProject.currentScene) return null;
+    const scene = currentProject.currentScene;
+    let words = countWordsInHtml(scene.prose);
+    for (const beat of currentProject.beats) {
+      words += countWordsInHtml(beat.prose);
+    }
+    return words / 250;
+  });
 
   // Check if scene is locked (either directly or via parent chapter)
   const isLocked = $derived(
@@ -299,6 +321,21 @@
   function handleScenePlanningStatusChange(event: Event, scene: Scene) {
     const nextStatus = (event.currentTarget as HTMLSelectElement).value as PlanningStatus;
     setScenePlanningStatus(scene, nextStatus);
+  }
+
+  let sceneTitleSaveTimeout: ReturnType<typeof setTimeout> | null = null;
+  async function saveSceneTitle(scene: Scene, title: string) {
+    if (sceneTitleSaveTimeout) clearTimeout(sceneTitleSaveTimeout);
+    sceneTitleSaveTimeout = setTimeout(async () => {
+      sceneTitleSaveTimeout = null;
+      if (title.trim() === scene.title) return;
+      try {
+        await invoke("rename_scene", { sceneId: scene.id, title: title.trim() });
+        currentProject.updateScene(scene.id, { title: title.trim() });
+      } catch (e) {
+        console.error("Failed to rename scene:", e);
+      }
+    }, 400);
   }
 
   function handleProseInput(beatId: string, value: string) {
@@ -888,13 +925,23 @@
       <div class="max-w-3xl mx-auto p-8">
         <!-- Scene Title -->
         <header class="mb-8">
-          <div class="flex items-center gap-3">
-            <h1
-              data-testid="scene-title"
-              class="text-3xl font-heading font-semibold text-text-primary"
-            >
-              {scene.title}
-            </h1>
+          <div class="flex items-center gap-3 flex-wrap">
+            {#if isScreenplay && !isLocked}
+              <SluglineInput
+                value={scene.title}
+                onSave={(slugline) => saveSceneTitle(scene, slugline)}
+                locations={currentProject.locations}
+                disabled={metadataSaving}
+                class="flex-1 min-w-0"
+              />
+            {:else}
+              <h1
+                data-testid="scene-title"
+                class="text-3xl font-heading font-semibold text-text-primary"
+              >
+                {scene.title}
+              </h1>
+            {/if}
             {#if isLocked}
               <span
                 class="flex items-center gap-1 px-2 py-1 bg-amber-500/10 text-amber-500 rounded-lg text-sm"
@@ -908,6 +955,11 @@
             <p class="text-text-secondary text-sm mt-1">
               {currentProject.currentChapter.title}
             </p>
+          {/if}
+          {#if isScreenplay && scenePageEstimate !== null}
+            <span class="text-xs text-text-secondary mt-1">
+              ~{scenePageEstimate.toFixed(1)} pg
+            </span>
           {/if}
           <div class="mt-4 flex flex-wrap gap-4">
             <div class="flex flex-col gap-1">
