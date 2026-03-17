@@ -1,9 +1,10 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { BookOpen, Film, Loader2, X } from "lucide-svelte";
+  import { BookOpen, Film, Layout, Loader2, X } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
-  import type { Project, ProjectType } from "../types";
+  import type { Project, ProjectType, StoryTemplate } from "../types";
+  import TemplateBrowser from "./TemplateBrowser.svelte";
   import Tooltip from "./Tooltip.svelte";
 
   let {
@@ -17,16 +18,23 @@
   let projectType = $state<ProjectType>("novel");
   let name = $state("My Project");
   let targetLength = $state<"short" | "feature" | "long_feature">("feature");
+  let selectedTemplate = $state<StoryTemplate | null>(null);
+  let showTemplateBrowser = $state(false);
   let saving = $state(false);
   let error = $state<string | null>(null);
   let inputRef: HTMLInputElement | null = $state(null);
 
   $effect(() => {
-    if (inputRef) {
+    if (inputRef && !showTemplateBrowser) {
       inputRef.focus();
       inputRef.select();
     }
   });
+
+  function handleTemplateSelect(template: StoryTemplate) {
+    selectedTemplate = template;
+    showTemplateBrowser = false;
+  }
 
   async function handleCreate() {
     const trimmedName = name.trim();
@@ -48,6 +56,14 @@
       } else {
         project = await invoke<Project>("create_blank_project", { name: trimmedName });
       }
+
+      if (selectedTemplate) {
+        await invoke("apply_template", {
+          projectId: project.id,
+          templateJson: JSON.stringify(selectedTemplate),
+        });
+      }
+
       currentProject.setProject(null);
       currentProject.setProject(project);
       ui.setView("editor");
@@ -163,6 +179,35 @@
         </div>
       {/if}
 
+      <div>
+        <label class="block text-sm font-medium text-text-secondary mb-2">Structure template</label>
+        {#if selectedTemplate}
+          <div
+            class="flex items-center gap-2 px-3 py-2 bg-accent/10 border border-accent/30 rounded-lg"
+          >
+            <Layout class="w-4 h-4 text-accent shrink-0" />
+            <span class="text-sm text-text-primary flex-1 truncate">{selectedTemplate.name}</span>
+            <button
+              type="button"
+              onclick={() => (selectedTemplate = null)}
+              class="text-text-secondary hover:text-text-primary p-0.5"
+              aria-label="Remove template"
+            >
+              <X class="w-3.5 h-3.5" />
+            </button>
+          </div>
+        {:else}
+          <button
+            type="button"
+            onclick={() => (showTemplateBrowser = true)}
+            class="w-full text-left px-3 py-2 text-sm text-text-secondary bg-bg-card border border-bg-card rounded-lg hover:border-accent/50 transition-colors"
+            disabled={saving}
+          >
+            Browse templates...
+          </button>
+        {/if}
+      </div>
+
       {#if error}
         <p class="text-sm text-red-400">{error}</p>
       {/if}
@@ -191,3 +236,11 @@
     </div>
   </div>
 </div>
+
+{#if showTemplateBrowser}
+  <TemplateBrowser
+    {projectType}
+    onSelect={handleTemplateSelect}
+    onClose={() => (showTemplateBrowser = false)}
+  />
+{/if}

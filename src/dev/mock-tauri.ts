@@ -19,6 +19,7 @@ import type {
   Tag,
   EntityTag,
   SavedFilter,
+  StoryTemplate,
 } from "../lib/types";
 
 import {
@@ -1179,6 +1180,73 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       const target = proj?.target_page_count != null ? `${proj.target_page_count} pages` : "—";
       return { pages: totalWords / 250, words: totalWords, target } as T;
     }
+
+    case "get_bundled_templates": {
+      const bundled: StoryTemplate[] = [
+        {
+          id: "bundled-save-the-cat",
+          name: "Save the Cat",
+          source: "Blake Snyder",
+          description: "15-beat screenplay structure",
+          project_types: ["screenplay", "novel"],
+          structure: [
+            {
+              title: "Act I — Setup",
+              children: [
+                {
+                  title: "Opening Image",
+                  synopsis: "The starting point",
+                  scenes: [{ title: "Opening Image", synopsis: "Establish the world" }],
+                },
+              ],
+            },
+          ],
+          bundled: true,
+        },
+        {
+          id: "bundled-three-act",
+          name: "Three-Act Structure",
+          source: "Classical",
+          description: "Setup, confrontation, resolution",
+          project_types: ["novel", "screenplay"],
+          structure: [
+            {
+              title: "Act I",
+              children: [
+                {
+                  title: "Hook",
+                  scenes: [{ title: "Hook" }],
+                },
+              ],
+            },
+          ],
+          bundled: true,
+        },
+      ];
+      return bundled as T;
+    }
+
+    case "get_user_templates":
+      return [] as T;
+
+    case "apply_template":
+      return undefined as T;
+
+    case "save_project_as_template": {
+      const tpl: StoryTemplate = {
+        id: nextId("tpl"),
+        name: getArg<string>(args, "input.name") ?? "My Template",
+        description: null,
+        project_types: ["novel", "screenplay"],
+        structure: [],
+        bundled: false,
+        created_at: new Date().toISOString(),
+      };
+      return tpl as T;
+    }
+
+    case "delete_user_template":
+      return undefined as T;
 
     default:
       throw new Error(`Mock invoke: unknown command "${cmd}"`);

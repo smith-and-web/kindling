@@ -509,3 +509,34 @@ export interface SnapshotPreview {
   metadata: SnapshotMetadata;
   project_name: string;
 }
+
+/** A scene within a story template */
+export interface TemplateScene {
+  title: string;
+  synopsis?: string | null;
+}
+
+/** A chapter within a story template part */
+export interface TemplateChapter {
+  title: string;
+  synopsis?: string | null;
+  scenes: TemplateScene[];
+}
+
+/** A part (act) within a story template */
+export interface TemplatePart {
+  title: string;
+  children: TemplateChapter[];
+}
+
+/** A story structure template (bundled or user-created) */
+export interface StoryTemplate {
+  id: string;
+  name: string;
+  source?: string | null;
+  description?: string | null;
+  project_types: ProjectType[];
+  structure: TemplatePart[];
+  bundled: boolean;
+  created_at?: string | null;
+}
