@@ -14,6 +14,7 @@
   import type { Project, FieldEntityType } from "../types";
   import { normalizeReferenceTypes, DEFAULT_REFERENCE_TYPES } from "../referenceTypes";
   import FieldDefinitionManager from "./FieldDefinitionManager.svelte";
+  import TagManager from "./TagManager.svelte";
   import Tooltip from "./Tooltip.svelte";
 
   let {
@@ -97,7 +98,9 @@
   tabindex="-1"
 >
   <!-- Dialog -->
-  <div class="bg-bg-panel rounded-lg shadow-xl w-full max-w-lg mx-4 overflow-hidden max-h-[85vh] flex flex-col">
+  <div
+    class="bg-bg-panel rounded-lg shadow-xl w-full max-w-lg mx-4 overflow-hidden max-h-[85vh] flex flex-col"
+  >
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-bg-card">
       <div class="flex items-center gap-2">
@@ -194,9 +197,18 @@
         />
       </div>
 
+      <!-- Tags -->
+      {#if currentProject.value}
+        <div class="border-t border-bg-card pt-4">
+          <TagManager projectId={currentProject.value.id} />
+        </div>
+      {/if}
+
       <!-- Custom Fields -->
       {#if currentProject.value}
-        {@const enabledTypes = normalizeReferenceTypes(currentProject.value.reference_types ?? DEFAULT_REFERENCE_TYPES)}
+        {@const enabledTypes = normalizeReferenceTypes(
+          currentProject.value.reference_types ?? DEFAULT_REFERENCE_TYPES
+        )}
         {@const entityTypeMap = {
           characters: { entity: "character" as FieldEntityType, label: "Character" },
           locations: { entity: "location" as FieldEntityType, label: "Location" },
@@ -207,7 +219,8 @@
         <div class="border-t border-bg-card pt-4">
           <h3 class="text-sm font-medium text-text-primary mb-3">Custom Fields</h3>
           <p class="text-xs text-text-secondary mb-3">
-            Define typed fields for your reference entities. These replace free-form key/value attributes with structured inputs.
+            Define typed fields for your reference entities. These replace free-form key/value
+            attributes with structured inputs.
           </p>
           <div class="space-y-4">
             {#each enabledTypes as refType}

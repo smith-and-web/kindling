@@ -10,6 +10,7 @@ pub mod scene;
 pub mod scene_reference_state;
 pub mod settings;
 pub mod snapshot;
+pub mod tag;
 
 pub use beat::*;
 pub use chapter::*;
@@ -23,3 +24,4 @@ pub use scene::*;
 pub use scene_reference_state::*;
 pub use settings::*;
 pub use snapshot::*;
+pub use tag::*;

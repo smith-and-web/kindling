@@ -162,6 +162,40 @@ export interface Location {
   source_id: string | null;
 }
 
+/** A user-defined tag with optional color and hierarchy */
+export interface Tag {
+  id: string;
+  project_id: string;
+  name: string;
+  color: string | null;
+  parent_id: string | null;
+  position: number;
+  created_at: string;
+}
+
+/** A link between a tag and an entity */
+export interface EntityTag {
+  tag_id: string;
+  entity_type: string;
+  entity_id: string;
+}
+
+/** A saved filter query */
+export interface SavedFilter {
+  id: string;
+  project_id: string;
+  name: string;
+  entity_type: string;
+  filter_json: string;
+  position: number;
+}
+
+/** Filter criteria for tag-based filtering */
+export interface TagFilter {
+  tags: string[];
+  operator: "AND" | "OR";
+}
+
 /** Supported reference types for the References panel */
 export type ReferenceTypeId = "characters" | "locations" | "items" | "objectives" | "organizations";
 
@@ -169,7 +203,13 @@ export type ReferenceTypeId = "characters" | "locations" | "items" | "objectives
 export type FieldType = "text" | "number" | "date" | "select" | "multiselect" | "checkbox" | "url";
 
 /** Entity types that support custom fields */
-export type FieldEntityType = "character" | "location" | "scene" | "item" | "objective" | "organization";
+export type FieldEntityType =
+  | "character"
+  | "location"
+  | "scene"
+  | "item"
+  | "objective"
+  | "organization";
 
 /** Project-level definition for a custom field */
 export interface FieldDefinition {

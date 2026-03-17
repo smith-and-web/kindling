@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Result, params};
+use rusqlite::{params, Connection, Result};
 use uuid::Uuid;
 
 /// Initialize the database with the full schema and apply migrations
@@ -160,6 +160,33 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             schema_version INTEGER NOT NULL DEFAULT 1
         );
 
+        CREATE TABLE IF NOT EXISTS tags (
+            id TEXT PRIMARY KEY NOT NULL,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            color TEXT,
+            parent_id TEXT REFERENCES tags(id) ON DELETE SET NULL,
+            position INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(project_id, name)
+        );
+
+        CREATE TABLE IF NOT EXISTS entity_tags (
+            tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+            entity_type TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            PRIMARY KEY (tag_id, entity_type, entity_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS saved_filters (
+            id TEXT PRIMARY KEY NOT NULL,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            entity_type TEXT NOT NULL,
+            filter_json TEXT NOT NULL,
+            position INTEGER NOT NULL DEFAULT 0
+        );
+
         CREATE TABLE IF NOT EXISTS field_definitions (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -196,6 +223,10 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_scene_reference_state_type ON scene_reference_state(scene_id, reference_type);
         CREATE INDEX IF NOT EXISTS idx_snapshots_project ON snapshots(project_id);
         CREATE INDEX IF NOT EXISTS idx_discovery_notes_scene ON discovery_notes(scene_id);
+        CREATE INDEX IF NOT EXISTS idx_tags_project ON tags(project_id);
+        CREATE INDEX IF NOT EXISTS idx_entity_tags_tag ON entity_tags(tag_id);
+        CREATE INDEX IF NOT EXISTS idx_entity_tags_entity ON entity_tags(entity_type, entity_id);
+        CREATE INDEX IF NOT EXISTS idx_saved_filters_project ON saved_filters(project_id);
         CREATE INDEX IF NOT EXISTS idx_field_definitions_project ON field_definitions(project_id, entity_type);
         CREATE INDEX IF NOT EXISTS idx_field_values_definition ON field_values(field_definition_id);
         CREATE INDEX IF NOT EXISTS idx_field_values_entity ON field_values(entity_id);
@@ -441,6 +472,41 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
         .filter_map(|r| r.ok())
         .collect();
 
+    if !tables.contains(&"tags".to_string()) {
+        conn.execute_batch(
+            r#"
+            CREATE TABLE tags (
+                id TEXT PRIMARY KEY NOT NULL,
+                project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                color TEXT,
+                parent_id TEXT REFERENCES tags(id) ON DELETE SET NULL,
+                position INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(project_id, name)
+            );
+            CREATE TABLE entity_tags (
+                tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+                entity_type TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                PRIMARY KEY (tag_id, entity_type, entity_id)
+            );
+            CREATE TABLE saved_filters (
+                id TEXT PRIMARY KEY NOT NULL,
+                project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                entity_type TEXT NOT NULL,
+                filter_json TEXT NOT NULL,
+                position INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX idx_tags_project ON tags(project_id);
+            CREATE INDEX idx_entity_tags_tag ON entity_tags(tag_id);
+            CREATE INDEX idx_entity_tags_entity ON entity_tags(entity_type, entity_id);
+            CREATE INDEX idx_saved_filters_project ON saved_filters(project_id);
+            "#,
+        )?;
+    }
+
     if !tables.contains(&"field_definitions".to_string()) {
         conn.execute_batch(
             r#"
@@ -559,7 +625,9 @@ fn migrate_attributes_to_fields(conn: &Connection) -> Result<()> {
 
         let mut stmt = conn.prepare(&sql)?;
         let pairs: Vec<(String, String)> = stmt
-            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
             .filter_map(|r| r.ok())
             .collect();
 
@@ -651,6 +719,9 @@ mod tests {
         assert!(tables.contains(&"reference_items".to_string()));
         assert!(tables.contains(&"scene_reference_item_refs".to_string()));
         assert!(tables.contains(&"scene_reference_state".to_string()));
+        assert!(tables.contains(&"tags".to_string()));
+        assert!(tables.contains(&"entity_tags".to_string()));
+        assert!(tables.contains(&"saved_filters".to_string()));
         assert!(tables.contains(&"field_definitions".to_string()));
         assert!(tables.contains(&"field_values".to_string()));
     }
@@ -670,12 +741,14 @@ mod tests {
         conn.execute(
             "INSERT INTO characters (id, project_id, name) VALUES (?1, ?2, 'Hero')",
             params![char_id, project_id],
-        ).unwrap();
+        )
+        .unwrap();
 
         conn.execute(
             "INSERT INTO character_attributes (character_id, key, value) VALUES (?1, 'Age', '30')",
             params![char_id],
-        ).unwrap();
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO character_attributes (character_id, key, value) VALUES (?1, 'Role', 'Protagonist')",
             params![char_id],

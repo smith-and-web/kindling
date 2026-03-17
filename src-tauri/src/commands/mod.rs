@@ -25,6 +25,7 @@ mod settings;
 mod snapshot;
 mod state;
 mod sync;
+mod tags;
 
 // Re-export everything for backwards compatibility with lib.rs
 pub use archive::*;
@@ -39,3 +40,4 @@ pub use settings::*;
 pub use snapshot::*;
 pub use state::*;
 pub use sync::*;
+pub use tags::*;
