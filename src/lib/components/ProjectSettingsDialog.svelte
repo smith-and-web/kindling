@@ -11,7 +11,9 @@
   import { invoke } from "@tauri-apps/api/core";
   import { X, Loader2, BookOpen } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
-  import type { Project } from "../types";
+  import type { Project, FieldEntityType } from "../types";
+  import { normalizeReferenceTypes, DEFAULT_REFERENCE_TYPES } from "../referenceTypes";
+  import FieldDefinitionManager from "./FieldDefinitionManager.svelte";
   import Tooltip from "./Tooltip.svelte";
 
   let {
@@ -95,7 +97,7 @@
   tabindex="-1"
 >
   <!-- Dialog -->
-  <div class="bg-bg-panel rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
+  <div class="bg-bg-panel rounded-lg shadow-xl w-full max-w-lg mx-4 overflow-hidden max-h-[85vh] flex flex-col">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-bg-card">
       <div class="flex items-center gap-2">
@@ -117,7 +119,7 @@
     </div>
 
     <!-- Content -->
-    <div class="p-4 space-y-4">
+    <div class="p-4 space-y-4 overflow-y-auto flex-1">
       <p class="text-sm text-text-secondary">
         These settings are specific to <strong class="text-text-primary"
           >{currentProject.value?.name}</strong
@@ -191,6 +193,36 @@
           class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent disabled:opacity-50"
         />
       </div>
+
+      <!-- Custom Fields -->
+      {#if currentProject.value}
+        {@const enabledTypes = normalizeReferenceTypes(currentProject.value.reference_types ?? DEFAULT_REFERENCE_TYPES)}
+        {@const entityTypeMap = {
+          characters: { entity: "character" as FieldEntityType, label: "Character" },
+          locations: { entity: "location" as FieldEntityType, label: "Location" },
+          items: { entity: "item" as FieldEntityType, label: "Item" },
+          objectives: { entity: "objective" as FieldEntityType, label: "Objective" },
+          organizations: { entity: "organization" as FieldEntityType, label: "Organization" },
+        }}
+        <div class="border-t border-bg-card pt-4">
+          <h3 class="text-sm font-medium text-text-primary mb-3">Custom Fields</h3>
+          <p class="text-xs text-text-secondary mb-3">
+            Define typed fields for your reference entities. These replace free-form key/value attributes with structured inputs.
+          </p>
+          <div class="space-y-4">
+            {#each enabledTypes as refType}
+              {@const mapping = entityTypeMap[refType as keyof typeof entityTypeMap]}
+              {#if mapping}
+                <FieldDefinitionManager
+                  projectId={currentProject.value.id}
+                  entityType={mapping.entity}
+                  entityLabel={mapping.label}
+                />
+              {/if}
+            {/each}
+          </div>
+        </div>
+      {/if}
 
       <!-- Error Message -->
       {#if error}

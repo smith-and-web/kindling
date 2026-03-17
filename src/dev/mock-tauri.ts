@@ -14,6 +14,8 @@ import type {
   AppSettings,
   SnapshotMetadata,
   SceneReferenceState,
+  FieldDefinition,
+  FieldValue,
 } from "../lib/types";
 
 import {
@@ -38,6 +40,8 @@ let referenceItems: ReferenceItem[] = mockReferenceItems.map((r) => ({ ...r }));
 let appSettings: AppSettings = { ...mockAppSettings };
 let sceneReferenceStates: SceneReferenceState[] = [];
 let snapshots: SnapshotMetadata[] = [];
+let fieldDefinitions: FieldDefinition[] = [];
+let fieldValues: FieldValue[] = [];
 
 let idCounter = 100;
 
@@ -802,6 +806,113 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       const settings = getArg<Partial<AppSettings>>(args, "settings");
       if (settings) appSettings = { ...appSettings, ...settings };
       return appSettings as T;
+    }
+
+    case "get_field_definitions": {
+      const entityType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      return fieldDefinitions.filter(
+        (d) => d.project_id === projectId && d.entity_type === entityType,
+      ).sort((a, b) => a.position - b.position) as T;
+    }
+
+    case "get_all_field_definitions": {
+      return fieldDefinitions.filter(
+        (d) => d.project_id === projectId,
+      ).sort((a, b) => a.position - b.position) as T;
+    }
+
+    case "create_field_definition": {
+      const def = getArg<Partial<FieldDefinition>>(args, "definition");
+      if (!def || !projectId) throw new Error("Missing definition or projectId");
+      const existing = fieldDefinitions.filter(
+        (d) => d.project_id === projectId && d.entity_type === def.entity_type,
+      );
+      const newDef: FieldDefinition = {
+        id: nextId("fd"),
+        project_id: projectId,
+        entity_type: (def.entity_type ?? "character") as FieldDefinition["entity_type"],
+        name: def.name ?? "Untitled",
+        field_type: (def.field_type ?? "text") as FieldDefinition["field_type"],
+        options: def.options ?? null,
+        default_value: def.default_value ?? null,
+        position: existing.length,
+        required: def.required ?? false,
+        visible: def.visible ?? true,
+        created_at: new Date().toISOString(),
+      };
+      fieldDefinitions.push(newDef);
+      return newDef as T;
+    }
+
+    case "update_field_definition": {
+      const defId = getArg<string>(args, "definitionId", "definition_id") ?? "";
+      const update = getArg<Partial<FieldDefinition>>(args, "definition");
+      const existing = fieldDefinitions.find((d) => d.id === defId);
+      if (existing && update) {
+        if (update.name !== undefined) existing.name = update.name;
+        if (update.field_type !== undefined) existing.field_type = update.field_type as FieldDefinition["field_type"];
+        if (update.options !== undefined) existing.options = update.options;
+        if (update.default_value !== undefined) existing.default_value = update.default_value;
+        if (update.required !== undefined) existing.required = update.required;
+        if (update.visible !== undefined) existing.visible = update.visible;
+      }
+      return undefined as T;
+    }
+
+    case "delete_field_definition": {
+      const defId = getArg<string>(args, "definitionId", "definition_id") ?? "";
+      fieldDefinitions = fieldDefinitions.filter((d) => d.id !== defId);
+      fieldValues = fieldValues.filter((v) => v.field_definition_id !== defId);
+      return undefined as T;
+    }
+
+    case "reorder_field_definitions": {
+      const ids = getArg<string[]>(args, "definitionIds", "definition_ids") ?? [];
+      ids.forEach((id, i) => {
+        const d = fieldDefinitions.find((fd) => fd.id === id);
+        if (d) d.position = i;
+      });
+      return undefined as T;
+    }
+
+    case "get_field_values": {
+      const entityId = getArg<string>(args, "entityId", "entity_id") ?? "";
+      return fieldValues.filter((v) => v.entity_id === entityId) as T;
+    }
+
+    case "get_field_values_bulk": {
+      const entityIds = getArg<string[]>(args, "entityIds", "entity_ids") ?? [];
+      const idSet = new Set(entityIds);
+      return fieldValues.filter((v) => idSet.has(v.entity_id)) as T;
+    }
+
+    case "set_field_value": {
+      const fieldDefId = getArg<string>(args, "fieldDefinitionId", "field_definition_id") ?? "";
+      const entityId = getArg<string>(args, "entityId", "entity_id") ?? "";
+      const value = getArg<string | null>(args, "value") ?? null;
+      const existing = fieldValues.find(
+        (v) => v.field_definition_id === fieldDefId && v.entity_id === entityId,
+      );
+      if (existing) {
+        existing.value = value;
+      } else {
+        fieldValues.push({
+          id: nextId("fv"),
+          field_definition_id: fieldDefId,
+          entity_id: entityId,
+          value,
+        });
+      }
+      return undefined as T;
+    }
+
+    case "clear_field_value": {
+      const fieldDefId = getArg<string>(args, "fieldDefinitionId", "field_definition_id") ?? "";
+      const entityId = getArg<string>(args, "entityId", "entity_id") ?? "";
+      fieldValues = fieldValues.filter(
+        (v) => !(v.field_definition_id === fieldDefId && v.entity_id === entityId),
+      );
+      return undefined as T;
     }
 
     default:
