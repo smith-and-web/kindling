@@ -60,6 +60,7 @@ pub fn run() {
             commands::import_ywriter,
             commands::import_markdown,
             commands::import_longform,
+            commands::import_scrivener,
             commands::preview_import,
             commands::create_sample_project,
             commands::create_blank_project,

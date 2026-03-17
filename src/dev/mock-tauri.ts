@@ -78,7 +78,8 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
     case "import_plottr":
     case "import_ywriter":
     case "import_markdown":
-    case "import_longform": {
+    case "import_longform":
+    case "import_scrivener": {
       const path = getArg<string>(args, "path") ?? "/mock/path/story.pltr";
       const project = projects[0]!;
       return { ...project, source_path: path, modified_at: new Date().toISOString() } as T;
