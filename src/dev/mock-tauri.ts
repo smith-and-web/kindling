@@ -1091,6 +1091,95 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
     case "dismiss_suggestion":
       return undefined as T;
 
+    case "create_screenplay_project": {
+      const name = getArg<string>(args, "name") ?? "Untitled Screenplay";
+      const targetLength = getArg<string>(args, "targetLength", "target_length");
+      const targetPage =
+        targetLength === "short" ? 30 : targetLength === "long_feature" ? 150 : 120;
+      const now = new Date().toISOString();
+      const projId = nextId("proj");
+      const proj: Project = {
+        id: projId,
+        name,
+        source_type: "Blank",
+        source_path: null,
+        created_at: now,
+        modified_at: now,
+        author_pen_name: null,
+        genre: null,
+        description: null,
+        word_target: null,
+        reference_types: ["characters", "locations"],
+        project_type: "screenplay",
+        target_page_count: targetPage,
+      };
+      projects.push(proj);
+      const acts = ["Act I — Setup", "Act II — Confrontation", "Act III — Resolution"];
+      acts.forEach((actTitle, actIdx) => {
+        const actId = nextId("ch");
+        chapters.push({
+          id: actId,
+          project_id: projId,
+          title: actTitle,
+          position: actIdx * 2,
+          source_id: null,
+          archived: false,
+          locked: false,
+          is_part: true,
+          synopsis: null,
+          planning_status: "fixed",
+        });
+        const seqId = nextId("ch");
+        chapters.push({
+          id: seqId,
+          project_id: projId,
+          title: "Sequence 1",
+          position: actIdx * 2 + 1,
+          source_id: null,
+          archived: false,
+          locked: false,
+          is_part: false,
+          synopsis: null,
+          planning_status: "fixed",
+        });
+        scenes.push({
+          id: nextId("sc"),
+          chapter_id: seqId,
+          title: "INT. LOCATION - DAY",
+          synopsis: null,
+          prose: null,
+          position: 0,
+          source_id: null,
+          archived: false,
+          locked: false,
+          scene_type: "normal",
+          scene_status: "draft",
+          planning_status: "fixed",
+          editor_mode: "beat",
+        });
+      });
+      return proj as T;
+    }
+
+    case "get_page_count_estimate": {
+      let totalWords = 0;
+      const projChapters = chapters.filter((c) => c.project_id === projectId && !c.archived);
+      for (const ch of projChapters) {
+        const chScenes = scenes.filter((s) => s.chapter_id === ch.id && !s.archived);
+        for (const sc of chScenes) {
+          const scBeats = beats.filter((b) => b.scene_id === sc.id);
+          totalWords += scBeats.reduce(
+            (sum, b) => sum + (b.prose?.split(/\s+/).filter(Boolean).length ?? 0),
+            0
+          );
+          if (sc.prose) totalWords += sc.prose.split(/\s+/).filter(Boolean).length;
+        }
+      }
+      const proj = projects.find((p) => p.id === projectId);
+      const target = proj?.target_page_count != null ? `${proj.target_page_count} pages` : "—";
+      return { pages: totalWords / 250, words: totalWords, target } as T;
+    }
+
     default:
       throw new Error(`Mock invoke: unknown command "${cmd}"`);
   }

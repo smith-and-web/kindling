@@ -42,7 +42,7 @@ pub async fn get_all_projects(state: State<'_, AppState>) -> Result<Vec<Project>
     db::get_all_projects(&conn).map_err(|e| e.to_string())
 }
 
-/// Input type for updating project settings (pen name and genre)
+/// Input type for updating project settings
 #[derive(serde::Deserialize)]
 pub struct ProjectSettingsUpdate {
     pub author_pen_name: Option<String>,
@@ -50,6 +50,8 @@ pub struct ProjectSettingsUpdate {
     pub description: Option<String>,
     pub word_target: Option<i32>,
     pub reference_types: Option<Vec<String>>,
+    pub project_type: Option<String>,
+    pub target_page_count: Option<i32>,
 }
 
 #[tauri::command]
@@ -74,6 +76,10 @@ pub async fn update_project_settings(
     if let Some(reference_types) = settings.reference_types {
         project.reference_types = reference_types;
     }
+    if let Some(project_type) = settings.project_type {
+        project.project_type = project_type;
+    }
+    project.target_page_count = settings.target_page_count;
 
     // Update modified timestamp
     project.modified_at = chrono::Utc::now().to_rfc3339();

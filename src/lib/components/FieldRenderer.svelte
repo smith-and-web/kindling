@@ -136,12 +136,7 @@
       {/if}
     </div>
   {:else if definition.field_type === "select"}
-    <select
-      value={value ?? ""}
-      onchange={handleSelectInput}
-      class={inputClass}
-      {disabled}
-    >
+    <select value={value ?? ""} onchange={handleSelectInput} class={inputClass} {disabled}>
       <option value="">— Select —</option>
       {#each selectOptions as option}
         <option value={option}>{option}</option>
@@ -150,9 +145,7 @@
   {:else if definition.field_type === "multiselect"}
     <div class="flex flex-wrap gap-2">
       {#each selectOptions as option}
-        <label
-          class="inline-flex items-center gap-1.5 text-sm text-text-primary cursor-pointer"
-        >
+        <label class="inline-flex items-center gap-1.5 text-sm text-text-primary cursor-pointer">
           <input
             type="checkbox"
             class="accent-accent"

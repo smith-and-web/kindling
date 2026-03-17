@@ -97,6 +97,7 @@ pub fn create_field_definition(conn: &Connection, def: &FieldDefinition) -> Resu
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn update_field_definition(
     conn: &Connection,
     id: &Uuid,
@@ -146,10 +147,7 @@ pub fn reorder_field_definitions(conn: &Connection, ids: &[Uuid]) -> Result<()> 
 // Field Values
 // ============================================================================
 
-pub fn get_field_values(
-    conn: &Connection,
-    entity_id: &Uuid,
-) -> Result<Vec<FieldValue>> {
+pub fn get_field_values(conn: &Connection, entity_id: &Uuid) -> Result<Vec<FieldValue>> {
     let mut stmt = conn.prepare(
         "SELECT fv.id, fv.field_definition_id, fv.entity_id, fv.value
          FROM field_values fv
@@ -160,8 +158,7 @@ pub fn get_field_values(
         .query_map(params![entity_id.to_string()], |row| {
             Ok(FieldValue {
                 id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap_or_default(),
-                field_definition_id: Uuid::parse_str(&row.get::<_, String>(1)?)
-                    .unwrap_or_default(),
+                field_definition_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap_or_default(),
                 entity_id: Uuid::parse_str(&row.get::<_, String>(2)?).unwrap_or_default(),
                 value: row.get(3)?,
             })
@@ -172,15 +169,16 @@ pub fn get_field_values(
     Ok(values)
 }
 
-pub fn get_field_values_bulk(
-    conn: &Connection,
-    entity_ids: &[Uuid],
-) -> Result<Vec<FieldValue>> {
+pub fn get_field_values_bulk(conn: &Connection, entity_ids: &[Uuid]) -> Result<Vec<FieldValue>> {
     if entity_ids.is_empty() {
         return Ok(vec![]);
     }
 
-    let placeholders: Vec<String> = entity_ids.iter().enumerate().map(|(i, _)| format!("?{}", i + 1)).collect();
+    let placeholders: Vec<String> = entity_ids
+        .iter()
+        .enumerate()
+        .map(|(i, _)| format!("?{}", i + 1))
+        .collect();
     let sql = format!(
         "SELECT id, field_definition_id, entity_id, value
          FROM field_values
@@ -190,15 +188,16 @@ pub fn get_field_values_bulk(
 
     let mut stmt = conn.prepare(&sql)?;
     let str_ids: Vec<String> = entity_ids.iter().map(|id| id.to_string()).collect();
-    let param_refs: Vec<&dyn rusqlite::types::ToSql> =
-        str_ids.iter().map(|s| s as &dyn rusqlite::types::ToSql).collect();
+    let param_refs: Vec<&dyn rusqlite::types::ToSql> = str_ids
+        .iter()
+        .map(|s| s as &dyn rusqlite::types::ToSql)
+        .collect();
 
     let values = stmt
         .query_map(param_refs.as_slice(), |row| {
             Ok(FieldValue {
                 id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap_or_default(),
-                field_definition_id: Uuid::parse_str(&row.get::<_, String>(1)?)
-                    .unwrap_or_default(),
+                field_definition_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap_or_default(),
                 entity_id: Uuid::parse_str(&row.get::<_, String>(2)?).unwrap_or_default(),
                 value: row.get(3)?,
             })
@@ -277,9 +276,7 @@ mod tests {
         assert_eq!(defs[0].name, "Age");
         assert_eq!(defs[0].field_type, "text");
 
-        update_field_definition(
-            &conn, &def.id, "Age", "number", None, None, false, true,
-        ).unwrap();
+        update_field_definition(&conn, &def.id, "Age", "number", None, None, false, true).unwrap();
 
         let defs = get_field_definitions(&conn, &project_id, "character").unwrap();
         assert_eq!(defs[0].field_type, "number");
@@ -324,8 +321,20 @@ mod tests {
     fn test_reorder_field_definitions() {
         let (conn, project_id) = setup();
 
-        let def1 = FieldDefinition::new(project_id, "character".to_string(), "Age".to_string(), "text".to_string(), 0);
-        let def2 = FieldDefinition::new(project_id, "character".to_string(), "Role".to_string(), "text".to_string(), 1);
+        let def1 = FieldDefinition::new(
+            project_id,
+            "character".to_string(),
+            "Age".to_string(),
+            "text".to_string(),
+            0,
+        );
+        let def2 = FieldDefinition::new(
+            project_id,
+            "character".to_string(),
+            "Role".to_string(),
+            "text".to_string(),
+            1,
+        );
         create_field_definition(&conn, &def1).unwrap();
         create_field_definition(&conn, &def2).unwrap();
 

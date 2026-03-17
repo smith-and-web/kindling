@@ -167,7 +167,9 @@
       fieldDefsMap = defsMap;
 
       // Load field values for all entities in bulk
-      const allEntityIds = Object.values(next).flat().map((item) => item.id);
+      const allEntityIds = Object.values(next)
+        .flat()
+        .map((item) => item.id);
       if (allEntityIds.length > 0) {
         try {
           const allValues = await invoke<FieldValue[]>("get_field_values_bulk", {
@@ -911,9 +913,13 @@
             </div>
 
             {#if isExpanded}
-              {@const refFieldDefs = (activeTab ? fieldDefsMap[activeTab] ?? [] : []).filter((d) => d.visible)}
+              {@const refFieldDefs = (activeTab ? (fieldDefsMap[activeTab] ?? []) : []).filter(
+                (d) => d.visible
+              )}
               {@const refFieldValues = fieldValuesMap[reference.id] ?? {}}
-              {@const hasFieldValues = refFieldDefs.some((d) => refFieldValues[d.id] != null && refFieldValues[d.id] !== "")}
+              {@const hasFieldValues = refFieldDefs.some(
+                (d) => refFieldValues[d.id] != null && refFieldValues[d.id] !== ""
+              )}
               <div class="px-3 pb-3 border-t border-bg-panel">
                 {#if reference.description}
                   <div
@@ -941,9 +947,20 @@
                             {#if def.field_type === "checkbox"}
                               {fv === "true" ? "Yes" : "No"}
                             {:else if def.field_type === "multiselect"}
-                              {(() => { try { return (JSON.parse(fv) as string[]).join(", "); } catch { return fv; } })()}
+                              {(() => {
+                                try {
+                                  return (JSON.parse(fv) as string[]).join(", ");
+                                } catch {
+                                  return fv;
+                                }
+                              })()}
                             {:else if def.field_type === "url"}
-                              <a href={fv} target="_blank" rel="noopener noreferrer" class="text-accent hover:underline">{fv}</a>
+                              <a
+                                href={fv}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="text-accent hover:underline">{fv}</a
+                              >
                             {:else}
                               {fv}
                             {/if}

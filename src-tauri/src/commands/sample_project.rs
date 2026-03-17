@@ -36,6 +36,8 @@ pub async fn create_sample_project(state: State<'_, AppState>) -> Result<Project
         description: Some("A sample project to explore Kindling. Try the sidebar, scene panel, beats, and references.".to_string()),
         word_target: None,
         reference_types: Project::default_reference_types(),
+        project_type: Project::default_project_type(),
+        target_page_count: None,
     };
 
     let chapter_id = Uuid::new_v4();

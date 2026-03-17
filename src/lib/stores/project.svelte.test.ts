@@ -5,6 +5,7 @@ import type {
   EditorMode,
   PlanningStatus,
   Project,
+  ProjectType,
   ReferenceTypeId,
   Scene,
 } from "../types";
@@ -57,6 +58,8 @@ describe("currentProject store", () => {
       description: null,
       word_target: null,
       reference_types: ["characters", "locations"] as ReferenceTypeId[],
+      project_type: "novel" as ProjectType,
+      target_page_count: null,
     };
 
     currentProject.setProject(mockProject);

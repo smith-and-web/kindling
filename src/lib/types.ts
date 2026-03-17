@@ -10,6 +10,9 @@
 /** Supported outline import formats */
 export type SourceType = "Plottr" | "Markdown" | "YWriter" | "Scrivener" | "Longform" | "Blank";
 
+/** Project type: novel (default) or screenplay */
+export type ProjectType = "novel" | "screenplay";
+
 /** Rolling outline planning status for chapters and scenes */
 export type PlanningStatus = "fixed" | "flexible" | "undefined";
 
@@ -43,6 +46,10 @@ export interface Project {
   word_target: number | null;
   /** Enabled reference types for this project */
   reference_types: ReferenceTypeId[];
+  /** Project type: novel or screenplay */
+  project_type: ProjectType;
+  /** Target page count (screenplay, ~250 words/page) */
+  target_page_count: number | null;
 }
 
 /** App-wide settings (stored in JSON file, not database) */

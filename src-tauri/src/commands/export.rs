@@ -3947,6 +3947,8 @@ mod tests {
             description: Some("A story about creativity.".to_string()),
             word_target: Some(75000),
             reference_types: Project::default_reference_types(),
+            project_type: Project::default_project_type(),
+            target_page_count: None,
         };
 
         let app_settings = AppSettings {
@@ -3984,6 +3986,8 @@ mod tests {
             description: None,
             word_target: None,
             reference_types: Project::default_reference_types(),
+            project_type: Project::default_project_type(),
+            target_page_count: None,
         };
 
         let app_settings = AppSettings::default();

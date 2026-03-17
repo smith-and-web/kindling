@@ -55,9 +55,8 @@ pub async fn create_field_definition(
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
-    let existing =
-        db::get_field_definitions(&conn, &project_uuid, &definition.entity_type)
-            .map_err(|e| e.to_string())?;
+    let existing = db::get_field_definitions(&conn, &project_uuid, &definition.entity_type)
+        .map_err(|e| e.to_string())?;
     let next_position = existing.len() as i32;
 
     let mut def = FieldDefinition::new(
