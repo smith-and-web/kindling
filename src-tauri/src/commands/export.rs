@@ -452,12 +452,13 @@ fn strip_html(html: &str) -> String {
         .join("\n\n")
 }
 
-/// A text run with formatting information for DOCX export
+/// A text run with formatting information for DOCX/EPUB export
 #[derive(Debug, Clone, PartialEq)]
 struct FormattedRun {
     text: String,
     bold: bool,
     italic: bool,
+    underline: bool,
 }
 
 /// Type of paragraph for styling purposes
@@ -466,6 +467,7 @@ enum ParagraphType {
     #[default]
     Normal,
     Blockquote,
+    Heading(u8),
 }
 
 /// A paragraph containing formatted runs, for DOCX export
@@ -593,6 +595,7 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
     let mut current_runs: Vec<FormattedRun> = Vec::new();
     let mut bold_depth: u32 = 0;
     let mut italic_depth: u32 = 0;
+    let mut underline_depth: u32 = 0;
     let mut blockquote_depth: u32 = 0;
     let mut current_para_type = ParagraphType::Normal;
 
@@ -608,8 +611,8 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                 match tag_name.as_str() {
                     "strong" | "b" => bold_depth += 1,
                     "em" | "i" => italic_depth += 1,
+                    "u" => underline_depth += 1,
                     "blockquote" => {
-                        // Start of blockquote - save current runs if any
                         if !current_runs.is_empty() {
                             paragraphs.push(FormattedParagraph {
                                 runs: std::mem::take(&mut current_runs),
@@ -619,15 +622,23 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                         blockquote_depth += 1;
                         current_para_type = ParagraphType::Blockquote;
                     }
-                    "p" => {
-                        // Start of a new paragraph - save current runs if any
+                    "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
                         if !current_runs.is_empty() {
                             paragraphs.push(FormattedParagraph {
                                 runs: std::mem::take(&mut current_runs),
                                 paragraph_type: current_para_type,
                             });
                         }
-                        // Set paragraph type based on whether we're in a blockquote
+                        let level = tag_name.as_bytes()[1] - b'0';
+                        current_para_type = ParagraphType::Heading(level);
+                    }
+                    "p" => {
+                        if !current_runs.is_empty() {
+                            paragraphs.push(FormattedParagraph {
+                                runs: std::mem::take(&mut current_runs),
+                                paragraph_type: current_para_type,
+                            });
+                        }
                         current_para_type = if blockquote_depth > 0 {
                             ParagraphType::Blockquote
                         } else {
@@ -642,8 +653,8 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                 match tag_name.as_str() {
                     "strong" | "b" => bold_depth = bold_depth.saturating_sub(1),
                     "em" | "i" => italic_depth = italic_depth.saturating_sub(1),
+                    "u" => underline_depth = underline_depth.saturating_sub(1),
                     "blockquote" => {
-                        // End of blockquote - save current runs if any
                         if !current_runs.is_empty() {
                             paragraphs.push(FormattedParagraph {
                                 runs: std::mem::take(&mut current_runs),
@@ -657,8 +668,20 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                             ParagraphType::Normal
                         };
                     }
+                    "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
+                        if !current_runs.is_empty() {
+                            paragraphs.push(FormattedParagraph {
+                                runs: std::mem::take(&mut current_runs),
+                                paragraph_type: current_para_type,
+                            });
+                        }
+                        current_para_type = if blockquote_depth > 0 {
+                            ParagraphType::Blockquote
+                        } else {
+                            ParagraphType::Normal
+                        };
+                    }
                     "p" => {
-                        // End of paragraph - save current runs
                         if !current_runs.is_empty() {
                             paragraphs.push(FormattedParagraph {
                                 runs: std::mem::take(&mut current_runs),
@@ -672,33 +695,28 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
             Ok(Event::Empty(e)) => {
                 let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
                 if tag_name == "br" {
-                    // Line break within paragraph - add a space or handle specially
-                    // For manuscripts, we typically want a space here
-                    if !current_runs.is_empty() {
-                        if let Some(last_run) = current_runs.last_mut() {
-                            if !last_run.text.ends_with(' ') {
-                                last_run.text.push(' ');
-                            }
-                        }
-                    }
+                    current_runs.push(FormattedRun {
+                        text: "\n".to_string(),
+                        bold: bold_depth > 0,
+                        italic: italic_depth > 0,
+                        underline: underline_depth > 0,
+                    });
                 }
             }
             Ok(Event::Text(e)) => {
-                // In quick-xml 0.39, use from_utf8_lossy on the bytes
                 let text = String::from_utf8_lossy(&e).to_string();
                 if !text.is_empty() {
-                    // Apply text transformations (smart quotes, punctuation)
                     let transformed = transform_text(&text);
                     if !transformed.is_empty() {
                         current_runs.push(FormattedRun {
                             text: transformed,
                             bold: bold_depth > 0,
                             italic: italic_depth > 0,
+                            underline: underline_depth > 0,
                         });
                     }
                 }
             }
-            // Handle entity references (e.g., &amp; &lt; &gt;)
             Ok(Event::GeneralRef(e)) => {
                 let entity = String::from_utf8_lossy(&e);
                 let decoded = match entity.as_ref() {
@@ -716,12 +734,12 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                         text: transformed,
                         bold: bold_depth > 0,
                         italic: italic_depth > 0,
+                        underline: underline_depth > 0,
                     });
                 }
             }
             Ok(Event::Eof) => break,
             Err(_) => {
-                // If XML parsing fails, fall back to plain text with transformations
                 let plain = strip_html(html);
                 let transformed = transform_text(&plain);
                 if !transformed.is_empty() {
@@ -730,6 +748,7 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                             text: transformed,
                             bold: false,
                             italic: false,
+                            underline: false,
                         }],
                         paragraph_type: ParagraphType::Normal,
                     }];
@@ -765,8 +784,16 @@ fn merge_adjacent_runs(runs: Vec<FormattedRun>) -> Vec<FormattedRun> {
     let mut merged: Vec<FormattedRun> = Vec::new();
 
     for run in runs {
+        if run.text == "\n" {
+            merged.push(run);
+            continue;
+        }
         if let Some(last) = merged.last_mut() {
-            if last.bold == run.bold && last.italic == run.italic {
+            if last.text != "\n"
+                && last.bold == run.bold
+                && last.italic == run.italic
+                && last.underline == run.underline
+            {
                 last.text.push_str(&run.text);
                 continue;
             }
@@ -918,16 +945,24 @@ fn render_formatted_paragraphs(paragraphs: &[FormattedParagraph]) -> String {
     for paragraph in paragraphs {
         let mut runs_html = String::new();
         for run in &paragraph.runs {
+            if run.text == "\n" {
+                runs_html.push_str("<br/>");
+                continue;
+            }
             let text = escape_xml(&run.text);
-            let run_html = if run.bold && run.italic {
-                format!("<strong><em>{}</em></strong>", text)
-            } else if run.bold {
-                format!("<strong>{}</strong>", text)
-            } else if run.italic {
-                format!("<em>{}</em>", text)
-            } else {
-                text
-            };
+            let mut run_html = text;
+            if run.bold {
+                run_html = format!("<strong>{}</strong>", run_html);
+            }
+            if run.italic {
+                run_html = format!("<em>{}</em>", run_html);
+            }
+            if run.underline {
+                run_html = format!(
+                    "<span style=\"text-decoration:underline\">{}</span>",
+                    run_html
+                );
+            }
             runs_html.push_str(&run_html);
         }
 
@@ -938,6 +973,13 @@ fn render_formatted_paragraphs(paragraphs: &[FormattedParagraph]) -> String {
         match paragraph.paragraph_type {
             ParagraphType::Blockquote => {
                 output.push_str(&format!("<blockquote><p>{}</p></blockquote>\n", runs_html));
+            }
+            ParagraphType::Heading(level) => {
+                output.push_str(&format!(
+                    "<h{level}>{content}</h{level}>\n",
+                    level = level,
+                    content = runs_html
+                ));
             }
             ParagraphType::Normal => {
                 output.push_str(&format!("<p>{}</p>\n", runs_html));
@@ -2804,6 +2846,12 @@ fn add_beat_to_docx(
                 if run_data.italic {
                     run = run.italic();
                 }
+                if run_data.underline {
+                    run = run.underline("single");
+                }
+                if run_data.text == "\n" {
+                    run = Run::new().add_break(BreakType::TextWrapping);
+                }
 
                 para = para.add_run(run);
             }
@@ -2813,20 +2861,17 @@ fn add_beat_to_docx(
                 .line_spacing(LineSpacing::new().line(line_spacing_twips))
                 .widow_control(true);
 
-            // Apply styling based on paragraph type
             match formatted_para.paragraph_type {
                 ParagraphType::Blockquote => {
-                    // Blockquotes: left margin (720 twips = 0.5"), no first-line indent
-                    // The third parameter is end/right indent
                     para = para.indent(Some(720), None, Some(720), None);
                 }
+                ParagraphType::Heading(_) => {
+                    para = para.style("Heading2");
+                }
                 ParagraphType::Normal => {
-                    // SMF: First paragraph after chapter heading or scene break has no indent
-                    // Subsequent paragraphs have 0.5" first-line indent
                     let needs_indent = !(is_first_para_in_section && regular_para_index == 0);
 
                     if needs_indent {
-                        // 720 twips = 0.5 inch first-line indent
                         para = para.indent(None, None, Some(720), None);
                     }
 
@@ -5555,31 +5600,37 @@ mod tests {
                 text: "Hello".to_string(),
                 bold: false,
                 italic: false,
+                underline: false,
             },
             FormattedRun {
                 text: " ".to_string(),
                 bold: false,
                 italic: false,
+                underline: false,
             },
             FormattedRun {
                 text: "World".to_string(),
                 bold: false,
                 italic: false,
+                underline: false,
             },
             FormattedRun {
                 text: "!".to_string(),
                 bold: true,
                 italic: false,
+                underline: false,
             },
             FormattedRun {
                 text: "!".to_string(),
                 bold: true,
                 italic: false,
+                underline: false,
             },
             FormattedRun {
                 text: "?".to_string(),
                 bold: false,
                 italic: true,
+                underline: false,
             },
         ];
 
@@ -6414,5 +6465,492 @@ mod tests {
         assert_eq!(result.scenes_exported, 1);
         let rtf = std::fs::read_to_string(data_dir.join("content.rtf")).unwrap();
         assert!(rtf.contains("Matched by title"));
+    }
+
+    // =========================================================================
+    // EPUB Export Tests
+    // =========================================================================
+
+    #[test]
+    fn test_build_epub_css_classic() {
+        let css = build_epub_css(&EpubTheme::Classic);
+        assert!(css.contains("Georgia"));
+        assert!(css.contains("line-height"));
+        assert!(css.contains(".chapter-title"));
+        assert!(css.contains(".scene-break"));
+    }
+
+    #[test]
+    fn test_build_epub_css_modern() {
+        let css = build_epub_css(&EpubTheme::Modern);
+        assert!(css.contains("Helvetica"));
+    }
+
+    #[test]
+    fn test_build_epub_css_minimal() {
+        let css = build_epub_css(&EpubTheme::Minimal);
+        assert!(css.contains("text-indent: 0"));
+    }
+
+    #[test]
+    fn test_build_epub_xhtml_document() {
+        let doc = build_epub_xhtml_document("Test Title", "<p>Body</p>", "en");
+        assert!(doc.contains("<?xml version=\"1.0\""));
+        assert!(doc.contains("xmlns=\"http://www.w3.org/1999/xhtml\""));
+        assert!(doc.contains("<title>Test Title</title>"));
+        assert!(doc.contains("<p>Body</p>"));
+        assert!(doc.contains("lang=\"en\""));
+        assert!(doc.contains("styles.css"));
+    }
+
+    #[test]
+    fn test_build_epub_xhtml_escapes_special_chars() {
+        let doc = build_epub_xhtml_document("Title <&>", "<p>OK</p>", "en");
+        assert!(doc.contains("Title &lt;&amp;&gt;"));
+    }
+
+    #[test]
+    fn test_build_epub_container_xml() {
+        let xml = build_epub_container_xml();
+        assert!(xml.contains("container version=\"1.0\""));
+        assert!(xml.contains("OEBPS/content.opf"));
+        assert!(xml.contains("application/oebps-package+xml"));
+    }
+
+    #[test]
+    fn test_build_epub_nav_xhtml() {
+        let entries = vec![
+            ("Chapter 1".to_string(), "chapter-01.xhtml".to_string()),
+            ("Chapter 2".to_string(), "chapter-02.xhtml".to_string()),
+        ];
+        let nav = build_epub_nav_xhtml(&entries, "en");
+        assert!(nav.contains("epub:type=\"toc\""));
+        assert!(nav.contains("<a href=\"chapter-01.xhtml\">Chapter 1</a>"));
+        assert!(nav.contains("<a href=\"chapter-02.xhtml\">Chapter 2</a>"));
+    }
+
+    #[test]
+    fn test_build_epub_toc_ncx() {
+        let entries = vec![("Chapter 1".to_string(), "chapter-01.xhtml".to_string())];
+        let ncx = build_epub_toc_ncx(&entries, "Test Book", "uuid-123");
+        assert!(ncx.contains("dtb:uid"));
+        assert!(ncx.contains("uuid:uuid-123"));
+        assert!(ncx.contains("<text>Chapter 1</text>"));
+        assert!(ncx.contains("playOrder=\"1\""));
+    }
+
+    #[test]
+    fn test_build_epub_content_opf() {
+        let metadata = EpubMetadata {
+            title: "My Book".to_string(),
+            author: "Author Name".to_string(),
+            description: Some("A great book".to_string()),
+            language: "en".to_string(),
+        };
+        let manifest = vec![
+            "    <item id=\"chapter-01\" href=\"chapter-01.xhtml\" media-type=\"application/xhtml+xml\" />\n".to_string(),
+        ];
+        let spine = vec!["    <itemref idref=\"chapter-01\" />\n".to_string()];
+        let opf = build_epub_content_opf(
+            &metadata,
+            "uuid-456",
+            "2024-01-01T00:00:00Z",
+            &manifest,
+            &spine,
+            false,
+        );
+        assert!(opf.contains("<dc:title>My Book</dc:title>"));
+        assert!(opf.contains("<dc:creator>Author Name</dc:creator>"));
+        assert!(opf.contains("<dc:language>en</dc:language>"));
+        assert!(opf.contains("A great book"));
+        assert!(opf.contains("uuid:uuid-456"));
+        assert!(opf.contains("chapter-01.xhtml"));
+    }
+
+    #[test]
+    fn test_build_epub_content_opf_with_cover() {
+        let metadata = EpubMetadata {
+            title: "Cover Book".to_string(),
+            author: "Author".to_string(),
+            description: None,
+            language: "en".to_string(),
+        };
+        let opf = build_epub_content_opf(&metadata, "id", "2024-01-01T00:00:00Z", &[], &[], true);
+        assert!(opf.contains("cover"));
+    }
+
+    #[test]
+    fn test_format_epub_chapter_label() {
+        assert_eq!(
+            format_epub_chapter_label(1, "The Start"),
+            "Chapter 1: The Start"
+        );
+        assert_eq!(format_epub_chapter_label(2, ""), "Chapter 2");
+        assert_eq!(format_epub_chapter_label(3, "   "), "Chapter 3");
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_simple() {
+        let xhtml = render_html_to_xhtml("<p>Hello world.</p>");
+        assert!(xhtml.contains("<p>"));
+        assert!(xhtml.contains("Hello world."));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_bold_italic() {
+        let xhtml = render_html_to_xhtml("<p><strong>Bold</strong> and <em>italic</em></p>");
+        assert!(xhtml.contains("<strong>"));
+        assert!(xhtml.contains("<em>"));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_underline() {
+        let xhtml = render_html_to_xhtml("<p><u>Underlined text</u></p>");
+        assert!(xhtml.contains("text-decoration:underline"));
+        assert!(xhtml.contains("Underlined text"));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_headings() {
+        let xhtml = render_html_to_xhtml("<h1>Title</h1><p>Body</p>");
+        assert!(xhtml.contains("<h1>"));
+        assert!(xhtml.contains("</h1>"));
+        assert!(xhtml.contains("Title"));
+        assert!(xhtml.contains("<p>Body</p>"));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_heading_levels() {
+        let xhtml = render_html_to_xhtml("<h2>Sub</h2><h3>SubSub</h3>");
+        assert!(xhtml.contains("<h2>Sub</h2>"));
+        assert!(xhtml.contains("<h3>SubSub</h3>"));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_line_break() {
+        let xhtml = render_html_to_xhtml("<p>Line one<br/>Line two</p>");
+        assert!(xhtml.contains("<br/>"));
+        assert!(xhtml.contains("Line one"));
+        assert!(xhtml.contains("Line two"));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_blockquote() {
+        let xhtml = render_html_to_xhtml("<blockquote><p>Quoted text</p></blockquote>");
+        assert!(xhtml.contains("<blockquote>"));
+        assert!(xhtml.contains("Quoted text"));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_combined_formatting() {
+        let xhtml = render_html_to_xhtml("<p><strong><em>Bold italic</em></strong></p>");
+        assert!(xhtml.contains("<strong>"));
+        assert!(xhtml.contains("<em>"));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_empty() {
+        let xhtml = render_html_to_xhtml("");
+        assert!(xhtml.is_empty() || xhtml.trim().is_empty());
+    }
+
+    #[test]
+    fn test_parse_html_underline() {
+        let paragraphs = parse_html_to_paragraphs("<p><u>underlined</u></p>");
+        assert_eq!(paragraphs.len(), 1);
+        assert!(paragraphs[0].runs[0].underline);
+        assert!(paragraphs[0].runs[0].text.contains("underlined"));
+    }
+
+    #[test]
+    fn test_parse_html_heading_paragraph_type() {
+        let paragraphs = parse_html_to_paragraphs("<h2>Section</h2><p>Text</p>");
+        assert_eq!(paragraphs.len(), 2);
+        assert_eq!(paragraphs[0].paragraph_type, ParagraphType::Heading(2));
+        assert_eq!(paragraphs[1].paragraph_type, ParagraphType::Normal);
+    }
+
+    #[test]
+    fn test_parse_html_br_creates_newline_run() {
+        let paragraphs = parse_html_to_paragraphs("<p>Line one<br/>Line two</p>");
+        assert_eq!(paragraphs.len(), 1);
+        let has_newline = paragraphs[0].runs.iter().any(|r| r.text.contains('\n'));
+        assert!(has_newline);
+    }
+
+    #[test]
+    fn test_cover_media_type_jpg() {
+        assert_eq!(cover_media_type("photo.jpg").unwrap(), "image/jpeg");
+        assert_eq!(cover_media_type("photo.jpeg").unwrap(), "image/jpeg");
+    }
+
+    #[test]
+    fn test_cover_media_type_png() {
+        assert_eq!(cover_media_type("cover.png").unwrap(), "image/png");
+    }
+
+    #[test]
+    fn test_cover_media_type_gif() {
+        assert_eq!(cover_media_type("anim.gif").unwrap(), "image/gif");
+    }
+
+    #[test]
+    fn test_cover_media_type_webp() {
+        assert_eq!(cover_media_type("photo.webp").unwrap(), "image/webp");
+    }
+
+    #[test]
+    fn test_cover_media_type_invalid() {
+        assert!(cover_media_type("file.bmp").is_err());
+    }
+
+    #[test]
+    fn test_epub_full_export() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "EPUB Test", "blank", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Chapter 1", 0, false, false],
+        ).unwrap();
+
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![sc_id.to_string(), ch_id.to_string(), "Scene 1", "<p>Hello <strong>bold</strong> world.</p>", 0, false],
+        ).unwrap();
+
+        let beat_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO beats (id, scene_id, content, prose, position) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![beat_id.to_string(), sc_id.to_string(), "Opening", "<p>Beat prose here.</p>", 0],
+        ).unwrap();
+
+        // Build EPUB in-memory by calling the helpers directly
+        let project = db::queries::get_project(&conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(&conn, &project_id).unwrap();
+        let active_chapters: Vec<_> = chapters.iter().filter(|c| !c.archived).collect();
+
+        let metadata = EpubMetadata {
+            title: project.name.clone(),
+            author: "Test Author".to_string(),
+            description: Some("A test book".to_string()),
+            language: "en".to_string(),
+        };
+
+        let mut xhtml_items: Vec<EpubXhtmlItem> = Vec::new();
+
+        // Title page
+        let title_body = format!(
+            "<section class=\"title-page\"><h1>{}</h1><p class=\"author\">{}</p></section>",
+            escape_xml(&metadata.title),
+            escape_xml(&metadata.author)
+        );
+        xhtml_items.push(EpubXhtmlItem {
+            id: "title".to_string(),
+            href: "title.xhtml".to_string(),
+            title: "Title Page".to_string(),
+            content: build_epub_xhtml_document("Title Page", &title_body, "en"),
+            include_in_toc: true,
+            linear: true,
+        });
+
+        // Chapter
+        let mut chapter_number = 0;
+        for chapter in &active_chapters {
+            if chapter.is_part {
+                continue;
+            }
+            chapter_number += 1;
+            let chapter_label = format_epub_chapter_label(chapter_number, &chapter.title);
+            let mut body = format!(
+                "<h1 class=\"chapter-title\">{}</h1>",
+                escape_xml(&chapter_label)
+            );
+
+            let scenes = db::queries::get_scenes(&conn, &chapter.id).unwrap();
+            for scene in scenes.iter().filter(|s| !s.archived) {
+                if let Some(ref prose) = scene.prose {
+                    body.push_str(&render_html_to_xhtml(prose));
+                }
+                let beats = db::queries::get_beats(&conn, &scene.id).unwrap();
+                for beat in &beats {
+                    if let Some(ref prose) = beat.prose {
+                        body.push_str(&render_html_to_xhtml(prose));
+                    }
+                }
+            }
+
+            xhtml_items.push(EpubXhtmlItem {
+                id: format!("chapter-{:02}", chapter_number),
+                href: format!("chapter-{:02}.xhtml", chapter_number),
+                title: chapter_label,
+                content: build_epub_xhtml_document(&chapter.title, &body, "en"),
+                include_in_toc: true,
+                linear: true,
+            });
+        }
+
+        let toc_entries: Vec<(String, String)> = xhtml_items
+            .iter()
+            .filter(|item| item.include_in_toc)
+            .map(|item| (item.title.clone(), item.href.clone()))
+            .collect();
+
+        let nav_xhtml = build_epub_nav_xhtml(&toc_entries, "en");
+        let identifier = Uuid::new_v4().to_string();
+        let modified = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+        let toc_ncx = build_epub_toc_ncx(&toc_entries, &metadata.title, &identifier);
+
+        let mut manifest_items: Vec<String> = Vec::new();
+        let mut spine_items: Vec<String> = Vec::new();
+
+        manifest_items.push("    <item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\" />\n".to_string());
+        manifest_items.push(
+            "    <item id=\"toc\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\" />\n"
+                .to_string(),
+        );
+        manifest_items.push(
+            "    <item id=\"css\" href=\"styles.css\" media-type=\"text/css\" />\n".to_string(),
+        );
+        manifest_items.push(
+            "    <item id=\"title\" href=\"title.xhtml\" media-type=\"application/xhtml+xml\" />\n"
+                .to_string(),
+        );
+
+        for item in &xhtml_items {
+            if item.id == "title" {
+                continue;
+            }
+            manifest_items.push(format!(
+                "    <item id=\"{}\" href=\"{}\" media-type=\"application/xhtml+xml\" />\n",
+                escape_xml(&item.id),
+                escape_xml(&item.href)
+            ));
+        }
+
+        for item in &xhtml_items {
+            let linear_attr = if item.linear { "" } else { " linear=\"no\"" };
+            spine_items.push(format!(
+                "    <itemref idref=\"{}\"{} />\n",
+                escape_xml(&item.id),
+                linear_attr
+            ));
+        }
+
+        let content_opf = build_epub_content_opf(
+            &metadata,
+            &identifier,
+            &modified,
+            &manifest_items,
+            &spine_items,
+            false,
+        );
+
+        // Write the EPUB file
+        let epub_path = dir.path().join("test.epub");
+        let file = std::fs::File::create(&epub_path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+
+        let stored = FileOptions::<()>::default()
+            .compression_method(CompressionMethod::Stored)
+            .unix_permissions(0o644);
+        let deflated = FileOptions::<()>::default()
+            .compression_method(CompressionMethod::Deflated)
+            .unix_permissions(0o644);
+
+        // mimetype MUST be first and uncompressed
+        zip.start_file("mimetype", stored).unwrap();
+        zip.write_all(b"application/epub+zip").unwrap();
+
+        zip.add_directory("META-INF/", deflated).unwrap();
+        zip.add_directory("OEBPS/", deflated).unwrap();
+
+        zip.start_file("META-INF/container.xml", deflated).unwrap();
+        zip.write_all(build_epub_container_xml().as_bytes())
+            .unwrap();
+
+        zip.start_file("OEBPS/styles.css", deflated).unwrap();
+        zip.write_all(build_epub_css(&EpubTheme::Classic).as_bytes())
+            .unwrap();
+
+        zip.start_file("OEBPS/nav.xhtml", deflated).unwrap();
+        zip.write_all(nav_xhtml.as_bytes()).unwrap();
+
+        zip.start_file("OEBPS/toc.ncx", deflated).unwrap();
+        zip.write_all(toc_ncx.as_bytes()).unwrap();
+
+        zip.start_file("OEBPS/content.opf", deflated).unwrap();
+        zip.write_all(content_opf.as_bytes()).unwrap();
+
+        for item in &xhtml_items {
+            zip.start_file(format!("OEBPS/{}", item.href), deflated)
+                .unwrap();
+            zip.write_all(item.content.as_bytes()).unwrap();
+        }
+
+        zip.finish().unwrap();
+
+        // Verify the EPUB file
+        assert!(epub_path.exists());
+        let epub_size = std::fs::metadata(&epub_path).unwrap().len();
+        assert!(epub_size > 0);
+
+        // Re-open and verify structure
+        let epub_file = std::fs::File::open(&epub_path).unwrap();
+        let mut archive = zip::ZipArchive::new(epub_file).unwrap();
+
+        // Verify mimetype is first entry
+        {
+            let first_entry = archive.by_index(0).unwrap();
+            assert_eq!(first_entry.name(), "mimetype");
+        }
+
+        // Verify key files exist
+        let file_names: Vec<String> = (0..archive.len())
+            .map(|i| {
+                let entry = archive.by_index(i).unwrap();
+                entry.name().to_string()
+            })
+            .collect();
+
+        assert!(file_names.contains(&"META-INF/container.xml".to_string()));
+        assert!(file_names.contains(&"OEBPS/content.opf".to_string()));
+        assert!(file_names.contains(&"OEBPS/nav.xhtml".to_string()));
+        assert!(file_names.contains(&"OEBPS/toc.ncx".to_string()));
+        assert!(file_names.contains(&"OEBPS/styles.css".to_string()));
+        assert!(file_names.contains(&"OEBPS/title.xhtml".to_string()));
+        assert!(file_names.contains(&"OEBPS/chapter-01.xhtml".to_string()));
+
+        // Verify chapter content contains our prose
+        let mut chapter_content = String::new();
+        {
+            let mut chapter_file = archive.by_name("OEBPS/chapter-01.xhtml").unwrap();
+            std::io::Read::read_to_string(&mut chapter_file, &mut chapter_content).unwrap();
+        }
+        assert!(chapter_content.contains("<strong>bold</strong>"));
+        assert!(chapter_content.contains("Beat prose here."));
+    }
+
+    #[test]
+    fn test_escape_xml() {
+        assert_eq!(escape_xml("&"), "&amp;");
+        assert_eq!(escape_xml("<"), "&lt;");
+        assert_eq!(escape_xml(">"), "&gt;");
+        assert_eq!(escape_xml("\""), "&quot;");
+        assert_eq!(escape_xml("'"), "&apos;");
+        assert_eq!(escape_xml("normal text"), "normal text");
+        assert_eq!(escape_xml("a & b < c"), "a &amp; b &lt; c");
     }
 }
