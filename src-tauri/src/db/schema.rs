@@ -209,6 +209,13 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             UNIQUE(field_definition_id, entity_id)
         );
 
+        CREATE TABLE IF NOT EXISTS dismissed_suggestions (
+            scene_id TEXT NOT NULL,
+            reference_id TEXT NOT NULL,
+            dismissed_at TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (scene_id, reference_id)
+        );
+
         -- Create indexes for common queries
         CREATE INDEX IF NOT EXISTS idx_chapters_project ON chapters(project_id);
         CREATE INDEX IF NOT EXISTS idx_scenes_chapter ON scenes(chapter_id);
@@ -230,6 +237,7 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_field_definitions_project ON field_definitions(project_id, entity_type);
         CREATE INDEX IF NOT EXISTS idx_field_values_definition ON field_values(field_definition_id);
         CREATE INDEX IF NOT EXISTS idx_field_values_entity ON field_values(entity_id);
+        CREATE INDEX IF NOT EXISTS idx_dismissed_suggestions_scene ON dismissed_suggestions(scene_id);
 
         "#,
     )?;
@@ -537,6 +545,20 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
         )?;
     }
 
+    if !tables.contains(&"dismissed_suggestions".to_string()) {
+        conn.execute_batch(
+            r#"
+            CREATE TABLE dismissed_suggestions (
+                scene_id TEXT NOT NULL,
+                reference_id TEXT NOT NULL,
+                dismissed_at TEXT NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (scene_id, reference_id)
+            );
+            CREATE INDEX idx_dismissed_suggestions_scene ON dismissed_suggestions(scene_id);
+            "#,
+        )?;
+    }
+
     // Auto-migrate existing *_attributes into field_definitions + field_values
     migrate_attributes_to_fields(conn)?;
 
@@ -724,6 +746,7 @@ mod tests {
         assert!(tables.contains(&"saved_filters".to_string()));
         assert!(tables.contains(&"field_definitions".to_string()));
         assert!(tables.contains(&"field_values".to_string()));
+        assert!(tables.contains(&"dismissed_suggestions".to_string()));
     }
 
     #[test]

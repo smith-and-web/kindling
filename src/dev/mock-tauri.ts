@@ -1081,6 +1081,16 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       return undefined as T;
     }
 
+    // Detection commands (stubs in dev mode)
+    case "detect_scene_references":
+      return [] as T;
+
+    case "detect_all_references":
+      return {} as T;
+
+    case "dismiss_suggestion":
+      return undefined as T;
+
     default:
       throw new Error(`Mock invoke: unknown command "${cmd}"`);
   }

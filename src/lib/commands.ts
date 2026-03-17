@@ -130,6 +130,23 @@ export const COMMAND_DEFS: CommandDef[] = [
     keywords: ["page", "beat", "view", "mode", "prose", "editor"],
     requiresProject: true,
   },
+  // Project - Detection
+  {
+    id: "detect_references",
+    label: "Detect references in scene",
+    shortcut: "",
+    category: "Project",
+    keywords: ["detect", "references", "scan", "suggest", "smart"],
+    requiresProject: true,
+  },
+  {
+    id: "detect_all_references",
+    label: "Detect references in all scenes",
+    shortcut: "",
+    category: "Project",
+    keywords: ["detect", "all", "references", "scan", "suggest", "bulk"],
+    requiresProject: true,
+  },
   // Help
   {
     id: "about",
