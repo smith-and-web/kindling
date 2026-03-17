@@ -235,6 +235,9 @@
       case "toggle_discovery_notes":
         window.dispatchEvent(new CustomEvent("kindling:toggleDiscoveryNotes"));
         break;
+      case "toggle_editor_mode":
+        window.dispatchEvent(new CustomEvent("kindling:toggleEditorMode"));
+        break;
       case "quick_start":
         showQuickStart = true;
         break;

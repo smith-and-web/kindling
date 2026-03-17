@@ -33,11 +33,7 @@ vi.stubGlobal("window", {
   })),
 });
 
-const {
-  getStoredPreference,
-  setThemePreference,
-  initTheme,
-} = await import("./theme");
+const { getStoredPreference, setThemePreference, initTheme } = await import("./theme");
 
 describe("theme utility", () => {
   beforeEach(() => {

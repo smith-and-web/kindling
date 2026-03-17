@@ -3,6 +3,30 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
+pub enum EditorMode {
+    #[default]
+    Beat,
+    Page,
+}
+
+impl EditorMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EditorMode::Beat => "beat",
+            EditorMode::Page => "page",
+        }
+    }
+
+    pub fn parse(raw: &str) -> Self {
+        match raw.trim().to_lowercase().as_str() {
+            "page" => EditorMode::Page,
+            _ => EditorMode::Beat,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
 pub enum PlanningStatus {
     #[default]
     Fixed,
@@ -105,6 +129,8 @@ pub struct Scene {
     pub scene_status: SceneStatus,
     #[serde(default)]
     pub planning_status: PlanningStatus,
+    #[serde(default)]
+    pub editor_mode: EditorMode,
 }
 
 impl Scene {
@@ -122,6 +148,7 @@ impl Scene {
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
             planning_status: PlanningStatus::Fixed,
+            editor_mode: EditorMode::Beat,
         }
     }
 

@@ -122,6 +122,14 @@ export const COMMAND_DEFS: CommandDef[] = [
     keywords: ["discovery", "notes", "draft"],
     requiresProject: true,
   },
+  {
+    id: "toggle_editor_mode",
+    label: "Toggle beat/page view",
+    shortcut: "⌘⇧V",
+    category: "View",
+    keywords: ["page", "beat", "view", "mode", "prose", "editor"],
+    requiresProject: true,
+  },
   // Help
   {
     id: "about",

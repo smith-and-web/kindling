@@ -1,13 +1,25 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { currentProject } from "./project.svelte";
-import type { Chapter, PlanningStatus, Project, ReferenceTypeId, Scene } from "../types";
+import type {
+  Chapter,
+  EditorMode,
+  PlanningStatus,
+  Project,
+  ReferenceTypeId,
+  Scene,
+} from "../types";
 
 const defaultPlanningStatus: PlanningStatus = "fixed";
+const defaultEditorMode: EditorMode = "beat";
 
-const defaultSceneMeta: Pick<Scene, "scene_type" | "scene_status" | "planning_status"> = {
+const defaultSceneMeta: Pick<
+  Scene,
+  "scene_type" | "scene_status" | "planning_status" | "editor_mode"
+> = {
   scene_type: "normal",
   scene_status: "draft",
   planning_status: defaultPlanningStatus,
+  editor_mode: defaultEditorMode,
 };
 
 const defaultChapterMeta: Pick<Chapter, "synopsis" | "planning_status"> = {

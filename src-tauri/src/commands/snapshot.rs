@@ -414,6 +414,7 @@ fn restore_create_new(
             scene_type: scene.scene_type,
             scene_status: scene.scene_status,
             planning_status: scene.planning_status,
+            editor_mode: scene.editor_mode,
         };
         db::insert_scene(&tx, &new_scene).map_err(|e| e.to_string())?;
     }

@@ -196,6 +196,7 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         scene_type: "normal",
         scene_status: "draft",
         planning_status: "fixed",
+        editor_mode: "beat",
       };
       scenes.push(sc);
       return sc as T;
@@ -506,6 +507,30 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       if (!sceneId) throw new Error("Missing sceneId");
       const sc = scenes.find((s) => s.id === sceneId);
       if (sc) sc.archived = true;
+      return undefined as T;
+    }
+
+    case "switch_scene_editor_mode": {
+      if (!sceneId) throw new Error("Missing sceneId");
+      const mode = getArg<string>(args, "mode") ?? "beat";
+      const sc = scenes.find((s) => s.id === sceneId);
+      if (!sc) throw new Error(`Scene not found: ${sceneId}`);
+      sc.editor_mode = mode as "beat" | "page";
+      if (mode === "page") {
+        const sceneBeats = beats.filter(
+          (b) => b.scene_id === sceneId,
+        );
+        sceneBeats.sort((a, b) => a.position - b.position);
+        sc.prose = sceneBeats.map((b) => b.prose ?? "").join("");
+      }
+      return sc as T;
+    }
+
+    case "save_scene_page_prose": {
+      if (!sceneId) throw new Error("Missing sceneId");
+      const prose = getArg<string>(args, "prose") ?? "";
+      const sc = scenes.find((s) => s.id === sceneId);
+      if (sc) sc.prose = prose;
       return undefined as T;
     }
 
