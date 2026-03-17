@@ -155,6 +155,22 @@ pub fn run() {
             commands::get_field_values_bulk,
             commands::set_field_value,
             commands::clear_field_value,
+            // Tag commands
+            commands::get_tags,
+            commands::create_tag,
+            commands::update_tag,
+            commands::delete_tag,
+            commands::reorder_tags,
+            commands::tag_entity,
+            commands::untag_entity,
+            commands::get_entity_tags,
+            commands::bulk_tag,
+            commands::bulk_untag,
+            commands::get_all_entity_tags,
+            commands::filter_entities,
+            commands::save_filter,
+            commands::get_saved_filters,
+            commands::delete_saved_filter,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

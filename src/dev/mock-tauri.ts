@@ -16,6 +16,9 @@ import type {
   SceneReferenceState,
   FieldDefinition,
   FieldValue,
+  Tag,
+  EntityTag,
+  SavedFilter,
 } from "../lib/types";
 
 import {
@@ -42,6 +45,9 @@ let sceneReferenceStates: SceneReferenceState[] = [];
 let snapshots: SnapshotMetadata[] = [];
 let fieldDefinitions: FieldDefinition[] = [];
 let fieldValues: FieldValue[] = [];
+let tags: Tag[] = [];
+let entityTags: EntityTag[] = [];
+let savedFilters: SavedFilter[] = [];
 
 let idCounter = 100;
 
@@ -521,9 +527,7 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       if (!sc) throw new Error(`Scene not found: ${sceneId}`);
       sc.editor_mode = mode as "beat" | "page";
       if (mode === "page") {
-        const sceneBeats = beats.filter(
-          (b) => b.scene_id === sceneId,
-        );
+        const sceneBeats = beats.filter((b) => b.scene_id === sceneId);
         sceneBeats.sort((a, b) => a.position - b.position);
         sc.prose = sceneBeats.map((b) => b.prose ?? "").join("");
       }
@@ -810,22 +814,22 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
 
     case "get_field_definitions": {
       const entityType = getArg<string>(args, "entityType", "entity_type") ?? "";
-      return fieldDefinitions.filter(
-        (d) => d.project_id === projectId && d.entity_type === entityType,
-      ).sort((a, b) => a.position - b.position) as T;
+      return fieldDefinitions
+        .filter((d) => d.project_id === projectId && d.entity_type === entityType)
+        .sort((a, b) => a.position - b.position) as T;
     }
 
     case "get_all_field_definitions": {
-      return fieldDefinitions.filter(
-        (d) => d.project_id === projectId,
-      ).sort((a, b) => a.position - b.position) as T;
+      return fieldDefinitions
+        .filter((d) => d.project_id === projectId)
+        .sort((a, b) => a.position - b.position) as T;
     }
 
     case "create_field_definition": {
       const def = getArg<Partial<FieldDefinition>>(args, "definition");
       if (!def || !projectId) throw new Error("Missing definition or projectId");
       const existing = fieldDefinitions.filter(
-        (d) => d.project_id === projectId && d.entity_type === def.entity_type,
+        (d) => d.project_id === projectId && d.entity_type === def.entity_type
       );
       const newDef: FieldDefinition = {
         id: nextId("fd"),
@@ -850,7 +854,8 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       const existing = fieldDefinitions.find((d) => d.id === defId);
       if (existing && update) {
         if (update.name !== undefined) existing.name = update.name;
-        if (update.field_type !== undefined) existing.field_type = update.field_type as FieldDefinition["field_type"];
+        if (update.field_type !== undefined)
+          existing.field_type = update.field_type as FieldDefinition["field_type"];
         if (update.options !== undefined) existing.options = update.options;
         if (update.default_value !== undefined) existing.default_value = update.default_value;
         if (update.required !== undefined) existing.required = update.required;
@@ -891,7 +896,7 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       const entityId = getArg<string>(args, "entityId", "entity_id") ?? "";
       const value = getArg<string | null>(args, "value") ?? null;
       const existing = fieldValues.find(
-        (v) => v.field_definition_id === fieldDefId && v.entity_id === entityId,
+        (v) => v.field_definition_id === fieldDefId && v.entity_id === entityId
       );
       if (existing) {
         existing.value = value;
@@ -910,8 +915,169 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       const fieldDefId = getArg<string>(args, "fieldDefinitionId", "field_definition_id") ?? "";
       const entityId = getArg<string>(args, "entityId", "entity_id") ?? "";
       fieldValues = fieldValues.filter(
-        (v) => !(v.field_definition_id === fieldDefId && v.entity_id === entityId),
+        (v) => !(v.field_definition_id === fieldDefId && v.entity_id === entityId)
       );
+      return undefined as T;
+    }
+
+    // Tag commands
+    case "get_tags": {
+      return tags
+        .filter((t) => t.project_id === projectId)
+        .sort((a, b) => a.position - b.position) as T;
+    }
+
+    case "create_tag": {
+      const name = getArg<string>(args, "name") ?? "";
+      const color = getArg<string | null>(args, "color") ?? null;
+      const parentId = getArg<string | null>(args, "parentId", "parent_id") ?? null;
+      const newTag: Tag = {
+        id: nextId("tag"),
+        project_id: projectId ?? "",
+        name,
+        color,
+        parent_id: parentId,
+        position: tags.filter((t) => t.project_id === projectId).length,
+        created_at: new Date().toISOString(),
+      };
+      tags.push(newTag);
+      return newTag as T;
+    }
+
+    case "update_tag": {
+      const tagId = getArg<string>(args, "tagId", "tag_id") ?? "";
+      const update = getArg<Partial<{ name: string; color: string | null }>>(args, "update");
+      const existing = tags.find((t) => t.id === tagId);
+      if (existing && update) {
+        if (update.name !== undefined) existing.name = update.name;
+        if (update.color !== undefined) existing.color = update.color;
+      }
+      return undefined as T;
+    }
+
+    case "delete_tag": {
+      const tagId = getArg<string>(args, "tagId", "tag_id") ?? "";
+      tags = tags.filter((t) => t.id !== tagId);
+      entityTags = entityTags.filter((et) => et.tag_id !== tagId);
+      return undefined as T;
+    }
+
+    case "reorder_tags": {
+      const ids = getArg<string[]>(args, "tagIds", "tag_ids") ?? [];
+      ids.forEach((id, i) => {
+        const t = tags.find((tag) => tag.id === id);
+        if (t) t.position = i;
+      });
+      return undefined as T;
+    }
+
+    case "tag_entity": {
+      const tagId = getArg<string>(args, "tagId", "tag_id") ?? "";
+      const entType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      const entId = getArg<string>(args, "entityId", "entity_id") ?? "";
+      if (
+        !entityTags.some(
+          (et) => et.tag_id === tagId && et.entity_type === entType && et.entity_id === entId
+        )
+      ) {
+        entityTags.push({ tag_id: tagId, entity_type: entType, entity_id: entId });
+      }
+      return undefined as T;
+    }
+
+    case "untag_entity": {
+      const tagId = getArg<string>(args, "tagId", "tag_id") ?? "";
+      const entType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      const entId = getArg<string>(args, "entityId", "entity_id") ?? "";
+      entityTags = entityTags.filter(
+        (et) => !(et.tag_id === tagId && et.entity_type === entType && et.entity_id === entId)
+      );
+      return undefined as T;
+    }
+
+    case "get_entity_tags": {
+      const entType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      const entId = getArg<string>(args, "entityId", "entity_id") ?? "";
+      const tagIds = entityTags
+        .filter((et) => et.entity_type === entType && et.entity_id === entId)
+        .map((et) => et.tag_id);
+      return tags.filter((t) => tagIds.includes(t.id)) as T;
+    }
+
+    case "bulk_tag": {
+      const tagId = getArg<string>(args, "tagId", "tag_id") ?? "";
+      const entType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      const entIds = getArg<string[]>(args, "entityIds", "entity_ids") ?? [];
+      for (const entId of entIds) {
+        if (
+          !entityTags.some(
+            (et) => et.tag_id === tagId && et.entity_type === entType && et.entity_id === entId
+          )
+        ) {
+          entityTags.push({ tag_id: tagId, entity_type: entType, entity_id: entId });
+        }
+      }
+      return undefined as T;
+    }
+
+    case "bulk_untag": {
+      const tagId = getArg<string>(args, "tagId", "tag_id") ?? "";
+      const entType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      const entIds = getArg<string[]>(args, "entityIds", "entity_ids") ?? [];
+      const idSet = new Set(entIds);
+      entityTags = entityTags.filter(
+        (et) => !(et.tag_id === tagId && et.entity_type === entType && idSet.has(et.entity_id))
+      );
+      return undefined as T;
+    }
+
+    case "get_all_entity_tags": {
+      return entityTags.filter((et) => {
+        const tag = tags.find((t) => t.id === et.tag_id);
+        return tag?.project_id === projectId;
+      }) as T;
+    }
+
+    case "filter_entities": {
+      const entType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      const filterJson = getArg<string>(args, "filterJson", "filter_json") ?? "{}";
+      try {
+        const filter = JSON.parse(filterJson) as { tags?: string[]; operator?: string };
+        const filterTagIds = filter.tags ?? [];
+        if (filterTagIds.length === 0) return [] as T;
+        const matchingEts = entityTags.filter(
+          (et) => et.entity_type === entType && filterTagIds.includes(et.tag_id)
+        );
+        const entityIds = [...new Set(matchingEts.map((et) => et.entity_id))];
+        return entityIds as T;
+      } catch {
+        return [] as T;
+      }
+    }
+
+    case "save_filter": {
+      const name = getArg<string>(args, "name") ?? "";
+      const entType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      const filterJson = getArg<string>(args, "filterJson", "filter_json") ?? "{}";
+      const newFilter: SavedFilter = {
+        id: nextId("sf"),
+        project_id: projectId ?? "",
+        name,
+        entity_type: entType,
+        filter_json: filterJson,
+        position: savedFilters.filter((f) => f.project_id === projectId).length,
+      };
+      savedFilters.push(newFilter);
+      return newFilter as T;
+    }
+
+    case "get_saved_filters": {
+      return savedFilters.filter((f) => f.project_id === projectId) as T;
+    }
+
+    case "delete_saved_filter": {
+      const filterId = getArg<string>(args, "filterId", "filter_id") ?? "";
+      savedFilters = savedFilters.filter((f) => f.id !== filterId);
       return undefined as T;
     }
 
