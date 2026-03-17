@@ -1,0 +1,79 @@
+{
+  "id": "bundled-three-act",
+  "name": "Three-Act Structure",
+  "source": "Classical Dramatic Theory",
+  "description": "The foundational story structure: setup, confrontation, and resolution. The backbone of most Western storytelling from Aristotle to Hollywood.",
+  "project_types": ["novel", "screenplay"],
+  "structure": [
+    {
+      "title": "Act I — Setup",
+      "children": [
+        {
+          "title": "Hook",
+          "synopsis": "Grab the reader's attention and establish tone.",
+          "scenes": [{ "title": "Hook", "synopsis": "Open with an engaging moment that draws the audience in." }]
+        },
+        {
+          "title": "Exposition",
+          "synopsis": "Introduce the protagonist, their world, and what's at stake.",
+          "scenes": [{ "title": "Exposition", "synopsis": "Establish the protagonist's ordinary world and relationships." }]
+        },
+        {
+          "title": "Inciting Incident",
+          "synopsis": "An event disrupts the status quo and sets the story in motion.",
+          "scenes": [{ "title": "Inciting Incident", "synopsis": "The event that changes everything and launches the central conflict." }]
+        },
+        {
+          "title": "First Plot Point",
+          "synopsis": "The protagonist commits to addressing the central conflict.",
+          "scenes": [{ "title": "First Plot Point", "synopsis": "The point of no return — the hero enters the new world." }]
+        }
+      ]
+    },
+    {
+      "title": "Act II — Confrontation",
+      "children": [
+        {
+          "title": "Rising Action",
+          "synopsis": "The protagonist faces escalating obstacles and complications.",
+          "scenes": [{ "title": "Rising Action", "synopsis": "Challenges grow more difficult. The hero learns and adapts." }]
+        },
+        {
+          "title": "Midpoint",
+          "synopsis": "A major reversal or revelation that shifts the story's direction.",
+          "scenes": [{ "title": "Midpoint", "synopsis": "A turning point that raises stakes and changes the hero's approach." }]
+        },
+        {
+          "title": "Complications",
+          "synopsis": "Things get worse. Subplots converge and pressure builds.",
+          "scenes": [{ "title": "Complications", "synopsis": "The antagonist gains ground. Allies may falter." }]
+        },
+        {
+          "title": "Second Plot Point",
+          "synopsis": "The final piece of information or event that pushes toward the climax.",
+          "scenes": [{ "title": "Second Plot Point", "synopsis": "The hero gets what they need for the final confrontation." }]
+        }
+      ]
+    },
+    {
+      "title": "Act III — Resolution",
+      "children": [
+        {
+          "title": "Climax",
+          "synopsis": "The protagonist faces the central conflict head-on.",
+          "scenes": [{ "title": "Climax", "synopsis": "The decisive confrontation where everything comes to a head." }]
+        },
+        {
+          "title": "Falling Action",
+          "synopsis": "The aftermath of the climax; loose ends begin to resolve.",
+          "scenes": [{ "title": "Falling Action", "synopsis": "Consequences play out. Subplots resolve." }]
+        },
+        {
+          "title": "Denouement",
+          "synopsis": "The new normal is established. The story reaches its final state.",
+          "scenes": [{ "title": "Denouement", "synopsis": "Show the transformed world and the hero's new equilibrium." }]
+        }
+      ]
+    }
+  ]
+}

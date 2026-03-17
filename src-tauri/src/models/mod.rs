@@ -12,6 +12,7 @@ pub mod settings;
 pub mod snapshot;
 pub mod suggestion;
 pub mod tag;
+pub mod template;
 
 pub use beat::*;
 pub use chapter::*;
@@ -27,3 +28,4 @@ pub use settings::*;
 pub use snapshot::*;
 pub use suggestion::*;
 pub use tag::*;
+pub use template::*;

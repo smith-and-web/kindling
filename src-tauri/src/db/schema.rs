@@ -211,6 +211,16 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             UNIQUE(field_definition_id, entity_id)
         );
 
+        CREATE TABLE IF NOT EXISTS story_templates (
+            id TEXT PRIMARY KEY NOT NULL,
+            project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            description TEXT,
+            project_types TEXT NOT NULL DEFAULT '["novel","screenplay"]',
+            structure_json TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
         CREATE TABLE IF NOT EXISTS dismissed_suggestions (
             scene_id TEXT NOT NULL,
             reference_id TEXT NOT NULL,
@@ -573,6 +583,22 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
         )?;
     }
 
+    if !tables.contains(&"story_templates".to_string()) {
+        conn.execute_batch(
+            r#"
+            CREATE TABLE story_templates (
+                id TEXT PRIMARY KEY NOT NULL,
+                project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                description TEXT,
+                project_types TEXT NOT NULL DEFAULT '["novel","screenplay"]',
+                structure_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            "#,
+        )?;
+    }
+
     // Auto-migrate existing *_attributes into field_definitions + field_values
     migrate_attributes_to_fields(conn)?;
 
@@ -761,6 +787,7 @@ mod tests {
         assert!(tables.contains(&"field_definitions".to_string()));
         assert!(tables.contains(&"field_values".to_string()));
         assert!(tables.contains(&"dismissed_suggestions".to_string()));
+        assert!(tables.contains(&"story_templates".to_string()));
     }
 
     #[test]

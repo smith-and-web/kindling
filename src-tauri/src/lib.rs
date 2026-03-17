@@ -178,6 +178,12 @@ pub fn run() {
             commands::detect_scene_references,
             commands::detect_all_references,
             commands::dismiss_suggestion,
+            // Template commands
+            commands::get_bundled_templates,
+            commands::get_user_templates,
+            commands::apply_template,
+            commands::save_project_as_template,
+            commands::delete_user_template,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

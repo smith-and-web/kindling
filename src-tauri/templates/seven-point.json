@@ -1,0 +1,59 @@
+{
+  "id": "bundled-seven-point",
+  "name": "Seven-Point Story Structure",
+  "source": "Dan Wells",
+  "description": "A focused 7-beat structure built by working backwards from the resolution. Particularly effective for plotting mysteries, thrillers, and tightly wound narratives.",
+  "project_types": ["novel", "screenplay"],
+  "structure": [
+    {
+      "title": "Act I — Setup",
+      "children": [
+        {
+          "title": "Hook",
+          "synopsis": "The starting state — the opposite of the resolution.",
+          "scenes": [{ "title": "Hook", "synopsis": "Show the protagonist in a state opposite to where they'll end up." }]
+        },
+        {
+          "title": "Plot Turn 1",
+          "synopsis": "The event that sets the story in motion and introduces the conflict.",
+          "scenes": [{ "title": "Plot Turn 1", "synopsis": "Something happens that changes the hero's world and launches the conflict." }]
+        }
+      ]
+    },
+    {
+      "title": "Act II — Confrontation",
+      "children": [
+        {
+          "title": "Pinch Point 1",
+          "synopsis": "Apply pressure. Show the antagonist's strength or the stakes.",
+          "scenes": [{ "title": "Pinch Point 1", "synopsis": "The villain or opposing force demonstrates their power." }]
+        },
+        {
+          "title": "Midpoint",
+          "synopsis": "The protagonist shifts from reaction to action.",
+          "scenes": [{ "title": "Midpoint", "synopsis": "The hero stops running and starts fighting. A fundamental shift in approach." }]
+        },
+        {
+          "title": "Pinch Point 2",
+          "synopsis": "Apply more pressure. The situation seems hopeless.",
+          "scenes": [{ "title": "Pinch Point 2", "synopsis": "The antagonist applies maximum pressure. All seems lost." }]
+        }
+      ]
+    },
+    {
+      "title": "Act III — Resolution",
+      "children": [
+        {
+          "title": "Plot Turn 2",
+          "synopsis": "The final piece falls into place. The hero gets the key to winning.",
+          "scenes": [{ "title": "Plot Turn 2", "synopsis": "The hero discovers the final piece they need — the power was inside them all along." }]
+        },
+        {
+          "title": "Resolution",
+          "synopsis": "The climax and denouement. The opposite of the hook.",
+          "scenes": [{ "title": "Resolution", "synopsis": "The hero confronts the conflict and achieves transformation. Mirror the hook." }]
+        }
+      ]
+    }
+  ]
+}
