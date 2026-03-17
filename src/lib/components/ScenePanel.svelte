@@ -7,9 +7,7 @@
     Plus,
     Pencil,
     Lock,
-    GripVertical,
     Trash2,
-    MoreVertical,
     CircleDot,
     CircleDashed,
     Lightbulb,
@@ -19,7 +17,6 @@
     AlignLeft,
   } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import ContextMenu from "./ContextMenu.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import { onDestroy, onMount, tick } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
@@ -36,9 +33,12 @@
     Scene,
     SceneStatus,
     SceneType,
+    Tag,
   } from "../types";
-  import NovelEditor from "./NovelEditor.svelte";
+  import BeatView from "./BeatView.svelte";
+  import PageView from "./PageView.svelte";
   import SluglineInput from "./SluglineInput.svelte";
+  import TagSelector from "./TagSelector.svelte";
   import Tooltip from "./Tooltip.svelte";
 
   const isScreenplay = $derived(currentProject.value?.project_type === "screenplay");
@@ -90,6 +90,8 @@
   let synopsisSaving = $state(false);
   let metadataSaving = $state(false);
   let metadataError = $state<string | null>(null);
+  let sceneTagIds = $state<string[]>([]);
+  let allProjectTags = $state<Tag[]>([]);
 
   // New beat state
   let addingBeat = $state(false);
@@ -97,7 +99,6 @@
   let creatingBeat = $state(false);
 
   // Beat context menu and delete confirmation
-  let beatContextMenu: { beat: Beat; x: number; y: number } | null = $state(null);
   let deleteBeatDialog: Beat | null = $state(null);
   let deletingBeat = $state(false);
   let novelEditorRef: { getSplitBeforeParagraph: () => number | null } | null = $state(null);
@@ -181,6 +182,21 @@
       if (requestId === sceneReferenceRequestId) {
         sceneReferenceLoading = false;
       }
+    }
+  }
+
+  async function loadSceneTags(sceneId: string) {
+    const projectId = currentProject.value?.id;
+    if (!projectId) return;
+    try {
+      const [tags, entityTags] = await Promise.all([
+        invoke<Tag[]>("get_project_tags", { projectId }),
+        invoke<Tag[]>("get_entity_tags", { entityType: "scene", entityId: sceneId }),
+      ]);
+      allProjectTags = tags;
+      sceneTagIds = entityTags.map((t) => t.id);
+    } catch (e) {
+      console.error("Failed to load scene tags:", e);
     }
   }
 
@@ -459,16 +475,6 @@
     }
   }
 
-  function openBeatContextMenu(e: MouseEvent, beat: Beat) {
-    e.preventDefault();
-    e.stopPropagation();
-    beatContextMenu = { beat, x: e.clientX, y: e.clientY };
-  }
-
-  function closeBeatContextMenu() {
-    beatContextMenu = null;
-  }
-
   function getBeatContextMenuItems(beat: Beat) {
     const beats = currentProject.beats;
     const beatIndex = beats.findIndex((b) => b.id === beat.id);
@@ -505,7 +511,6 @@
   }
 
   function confirmDeleteBeat(beat: Beat) {
-    beatContextMenu = null;
     deleteBeatDialog = beat;
   }
 
@@ -528,7 +533,6 @@
   }
 
   async function executeSplitBeat(beat: Beat) {
-    beatContextMenu = null;
     const paraIndex = novelEditorRef?.getSplitBeforeParagraph();
     if (paraIndex == null || paraIndex < 1) return;
     if (!currentProject.currentScene) return;
@@ -551,7 +555,6 @@
   }
 
   async function executeMergeBeats(first: Beat, second: Beat) {
-    beatContextMenu = null;
     if (!currentProject.currentScene) return;
     try {
       if (ui.expandedBeatId === first.id || ui.expandedBeatId === second.id) {
@@ -693,10 +696,12 @@
       sceneReferenceItems = {} as Record<ReferenceTypeId, ReferenceItem[]>;
       sceneReferenceError = null;
       sceneReferenceLoading = false;
+      sceneTagIds = [];
       return;
     }
 
     loadSceneReferenceItems(sceneId);
+    loadSceneTags(sceneId);
   });
 
   let lastSceneReferenceRefreshId = -1;
@@ -1068,6 +1073,21 @@
             <p class="text-xs text-red-400 mt-2">{metadataError}</p>
           {/if}
         </header>
+
+        <!-- Scene tags -->
+        {#if currentProject.value}
+          <div class="mb-4 flex items-center gap-2">
+            <span class="text-xs text-text-secondary shrink-0">Tags</span>
+            <TagSelector
+              projectId={currentProject.value.id}
+              entityType="scene"
+              entityId={scene.id}
+              allTags={allProjectTags}
+              entityTagIds={sceneTagIds}
+              onTagsChanged={() => loadSceneTags(scene.id)}
+            />
+          </div>
+        {/if}
 
         <!-- Planning status guidance (first-time, shown once on any scene) -->
         {#if !ui.hasSeenTooltip("planningStatus")}
@@ -1460,199 +1480,38 @@
 
         <!-- Page View (Fixed + Page mode) -->
         {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode === "page"}
-          <section>
-            <div class="flex items-center justify-between mb-4">
-              <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">
-                Scene Prose
-              </h2>
-              <span class="text-xs text-text-secondary">{getPageWordCount()} words</span>
-            </div>
-            <div class="bg-bg-panel rounded-lg overflow-hidden" style="min-height: 50rem;">
-              <NovelEditor
-                content={pageProseContent}
-                placeholder={isLocked ? "Scene is locked" : "Write your scene prose here..."}
-                readonly={isLocked}
-                saveStatus={pageProseSaveStatus}
-                onUpdate={handlePageProseUpdate}
-              />
-            </div>
-          </section>
+          <PageView
+            content={pageProseContent}
+            readonly={isLocked}
+            saveStatus={pageProseSaveStatus}
+            wordCount={getPageWordCount()}
+            onUpdate={handlePageProseUpdate}
+          />
         {/if}
 
         <!-- Beats (Fixed + Beat mode only) -->
         {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode !== "page"}
-          <section>
-            <div class="flex items-center justify-between mb-4">
-              <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">Beats</h2>
-              {#if currentProject.beats.length > 0 && !addingBeat && !isLocked}
-                <button
-                  onclick={startAddingBeat}
-                  class="flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors text-sm"
-                >
-                  <Plus class="w-3.5 h-3.5" />
-                  <span>Add Beat</span>
-                </button>
-              {/if}
-            </div>
-            {#if currentProject.beats.length > 0}
-              <div class="space-y-4">
-                {#each currentProject.beats as beat, index}
-                  {@const isExpanded = ui.expandedBeatId === beat.id}
-                  <!-- svelte-ignore a11y_no_static_element_interactions -->
-                  <article
-                    data-drag-beat={beat.id}
-                    data-testid="beat-item"
-                    class="bg-bg-panel rounded-lg overflow-hidden select-none relative"
-                    class:ring-2={dragOverBeatId === beat.id}
-                    class:ring-accent={dragOverBeatId === beat.id}
-                    use:registerBeatRef={beat.id}
-                    onmouseenter={() => (hoveredBeatId = beat.id)}
-                    onmouseleave={() => (hoveredBeatId = null)}
-                  >
-                    <!-- Beat Header (clickable to expand) -->
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <div
-                      class="w-full bg-beat-header px-4 py-2 flex items-center gap-2 hover:bg-beat-header/80 transition-colors cursor-pointer"
-                      oncontextmenu={(e) => !isLocked && openBeatContextMenu(e, beat)}
-                    >
-                      {#if !isLocked}
-                        <div
-                          data-testid="beat-drag-handle"
-                          onmousedown={(e) => onBeatDragHandleMouseDown(e, beat.id)}
-                          class="cursor-grab active:cursor-grabbing p-0.5 text-text-secondary hover:text-text-primary transition-opacity shrink-0"
-                          class:opacity-0={hoveredBeatId !== beat.id}
-                          class:opacity-100={hoveredBeatId === beat.id}
-                          role="button"
-                          tabindex="-1"
-                          aria-label="Drag to reorder"
-                        >
-                          <GripVertical class="w-3.5 h-3.5" />
-                        </div>
-                      {/if}
-                      <button
-                        data-testid="beat-header"
-                        onclick={() => toggleBeat(beat.id)}
-                        class="flex-1 flex items-center gap-3 text-left min-w-0"
-                      >
-                        <span class="text-text-secondary shrink-0">
-                          {#if isExpanded}
-                            <ChevronDown class="w-4 h-4" />
-                          {:else}
-                            <ChevronRight class="w-4 h-4" />
-                          {/if}
-                        </span>
-                        <span
-                          class="w-6 h-6 rounded-full bg-accent text-white text-xs font-medium flex items-center justify-center shrink-0"
-                        >
-                          {index + 1}
-                        </span>
-                        <p class="text-text-primary text-sm font-medium flex-1 truncate">
-                          {beat.content}
-                        </p>
-                        {#if beat.prose}
-                          <span class="text-xs text-text-secondary shrink-0" title="Word count">
-                            {getBeatWordCount(beat.prose)}w
-                          </span>
-                        {/if}
-                      </button>
-                      {#if !isLocked}
-                        <button
-                          data-testid="beat-menu-button"
-                          onclick={(e) => openBeatContextMenu(e, beat)}
-                          class="p-1 text-text-secondary hover:text-text-primary transition-opacity shrink-0"
-                          class:opacity-0={hoveredBeatId !== beat.id}
-                          class:opacity-100={hoveredBeatId === beat.id}
-                          aria-label="Beat menu"
-                        >
-                          <MoreVertical class="w-3.5 h-3.5" />
-                        </button>
-                      {/if}
-                    </div>
-
-                    <!-- Expanded Beat Content -->
-                    {#if isExpanded}
-                      <div class="border-t border-bg-card relative" style="height: 50rem;">
-                        <NovelEditor
-                          bind:this={novelEditorRef}
-                          content={beat.prose || ""}
-                          placeholder={isLocked
-                            ? "Scene is locked"
-                            : "Write your prose for this beat..."}
-                          readonly={isLocked}
-                          saveStatus={localSaveStatus}
-                          onUpdate={handleEditorUpdate(beat.id)}
-                        />
-                      </div>
-                    {:else if beat.prose}
-                      <!-- Show preview of prose when collapsed -->
-                      <div class="px-4 py-3 border-t border-bg-card">
-                        <p
-                          class="text-text-primary font-prose leading-relaxed whitespace-pre-wrap line-clamp-3"
-                        >
-                          {stripHtml(beat.prose)}
-                        </p>
-                      </div>
-                    {/if}
-                  </article>
-                {/each}
-              </div>
-            {:else if !addingBeat && !isLocked}
-              <button
-                onclick={startAddingBeat}
-                class="w-full flex items-center justify-center gap-2 px-4 py-8 rounded-lg border border-dashed border-bg-card text-text-secondary hover:text-text-primary hover:border-accent transition-colors"
-              >
-                <Plus class="w-4 h-4" />
-                <span class="text-sm">Add Your First Beat</span>
-              </button>
-            {:else if !addingBeat && isLocked}
-              <div
-                class="w-full flex items-center justify-center gap-2 px-4 py-8 rounded-lg border border-dashed border-bg-card text-text-secondary/50"
-              >
-                <Lock class="w-4 h-4" />
-                <span class="text-sm">Scene is locked</span>
-              </div>
-            {/if}
-
-            <!-- Add Beat Input -->
-            {#if addingBeat && !isLocked}
-              <div class="mt-4 bg-bg-panel rounded-lg p-4">
-                <input
-                  type="text"
-                  class="w-full bg-bg-card rounded-lg px-4 py-3 text-text-primary text-sm border border-accent focus:outline-none"
-                  placeholder="Describe what happens in this beat..."
-                  bind:value={newBeatContent}
-                  onkeydown={handleNewBeatKeydown}
-                  disabled={creatingBeat}
-                />
-                <div class="flex items-center justify-between mt-3">
-                  <p class="text-text-secondary text-xs">Press Enter to create, Escape to cancel</p>
-                  <div class="flex gap-2">
-                    <button
-                      onclick={() => {
-                        addingBeat = false;
-                        newBeatContent = "";
-                      }}
-                      class="px-3 py-1.5 text-text-secondary hover:text-text-primary text-sm transition-colors"
-                      disabled={creatingBeat}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onclick={createBeat}
-                      disabled={creatingBeat || !newBeatContent.trim()}
-                      class="px-3 py-1.5 bg-accent text-white text-sm rounded hover:bg-accent/80 transition-colors disabled:opacity-50"
-                    >
-                      {#if creatingBeat}
-                        <Loader2 class="w-4 h-4 animate-spin" />
-                      {:else}
-                        Create Beat
-                      {/if}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            {/if}
-          </section>
+          <BeatView
+            beats={currentProject.beats}
+            {isLocked}
+            bind:addingBeat
+            bind:newBeatContent
+            {creatingBeat}
+            {dragOverBeatId}
+            bind:hoveredBeatId
+            {localSaveStatus}
+            bind:novelEditorRef
+            onToggleBeat={toggleBeat}
+            onStartAddingBeat={startAddingBeat}
+            onCreateBeat={createBeat}
+            onNewBeatKeydown={handleNewBeatKeydown}
+            onEditorUpdate={handleEditorUpdate}
+            {onBeatDragHandleMouseDown}
+            {getBeatContextMenuItems}
+            {getBeatWordCount}
+            {registerBeatRef}
+            {stripHtml}
+          />
         {/if}
 
         <!-- Scene Prose fallback (Fixed + Beat mode only, if exists and no beats) -->
@@ -1682,15 +1541,6 @@
     </div>
   {/if}
 </div>
-
-{#if beatContextMenu}
-  <ContextMenu
-    items={getBeatContextMenuItems(beatContextMenu.beat)}
-    x={beatContextMenu.x}
-    y={beatContextMenu.y}
-    onClose={closeBeatContextMenu}
-  />
-{/if}
 
 {#if deleteBeatDialog}
   <ConfirmDialog

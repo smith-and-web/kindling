@@ -68,7 +68,13 @@ pub async fn get_user_templates(
         .filter_map(
             |(id, name, description, pt_json, struct_json, created_at)| {
                 let project_types: Vec<String> = serde_json::from_str(&pt_json).unwrap_or_default();
-                let structure: Vec<TemplatePart> = serde_json::from_str(&struct_json).ok()?;
+                let structure: Vec<TemplatePart> = match serde_json::from_str(&struct_json) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        eprintln!("Warning: failed to parse template structure for '{name}': {e}");
+                        return None;
+                    }
+                };
                 Some(StoryTemplate {
                     id,
                     name,
@@ -191,6 +197,10 @@ pub async fn save_project_as_template(
     let uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
+    let project = db::get_project(&conn, &uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Project not found: {project_id}"))?;
+
     let chapters = db::get_chapters(&conn, &uuid).map_err(|e| e.to_string())?;
     let active_chapters: Vec<_> = chapters.into_iter().filter(|c| !c.archived).collect();
 
@@ -248,8 +258,8 @@ pub async fn save_project_as_template(
 
     let template_id = Uuid::new_v4();
     let now = chrono::Utc::now().to_rfc3339();
-    let project_types_json = serde_json::to_string(&vec!["novel", "screenplay"])
-        .unwrap_or_else(|_| "[\"novel\",\"screenplay\"]".to_string());
+    let project_types_json = serde_json::to_string(&vec![&project.project_type])
+        .unwrap_or_else(|_| format!("[\"{}\"]", project.project_type));
     let structure_json = serde_json::to_string(&parts).map_err(|e| e.to_string())?;
 
     conn.execute(
@@ -272,7 +282,7 @@ pub async fn save_project_as_template(
         name: input.name,
         source: None,
         description: input.description,
-        project_types: vec!["novel".to_string(), "screenplay".to_string()],
+        project_types: vec![project.project_type.clone()],
         structure: parts,
         bundled: false,
         created_at: Some(now),

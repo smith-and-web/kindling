@@ -4297,6 +4297,96 @@ fn gather_scene_prose(conn: &rusqlite::Connection, scene: &Scene) -> Result<Stri
 }
 
 /// Export project to a Scrivener .scriv bundle
+#[derive(serde::Serialize)]
+pub struct ScrivenerMatchPreview {
+    pub scene_id: String,
+    pub scene_title: String,
+    pub chapter_title: String,
+    pub matched_scriv_title: Option<String>,
+    pub match_method: Option<String>,
+}
+
+#[tauri::command]
+pub async fn preview_scrivener_matches(
+    project_id: String,
+    scriv_path: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<ScrivenerMatchPreview>, String> {
+    use crate::parsers::scrivener;
+
+    let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let scriv_dir = std::path::Path::new(&scriv_path);
+    if !scriv_dir.is_dir() {
+        return Err(format!("Scrivener bundle not found: {scriv_path}"));
+    }
+
+    let scrivx_path = find_scrivx_file(scriv_dir)?;
+    let scrivx_content =
+        fs::read_to_string(&scrivx_path).map_err(|e| format!("Failed to read .scrivx: {e}"))?;
+    let scrivx_doc = scrivener::parse_scrivx(&scrivx_content).map_err(|e| e.to_string())?;
+
+    let existing_docs = scrivener::collect_text_documents(&scrivx_doc.binder);
+    let mut uuid_by_title: HashMap<String, String> = HashMap::new();
+    let mut title_by_uuid: HashMap<String, String> = HashMap::new();
+    let mut uuid_by_source_id: HashMap<String, String> = HashMap::new();
+
+    for doc in &existing_docs {
+        uuid_by_title
+            .entry(doc.title.to_lowercase())
+            .or_insert_with(|| doc.uuid.clone());
+        title_by_uuid.insert(doc.uuid.clone(), doc.title.clone());
+        uuid_by_source_id.insert(doc.uuid.clone(), doc.uuid.clone());
+    }
+
+    let chapters = db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    let active_chapters: Vec<&Chapter> = chapters
+        .iter()
+        .filter(|c| !c.archived && !c.is_part)
+        .collect();
+
+    let mut previews: Vec<ScrivenerMatchPreview> = Vec::new();
+
+    for chapter in &active_chapters {
+        let scenes = db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
+        let active_scenes: Vec<Scene> = scenes.into_iter().filter(|s| !s.archived).collect();
+
+        for scene in &active_scenes {
+            let matched = scene
+                .source_id
+                .as_ref()
+                .and_then(|sid| {
+                    uuid_by_source_id
+                        .get(sid)
+                        .map(|uuid| (uuid.clone(), "source_id"))
+                })
+                .or_else(|| {
+                    uuid_by_title
+                        .get(&scene.title.to_lowercase())
+                        .map(|uuid| (uuid.clone(), "title"))
+                });
+
+            let (matched_scriv_title, match_method) = match matched {
+                Some((uuid, method)) => {
+                    (title_by_uuid.get(&uuid).cloned(), Some(method.to_string()))
+                }
+                None => (None, None),
+            };
+
+            previews.push(ScrivenerMatchPreview {
+                scene_id: scene.id.to_string(),
+                scene_title: scene.title.clone(),
+                chapter_title: chapter.title.clone(),
+                matched_scriv_title,
+                match_method,
+            });
+        }
+    }
+
+    Ok(previews)
+}
+
 #[tauri::command]
 pub async fn export_to_scrivener(
     project_id: String,

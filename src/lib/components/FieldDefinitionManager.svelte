@@ -116,7 +116,7 @@
 
   async function deleteDefinition(id: string) {
     try {
-      await invoke("delete_field_definition", { definitionId: id });
+      await invoke("delete_field_definition", { projectId, definitionId: id });
       await loadDefinitions();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -180,7 +180,7 @@
     <p class="text-xs text-text-secondary">No custom fields defined yet.</p>
   {:else}
     <div class="space-y-1">
-      {#each definitions as def (def.id)}
+      {#each definitions as def}
         <div class="flex items-center gap-2 py-1.5 px-2 bg-bg-card rounded-lg text-sm">
           <GripVertical class="w-3.5 h-3.5 text-text-secondary/50 shrink-0" />
           <span class="flex-1 text-text-primary truncate">{def.name}</span>

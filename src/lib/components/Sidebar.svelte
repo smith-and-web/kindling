@@ -45,6 +45,7 @@
     Beat,
     Chapter,
     PlanningStatus,
+    SavedFilter,
     Scene,
     SceneStatus,
     SceneType,
@@ -280,6 +281,69 @@
   const hasActiveFilters = $derived(
     sceneStatusFilter !== "all" || !showNotesScenes || !showTodoScenes || !showUnusedScenes
   );
+
+  let savedFilters = $state<SavedFilter[]>([]);
+  let savedFilterName = $state("");
+  let showSaveFilterInput = $state(false);
+
+  async function loadSavedFilters() {
+    const projectId = currentProject.value?.id;
+    if (!projectId) return;
+    try {
+      savedFilters = await invoke<SavedFilter[]>("get_saved_filters", { projectId });
+    } catch (e) {
+      console.error("Failed to load saved filters:", e);
+    }
+  }
+
+  async function saveCurrentFilter() {
+    const projectId = currentProject.value?.id;
+    const name = savedFilterName.trim();
+    if (!projectId || !name) return;
+
+    const config = {
+      sceneStatusFilter,
+      showNotesScenes,
+      showTodoScenes,
+      showUnusedScenes,
+    };
+
+    try {
+      await invoke("save_filter", {
+        projectId,
+        name,
+        entityType: "scene",
+        filterJson: JSON.stringify(config),
+      });
+      savedFilterName = "";
+      showSaveFilterInput = false;
+      await loadSavedFilters();
+    } catch (e) {
+      console.error("Failed to save filter:", e);
+    }
+  }
+
+  function applySavedFilter(filter: SavedFilter) {
+    try {
+      const config = JSON.parse(filter.filter_json);
+      if (config.sceneStatusFilter) sceneStatusFilter = config.sceneStatusFilter;
+      if (config.showNotesScenes !== undefined) showNotesScenes = config.showNotesScenes;
+      if (config.showTodoScenes !== undefined) showTodoScenes = config.showTodoScenes;
+      if (config.showUnusedScenes !== undefined) showUnusedScenes = config.showUnusedScenes;
+    } catch {
+      console.error("Failed to parse saved filter:", filter.name);
+    }
+    showFilterPopover = false;
+  }
+
+  async function deleteSavedFilter(filterId: string) {
+    try {
+      await invoke("delete_saved_filter", { filterId });
+      await loadSavedFilters();
+    } catch (e) {
+      console.error("Failed to delete saved filter:", e);
+    }
+  }
 
   // Labels for Part/Chapter vs Act/Sequence (screenplay projects)
   const partLabel = $derived(currentProject.value?.project_type === "screenplay" ? "Act" : "Part");
@@ -1132,6 +1196,7 @@
 
     if (project && !importing && !chaptersLoaded) {
       loadChapters();
+      loadSavedFilters();
     }
   });
 
@@ -1730,6 +1795,62 @@
                                     />
                                   </div>
                                 </div>
+
+                                <!-- Saved filters -->
+                                {#if savedFilters.length > 0}
+                                  <div class="border-t border-bg-card pt-2 space-y-1">
+                                    <span class="text-xs text-text-secondary">Saved filters</span>
+                                    {#each savedFilters as filter}
+                                      <div class="flex items-center gap-1">
+                                        <button
+                                          onclick={() => applySavedFilter(filter)}
+                                          class="flex-1 text-left text-xs px-2 py-1 rounded hover:bg-bg-card text-text-primary truncate"
+                                        >
+                                          {filter.name}
+                                        </button>
+                                        <button
+                                          onclick={() => deleteSavedFilter(filter.id)}
+                                          class="p-0.5 text-text-secondary hover:text-red-400 shrink-0"
+                                          aria-label="Delete saved filter {filter.name}"
+                                        >
+                                          <Trash2 class="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    {/each}
+                                  </div>
+                                {/if}
+
+                                <!-- Save current filter -->
+                                {#if hasActiveFilters}
+                                  <div class="border-t border-bg-card pt-2">
+                                    {#if showSaveFilterInput}
+                                      <div class="flex items-center gap-1">
+                                        <input
+                                          type="text"
+                                          bind:value={savedFilterName}
+                                          placeholder="Filter name..."
+                                          class="flex-1 bg-bg-card text-text-primary text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent"
+                                          onkeydown={(e) =>
+                                            e.key === "Enter" && saveCurrentFilter()}
+                                        />
+                                        <button
+                                          onclick={saveCurrentFilter}
+                                          disabled={!savedFilterName.trim()}
+                                          class="text-xs text-accent hover:underline disabled:opacity-40 disabled:no-underline px-1"
+                                        >
+                                          Save
+                                        </button>
+                                      </div>
+                                    {:else}
+                                      <button
+                                        onclick={() => (showSaveFilterInput = true)}
+                                        class="text-xs text-accent hover:underline"
+                                      >
+                                        Save current filter...
+                                      </button>
+                                    {/if}
+                                  </div>
+                                {/if}
                               </div>
                             {/if}
                           </div>

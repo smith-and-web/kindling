@@ -4,8 +4,10 @@
   import {
     ArrowDownAZ,
     ChevronDown,
+    ChevronRight,
     ChevronsLeft,
     ChevronsRight,
+    Zap,
     GripVertical,
     Link2,
     ListChevronsDownUp,
@@ -20,10 +22,12 @@
     Project,
     ReferenceItem,
     ReferenceTypeId,
+    ReferenceSuggestion,
     SceneReferenceState,
     SceneReferenceStateUpdate,
     FieldDefinition,
     FieldValue,
+    Tag,
   } from "../types";
   import {
     DEFAULT_REFERENCE_TYPES,
@@ -33,6 +37,8 @@
   } from "../referenceTypes";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import ReferenceEditDialog from "./ReferenceEditDialog.svelte";
+  import SuggestionCard from "./SuggestionCard.svelte";
+  import TagSelector from "./TagSelector.svelte";
   import Tooltip from "./Tooltip.svelte";
 
   let activeTab = $state<ReferenceTypeId | null>(null);
@@ -62,6 +68,11 @@
   let deleteTarget = $state<ReferenceItem | null>(null);
   let fieldDefsMap = $state<Record<string, FieldDefinition[]>>({});
   let fieldValuesMap = $state<Record<string, Record<string, string | null>>>({});
+  let suggestions = $state<ReferenceSuggestion[]>([]);
+  let suggestionsLoading = $state(false);
+  let suggestionsOpen = $state(true);
+  let allTags = $state<Tag[]>([]);
+  let entityTagIds = $state<Record<string, string[]>>({});
   let activeTypeOption = $derived(getReferenceTypeOption(activeTab));
   let activeSceneStates = $derived(
     activeTab && currentProject.currentScene
@@ -185,6 +196,28 @@
           fieldValuesMap = {};
         }
       }
+
+      // Load all project tags + per-entity tag assignments
+      try {
+        allTags = await invoke<Tag[]>("get_project_tags", { projectId: project.id });
+        const tagMap: Record<string, string[]> = {};
+        for (const id of allEntityIds) {
+          const entityType =
+            Object.entries(entityTypeMap).find(([typeKey]) =>
+              (next[typeKey as ReferenceTypeId] ?? []).some((item) => item.id === id)
+            )?.[1] ?? "item";
+          try {
+            const tags = await invoke<Tag[]>("get_entity_tags", { entityType, entityId: id });
+            tagMap[id] = tags.map((t) => t.id);
+          } catch {
+            tagMap[id] = [];
+          }
+        }
+        entityTagIds = tagMap;
+      } catch {
+        allTags = [];
+        entityTagIds = {};
+      }
     } catch (e) {
       console.error("Failed to load references:", e);
     } finally {
@@ -270,6 +303,54 @@
       if (requestId === sceneReferenceRequestId) {
         sceneReferenceLoading = false;
       }
+    }
+  }
+
+  async function loadSuggestions(sceneId: string) {
+    suggestionsLoading = true;
+    try {
+      suggestions = await invoke<ReferenceSuggestion[]>("detect_scene_references", { sceneId });
+    } catch (e) {
+      console.error("Failed to detect references:", e);
+      suggestions = [];
+    } finally {
+      suggestionsLoading = false;
+    }
+  }
+
+  function referenceTypeForSuggestion(s: ReferenceSuggestion): ReferenceTypeId {
+    if (s.reference_type === "character") return "characters";
+    if (s.reference_type === "location") return "locations";
+    return s.reference_type as ReferenceTypeId;
+  }
+
+  async function linkSuggestion(s: ReferenceSuggestion) {
+    const scene = currentProject.currentScene;
+    if (!scene) return;
+
+    const refType = referenceTypeForSuggestion(s);
+    const states = getSceneStatesForType(refType);
+    const updates: SceneReferenceStateUpdate[] = [
+      ...states.map((state, i) => ({
+        reference_id: state.reference_id,
+        position: i,
+        expanded: state.expanded,
+      })),
+      { reference_id: s.reference_id, position: states.length, expanded: false },
+    ];
+
+    await saveSceneReferenceState(refType, updates);
+    suggestions = suggestions.filter((x) => x.reference_id !== s.reference_id);
+  }
+
+  async function dismissSuggestion(s: ReferenceSuggestion) {
+    const scene = currentProject.currentScene;
+    if (!scene) return;
+    try {
+      await invoke("dismiss_suggestion", { sceneId: scene.id, referenceId: s.reference_id });
+      suggestions = suggestions.filter((x) => x.reference_id !== s.reference_id);
+    } catch (e) {
+      console.error("Failed to dismiss suggestion:", e);
     }
   }
 
@@ -455,7 +536,7 @@
       let entityId: string | null = null;
 
       if (editDialog.mode === "create") {
-        await invoke("create_reference", {
+        entityId = await invoke<string>("create_reference", {
           projectId: currentProject.value.id,
           referenceType: editDialog.referenceType.id,
           reference: {
@@ -675,11 +756,13 @@
     lastSceneId = sceneId;
     if (sceneId) {
       loadSceneReferenceState(sceneId);
+      loadSuggestions(sceneId);
     } else {
       sceneReferenceStates = [];
       sceneReferenceError = null;
       sceneReferenceLoading = false;
       syncExpandedIdsFromState([]);
+      suggestions = [];
     }
   });
 
@@ -798,6 +881,46 @@
       {/each}
     </div>
   </div>
+
+  <!-- Suggested References -->
+  {#if currentProject.currentScene && (suggestions.length > 0 || suggestionsLoading)}
+    <div class="border-t border-bg-card">
+      <button
+        onclick={() => (suggestionsOpen = !suggestionsOpen)}
+        class="flex items-center gap-1.5 w-full px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+      >
+        {#if suggestionsOpen}
+          <ChevronDown class="w-3 h-3" />
+        {:else}
+          <ChevronRight class="w-3 h-3" />
+        {/if}
+        <Zap class="w-3 h-3 text-amber-400" />
+        Suggested
+        {#if suggestions.length > 0}
+          <span
+            class="ml-auto bg-amber-500/20 text-amber-400 text-[10px] px-1.5 py-0.5 rounded-full"
+          >
+            {suggestions.length}
+          </span>
+        {/if}
+      </button>
+      {#if suggestionsOpen}
+        <div class="px-2 pb-2 space-y-1">
+          {#if suggestionsLoading}
+            <p class="text-xs text-text-secondary px-1 py-2">Detecting...</p>
+          {:else}
+            {#each suggestions as s}
+              <SuggestionCard
+                suggestion={s}
+                onLink={linkSuggestion}
+                onDismiss={dismissSuggestion}
+              />
+            {/each}
+          {/if}
+        </div>
+      {/if}
+    </div>
+  {/if}
 
   <!-- Content -->
   <div class="flex-1 overflow-y-auto p-2">
@@ -979,6 +1102,26 @@
                         <span class="text-text-primary wrap-break-word">{value}</span>
                       </div>
                     {/each}
+                  </div>
+                {/if}
+
+                {#if currentProject.value}
+                  <div class="mt-3">
+                    <span class="text-xs text-text-secondary font-medium block mb-1">Tags</span>
+                    <TagSelector
+                      projectId={currentProject.value.id}
+                      entityType={activeTypeOption
+                        ? activeTypeOption.id === "characters"
+                          ? "character"
+                          : activeTypeOption.id === "locations"
+                            ? "location"
+                            : activeTypeOption.id
+                        : "item"}
+                      entityId={reference.id}
+                      {allTags}
+                      entityTagIds={entityTagIds[reference.id] ?? []}
+                      onTagsChanged={() => loadReferences()}
+                    />
                   </div>
                 {/if}
 

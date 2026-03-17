@@ -82,8 +82,7 @@
   function buildSlugline() {
     const loc = location.trim();
     const time = timeOfDay.trim();
-    if (!loc && !time) return `${prefix}. `;
-    if (!loc) return `${prefix}. - ${time}`;
+    if (!loc) return `${prefix}.`;
     if (!time) return `${prefix}. ${loc}`;
     return `${prefix}. ${loc} - ${time}`;
   }

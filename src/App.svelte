@@ -235,6 +235,12 @@
       case "toggle_discovery_notes":
         window.dispatchEvent(new CustomEvent("kindling:toggleDiscoveryNotes"));
         break;
+      case "detect_references":
+        window.dispatchEvent(new CustomEvent("kindling:detectReferences"));
+        break;
+      case "detect_all_references":
+        window.dispatchEvent(new CustomEvent("kindling:detectAllReferences"));
+        break;
       case "toggle_editor_mode":
         window.dispatchEvent(new CustomEvent("kindling:toggleEditorMode"));
         break;

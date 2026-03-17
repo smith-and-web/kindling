@@ -1621,22 +1621,26 @@ pub async fn create_reference(
     reference_type: String,
     reference: ReferenceUpsert,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let attributes = reference.attributes.unwrap_or_default();
 
-    match reference_type.as_str() {
+    let entity_id = match reference_type.as_str() {
         "characters" => {
             let character =
                 Character::new(project_uuid, reference.name, reference.description, None)
                     .with_attributes(attributes);
+            let id = character.id;
             db::insert_character(&conn, &character).map_err(|e| e.to_string())?;
+            id
         }
         "locations" => {
             let location = Location::new(project_uuid, reference.name, reference.description, None)
                 .with_attributes(attributes);
+            let id = location.id;
             db::insert_location(&conn, &location).map_err(|e| e.to_string())?;
+            id
         }
         _ => {
             let item = ReferenceItem::new(
@@ -1647,12 +1651,14 @@ pub async fn create_reference(
                 None,
             )
             .with_attributes(attributes);
+            let id = item.id;
             db::insert_reference_item(&conn, &item).map_err(|e| e.to_string())?;
+            id
         }
-    }
+    };
 
     db::update_project_modified(&conn, &project_uuid).map_err(|e| e.to_string())?;
-    Ok(())
+    Ok(entity_id.to_string())
 }
 
 #[tauri::command]
