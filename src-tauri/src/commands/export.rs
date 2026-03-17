@@ -3539,6 +3539,658 @@ pub async fn export_to_epub(
     })
 }
 
+// =============================================================================
+// Treatment Generation
+// =============================================================================
+
+/// Detail level for treatment export
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TreatmentLevel {
+    /// Title + logline + 3-paragraph synopsis (one per act)
+    OnePage,
+    /// Title + logline + act summaries + key scene descriptions
+    FivePage,
+    /// Title + logline + every scene's synopsis and beat descriptions
+    Full,
+}
+
+/// Output format for treatment export
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TreatmentFormat {
+    Docx,
+    Txt,
+}
+
+/// Options for treatment generation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TreatmentOptions {
+    pub detail_level: TreatmentLevel,
+    pub format: TreatmentFormat,
+    pub output_path: String,
+    #[serde(default)]
+    pub create_snapshot: bool,
+}
+
+/// Intermediate structure for compiling treatment content
+struct TreatmentContent {
+    title: String,
+    author: String,
+    logline: String,
+    parts: Vec<TreatmentPart>,
+}
+
+struct TreatmentPart {
+    title: String,
+    synopsis: String,
+    chapters: Vec<TreatmentChapter>,
+}
+
+struct TreatmentChapter {
+    title: String,
+    synopsis: String,
+    scenes: Vec<TreatmentScene>,
+}
+
+struct TreatmentScene {
+    title: String,
+    synopsis: String,
+    beat_summaries: Vec<String>,
+}
+
+/// Compile project data into treatment content
+fn compile_treatment_content(
+    conn: &rusqlite::Connection,
+    project: &Project,
+    app_settings: &AppSettings,
+) -> Result<TreatmentContent, String> {
+    let author = project
+        .author_pen_name
+        .as_ref()
+        .filter(|s| !s.trim().is_empty())
+        .or(app_settings.author_name.as_ref())
+        .cloned()
+        .unwrap_or_default();
+
+    let logline = project.description.as_ref().cloned().unwrap_or_default();
+
+    let chapters = db::queries::get_chapters(conn, &project.id).map_err(|e| e.to_string())?;
+    let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+    let mut parts: Vec<TreatmentPart> = Vec::new();
+    let mut current_part: Option<TreatmentPart> = None;
+    let mut loose_chapters: Vec<TreatmentChapter> = Vec::new();
+
+    for chapter in &active_chapters {
+        if chapter.is_part {
+            if let Some(part) = current_part.take() {
+                parts.push(part);
+            }
+            if !loose_chapters.is_empty() {
+                parts.push(TreatmentPart {
+                    title: String::new(),
+                    synopsis: String::new(),
+                    chapters: std::mem::take(&mut loose_chapters),
+                });
+            }
+            current_part = Some(TreatmentPart {
+                title: chapter.title.clone(),
+                synopsis: chapter.synopsis.as_deref().unwrap_or("").to_string(),
+                chapters: Vec::new(),
+            });
+        } else {
+            let scenes = db::queries::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
+            let mut treatment_scenes = Vec::new();
+
+            for scene in scenes.iter().filter(|s| !s.archived) {
+                let beats = db::queries::get_beats(conn, &scene.id).map_err(|e| e.to_string())?;
+                let beat_summaries: Vec<String> = beats
+                    .iter()
+                    .filter(|b| {
+                        !b.content.trim().is_empty()
+                            || b.prose.as_ref().is_some_and(|p| !p.trim().is_empty())
+                    })
+                    .map(|b| {
+                        if !b.content.trim().is_empty() {
+                            b.content.clone()
+                        } else {
+                            let text = strip_html(b.prose.as_deref().unwrap_or(""));
+                            let words: Vec<&str> = text.split_whitespace().collect();
+                            if words.len() > 30 {
+                                format!("{}...", words[..30].join(" "))
+                            } else {
+                                words.join(" ")
+                            }
+                        }
+                    })
+                    .collect();
+
+                treatment_scenes.push(TreatmentScene {
+                    title: scene.title.clone(),
+                    synopsis: scene.synopsis.as_deref().unwrap_or("").to_string(),
+                    beat_summaries,
+                });
+            }
+
+            let tc = TreatmentChapter {
+                title: chapter.title.clone(),
+                synopsis: chapter.synopsis.as_deref().unwrap_or("").to_string(),
+                scenes: treatment_scenes,
+            };
+
+            if let Some(ref mut part) = current_part {
+                part.chapters.push(tc);
+            } else {
+                loose_chapters.push(tc);
+            }
+        }
+    }
+
+    if let Some(part) = current_part.take() {
+        parts.push(part);
+    }
+    if !loose_chapters.is_empty() {
+        parts.push(TreatmentPart {
+            title: String::new(),
+            synopsis: String::new(),
+            chapters: loose_chapters,
+        });
+    }
+
+    Ok(TreatmentContent {
+        title: project.name.clone(),
+        author,
+        logline,
+        parts,
+    })
+}
+
+/// Generate treatment as plain text
+fn treatment_to_text(content: &TreatmentContent, level: &TreatmentLevel) -> String {
+    let mut out = String::new();
+
+    // Title
+    out.push_str(&content.title.to_uppercase());
+    out.push('\n');
+    if !content.author.is_empty() {
+        out.push_str(&format!("by {}", content.author));
+        out.push('\n');
+    }
+    out.push('\n');
+
+    // Logline
+    if !content.logline.is_empty() {
+        out.push_str(&content.logline);
+        out.push_str("\n\n");
+    }
+
+    match level {
+        TreatmentLevel::OnePage => {
+            for part in &content.parts {
+                if !part.title.is_empty() && !part.synopsis.is_empty() {
+                    out.push_str(&part.synopsis);
+                    out.push_str("\n\n");
+                } else if !part.title.is_empty() {
+                    let combined = part
+                        .chapters
+                        .iter()
+                        .filter(|c| !c.synopsis.is_empty())
+                        .map(|c| c.synopsis.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    if !combined.is_empty() {
+                        out.push_str(&combined);
+                        out.push_str("\n\n");
+                    }
+                }
+            }
+        }
+        TreatmentLevel::FivePage => {
+            for part in &content.parts {
+                if !part.title.is_empty() {
+                    out.push_str(&part.title.to_uppercase());
+                    out.push('\n');
+                    if !part.synopsis.is_empty() {
+                        out.push_str(&part.synopsis);
+                        out.push('\n');
+                    }
+                    out.push('\n');
+                }
+
+                for chapter in &part.chapters {
+                    out.push_str(&chapter.title);
+                    out.push('\n');
+                    if !chapter.synopsis.is_empty() {
+                        out.push_str(&chapter.synopsis);
+                        out.push('\n');
+                    }
+
+                    for scene in &chapter.scenes {
+                        if !scene.synopsis.is_empty() {
+                            out.push_str(&format!("  {}: {}", scene.title, scene.synopsis));
+                            out.push('\n');
+                        }
+                    }
+                    out.push('\n');
+                }
+            }
+        }
+        TreatmentLevel::Full => {
+            for part in &content.parts {
+                if !part.title.is_empty() {
+                    out.push_str(&part.title.to_uppercase());
+                    out.push('\n');
+                    if !part.synopsis.is_empty() {
+                        out.push_str(&part.synopsis);
+                        out.push('\n');
+                    }
+                    out.push('\n');
+                }
+
+                for chapter in &part.chapters {
+                    out.push_str(&chapter.title);
+                    out.push('\n');
+                    if !chapter.synopsis.is_empty() {
+                        out.push_str(&chapter.synopsis);
+                        out.push('\n');
+                    }
+                    out.push('\n');
+
+                    for scene in &chapter.scenes {
+                        out.push_str(&format!("  {}", scene.title));
+                        out.push('\n');
+                        if !scene.synopsis.is_empty() {
+                            out.push_str(&format!("  {}", scene.synopsis));
+                            out.push('\n');
+                        }
+                        for beat in &scene.beat_summaries {
+                            out.push_str(&format!("    - {}", beat));
+                            out.push('\n');
+                        }
+                        out.push('\n');
+                    }
+                }
+            }
+        }
+    }
+
+    out.trim_end().to_string()
+}
+
+/// Generate treatment as DOCX
+fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx {
+    let font = "Courier New";
+    let line_sp = 480i32; // double spacing
+
+    let page_margin = PageMargin::new()
+        .top(1440)
+        .bottom(1440)
+        .left(1440)
+        .right(1440);
+
+    let mut docx = Docx::new()
+        .page_margin(page_margin)
+        .add_style(
+            Style::new("Heading1", StyleType::Paragraph)
+                .name("Heading 1")
+                .size(28)
+                .bold()
+                .fonts(RunFonts::new().ascii(font)),
+        )
+        .add_style(
+            Style::new("Heading2", StyleType::Paragraph)
+                .name("Heading 2")
+                .size(24)
+                .bold()
+                .fonts(RunFonts::new().ascii(font)),
+        );
+
+    // Title page
+    for _ in 0..10 {
+        docx = docx.add_paragraph(Paragraph::new());
+    }
+    docx = docx.add_paragraph(
+        Paragraph::new()
+            .add_run(
+                Run::new()
+                    .add_text(content.title.to_uppercase())
+                    .size(28)
+                    .bold()
+                    .fonts(RunFonts::new().ascii(font)),
+            )
+            .align(AlignmentType::Center),
+    );
+    if !content.author.is_empty() {
+        docx = docx.add_paragraph(
+            Paragraph::new()
+                .add_run(
+                    Run::new()
+                        .add_text(format!("by {}", content.author))
+                        .size(24)
+                        .fonts(RunFonts::new().ascii(font)),
+                )
+                .align(AlignmentType::Center),
+        );
+    }
+    docx = docx.add_paragraph(Paragraph::new());
+    docx = docx.add_paragraph(
+        Paragraph::new()
+            .add_run(
+                Run::new()
+                    .add_text("A Treatment")
+                    .size(24)
+                    .fonts(RunFonts::new().ascii(font)),
+            )
+            .align(AlignmentType::Center),
+    );
+
+    // Logline
+    if !content.logline.is_empty() {
+        docx = docx.add_paragraph(Paragraph::new().page_break_before(true));
+        docx = docx.add_paragraph(
+            Paragraph::new()
+                .add_run(
+                    Run::new()
+                        .add_text(&content.logline)
+                        .size(24)
+                        .italic()
+                        .fonts(RunFonts::new().ascii(font)),
+                )
+                .line_spacing(LineSpacing::new().line(line_sp)),
+        );
+        docx = docx.add_paragraph(Paragraph::new());
+    } else {
+        docx = docx.add_paragraph(Paragraph::new().page_break_before(true));
+    }
+
+    match level {
+        TreatmentLevel::OnePage => {
+            for part in &content.parts {
+                let text = if !part.synopsis.is_empty() {
+                    part.synopsis.clone()
+                } else {
+                    part.chapters
+                        .iter()
+                        .filter(|c| !c.synopsis.is_empty())
+                        .map(|c| c.synopsis.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                };
+                if !text.is_empty() {
+                    docx = docx.add_paragraph(
+                        Paragraph::new()
+                            .add_run(
+                                Run::new()
+                                    .add_text(&text)
+                                    .size(24)
+                                    .fonts(RunFonts::new().ascii(font)),
+                            )
+                            .line_spacing(LineSpacing::new().line(line_sp)),
+                    );
+                    docx = docx.add_paragraph(Paragraph::new());
+                }
+            }
+        }
+        TreatmentLevel::FivePage => {
+            for part in &content.parts {
+                if !part.title.is_empty() {
+                    docx = docx.add_paragraph(
+                        Paragraph::new()
+                            .add_run(
+                                Run::new()
+                                    .add_text(part.title.to_uppercase())
+                                    .size(28)
+                                    .bold()
+                                    .fonts(RunFonts::new().ascii(font)),
+                            )
+                            .style("Heading1")
+                            .line_spacing(LineSpacing::new().line(line_sp)),
+                    );
+                    if !part.synopsis.is_empty() {
+                        docx = docx.add_paragraph(
+                            Paragraph::new()
+                                .add_run(
+                                    Run::new()
+                                        .add_text(&part.synopsis)
+                                        .size(24)
+                                        .fonts(RunFonts::new().ascii(font)),
+                                )
+                                .line_spacing(LineSpacing::new().line(line_sp)),
+                        );
+                    }
+                    docx = docx.add_paragraph(Paragraph::new());
+                }
+
+                for chapter in &part.chapters {
+                    docx = docx.add_paragraph(
+                        Paragraph::new()
+                            .add_run(
+                                Run::new()
+                                    .add_text(&chapter.title)
+                                    .size(24)
+                                    .bold()
+                                    .fonts(RunFonts::new().ascii(font)),
+                            )
+                            .style("Heading2")
+                            .line_spacing(LineSpacing::new().line(line_sp)),
+                    );
+                    if !chapter.synopsis.is_empty() {
+                        docx = docx.add_paragraph(
+                            Paragraph::new()
+                                .add_run(
+                                    Run::new()
+                                        .add_text(&chapter.synopsis)
+                                        .size(24)
+                                        .fonts(RunFonts::new().ascii(font)),
+                                )
+                                .line_spacing(LineSpacing::new().line(line_sp)),
+                        );
+                    }
+                    for scene in &chapter.scenes {
+                        if !scene.synopsis.is_empty() {
+                            docx = docx.add_paragraph(
+                                Paragraph::new()
+                                    .add_run(
+                                        Run::new()
+                                            .add_text(format!(
+                                                "{} — {}",
+                                                scene.title, scene.synopsis
+                                            ))
+                                            .size(24)
+                                            .fonts(RunFonts::new().ascii(font)),
+                                    )
+                                    .indent(Some(720), None, None, None)
+                                    .line_spacing(LineSpacing::new().line(line_sp)),
+                            );
+                        }
+                    }
+                    docx = docx.add_paragraph(Paragraph::new());
+                }
+            }
+        }
+        TreatmentLevel::Full => {
+            for part in &content.parts {
+                if !part.title.is_empty() {
+                    docx = docx.add_paragraph(
+                        Paragraph::new()
+                            .add_run(
+                                Run::new()
+                                    .add_text(part.title.to_uppercase())
+                                    .size(28)
+                                    .bold()
+                                    .fonts(RunFonts::new().ascii(font)),
+                            )
+                            .style("Heading1")
+                            .line_spacing(LineSpacing::new().line(line_sp)),
+                    );
+                    if !part.synopsis.is_empty() {
+                        docx = docx.add_paragraph(
+                            Paragraph::new()
+                                .add_run(
+                                    Run::new()
+                                        .add_text(&part.synopsis)
+                                        .size(24)
+                                        .fonts(RunFonts::new().ascii(font)),
+                                )
+                                .line_spacing(LineSpacing::new().line(line_sp)),
+                        );
+                    }
+                    docx = docx.add_paragraph(Paragraph::new());
+                }
+
+                for chapter in &part.chapters {
+                    docx = docx.add_paragraph(
+                        Paragraph::new()
+                            .add_run(
+                                Run::new()
+                                    .add_text(&chapter.title)
+                                    .size(24)
+                                    .bold()
+                                    .fonts(RunFonts::new().ascii(font)),
+                            )
+                            .style("Heading2")
+                            .line_spacing(LineSpacing::new().line(line_sp)),
+                    );
+                    if !chapter.synopsis.is_empty() {
+                        docx = docx.add_paragraph(
+                            Paragraph::new()
+                                .add_run(
+                                    Run::new()
+                                        .add_text(&chapter.synopsis)
+                                        .size(24)
+                                        .fonts(RunFonts::new().ascii(font)),
+                                )
+                                .line_spacing(LineSpacing::new().line(line_sp)),
+                        );
+                    }
+                    docx = docx.add_paragraph(Paragraph::new());
+
+                    for scene in &chapter.scenes {
+                        docx = docx.add_paragraph(
+                            Paragraph::new()
+                                .add_run(
+                                    Run::new()
+                                        .add_text(&scene.title)
+                                        .size(24)
+                                        .bold()
+                                        .italic()
+                                        .fonts(RunFonts::new().ascii(font)),
+                                )
+                                .indent(Some(720), None, None, None)
+                                .line_spacing(LineSpacing::new().line(line_sp)),
+                        );
+                        if !scene.synopsis.is_empty() {
+                            docx = docx.add_paragraph(
+                                Paragraph::new()
+                                    .add_run(
+                                        Run::new()
+                                            .add_text(&scene.synopsis)
+                                            .size(24)
+                                            .fonts(RunFonts::new().ascii(font)),
+                                    )
+                                    .indent(Some(720), None, None, None)
+                                    .line_spacing(LineSpacing::new().line(line_sp)),
+                            );
+                        }
+                        for beat in &scene.beat_summaries {
+                            docx = docx.add_paragraph(
+                                Paragraph::new()
+                                    .add_run(
+                                        Run::new()
+                                            .add_text(format!("— {}", beat))
+                                            .size(24)
+                                            .fonts(RunFonts::new().ascii(font)),
+                                    )
+                                    .indent(Some(1080), None, None, None)
+                                    .line_spacing(LineSpacing::new().line(line_sp)),
+                            );
+                        }
+                        docx = docx.add_paragraph(Paragraph::new());
+                    }
+                }
+            }
+        }
+    }
+
+    docx
+}
+
+/// Generate a treatment document from project content
+#[tauri::command]
+pub async fn generate_treatment(
+    project_id: String,
+    options: TreatmentOptions,
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ExportResult, String> {
+    let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+
+    if options.create_snapshot {
+        let snapshot_options = super::CreateSnapshotOptions {
+            name: "Pre-treatment snapshot".to_string(),
+            description: Some("Automatic snapshot created before treatment generation".to_string()),
+            trigger_type: SnapshotTrigger::Export,
+        };
+
+        super::create_snapshot(
+            project_id.clone(),
+            snapshot_options,
+            app_handle.clone(),
+            state.clone(),
+        )
+        .await?;
+    }
+
+    let app_settings = load_app_settings(&app_handle)?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let project = db::queries::get_project(&conn, &project_uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Project not found: {}", project_id))?;
+
+    let content = compile_treatment_content(&conn, &project, &app_settings)?;
+
+    let chapters_exported = content.parts.iter().map(|p| p.chapters.len()).sum();
+    let scenes_exported: usize = content
+        .parts
+        .iter()
+        .flat_map(|p| &p.chapters)
+        .map(|c| c.scenes.len())
+        .sum();
+
+    let output_path = PathBuf::from(&options.output_path);
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create output directory: {}", e))?;
+    }
+
+    match options.format {
+        TreatmentFormat::Txt => {
+            let text = treatment_to_text(&content, &options.detail_level);
+            let mut file = fs::File::create(&output_path)
+                .map_err(|e| format!("Failed to create output file: {}", e))?;
+            file.write_all(text.as_bytes())
+                .map_err(|e| format!("Failed to write treatment file: {}", e))?;
+        }
+        TreatmentFormat::Docx => {
+            let docx = treatment_to_docx(&content, &options.detail_level);
+            let file = fs::File::create(&output_path)
+                .map_err(|e| format!("Failed to create output file: {}", e))?;
+            docx.build()
+                .pack(file)
+                .map_err(|e| format!("Failed to write DOCX file: {}", e))?;
+        }
+    }
+
+    Ok(ExportResult {
+        output_path: output_path.to_string_lossy().to_string(),
+        files_created: 1,
+        chapters_exported,
+        scenes_exported,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4614,5 +5266,236 @@ mod tests {
         assert!(markdown.contains("## Scenes"));
         assert!(markdown.contains("- [[Scene 3]]"));
         assert!(!markdown.contains("## Appearances"));
+    }
+
+    fn make_treatment_content() -> TreatmentContent {
+        TreatmentContent {
+            title: "Test Screenplay".to_string(),
+            author: "Jane Doe".to_string(),
+            logline: "A detective uncovers a conspiracy.".to_string(),
+            parts: vec![
+                TreatmentPart {
+                    title: "Act I — Setup".to_string(),
+                    synopsis: "The world is established.".to_string(),
+                    chapters: vec![TreatmentChapter {
+                        title: "Sequence 1".to_string(),
+                        synopsis: "We meet the hero.".to_string(),
+                        scenes: vec![TreatmentScene {
+                            title: "INT. OFFICE - DAY".to_string(),
+                            synopsis: "Detective reviews case files.".to_string(),
+                            beat_summaries: vec![
+                                "Opens case file".to_string(),
+                                "Notices discrepancy".to_string(),
+                            ],
+                        }],
+                    }],
+                },
+                TreatmentPart {
+                    title: "Act II — Confrontation".to_string(),
+                    synopsis: "Obstacles mount.".to_string(),
+                    chapters: vec![TreatmentChapter {
+                        title: "Sequence 2".to_string(),
+                        synopsis: "The investigation deepens.".to_string(),
+                        scenes: vec![],
+                    }],
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn test_treatment_text_one_page() {
+        let content = make_treatment_content();
+        let text = treatment_to_text(&content, &TreatmentLevel::OnePage);
+        assert!(text.contains("TEST SCREENPLAY"));
+        assert!(text.contains("by Jane Doe"));
+        assert!(text.contains("A detective uncovers a conspiracy."));
+        assert!(text.contains("The world is established."));
+        assert!(text.contains("Obstacles mount."));
+        assert!(!text.contains("INT. OFFICE"));
+    }
+
+    #[test]
+    fn test_treatment_text_five_page() {
+        let content = make_treatment_content();
+        let text = treatment_to_text(&content, &TreatmentLevel::FivePage);
+        assert!(text.contains("ACT I — SETUP"));
+        assert!(text.contains("Sequence 1"));
+        assert!(text.contains("INT. OFFICE - DAY: Detective reviews case files."));
+        assert!(!text.contains("Opens case file"));
+    }
+
+    #[test]
+    fn test_treatment_text_full() {
+        let content = make_treatment_content();
+        let text = treatment_to_text(&content, &TreatmentLevel::Full);
+        assert!(text.contains("ACT I — SETUP"));
+        assert!(text.contains("Sequence 1"));
+        assert!(text.contains("INT. OFFICE - DAY"));
+        assert!(text.contains("Detective reviews case files."));
+        assert!(text.contains("- Opens case file"));
+        assert!(text.contains("- Notices discrepancy"));
+    }
+
+    #[test]
+    fn test_treatment_text_empty_logline() {
+        let content = TreatmentContent {
+            title: "No Logline".to_string(),
+            author: String::new(),
+            logline: String::new(),
+            parts: vec![],
+        };
+        let text = treatment_to_text(&content, &TreatmentLevel::OnePage);
+        assert!(text.contains("NO LOGLINE"));
+        assert!(!text.contains("by "));
+    }
+
+    #[test]
+    fn test_treatment_text_no_parts() {
+        let content = TreatmentContent {
+            title: "Empty".to_string(),
+            author: "Author".to_string(),
+            logline: "A story.".to_string(),
+            parts: vec![],
+        };
+        let text = treatment_to_text(&content, &TreatmentLevel::Full);
+        assert!(text.contains("EMPTY"));
+        assert!(text.contains("by Author"));
+        assert!(text.contains("A story."));
+    }
+
+    #[test]
+    fn test_treatment_docx_builds() {
+        let content = make_treatment_content();
+        let docx = treatment_to_docx(&content, &TreatmentLevel::Full);
+        let mut buf = Vec::new();
+        let cursor = std::io::Cursor::new(&mut buf);
+        docx.build().pack(cursor).unwrap();
+        assert!(!buf.is_empty());
+    }
+
+    #[test]
+    fn test_compile_treatment_content() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let project = Project {
+            id: uuid::Uuid::new_v4(),
+            name: "Treatment Test".to_string(),
+            source_type: crate::models::SourceType::Blank,
+            source_path: None,
+            created_at: now.clone(),
+            modified_at: now,
+            author_pen_name: Some("Pen Name".to_string()),
+            genre: None,
+            description: Some("A logline.".to_string()),
+            word_target: None,
+            reference_types: Project::default_reference_types(),
+            project_type: "screenplay".to_string(),
+            target_page_count: Some(120),
+        };
+        crate::db::insert_project(&conn, &project).unwrap();
+
+        let act_id = uuid::Uuid::new_v4();
+        crate::db::insert_chapter(
+            &conn,
+            &Chapter {
+                id: act_id,
+                project_id: project.id,
+                title: "Act I".to_string(),
+                position: 0,
+                source_id: None,
+                archived: false,
+                locked: false,
+                is_part: true,
+                synopsis: Some("Act one synopsis.".to_string()),
+                planning_status: crate::models::PlanningStatus::Undefined,
+            },
+        )
+        .unwrap();
+
+        let seq_id = uuid::Uuid::new_v4();
+        crate::db::insert_chapter(
+            &conn,
+            &Chapter {
+                id: seq_id,
+                project_id: project.id,
+                title: "Sequence 1".to_string(),
+                position: 1,
+                source_id: None,
+                archived: false,
+                locked: false,
+                is_part: false,
+                synopsis: Some("Seq synopsis.".to_string()),
+                planning_status: crate::models::PlanningStatus::Undefined,
+            },
+        )
+        .unwrap();
+
+        let scene_id = uuid::Uuid::new_v4();
+        crate::db::insert_scene(
+            &conn,
+            &Scene {
+                id: scene_id,
+                chapter_id: seq_id,
+                title: "INT. OFFICE - DAY".to_string(),
+                synopsis: Some("Scene synopsis.".to_string()),
+                prose: None,
+                position: 0,
+                source_id: None,
+                archived: false,
+                locked: false,
+                scene_type: crate::models::SceneType::Normal,
+                scene_status: crate::models::SceneStatus::Draft,
+                planning_status: crate::models::PlanningStatus::Undefined,
+                editor_mode: crate::models::EditorMode::Beat,
+            },
+        )
+        .unwrap();
+
+        crate::db::insert_beat(
+            &conn,
+            &Beat {
+                id: uuid::Uuid::new_v4(),
+                scene_id,
+                content: "Opens case file".to_string(),
+                prose: None,
+                position: 0,
+                source_id: None,
+            },
+        )
+        .unwrap();
+
+        let settings = AppSettings {
+            author_name: Some("Real Name".to_string()),
+            contact_address_line1: None,
+            contact_address_line2: None,
+            contact_phone: None,
+            contact_email: None,
+        };
+
+        let result = compile_treatment_content(&conn, &project, &settings).unwrap();
+        assert_eq!(result.title, "Treatment Test");
+        assert_eq!(result.author, "Pen Name");
+        assert_eq!(result.logline, "A logline.");
+        assert_eq!(result.parts.len(), 1);
+        assert_eq!(result.parts[0].title, "Act I");
+        assert_eq!(result.parts[0].synopsis, "Act one synopsis.");
+        assert_eq!(result.parts[0].chapters.len(), 1);
+        assert_eq!(result.parts[0].chapters[0].title, "Sequence 1");
+        assert_eq!(result.parts[0].chapters[0].scenes.len(), 1);
+        assert_eq!(
+            result.parts[0].chapters[0].scenes[0].title,
+            "INT. OFFICE - DAY"
+        );
+        assert_eq!(
+            result.parts[0].chapters[0].scenes[0].beat_summaries.len(),
+            1
+        );
+        assert_eq!(
+            result.parts[0].chapters[0].scenes[0].beat_summaries[0],
+            "Opens case file"
+        );
     }
 }

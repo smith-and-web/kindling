@@ -715,7 +715,8 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
     case "export_to_markdown":
     case "export_to_longform":
     case "export_to_docx":
-    case "export_to_epub": {
+    case "export_to_epub":
+    case "generate_treatment": {
       const options = getArg<{ output_path?: string }>(args, "options");
       const outputPath = options?.output_path ?? "/mock/path/export";
       return {
