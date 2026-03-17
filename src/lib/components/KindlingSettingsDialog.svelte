@@ -9,7 +9,7 @@
 -->
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { X, Loader2, Settings, User, Lightbulb } from "lucide-svelte";
+  import { X, Loader2, Settings, User, Lightbulb, Palette } from "lucide-svelte";
   import type { AppSettings } from "../types";
   import { ui } from "../stores/ui.svelte";
   import Tooltip from "./Tooltip.svelte";
@@ -144,6 +144,36 @@
           These settings apply to all your projects. Your contact information will appear on
           manuscript title pages when exporting.
         </p>
+
+        <!-- Section: Appearance -->
+        <fieldset>
+          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+            <Palette class="w-4 h-4" />
+            Appearance
+          </legend>
+          <div class="flex gap-3">
+            {#each [{ value: "dark", label: "Dark" }, { value: "light", label: "Light" }, { value: "system", label: "System" }] as opt}
+              <label
+                class="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors {ui.theme === opt.value
+                  ? 'border-accent bg-accent/10 text-text-primary'
+                  : 'border-bg-card bg-bg-card text-text-secondary hover:text-text-primary'}"
+              >
+                <input
+                  type="radio"
+                  name="theme"
+                  value={opt.value}
+                  checked={ui.theme === opt.value}
+                  onchange={() => ui.setTheme(opt.value as "dark" | "light" | "system")}
+                  class="sr-only"
+                />
+                <span class="text-sm">{opt.label}</span>
+              </label>
+            {/each}
+          </div>
+          <p class="text-xs text-text-secondary mt-2">
+            "System" follows your operating system's appearance setting.
+          </p>
+        </fieldset>
 
         <!-- Section: Guidance -->
         <fieldset>
