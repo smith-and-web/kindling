@@ -196,6 +196,16 @@ export interface TagFilter {
   operator: "AND" | "OR";
 }
 
+/** A suggested reference link detected from prose text */
+export interface ReferenceSuggestion {
+  reference_id: string;
+  reference_type: string;
+  reference_name: string;
+  match_text: string;
+  positions: number[];
+  confidence: number;
+}
+
 /** Supported reference types for the References panel */
 export type ReferenceTypeId = "characters" | "locations" | "items" | "objectives" | "organizations";
 

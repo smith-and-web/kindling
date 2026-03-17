@@ -20,6 +20,7 @@
 
 pub mod commands;
 pub mod db;
+pub mod detect;
 pub mod menu;
 pub mod models;
 pub mod parsers;
@@ -171,6 +172,10 @@ pub fn run() {
             commands::save_filter,
             commands::get_saved_filters,
             commands::delete_saved_filter,
+            // Auto-detect commands
+            commands::detect_scene_references,
+            commands::detect_all_references,
+            commands::dismiss_suggestion,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

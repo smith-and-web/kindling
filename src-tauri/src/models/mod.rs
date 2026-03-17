@@ -10,6 +10,7 @@ pub mod scene;
 pub mod scene_reference_state;
 pub mod settings;
 pub mod snapshot;
+pub mod suggestion;
 pub mod tag;
 
 pub use beat::*;
@@ -24,4 +25,5 @@ pub use scene::*;
 pub use scene_reference_state::*;
 pub use settings::*;
 pub use snapshot::*;
+pub use suggestion::*;
 pub use tag::*;

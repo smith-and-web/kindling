@@ -8,7 +8,7 @@ use crate::models::{
     SceneReferenceState, SceneStatus, SceneType, SnapshotMetadata, SnapshotTrigger, SourceType,
 };
 
-fn parse_uuid(s: &str) -> rusqlite::Result<Uuid> {
+pub(crate) fn parse_uuid(s: &str) -> rusqlite::Result<Uuid> {
     Uuid::parse_str(s)
         .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, Type::Text, Box::new(e)))
 }

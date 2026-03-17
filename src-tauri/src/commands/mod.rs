@@ -16,6 +16,7 @@
 mod archive;
 mod blank_project;
 mod crud;
+mod detect;
 mod export;
 mod fields;
 mod import;
@@ -31,6 +32,7 @@ mod tags;
 pub use archive::*;
 pub use blank_project::*;
 pub use crud::*;
+pub use detect::*;
 pub use export::*;
 pub use fields::*;
 pub use import::*;
