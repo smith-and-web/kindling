@@ -41,6 +41,11 @@ const IMPORT_CONFIGS: Record<string, ImportOptions> = {
     directory: true,
     label: "Longform vault",
   },
+  scrivener: {
+    command: "import_scrivener",
+    directory: true,
+    label: "Scrivener project",
+  },
 };
 
 export type ImportType = keyof typeof IMPORT_CONFIGS;

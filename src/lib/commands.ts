@@ -79,6 +79,14 @@ export const COMMAND_DEFS: CommandDef[] = [
     keywords: ["import", "ywriter", "yw7"],
     requiresProject: false,
   },
+  {
+    id: "import_scrivener",
+    label: "Import Scrivener 3 (.scriv)",
+    shortcut: "⌘⇧I",
+    category: "File",
+    keywords: ["import", "scrivener", "scriv"],
+    requiresProject: false,
+  },
   // Project
   {
     id: "project_settings",

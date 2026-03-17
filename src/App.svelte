@@ -98,6 +98,7 @@
   const importYWriter = () => handleImport("ywriter");
   const importLongform = () => handleImport("longform");
   const importLongformVault = () => handleImport("longformVault");
+  const importScrivener = () => handleImport("scrivener");
 
   function openLongformImportDialog() {
     showLongformImportDialog = true;
@@ -135,6 +136,9 @@
           break;
         case "import_longform":
           openLongformImportDialog();
+          break;
+        case "import_scrivener":
+          importScrivener();
           break;
         case "export":
           if (currentProject.value) {
@@ -212,6 +216,9 @@
         break;
       case "import_ywriter":
         importYWriter();
+        break;
+      case "import_scrivener":
+        importScrivener();
         break;
       case "project_settings":
         if (currentProject.value) showProjectSettings = true;

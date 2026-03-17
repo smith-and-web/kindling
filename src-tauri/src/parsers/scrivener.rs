@@ -579,6 +579,468 @@ fn decode_entity(entity: &str) -> String {
 }
 
 // =============================================================================
+// RTF → HTML Converter (for Scrivener import)
+// =============================================================================
+
+/// Convert Scrivener RTF content to TipTap-compatible HTML.
+///
+/// Each text run is self-contained with its own formatting tags, so changes
+/// to bold/italic/underline mid-paragraph produce correct HTML.
+pub fn rtf_to_html(rtf: &str) -> String {
+    let mut html = String::new();
+    let mut in_paragraph = false;
+    let mut bold = false;
+    let mut italic = false;
+    let mut underline = false;
+    let mut skip_depth: u32 = 0;
+    let mut chars = rtf.chars().peekable();
+    let mut text_buf = String::new();
+
+    while let Some(c) = chars.next() {
+        if c == '{' {
+            if skip_depth > 0 {
+                skip_depth += 1;
+                continue;
+            }
+            // Peek ahead to detect groups we should skip entirely
+            let mut peek_buf = String::new();
+            let mut peek_chars = chars.clone();
+            for _ in 0..14 {
+                if let Some(pc) = peek_chars.next() {
+                    peek_buf.push(pc);
+                }
+            }
+            if peek_buf.starts_with("\\fonttbl")
+                || peek_buf.starts_with("\\colortbl")
+                || peek_buf.starts_with("\\stylesheet")
+                || peek_buf.starts_with("\\info")
+                || peek_buf.starts_with("\\*")
+            {
+                skip_depth = 1;
+            }
+            continue;
+        }
+
+        if c == '}' {
+            skip_depth = skip_depth.saturating_sub(1);
+            continue;
+        }
+
+        if skip_depth > 0 {
+            continue;
+        }
+
+        if c == '\\' {
+            if let Some(&next) = chars.peek() {
+                match next {
+                    '\\' => {
+                        chars.next();
+                        text_buf.push('\\');
+                    }
+                    '{' => {
+                        chars.next();
+                        text_buf.push('{');
+                    }
+                    '}' => {
+                        chars.next();
+                        text_buf.push('}');
+                    }
+                    '\'' => {
+                        chars.next();
+                        let mut hex = String::new();
+                        for _ in 0..2 {
+                            if let Some(&hc) = chars.peek() {
+                                if hc.is_ascii_hexdigit() {
+                                    hex.push(hc);
+                                    chars.next();
+                                }
+                            }
+                        }
+                        if let Ok(byte) = u8::from_str_radix(&hex, 16) {
+                            text_buf.push(byte as char);
+                        }
+                    }
+                    _ => {
+                        let mut word = String::new();
+                        while let Some(&wc) = chars.peek() {
+                            if wc.is_ascii_alphabetic() {
+                                word.push(wc);
+                                chars.next();
+                            } else {
+                                break;
+                            }
+                        }
+
+                        let mut param = String::new();
+                        if let Some(&pc) = chars.peek() {
+                            if pc == '-' || pc.is_ascii_digit() {
+                                param.push(pc);
+                                chars.next();
+                                while let Some(&dc) = chars.peek() {
+                                    if dc.is_ascii_digit() {
+                                        param.push(dc);
+                                        chars.next();
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if let Some(&sc) = chars.peek() {
+                            if sc == ' ' {
+                                chars.next();
+                            }
+                        }
+
+                        match word.as_str() {
+                            "par" | "line" => {
+                                rtf_flush_run(
+                                    &mut html,
+                                    &mut text_buf,
+                                    &mut in_paragraph,
+                                    bold,
+                                    italic,
+                                    underline,
+                                );
+                                if in_paragraph {
+                                    html.push_str("</p>");
+                                    in_paragraph = false;
+                                }
+                            }
+                            "b" => {
+                                rtf_flush_run(
+                                    &mut html,
+                                    &mut text_buf,
+                                    &mut in_paragraph,
+                                    bold,
+                                    italic,
+                                    underline,
+                                );
+                                bold = param != "0";
+                            }
+                            "i" => {
+                                rtf_flush_run(
+                                    &mut html,
+                                    &mut text_buf,
+                                    &mut in_paragraph,
+                                    bold,
+                                    italic,
+                                    underline,
+                                );
+                                italic = param != "0";
+                            }
+                            "ul" => {
+                                rtf_flush_run(
+                                    &mut html,
+                                    &mut text_buf,
+                                    &mut in_paragraph,
+                                    bold,
+                                    italic,
+                                    underline,
+                                );
+                                underline = true;
+                            }
+                            "ulnone" => {
+                                rtf_flush_run(
+                                    &mut html,
+                                    &mut text_buf,
+                                    &mut in_paragraph,
+                                    bold,
+                                    italic,
+                                    underline,
+                                );
+                                underline = false;
+                            }
+                            "u" => {
+                                if let Ok(code) = param.parse::<i32>() {
+                                    let code = if code < 0 {
+                                        (code + 65536) as u32
+                                    } else {
+                                        code as u32
+                                    };
+                                    if let Some(ch) = char::from_u32(code) {
+                                        text_buf.push(ch);
+                                    }
+                                }
+                                if let Some(&rc) = chars.peek() {
+                                    if rc == '?' {
+                                        chars.next();
+                                    }
+                                }
+                            }
+                            "pard" | "plain" => {
+                                rtf_flush_run(
+                                    &mut html,
+                                    &mut text_buf,
+                                    &mut in_paragraph,
+                                    bold,
+                                    italic,
+                                    underline,
+                                );
+                                bold = false;
+                                italic = false;
+                                underline = false;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+
+        if c == '\r' || c == '\n' {
+            continue;
+        }
+
+        text_buf.push(c);
+    }
+
+    rtf_flush_run(
+        &mut html,
+        &mut text_buf,
+        &mut in_paragraph,
+        bold,
+        italic,
+        underline,
+    );
+
+    if in_paragraph {
+        html.push_str("</p>");
+    }
+
+    html
+}
+
+/// Flush accumulated text as a self-contained formatted run.
+fn rtf_flush_run(
+    html: &mut String,
+    text_buf: &mut String,
+    in_paragraph: &mut bool,
+    bold: bool,
+    italic: bool,
+    underline: bool,
+) {
+    if text_buf.is_empty() {
+        return;
+    }
+
+    if !*in_paragraph {
+        html.push_str("<p>");
+        *in_paragraph = true;
+    }
+
+    if bold {
+        html.push_str("<strong>");
+    }
+    if italic {
+        html.push_str("<em>");
+    }
+    if underline {
+        html.push_str("<u>");
+    }
+
+    html.push_str(&html_escape(text_buf));
+    text_buf.clear();
+
+    if underline {
+        html.push_str("</u>");
+    }
+    if italic {
+        html.push_str("</em>");
+    }
+    if bold {
+        html.push_str("</strong>");
+    }
+}
+
+fn html_escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+// =============================================================================
+// Scrivener Bundle Parser (for import)
+// =============================================================================
+
+/// Result of parsing a .scriv bundle for import
+pub struct ParsedScrivener {
+    pub project: crate::models::Project,
+    pub chapters: Vec<crate::models::Chapter>,
+    pub scenes: Vec<crate::models::Scene>,
+}
+
+/// Parse a .scriv bundle directory into Kindling data structures
+pub fn parse_scrivener_bundle(
+    scriv_path: &std::path::Path,
+) -> Result<ParsedScrivener, ScrivenerError> {
+    use crate::models::{Chapter, Project, Scene, SourceType};
+
+    // Find and read the .scrivx file
+    let scrivx_path = find_scrivx_in_bundle(scriv_path)?;
+    let xml = std::fs::read_to_string(&scrivx_path).map_err(ScrivenerError::IoError)?;
+    let doc = parse_scrivx(&xml)?;
+
+    // Extract project name from the .scriv directory name
+    let project_name = scriv_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("Scrivener Project")
+        .to_string();
+
+    let data_dir = scriv_path.join("Files").join("Data");
+
+    let mut project = Project::new(
+        project_name,
+        SourceType::Scrivener,
+        Some(scriv_path.to_string_lossy().to_string()),
+    );
+    project.project_type = "novel".to_string();
+
+    let mut chapters: Vec<Chapter> = Vec::new();
+    let mut scenes: Vec<Scene> = Vec::new();
+
+    // Find the Draft folder in the binder
+    let draft = doc
+        .binder
+        .iter()
+        .find(|item| item.item_type == "DraftFolder");
+
+    if let Some(draft_folder) = draft {
+        let mut position: i32 = 0;
+
+        for child in &draft_folder.children {
+            match child.item_type.as_str() {
+                "Folder" => {
+                    let chapter = Chapter {
+                        id: uuid::Uuid::new_v4(),
+                        project_id: project.id,
+                        title: child.title.clone(),
+                        synopsis: None,
+                        position,
+                        is_part: false,
+                        archived: false,
+                        locked: false,
+                        source_id: Some(child.uuid.clone()),
+                        planning_status: Default::default(),
+                    };
+
+                    let mut scene_pos: i32 = 0;
+                    for scene_item in &child.children {
+                        if scene_item.item_type == "Text" {
+                            let prose = read_rtf_content(&data_dir, &scene_item.uuid);
+                            let scene = Scene {
+                                id: uuid::Uuid::new_v4(),
+                                chapter_id: chapter.id,
+                                title: scene_item.title.clone(),
+                                synopsis: None,
+                                prose,
+                                position: scene_pos,
+                                source_id: Some(scene_item.uuid.clone()),
+                                archived: false,
+                                locked: false,
+                                scene_type: Default::default(),
+                                scene_status: Default::default(),
+                                planning_status: Default::default(),
+                                editor_mode: Default::default(),
+                            };
+                            scenes.push(scene);
+                            scene_pos += 1;
+                        }
+                    }
+
+                    chapters.push(chapter);
+                    position += 1;
+                }
+                "Text" => {
+                    // Top-level text item in Draft — create a chapter for it
+                    let chapter = Chapter {
+                        id: uuid::Uuid::new_v4(),
+                        project_id: project.id,
+                        title: child.title.clone(),
+                        synopsis: None,
+                        position,
+                        is_part: false,
+                        archived: false,
+                        locked: false,
+                        source_id: Some(child.uuid.clone()),
+                        planning_status: Default::default(),
+                    };
+
+                    let prose = read_rtf_content(&data_dir, &child.uuid);
+                    let scene = Scene {
+                        id: uuid::Uuid::new_v4(),
+                        chapter_id: chapter.id,
+                        title: child.title.clone(),
+                        synopsis: None,
+                        prose,
+                        position: 0,
+                        source_id: Some(child.uuid.clone()),
+                        archived: false,
+                        locked: false,
+                        scene_type: Default::default(),
+                        scene_status: Default::default(),
+                        planning_status: Default::default(),
+                        editor_mode: Default::default(),
+                    };
+
+                    chapters.push(chapter);
+                    scenes.push(scene);
+                    position += 1;
+                }
+                _ => {}
+            }
+        }
+    }
+
+    Ok(ParsedScrivener {
+        project,
+        chapters,
+        scenes,
+    })
+}
+
+/// Find the .scrivx file inside a .scriv bundle
+fn find_scrivx_in_bundle(
+    scriv_path: &std::path::Path,
+) -> Result<std::path::PathBuf, ScrivenerError> {
+    let entries = std::fs::read_dir(scriv_path).map_err(ScrivenerError::IoError)?;
+
+    for entry in entries.flatten() {
+        if let Some(ext) = entry.path().extension() {
+            if ext == "scrivx" {
+                return Ok(entry.path());
+            }
+        }
+    }
+
+    Err(ScrivenerError::InvalidStructure(
+        "No .scrivx file found in the .scriv bundle".to_string(),
+    ))
+}
+
+/// Read and convert RTF content for a Scrivener document
+fn read_rtf_content(data_dir: &std::path::Path, uuid: &str) -> Option<String> {
+    let rtf_path = data_dir.join(uuid).join("content.rtf");
+    if rtf_path.exists() {
+        if let Ok(rtf) = std::fs::read_to_string(&rtf_path) {
+            let html = rtf_to_html(&rtf);
+            if html.is_empty() {
+                None
+            } else {
+                Some(html)
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 
@@ -787,5 +1249,270 @@ mod tests {
         assert_eq!(decode_entity("&lt;"), "<");
         assert_eq!(decode_entity("&gt;"), ">");
         assert_eq!(decode_entity("&mdash;"), "\u{2014}");
+    }
+
+    // =========================================================================
+    // RTF → HTML tests
+    // =========================================================================
+
+    #[test]
+    fn test_rtf_to_html_plain_text() {
+        let rtf = r"{\rtf1\ansi\deff0{\fonttbl{\f0 Times New Roman;}}Hello world.}";
+        let html = rtf_to_html(rtf);
+        assert!(html.contains("<p>Hello world.</p>"), "got: {html}");
+    }
+
+    #[test]
+    fn test_rtf_to_html_bold() {
+        let rtf = r"{\rtf1\ansi \b Bold\b0  normal}";
+        let html = rtf_to_html(rtf);
+        assert!(html.contains("<strong>Bold</strong>"), "got: {html}");
+        assert!(html.contains("normal"), "got: {html}");
+    }
+
+    #[test]
+    fn test_rtf_to_html_italic() {
+        let rtf = r"{\rtf1\ansi \i Italic\i0  text}";
+        let html = rtf_to_html(rtf);
+        assert!(html.contains("<em>Italic</em>"), "got: {html}");
+    }
+
+    #[test]
+    fn test_rtf_to_html_underline() {
+        let rtf = r"{\rtf1\ansi \ul Underlined\ulnone  text}";
+        let html = rtf_to_html(rtf);
+        assert!(html.contains("<u>Underlined</u>"), "got: {html}");
+    }
+
+    #[test]
+    fn test_rtf_to_html_combined_formatting() {
+        let rtf = r"{\rtf1\ansi \b\i Bold italic\i0\b0  plain}";
+        let html = rtf_to_html(rtf);
+        assert!(
+            html.contains("<strong><em>Bold italic</em></strong>"),
+            "got: {html}"
+        );
+    }
+
+    #[test]
+    fn test_rtf_to_html_multiple_paragraphs() {
+        let rtf = r"{\rtf1\ansi First paragraph.\par Second paragraph.}";
+        let html = rtf_to_html(rtf);
+        assert!(html.contains("<p>First paragraph.</p>"), "got: {html}");
+        assert!(html.contains("<p>Second paragraph.</p>"), "got: {html}");
+    }
+
+    #[test]
+    fn test_rtf_to_html_unicode() {
+        let rtf = r"{\rtf1\ansi Smart \u8220?quote\u8221?}";
+        let html = rtf_to_html(rtf);
+        assert!(html.contains("\u{201C}"), "got: {html}");
+        assert!(html.contains("\u{201D}"), "got: {html}");
+    }
+
+    #[test]
+    fn test_rtf_to_html_hex_char() {
+        let rtf = r"{\rtf1\ansi caf\'e9}";
+        let html = rtf_to_html(rtf);
+        assert!(html.contains("caf\u{e9}"), "got: {html}");
+    }
+
+    #[test]
+    fn test_rtf_to_html_escaped_braces() {
+        let rtf = r"{\rtf1\ansi Open \{ and close \}}";
+        let html = rtf_to_html(rtf);
+        assert!(html.contains("{"), "got: {html}");
+        assert!(html.contains("}"), "got: {html}");
+    }
+
+    #[test]
+    fn test_rtf_to_html_empty() {
+        let rtf = r"{\rtf1\ansi}";
+        let html = rtf_to_html(rtf);
+        assert_eq!(html, "");
+    }
+
+    #[test]
+    fn test_rtf_to_html_pard_resets_formatting() {
+        let rtf = r"{\rtf1\ansi \b Bold\pard  plain}";
+        let html = rtf_to_html(rtf);
+        assert!(html.contains("<strong>Bold</strong>"), "got: {html}");
+        assert!(html.contains("plain"), "got: {html}");
+    }
+
+    #[test]
+    fn test_rtf_to_html_skips_fonttbl() {
+        let rtf = r"{\rtf1\ansi{\fonttbl{\f0\froman Times New Roman;}{\f1\fswiss Arial;}}Hello.}";
+        let html = rtf_to_html(rtf);
+        assert!(!html.contains("Times"), "got: {html}");
+        assert!(html.contains("Hello."), "got: {html}");
+    }
+
+    #[test]
+    fn test_rtf_to_html_skips_colortbl() {
+        let rtf = r"{\rtf1\ansi{\colortbl;\red0\green0\blue0;\red255\green0\blue0;}Some text.}";
+        let html = rtf_to_html(rtf);
+        assert!(!html.contains("red"), "got: {html}");
+        assert!(html.contains("Some text."), "got: {html}");
+    }
+
+    // =========================================================================
+    // Bundle parser tests (filesystem)
+    // =========================================================================
+
+    #[test]
+    fn test_parse_scrivener_bundle_basic() {
+        let dir = tempfile::tempdir().unwrap();
+        let scriv = dir.path().join("Test.scriv");
+        std::fs::create_dir_all(&scriv).unwrap();
+
+        let scrivx = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="TEST-1" Version="2.0">
+  <Binder>
+    <BinderItem UUID="DRAFT" Type="DraftFolder" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Draft</Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+      <Children>
+        <BinderItem UUID="CH1" Type="Folder" Created="2024-01-01" Modified="2024-01-01">
+          <Title>Chapter One</Title>
+          <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+          <Children>
+            <BinderItem UUID="SC1" Type="Text" Created="2024-01-01" Modified="2024-01-01">
+              <Title>Opening</Title>
+              <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+            </BinderItem>
+            <BinderItem UUID="SC2" Type="Text" Created="2024-01-01" Modified="2024-01-01">
+              <Title>Middle</Title>
+              <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+            </BinderItem>
+          </Children>
+        </BinderItem>
+      </Children>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#;
+
+        std::fs::write(scriv.join("Test.scrivx"), scrivx).unwrap();
+
+        let data = scriv.join("Files").join("Data");
+        std::fs::create_dir_all(data.join("SC1")).unwrap();
+        std::fs::create_dir_all(data.join("SC2")).unwrap();
+        std::fs::write(
+            data.join("SC1").join("content.rtf"),
+            r"{\rtf1\ansi It was a dark and stormy night.}",
+        )
+        .unwrap();
+        std::fs::write(
+            data.join("SC2").join("content.rtf"),
+            r"{\rtf1\ansi The wind howled.}",
+        )
+        .unwrap();
+
+        let parsed = parse_scrivener_bundle(&scriv).unwrap();
+        assert_eq!(parsed.project.name, "Test");
+        assert_eq!(parsed.chapters.len(), 1);
+        assert_eq!(parsed.chapters[0].title, "Chapter One");
+        assert_eq!(parsed.scenes.len(), 2);
+        assert_eq!(parsed.scenes[0].title, "Opening");
+        assert!(
+            parsed.scenes[0]
+                .prose
+                .as_ref()
+                .unwrap()
+                .contains("dark and stormy"),
+            "prose: {:?}",
+            parsed.scenes[0].prose
+        );
+        assert_eq!(parsed.scenes[1].title, "Middle");
+        assert_eq!(parsed.scenes[0].source_id.as_deref(), Some("SC1"));
+        assert_eq!(parsed.scenes[1].source_id.as_deref(), Some("SC2"));
+    }
+
+    #[test]
+    fn test_parse_scrivener_bundle_top_level_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let scriv = dir.path().join("TopLevel.scriv");
+        std::fs::create_dir_all(&scriv).unwrap();
+
+        let scrivx = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="TOP-1" Version="2.0">
+  <Binder>
+    <BinderItem UUID="DRAFT" Type="DraftFolder" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Draft</Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+      <Children>
+        <BinderItem UUID="TXT1" Type="Text" Created="2024-01-01" Modified="2024-01-01">
+          <Title>Standalone Scene</Title>
+          <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+        </BinderItem>
+      </Children>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#;
+
+        std::fs::write(scriv.join("TopLevel.scrivx"), scrivx).unwrap();
+
+        let data = scriv.join("Files").join("Data");
+        std::fs::create_dir_all(data.join("TXT1")).unwrap();
+        std::fs::write(
+            data.join("TXT1").join("content.rtf"),
+            r"{\rtf1\ansi A lonely scene.}",
+        )
+        .unwrap();
+
+        let parsed = parse_scrivener_bundle(&scriv).unwrap();
+        assert_eq!(parsed.chapters.len(), 1);
+        assert_eq!(parsed.chapters[0].title, "Standalone Scene");
+        assert_eq!(parsed.scenes.len(), 1);
+        assert_eq!(parsed.scenes[0].title, "Standalone Scene");
+        assert!(parsed.scenes[0]
+            .prose
+            .as_ref()
+            .unwrap()
+            .contains("lonely scene"),);
+    }
+
+    #[test]
+    fn test_parse_scrivener_bundle_no_scrivx() {
+        let dir = tempfile::tempdir().unwrap();
+        let scriv = dir.path().join("Empty.scriv");
+        std::fs::create_dir_all(&scriv).unwrap();
+
+        let result = parse_scrivener_bundle(&scriv);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_scrivener_bundle_no_rtf() {
+        let dir = tempfile::tempdir().unwrap();
+        let scriv = dir.path().join("NoContent.scriv");
+        std::fs::create_dir_all(&scriv).unwrap();
+
+        let scrivx = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="NC-1" Version="2.0">
+  <Binder>
+    <BinderItem UUID="DRAFT" Type="DraftFolder" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Draft</Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+      <Children>
+        <BinderItem UUID="SC-EMPTY" Type="Text" Created="2024-01-01" Modified="2024-01-01">
+          <Title>Empty Scene</Title>
+          <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+        </BinderItem>
+      </Children>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#;
+
+        std::fs::write(scriv.join("NoContent.scrivx"), scrivx).unwrap();
+
+        let parsed = parse_scrivener_bundle(&scriv).unwrap();
+        assert_eq!(parsed.scenes.len(), 1);
+        assert!(parsed.scenes[0].prose.is_none());
+    }
+
+    #[test]
+    fn test_html_escape() {
+        assert_eq!(html_escape("a & b < c > d"), "a &amp; b &lt; c &gt; d");
     }
 }
