@@ -55,6 +55,7 @@
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => e.stopPropagation()}
     role="dialog"
+    aria-modal="true"
     tabindex="-1"
   >
     <div class="flex items-center justify-between px-6 py-4 border-b border-bg-card">
