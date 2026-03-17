@@ -23,6 +23,7 @@
     Hash,
     Book,
     Image as ImageIcon,
+    ScrollText,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import type {
@@ -37,6 +38,9 @@
     FontFamily,
     LineSpacingOption,
     EpubTheme,
+    TreatmentLevel,
+    TreatmentFormat,
+    TreatmentOptions,
   } from "../types";
   import Tooltip from "./Tooltip.svelte";
 
@@ -56,7 +60,7 @@
     onSuccess: (result: ExportResult) => void;
   } = $props();
 
-  let exportFormat = $state<"markdown" | "longform" | "docx" | "epub">("docx");
+  let exportFormat = $state<"markdown" | "longform" | "docx" | "epub" | "treatment">("docx");
   let includeBeatMarkers = $state(false);
   let includeSynopsis = $state(false);
   let pageBreaksBetweenChapters = $state(true);
@@ -72,6 +76,9 @@
   let epubLanguage = $state("en");
   let includeCoverImage = $state(false);
   let coverImagePath = $state("");
+  let treatmentLevel = $state<TreatmentLevel>("five_page");
+  let treatmentFormat = $state<TreatmentFormat>("docx");
+  let treatmentFilePath = $state("");
   let deleteExisting = $state(false);
   let createSnapshot = $state(false);
   let outputPath = $state("");
@@ -153,6 +160,13 @@
     }
   });
 
+  // Reset treatment file path when treatment output format changes
+  $effect(() => {
+    // Access treatmentFormat to track it
+    void treatmentFormat;
+    treatmentFilePath = "";
+  });
+
   // Fetch word count when dialog opens (for project-level export)
   $effect(() => {
     if (currentProject.value && scope === "project") {
@@ -186,7 +200,8 @@
       (exportFormat === "docx" && docxFilePath.length > 0) ||
       (exportFormat === "epub" &&
         epubFilePath.length > 0 &&
-        (!includeCoverImage || coverImagePath.length > 0))
+        (!includeCoverImage || coverImagePath.length > 0)) ||
+      (exportFormat === "treatment" && treatmentFilePath.length > 0)
   );
 
   async function selectDestination() {
@@ -238,6 +253,22 @@
 
     if (path) {
       coverImagePath = path;
+      error = null;
+    }
+  }
+
+  async function selectTreatmentFile() {
+    const ext = treatmentFormat === "docx" ? "docx" : "txt";
+    const filterName = treatmentFormat === "docx" ? "Word Document" : "Text File";
+    const defaultName = `${currentProject.value?.name || "Treatment"} - Treatment.${ext}`;
+    const path = await save({
+      title: "Save Treatment",
+      defaultPath: defaultName,
+      filters: [{ name: filterName, extensions: [ext] }],
+    });
+
+    if (path) {
+      treatmentFilePath = path;
       error = null;
     }
   }
@@ -315,6 +346,18 @@
         };
 
         result = await invoke<ExportResult>("export_to_docx", {
+          projectId: currentProject.value.id,
+          options,
+        });
+      } else if (exportFormat === "treatment") {
+        const options: TreatmentOptions = {
+          detail_level: treatmentLevel,
+          format: treatmentFormat,
+          output_path: treatmentFilePath,
+          create_snapshot: createSnapshot,
+        };
+
+        result = await invoke<ExportResult>("generate_treatment", {
           projectId: currentProject.value.id,
           options,
         });
@@ -423,7 +466,7 @@
       <!-- Format Selection - Card Style -->
       <fieldset>
         <legend class="block text-sm font-medium text-text-secondary mb-3">Export Format</legend>
-        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <label
             class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
             'docx'
@@ -532,6 +575,35 @@
             >
             <span class="text-xs text-text-secondary mt-0.5">.epub</span>
             {#if exportFormat === "epub"}
+              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
+            {/if}
+          </label>
+
+          <label
+            class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
+            'treatment'
+              ? 'border-accent bg-accent/5'
+              : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+          >
+            <input
+              type="radio"
+              name="format"
+              value="treatment"
+              bind:group={exportFormat}
+              class="sr-only"
+            />
+            <ScrollText
+              class="w-8 h-8 mb-2 {exportFormat === 'treatment'
+                ? 'text-accent'
+                : 'text-text-secondary'}"
+            />
+            <span
+              class="text-sm font-medium {exportFormat === 'treatment'
+                ? 'text-text-primary'
+                : 'text-text-secondary'}">Treatment</span
+            >
+            <span class="text-xs text-text-secondary mt-0.5">.docx / .txt</span>
+            {#if exportFormat === "treatment"}
               <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
             {/if}
           </label>
@@ -910,6 +982,161 @@
                 aria-label="Browse for folder"
               >
                 <FolderOpen class="w-5 h-5" />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+      {:else if exportFormat === "treatment"}
+        <!-- Treatment Options -->
+        <fieldset>
+          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+            <ScrollText class="w-4 h-4" />
+            Detail Level
+          </legend>
+          <div class="space-y-2">
+            <label
+              class="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all {treatmentLevel ===
+              'one_page'
+                ? 'bg-accent/10 border border-accent/30'
+                : 'bg-bg-card/50 hover:bg-bg-card border border-transparent'}"
+            >
+              <div>
+                <span class="text-sm text-text-primary">One-Page</span>
+                <p class="text-xs text-text-secondary mt-0.5">
+                  Title, logline, and a short synopsis per act
+                </p>
+              </div>
+              <input
+                type="radio"
+                name="treatment-level"
+                value="one_page"
+                bind:group={treatmentLevel}
+                class="accent-accent"
+              />
+            </label>
+            <label
+              class="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all {treatmentLevel ===
+              'five_page'
+                ? 'bg-accent/10 border border-accent/30'
+                : 'bg-bg-card/50 hover:bg-bg-card border border-transparent'}"
+            >
+              <div>
+                <span class="text-sm text-text-primary">Five-Page</span>
+                <p class="text-xs text-text-secondary mt-0.5">
+                  Act summaries with key scene descriptions
+                </p>
+              </div>
+              <input
+                type="radio"
+                name="treatment-level"
+                value="five_page"
+                bind:group={treatmentLevel}
+                class="accent-accent"
+              />
+            </label>
+            <label
+              class="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all {treatmentLevel ===
+              'full'
+                ? 'bg-accent/10 border border-accent/30'
+                : 'bg-bg-card/50 hover:bg-bg-card border border-transparent'}"
+            >
+              <div>
+                <span class="text-sm text-text-primary">Full Treatment</span>
+                <p class="text-xs text-text-secondary mt-0.5">
+                  Every scene synopsis and beat description
+                </p>
+              </div>
+              <input
+                type="radio"
+                name="treatment-level"
+                value="full"
+                bind:group={treatmentLevel}
+                class="accent-accent"
+              />
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- Output Format -->
+        <fieldset>
+          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+            <FileText class="w-4 h-4" />
+            Output Format
+          </legend>
+          <div class="grid grid-cols-2 gap-3">
+            <label
+              class="flex items-center justify-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all {treatmentFormat ===
+              'docx'
+                ? 'border-accent bg-accent/5'
+                : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+            >
+              <input
+                type="radio"
+                name="treatment-format"
+                value="docx"
+                bind:group={treatmentFormat}
+                class="sr-only"
+              />
+              <FileText
+                class="w-4 h-4 {treatmentFormat === 'docx' ? 'text-accent' : 'text-text-secondary'}"
+              />
+              <span
+                class="text-sm font-medium {treatmentFormat === 'docx'
+                  ? 'text-text-primary'
+                  : 'text-text-secondary'}">.docx</span
+              >
+            </label>
+            <label
+              class="flex items-center justify-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all {treatmentFormat ===
+              'txt'
+                ? 'border-accent bg-accent/5'
+                : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+            >
+              <input
+                type="radio"
+                name="treatment-format"
+                value="txt"
+                bind:group={treatmentFormat}
+                class="sr-only"
+              />
+              <AlignLeft
+                class="w-4 h-4 {treatmentFormat === 'txt' ? 'text-accent' : 'text-text-secondary'}"
+              />
+              <span
+                class="text-sm font-medium {treatmentFormat === 'txt'
+                  ? 'text-text-primary'
+                  : 'text-text-secondary'}">.txt</span
+              >
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- Save Location -->
+        <div>
+          <label
+            for="treatment-destination"
+            class="block text-sm font-medium text-text-secondary mb-2"
+          >
+            Save Location
+          </label>
+          <div class="flex gap-2">
+            <input
+              id="treatment-destination"
+              type="text"
+              readonly
+              value={treatmentFilePath}
+              placeholder="Choose where to save..."
+              class="flex-1 bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer truncate"
+              onclick={selectTreatmentFile}
+            />
+            <Tooltip text="Browse" position="top">
+              <button
+                type="button"
+                onclick={selectTreatmentFile}
+                class="px-3 py-2.5 bg-bg-card text-text-secondary rounded-lg hover:bg-beat-header hover:text-text-primary transition-colors border border-bg-card"
+                aria-label="Choose save location"
+              >
+                <FileText class="w-5 h-5" />
               </button>
             </Tooltip>
           </div>

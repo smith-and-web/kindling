@@ -450,6 +450,20 @@ export interface EpubExportOptions {
   cover_image_path?: string;
 }
 
+/** Detail level for treatment generation */
+export type TreatmentLevel = "one_page" | "five_page" | "full";
+
+/** Output format for treatment generation */
+export type TreatmentFormat = "docx" | "txt";
+
+/** Options for generating a treatment document */
+export interface TreatmentOptions {
+  detail_level: TreatmentLevel;
+  format: TreatmentFormat;
+  output_path: string;
+  create_snapshot?: boolean;
+}
+
 /** Result of an export operation */
 export interface ExportResult {
   /** Path where export was saved */
