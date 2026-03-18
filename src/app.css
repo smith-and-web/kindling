@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Kindling Brand Color Palette */
+/* Kindling Brand Color Palette — Dark theme (default) */
 @theme {
   /* Primary Colors */
   --color-ember-orange: #e85a1b;
@@ -32,6 +32,54 @@
   /* Utility Colors */
   --color-success: #2d9c6b;
   --color-warning: #d9a012;
+
+  /* Prose surface (editor "paper") */
+  --color-prose-bg: #faf9f7;
+  --color-prose-text: #1a1a1a;
+  --color-prose-placeholder: #9ca3af;
+  --color-prose-blockquote-border: #d1d5db;
+  --color-prose-blockquote-text: #4b5563;
+  --color-prose-code-bg: #f3f4f6;
+  --color-prose-page-shadow: rgba(0, 0, 0, 0.2);
+  --color-prose-page-glow: rgba(0, 0, 0, 0.15);
+
+  /* Semantic status */
+  --color-error: #ef4444;
+}
+
+/* Light theme overrides */
+[data-theme="light"] {
+  --color-bg-primary: #faf8f5;
+  --color-bg-panel: #f0ece6;
+  --color-bg-card: #e5e0d8;
+
+  --color-text-primary: #2a2420;
+  --color-text-secondary: #6a6560;
+
+  --color-accent: #d04a10;
+  --color-ember-orange: #d04a10;
+  --color-spark-gold: #c08000;
+  --color-flame-red: #b03008;
+  --color-flame-orange: #cc4520;
+  --color-highlight-orange: #d07a20;
+
+  --color-beat-header: #e5e0d8;
+  --color-beat-expanded: #f0ece6;
+  --color-focus-highlight: rgba(208, 74, 16, 0.12);
+
+  --color-success: #1d7a50;
+  --color-warning: #b08000;
+
+  --color-prose-bg: #ffffff;
+  --color-prose-text: #2a2420;
+  --color-prose-placeholder: #9a9490;
+  --color-prose-blockquote-border: #c8c3bb;
+  --color-prose-blockquote-text: #6a6560;
+  --color-prose-code-bg: #eae5dd;
+  --color-prose-page-shadow: rgba(0, 0, 0, 0.08);
+  --color-prose-page-glow: rgba(0, 0, 0, 0.04);
+
+  --color-error: #dc2626;
 }
 
 /* Base styles */
@@ -70,7 +118,7 @@ body {
   flex-direction: column;
 }
 
-/* Scrollbar styling for dark mode */
+/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -93,4 +141,8 @@ body {
 ::selection {
   background: var(--color-accent);
   color: white;
+}
+
+[data-theme="light"] ::selection {
+  color: #ffffff;
 }

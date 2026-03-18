@@ -11,6 +11,7 @@
     PenTool,
     BookOpen,
     FilePlus,
+    Scroll,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
@@ -53,6 +54,7 @@
   const importMarkdown = () => handleImport("markdown");
   const importYWriter = () => handleImport("ywriter");
   const importLongform = () => handleImport("longform");
+  const importScrivener = () => handleImport("scrivener");
 
   function handleLongformImport() {
     const handler = onImportLongform ?? importLongform;
@@ -261,6 +263,14 @@
             <span class="text-text-primary text-sm font-medium">Longform</span>
             <span class="text-text-secondary text-xs">Index or vault</span>
           </button>
+          <button
+            onclick={importScrivener}
+            class="flex flex-col items-center p-4 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer"
+          >
+            <Scroll class="w-8 h-8 text-accent mb-1" />
+            <span class="text-text-primary text-sm font-medium">Scrivener</span>
+            <span class="text-text-secondary text-xs">.scriv</span>
+          </button>
         </div>
       </div>
     </div>
@@ -289,6 +299,7 @@
                 onmouseleave={() => (hoveredProjectId = null)}
               >
                 <button
+                  data-testid="project-card"
                   onclick={() => openProject(project)}
                   class="flex-1 flex items-center justify-between p-3 cursor-pointer text-left"
                 >

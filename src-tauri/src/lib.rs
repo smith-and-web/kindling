@@ -20,6 +20,7 @@
 
 pub mod commands;
 pub mod db;
+pub mod detect;
 pub mod menu;
 pub mod models;
 pub mod parsers;
@@ -59,9 +60,12 @@ pub fn run() {
             commands::import_ywriter,
             commands::import_markdown,
             commands::import_longform,
+            commands::import_scrivener,
             commands::preview_import,
             commands::create_sample_project,
             commands::create_blank_project,
+            commands::create_screenplay_project,
+            commands::get_page_count_estimate,
             commands::get_project,
             commands::get_recent_projects,
             commands::get_all_projects,
@@ -99,6 +103,8 @@ pub fn run() {
             commands::update_chapter_planning_status,
             commands::update_chapter_synopsis,
             commands::save_scene_prose,
+            commands::switch_scene_editor_mode,
+            commands::save_scene_page_prose,
             commands::reorder_chapters,
             commands::reorder_scenes,
             commands::move_scene_to_chapter,
@@ -133,6 +139,9 @@ pub fn run() {
             commands::export_to_docx,
             commands::export_to_epub,
             commands::get_project_word_count,
+            commands::generate_treatment,
+            commands::preview_scrivener_matches,
+            commands::export_to_scrivener,
             // Snapshot commands
             commands::create_snapshot,
             commands::list_snapshots,
@@ -142,6 +151,43 @@ pub fn run() {
             // App settings commands
             commands::get_app_settings,
             commands::update_app_settings,
+            // Custom field commands
+            commands::get_field_definitions,
+            commands::get_all_field_definitions,
+            commands::create_field_definition,
+            commands::update_field_definition,
+            commands::delete_field_definition,
+            commands::reorder_field_definitions,
+            commands::get_field_values,
+            commands::get_field_values_bulk,
+            commands::set_field_value,
+            commands::clear_field_value,
+            // Tag commands
+            commands::get_tags,
+            commands::create_tag,
+            commands::update_tag,
+            commands::delete_tag,
+            commands::reorder_tags,
+            commands::tag_entity,
+            commands::untag_entity,
+            commands::get_entity_tags,
+            commands::bulk_tag,
+            commands::bulk_untag,
+            commands::get_all_entity_tags,
+            commands::filter_entities,
+            commands::save_filter,
+            commands::get_saved_filters,
+            commands::delete_saved_filter,
+            // Auto-detect commands
+            commands::detect_scene_references,
+            commands::detect_all_references,
+            commands::dismiss_suggestion,
+            // Template commands
+            commands::get_bundled_templates,
+            commands::get_user_templates,
+            commands::apply_template,
+            commands::save_project_as_template,
+            commands::delete_user_template,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

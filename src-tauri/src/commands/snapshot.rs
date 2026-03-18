@@ -378,6 +378,8 @@ fn restore_create_new(
         description: data.project.description,
         word_target: data.project.word_target,
         reference_types: data.project.reference_types,
+        project_type: data.project.project_type,
+        target_page_count: data.project.target_page_count,
     };
 
     db::insert_project(&tx, &new_project).map_err(|e| e.to_string())?;
@@ -414,6 +416,7 @@ fn restore_create_new(
             scene_type: scene.scene_type,
             scene_status: scene.scene_status,
             planning_status: scene.planning_status,
+            editor_mode: scene.editor_mode,
         };
         db::insert_scene(&tx, &new_scene).map_err(|e| e.to_string())?;
     }

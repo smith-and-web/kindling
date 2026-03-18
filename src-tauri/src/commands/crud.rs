@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use crate::db;
 use crate::models::{
-    Beat, Chapter, Character, DiscoveryNote, Location, PlanningStatus, Project, ReferenceItem,
-    Scene, SceneReferenceState, SceneStatus, SceneType, SourceType,
+    Beat, Chapter, Character, DiscoveryNote, EditorMode, Location, PlanningStatus, Project,
+    ReferenceItem, Scene, SceneReferenceState, SceneStatus, SceneType, SourceType,
 };
 
 use super::AppState;
@@ -42,7 +42,7 @@ pub async fn get_all_projects(state: State<'_, AppState>) -> Result<Vec<Project>
     db::get_all_projects(&conn).map_err(|e| e.to_string())
 }
 
-/// Input type for updating project settings (pen name and genre)
+/// Input type for updating project settings
 #[derive(serde::Deserialize)]
 pub struct ProjectSettingsUpdate {
     pub author_pen_name: Option<String>,
@@ -50,6 +50,8 @@ pub struct ProjectSettingsUpdate {
     pub description: Option<String>,
     pub word_target: Option<i32>,
     pub reference_types: Option<Vec<String>>,
+    pub project_type: Option<String>,
+    pub target_page_count: Option<i32>,
 }
 
 #[tauri::command]
@@ -74,6 +76,10 @@ pub async fn update_project_settings(
     if let Some(reference_types) = settings.reference_types {
         project.reference_types = reference_types;
     }
+    if let Some(project_type) = settings.project_type {
+        project.project_type = project_type;
+    }
+    project.target_page_count = settings.target_page_count;
 
     // Update modified timestamp
     project.modified_at = chrono::Utc::now().to_rfc3339();
@@ -249,6 +255,7 @@ pub async fn duplicate_chapter(
             scene_type: scene.scene_type,
             scene_status: scene.scene_status,
             planning_status: PlanningStatus::Fixed,
+            editor_mode: scene.editor_mode,
         };
         db::insert_scene(&conn, &new_scene).map_err(|e| e.to_string())?;
 
@@ -371,6 +378,7 @@ pub async fn create_scene(
         scene_type: SceneType::Normal,
         scene_status: SceneStatus::Draft,
         planning_status,
+        editor_mode: EditorMode::Beat,
     };
 
     db::insert_scene(&conn, &scene).map_err(|e| e.to_string())?;
@@ -402,6 +410,39 @@ pub async fn save_scene_prose(
     db::update_scene_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())?;
 
     // Update project modified time
+    if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn switch_scene_editor_mode(
+    scene_id: String,
+    mode: String,
+    state: State<'_, AppState>,
+) -> Result<Scene, String> {
+    let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    db::switch_scene_editor_mode(&conn, &uuid, &mode).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn save_scene_page_prose(
+    scene_id: String,
+    prose: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    if db::is_scene_locked(&conn, &uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot edit a locked scene".to_string());
+    }
+
+    db::save_scene_page_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())?;
+
     if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
         let _ = db::update_project_modified(&conn, &project_id);
     }
@@ -582,6 +623,7 @@ pub async fn duplicate_scene(
         scene_type: original.scene_type,
         scene_status: original.scene_status,
         planning_status: original.planning_status,
+        editor_mode: original.editor_mode,
     };
 
     db::insert_scene(&conn, &new_scene).map_err(|e| e.to_string())?;
@@ -1579,22 +1621,26 @@ pub async fn create_reference(
     reference_type: String,
     reference: ReferenceUpsert,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let attributes = reference.attributes.unwrap_or_default();
 
-    match reference_type.as_str() {
+    let entity_id = match reference_type.as_str() {
         "characters" => {
             let character =
                 Character::new(project_uuid, reference.name, reference.description, None)
                     .with_attributes(attributes);
+            let id = character.id;
             db::insert_character(&conn, &character).map_err(|e| e.to_string())?;
+            id
         }
         "locations" => {
             let location = Location::new(project_uuid, reference.name, reference.description, None)
                 .with_attributes(attributes);
+            let id = location.id;
             db::insert_location(&conn, &location).map_err(|e| e.to_string())?;
+            id
         }
         _ => {
             let item = ReferenceItem::new(
@@ -1605,12 +1651,14 @@ pub async fn create_reference(
                 None,
             )
             .with_attributes(attributes);
+            let id = item.id;
             db::insert_reference_item(&conn, &item).map_err(|e| e.to_string())?;
+            id
         }
-    }
+    };
 
     db::update_project_modified(&conn, &project_uuid).map_err(|e| e.to_string())?;
-    Ok(())
+    Ok(entity_id.to_string())
 }
 
 #[tauri::command]

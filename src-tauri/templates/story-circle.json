@@ -1,0 +1,59 @@
+{
+  "id": "bundled-story-circle",
+  "name": "Story Circle",
+  "source": "Dan Harmon",
+  "description": "An 8-beat simplified Hero's Journey designed for episodic TV writing. Elegant and versatile — works for individual episodes, seasons, or feature-length stories.",
+  "project_types": ["screenplay", "novel"],
+  "structure": [
+    {
+      "title": "Act I — You / Need / Go / Search",
+      "children": [
+        {
+          "title": "You (Comfort Zone)",
+          "synopsis": "Establish a character in their zone of comfort.",
+          "scenes": [{ "title": "You", "synopsis": "Show who the character is in their familiar world." }]
+        },
+        {
+          "title": "Need (Desire)",
+          "synopsis": "But they want something.",
+          "scenes": [{ "title": "Need", "synopsis": "Reveal what the character wants or needs — even if they don't know it yet." }]
+        },
+        {
+          "title": "Go (Unfamiliar Situation)",
+          "synopsis": "They enter an unfamiliar situation.",
+          "scenes": [{ "title": "Go", "synopsis": "The character crosses into new territory to pursue their desire." }]
+        },
+        {
+          "title": "Search (Adaptation)",
+          "synopsis": "They adapt to the new situation.",
+          "scenes": [{ "title": "Search", "synopsis": "The character struggles, learns, and adapts to the new world." }]
+        }
+      ]
+    },
+    {
+      "title": "Act II — Find / Take / Return / Change",
+      "children": [
+        {
+          "title": "Find (What They Wanted)",
+          "synopsis": "They get what they wanted.",
+          "scenes": [{ "title": "Find", "synopsis": "The character achieves their goal — but at the midpoint, not the end." }]
+        },
+        {
+          "title": "Take (Pay the Price)",
+          "synopsis": "But they pay a heavy price for it.",
+          "scenes": [{ "title": "Take", "synopsis": "Success has consequences. The character must pay for what they got." }]
+        },
+        {
+          "title": "Return (Go Back)",
+          "synopsis": "They return to their familiar situation.",
+          "scenes": [{ "title": "Return", "synopsis": "The character heads back to where they started, changed by the journey." }]
+        },
+        {
+          "title": "Change (Having Changed)",
+          "synopsis": "Having changed.",
+          "scenes": [{ "title": "Change", "synopsis": "The character is fundamentally different. Show the transformation." }]
+        }
+      ]
+    }
+  ]
+}

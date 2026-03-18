@@ -22,7 +22,7 @@
   import CommandPalette from "./lib/components/CommandPalette.svelte";
   import UpdateBanner from "./lib/components/UpdateBanner.svelte";
   import { checkForUpdate } from "./lib/updater";
-  import RenameDialog from "./lib/components/RenameDialog.svelte";
+  import NewProjectDialog from "./lib/components/NewProjectDialog.svelte";
   import { COMMAND_DEFS } from "./lib/commands";
   import { currentProject } from "./lib/stores/project.svelte";
   import { ui } from "./lib/stores/ui.svelte";
@@ -98,16 +98,10 @@
   const importYWriter = () => handleImport("ywriter");
   const importLongform = () => handleImport("longform");
   const importLongformVault = () => handleImport("longformVault");
+  const importScrivener = () => handleImport("scrivener");
 
   function openLongformImportDialog() {
     showLongformImportDialog = true;
-  }
-
-  async function createNewProject(name: string) {
-    const project = await invoke<Project>("create_blank_project", { name });
-    currentProject.setProject(null);
-    currentProject.setProject(project);
-    ui.setView("editor");
   }
 
   function closeProject() {
@@ -142,6 +136,9 @@
           break;
         case "import_longform":
           openLongformImportDialog();
+          break;
+        case "import_scrivener":
+          importScrivener();
           break;
         case "export":
           if (currentProject.value) {
@@ -220,6 +217,9 @@
       case "import_ywriter":
         importYWriter();
         break;
+      case "import_scrivener":
+        importScrivener();
+        break;
       case "project_settings":
         if (currentProject.value) showProjectSettings = true;
         break;
@@ -234,6 +234,15 @@
         break;
       case "toggle_discovery_notes":
         window.dispatchEvent(new CustomEvent("kindling:toggleDiscoveryNotes"));
+        break;
+      case "detect_references":
+        window.dispatchEvent(new CustomEvent("kindling:detectReferences"));
+        break;
+      case "detect_all_references":
+        window.dispatchEvent(new CustomEvent("kindling:detectAllReferences"));
+        break;
+      case "toggle_editor_mode":
+        window.dispatchEvent(new CustomEvent("kindling:toggleEditorMode"));
         break;
       case "quick_start":
         showQuickStart = true;
@@ -327,12 +336,7 @@
 
 <!-- New Project Dialog (triggered by File menu or StartScreen) -->
 {#if showNewProjectDialog}
-  <RenameDialog
-    title="New Project"
-    currentName="My Project"
-    onSave={createNewProject}
-    onClose={() => (showNewProjectDialog = false)}
-  />
+  <NewProjectDialog onClose={() => (showNewProjectDialog = false)} />
 {/if}
 
 <!-- Quick Start Dialog (triggered by Help menu) -->

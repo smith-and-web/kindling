@@ -18,6 +18,13 @@
  * @see project.svelte.ts for project data state
  */
 
+import {
+  type ThemePreference,
+  getStoredPreference,
+  setThemePreference,
+  initTheme,
+} from "../utils/theme";
+
 export type View = "start" | "editor";
 export type Panel = "sidebar" | "editor" | "references";
 export type OnboardingStep =
@@ -74,6 +81,9 @@ class UIStore {
   private _guidanceEnabled = $state(true);
   private _tooltipSeenVersion = $state(0); // Bump to trigger re-check of localStorage
 
+  // Theme
+  private _theme = $state<ThemePreference>("dark");
+
   constructor() {
     const saved = localStorage.getItem(REFERENCES_PANEL_STORAGE_KEY);
     if (saved) {
@@ -89,6 +99,9 @@ class UIStore {
 
     const guidanceStored = localStorage.getItem(GUIDANCE_ENABLED_KEY);
     this._guidanceEnabled = guidanceStored === null ? true : guidanceStored === "true";
+
+    this._theme = getStoredPreference();
+    initTheme();
 
     window.addEventListener("resize", () => {
       const maxWidth = this.referencesPanelMaxWidth;
@@ -319,6 +332,16 @@ class UIStore {
       }
     );
     this._tooltipSeenVersion += 1;
+  }
+
+  // Theme
+  get theme(): ThemePreference {
+    return this._theme;
+  }
+
+  setTheme(pref: ThemePreference) {
+    this._theme = pref;
+    setThemePreference(pref);
   }
 }
 

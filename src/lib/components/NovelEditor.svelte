@@ -333,7 +333,7 @@
       <!-- Save status and word count -->
       <div class="toolbar-spacer"></div>
       {#if saveStatus === "saving"}
-        <div class="save-status saving">
+        <div class="save-status saving" data-testid="save-indicator">
           <Loader2 class="w-3.5 h-3.5 animate-spin" />
           <span>Saving...</span>
         </div>
@@ -438,7 +438,7 @@
   }
 
   .save-status.error {
-    color: #ef4444;
+    color: var(--color-error);
   }
 
   .word-count {
@@ -465,11 +465,11 @@
   .novel-page {
     width: 26rem;
     min-height: 40rem;
-    background: #faf9f7;
+    background: var(--color-prose-bg);
     border-radius: 0.125rem;
     box-shadow:
-      0 1px 3px rgba(0, 0, 0, 0.2),
-      0 4px 12px rgba(0, 0, 0, 0.15),
+      0 1px 3px var(--color-prose-page-shadow),
+      0 4px 12px var(--color-prose-page-glow),
       inset 0 0 0 1px rgba(0, 0, 0, 0.05);
     padding: 2rem 1.5rem;
     flex-shrink: 0;
@@ -486,7 +486,7 @@
     font-family: "Lora", Georgia, serif;
     font-size: 0.8125rem;
     line-height: 1.6;
-    color: #1a1a1a;
+    color: var(--color-prose-text);
     min-height: 36rem;
     tab-size: 4;
     white-space: pre-wrap;
@@ -507,7 +507,7 @@
   :global(.novel-editor-content p.is-editor-empty:first-child::before) {
     content: attr(data-placeholder);
     float: left;
-    color: #9ca3af;
+    color: var(--color-prose-placeholder);
     pointer-events: none;
     height: 0;
     font-style: italic;
@@ -516,14 +516,14 @@
   :global(.novel-editor-content blockquote) {
     margin: 1em 0;
     padding-left: 1em;
-    border-left: 2px solid #d1d5db;
+    border-left: 2px solid var(--color-prose-blockquote-border);
     font-style: italic;
-    color: #4b5563;
+    color: var(--color-prose-blockquote-text);
   }
 
   :global(.novel-editor-content code) {
     font-family: "Courier New", Courier, monospace;
-    background: #f3f4f6;
+    background: var(--color-prose-code-bg);
     padding: 0.125em 0.25em;
     border-radius: 0.25em;
     font-size: 0.9em;

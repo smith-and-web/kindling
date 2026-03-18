@@ -1,26 +1,39 @@
 <script lang="ts">
+  import { invoke } from "@tauri-apps/api/core";
   import { Loader2, Plus, Trash2, X } from "lucide-svelte";
-  import type { ReferenceItem } from "../types";
+  import type { ReferenceItem, FieldDefinition, FieldValue, FieldEntityType } from "../types";
   import type { ReferenceTypeOption } from "../referenceTypes";
+  import FieldRenderer from "./FieldRenderer.svelte";
   import Tooltip from "./Tooltip.svelte";
 
   let {
     referenceType,
     reference,
+    projectId,
     onSave,
     onClose,
   }: {
     referenceType: ReferenceTypeOption;
     reference?: ReferenceItem;
+    projectId: string;
     onSave: (data: {
       name: string;
       description: string | null;
       attributes: Record<string, string>;
+      fieldValues: Record<string, string | null>;
     }) => Promise<void>;
     onClose: () => void;
   } = $props();
 
   type AttributeRow = { id: string; key: string; value: string };
+
+  const entityTypeMap: Record<string, FieldEntityType> = {
+    characters: "character",
+    locations: "location",
+    items: "item",
+    objectives: "objective",
+    organizations: "organization",
+  };
 
   let name = $state("");
   let description = $state("");
@@ -30,8 +43,38 @@
   let error = $state<string | null>(null);
   let nameInput: HTMLInputElement | null = $state(null);
 
+  let fieldDefs = $state<FieldDefinition[]>([]);
+  let fieldValueMap = $state<Record<string, string | null>>({});
+  let fieldsLoading = $state(true);
+
   const makeRowId = () =>
     globalThis.crypto?.randomUUID?.() ?? `attr-${Date.now()}-${Math.random()}`;
+
+  async function loadFieldDefinitions() {
+    fieldsLoading = true;
+    try {
+      const entityType = entityTypeMap[referenceType.id] ?? referenceType.id;
+      fieldDefs = await invoke("get_field_definitions", {
+        projectId,
+        entityType,
+      });
+
+      if (reference) {
+        const values: FieldValue[] = await invoke("get_field_values", {
+          entityId: reference.id,
+        });
+        const map: Record<string, string | null> = {};
+        for (const v of values) {
+          map[v.field_definition_id] = v.value;
+        }
+        fieldValueMap = map;
+      }
+    } catch {
+      fieldDefs = [];
+    } finally {
+      fieldsLoading = false;
+    }
+  }
 
   $effect(() => {
     name = reference?.name ?? "";
@@ -43,6 +86,12 @@
     attributeRows = Object.entries(attrs)
       .filter(([key]) => key !== "notes")
       .map(([key, value]) => ({ id: makeRowId(), key, value }));
+  });
+
+  $effect(() => {
+    if (projectId && referenceType) {
+      loadFieldDefinitions();
+    }
   });
 
   $effect(() => {
@@ -58,6 +107,10 @@
 
   function removeAttributeRow(id: string) {
     attributeRows = attributeRows.filter((row) => row.id !== id);
+  }
+
+  function handleFieldChange(defId: string, value: string | null) {
+    fieldValueMap = { ...fieldValueMap, [defId]: value };
   }
 
   async function handleSave() {
@@ -85,6 +138,7 @@
         name: trimmedName,
         description: description.trim() ? description.trim() : null,
         attributes,
+        fieldValues: fieldValueMap,
       });
       onClose();
     } catch (e) {
@@ -107,6 +161,8 @@
       onClose();
     }
   }
+
+  const visibleFieldDefs = $derived(fieldDefs.filter((d) => d.visible));
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -182,9 +238,23 @@
         ></textarea>
       </div>
 
+      {#if !fieldsLoading && visibleFieldDefs.length > 0}
+        <div class="space-y-3">
+          <span class="block text-sm text-text-secondary">Custom Fields</span>
+          {#each visibleFieldDefs as def (def.id)}
+            <FieldRenderer
+              definition={def}
+              value={fieldValueMap[def.id] ?? null}
+              disabled={saving}
+              onChange={(v) => handleFieldChange(def.id, v)}
+            />
+          {/each}
+        </div>
+      {/if}
+
       <div class="space-y-2">
         <div class="flex items-center justify-between">
-          <span class="text-sm text-text-secondary">Attributes</span>
+          <span class="text-sm text-text-secondary">Additional Attributes</span>
           <button
             type="button"
             onclick={addAttributeRow}

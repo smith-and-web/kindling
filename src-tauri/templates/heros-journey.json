@@ -1,0 +1,84 @@
+{
+  "id": "bundled-heros-journey",
+  "name": "Hero's Journey",
+  "source": "Joseph Campbell / Christopher Vogler",
+  "description": "The 12-stage mythic structure from 'The Hero with a Thousand Faces' and 'The Writer's Journey'. Universal across cultures and genres.",
+  "project_types": ["novel", "screenplay"],
+  "structure": [
+    {
+      "title": "Act I — Departure",
+      "children": [
+        {
+          "title": "Ordinary World",
+          "synopsis": "The hero's normal life before the adventure begins.",
+          "scenes": [{ "title": "Ordinary World", "synopsis": "Establish who the hero is and what their life looks like." }]
+        },
+        {
+          "title": "Call to Adventure",
+          "synopsis": "The hero receives an invitation to face the unknown.",
+          "scenes": [{ "title": "Call to Adventure", "synopsis": "Something disrupts the ordinary world and beckons the hero." }]
+        },
+        {
+          "title": "Refusal of the Call",
+          "synopsis": "The hero hesitates or refuses, showing their fear.",
+          "scenes": [{ "title": "Refusal of the Call", "synopsis": "Fear, doubt, or obligation holds the hero back." }]
+        },
+        {
+          "title": "Meeting the Mentor",
+          "synopsis": "The hero encounters a guide who provides wisdom or tools.",
+          "scenes": [{ "title": "Meeting the Mentor", "synopsis": "A wise figure gives the hero what they need to begin." }]
+        },
+        {
+          "title": "Crossing the Threshold",
+          "synopsis": "The hero commits to the adventure and enters the special world.",
+          "scenes": [{ "title": "Crossing the Threshold", "synopsis": "The hero leaves the ordinary world behind." }]
+        }
+      ]
+    },
+    {
+      "title": "Act II — Initiation",
+      "children": [
+        {
+          "title": "Tests, Allies, Enemies",
+          "synopsis": "The hero navigates the new world, making friends and foes.",
+          "scenes": [{ "title": "Tests, Allies, Enemies", "synopsis": "The hero learns the rules of the special world." }]
+        },
+        {
+          "title": "Approach to the Inmost Cave",
+          "synopsis": "The hero prepares for the major challenge ahead.",
+          "scenes": [{ "title": "Approach to the Inmost Cave", "synopsis": "Preparation and planning before the central ordeal." }]
+        },
+        {
+          "title": "The Ordeal",
+          "synopsis": "The hero faces their greatest fear or most dangerous challenge.",
+          "scenes": [{ "title": "The Ordeal", "synopsis": "A death-and-rebirth moment. The hero's darkest hour." }]
+        },
+        {
+          "title": "Reward",
+          "synopsis": "The hero claims the treasure or achieves the goal.",
+          "scenes": [{ "title": "Reward", "synopsis": "After surviving the ordeal, the hero seizes the prize." }]
+        }
+      ]
+    },
+    {
+      "title": "Act III — Return",
+      "children": [
+        {
+          "title": "The Road Back",
+          "synopsis": "The hero begins the journey home, but faces new dangers.",
+          "scenes": [{ "title": "The Road Back", "synopsis": "The hero must deal with the consequences of the ordeal." }]
+        },
+        {
+          "title": "Resurrection",
+          "synopsis": "A final test where the hero must use everything they've learned.",
+          "scenes": [{ "title": "Resurrection", "synopsis": "The climactic battle or challenge. The hero is transformed." }]
+        },
+        {
+          "title": "Return with the Elixir",
+          "synopsis": "The hero returns home changed, bringing benefit to the ordinary world.",
+          "scenes": [{ "title": "Return with the Elixir", "synopsis": "The hero shares what they've gained. The world is renewed." }]
+        }
+      ]
+    }
+  ]
+}
