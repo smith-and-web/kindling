@@ -299,6 +299,7 @@
                 onmouseleave={() => (hoveredProjectId = null)}
               >
                 <button
+                  data-testid="project-card"
                   onclick={() => openProject(project)}
                   class="flex-1 flex items-center justify-between p-3 cursor-pointer text-left"
                 >

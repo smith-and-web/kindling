@@ -250,7 +250,8 @@ describe("Delete Chapters and Scenes (#16)", () => {
       // reload from the database (not from the source file).
       const startScreen = await $('[data-testid="recent-projects"]');
       if (await startScreen.isExisting()) {
-        const firstProject = await startScreen.$("button");
+        const firstProject = await $('[data-testid="project-card"]');
+        await firstProject.waitForExist({ timeout: 5000 });
         await firstProject.click();
         await browser.waitUntil(
           async () => {
