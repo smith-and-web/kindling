@@ -41,13 +41,15 @@ async function closeAllDialogs() {
         // If click fails, try pressing Escape
         await browser.keys("Escape");
       }
-      await browser.waitUntil(
-        async () => {
-          const d = await $('[data-testid="sync-preview-dialog"]');
-          return !(await d.isExisting());
-        },
-        { timeout: 3000 }
-      ).catch(() => {});
+      await browser
+        .waitUntil(
+          async () => {
+            const d = await $('[data-testid="sync-preview-dialog"]');
+            return !(await d.isExisting());
+          },
+          { timeout: 3000 }
+        )
+        .catch(() => {});
     }
   }
 
@@ -61,10 +63,9 @@ async function closeAllDialogs() {
       } catch {
         await browser.keys("Escape");
       }
-      await browser.waitUntil(
-        async () => !(await summaryDialog.isExisting()),
-        { timeout: 3000 }
-      ).catch(() => {});
+      await browser
+        .waitUntil(async () => !(await summaryDialog.isExisting()), { timeout: 3000 })
+        .catch(() => {});
     }
   }
 
