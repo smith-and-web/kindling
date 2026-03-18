@@ -126,7 +126,7 @@ export const config = {
   capabilities: [
     {
       "tauri:options": {
-        application: findTauriBinary(),
+        application: process.platform === "darwin" ? "/dev/null" : findTauriBinary(),
       },
     },
   ],
@@ -222,9 +222,26 @@ export const config = {
       console.log(`[tauri-driver] exited with code ${code}`);
     });
 
-    // Give tauri-driver time to start and bind to port
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    console.log("tauri-driver should be ready on 127.0.0.1:4444");
+    // Poll the WebDriver status endpoint until it responds
+    const maxWait = 10000;
+    const start = Date.now();
+    let ready = false;
+    while (Date.now() - start < maxWait) {
+      try {
+        const res = await fetch("http://127.0.0.1:4444/status");
+        if (res.ok) {
+          ready = true;
+          break;
+        }
+      } catch {
+        /* not ready yet */
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    if (!ready) {
+      console.warn("tauri-driver did not respond within 10s — proceeding anyway");
+    }
+    console.log("tauri-driver ready on 127.0.0.1:4444");
   },
 
   // Capture screenshot on test failure

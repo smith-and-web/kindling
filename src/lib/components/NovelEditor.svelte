@@ -333,7 +333,7 @@
       <!-- Save status and word count -->
       <div class="toolbar-spacer"></div>
       {#if saveStatus === "saving"}
-        <div class="save-status saving">
+        <div class="save-status saving" data-testid="save-indicator">
           <Loader2 class="w-3.5 h-3.5 animate-spin" />
           <span>Saving...</span>
         </div>
