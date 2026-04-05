@@ -106,8 +106,10 @@
   let sceneReferenceLoading = $state(false);
   let sceneReferenceError = $state<string | null>(null);
   let sceneReferenceRequestId = 0;
+  let sceneTagsRequestId = 0;
 
   // Discovery notes state
+  let discoveryNotesRequestId = 0;
   let discoveryNotesVisible = $state(false);
   let discoveryNotes = $state<DiscoveryNote[]>([]);
   let discoveryNotesLoading = $state(false);
@@ -152,6 +154,7 @@
   }
 
   async function loadSceneTags(sceneId: string) {
+    const requestId = ++sceneTagsRequestId;
     const projectId = currentProject.value?.id;
     if (!projectId) return;
     try {
@@ -159,9 +162,11 @@
         invoke<Tag[]>("get_tags", { projectId }),
         invoke<Tag[]>("get_entity_tags", { entityType: "scene", entityId: sceneId }),
       ]);
+      if (requestId !== sceneTagsRequestId) return;
       allProjectTags = tags;
       sceneTagIds = entityTags.map((t) => t.id);
     } catch (e) {
+      if (requestId !== sceneTagsRequestId) return;
       console.error("Failed to load scene tags:", e);
     }
   }
@@ -338,14 +343,20 @@
   });
 
   async function loadDiscoveryNotes(sceneId: string) {
+    const requestId = ++discoveryNotesRequestId;
     discoveryNotesLoading = true;
     try {
-      discoveryNotes = await invoke<DiscoveryNote[]>("get_discovery_notes", { sceneId });
+      const notes = await invoke<DiscoveryNote[]>("get_discovery_notes", { sceneId });
+      if (requestId !== discoveryNotesRequestId) return;
+      discoveryNotes = notes;
     } catch (e) {
+      if (requestId !== discoveryNotesRequestId) return;
       console.error("Failed to load discovery notes:", e);
       discoveryNotes = [];
     } finally {
-      discoveryNotesLoading = false;
+      if (requestId === discoveryNotesRequestId) {
+        discoveryNotesLoading = false;
+      }
     }
   }
 

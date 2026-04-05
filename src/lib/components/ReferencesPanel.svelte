@@ -53,6 +53,8 @@
   let sceneReferenceLoading = $state(false);
   let sceneReferenceError = $state<string | null>(null);
   let sceneReferenceRequestId = 0;
+  let loadReferencesRequestId = 0;
+  let suggestionsRequestId = 0;
   let showReferenceTypeSettings = $state(false);
   let referenceTypeSelection = $state<ReferenceTypeId[]>([]);
   let referenceTypeSaving = $state(false);
@@ -109,6 +111,7 @@
   let iconTextClass = $derived(activeTypeOption?.accentClass ?? "text-accent");
 
   async function loadReferences() {
+    const requestId = ++loadReferencesRequestId;
     const project = currentProject.value;
     if (!project) return;
 
@@ -140,6 +143,8 @@
           return [type, items] as const;
         })
       );
+
+      if (requestId !== loadReferencesRequestId) return;
 
       const next: Record<ReferenceTypeId, ReferenceItem[]> = {
         ...(referencesByType as Record<ReferenceTypeId, ReferenceItem[]>),
@@ -220,9 +225,12 @@
         entityTagIds = {};
       }
     } catch (e) {
+      if (requestId !== loadReferencesRequestId) return;
       console.error("Failed to load references:", e);
     } finally {
-      loading = false;
+      if (requestId === loadReferencesRequestId) {
+        loading = false;
+      }
     }
   }
 
@@ -308,14 +316,20 @@
   }
 
   async function loadSuggestions(sceneId: string) {
+    const requestId = ++suggestionsRequestId;
     suggestionsLoading = true;
     try {
-      suggestions = await invoke<ReferenceSuggestion[]>("detect_scene_references", { sceneId });
+      const result = await invoke<ReferenceSuggestion[]>("detect_scene_references", { sceneId });
+      if (requestId !== suggestionsRequestId) return;
+      suggestions = result;
     } catch (e) {
+      if (requestId !== suggestionsRequestId) return;
       console.error("Failed to detect references:", e);
       suggestions = [];
     } finally {
-      suggestionsLoading = false;
+      if (requestId === suggestionsRequestId) {
+        suggestionsLoading = false;
+      }
     }
   }
 
@@ -790,8 +804,23 @@
       const sceneId = currentProject.currentScene?.id;
       if (sceneId) loadSuggestions(sceneId);
     };
+    const allHandler = async () => {
+      const projectId = currentProject.value?.id;
+      if (!projectId) return;
+      try {
+        await invoke("detect_all_references", { projectId });
+        const sceneId = currentProject.currentScene?.id;
+        if (sceneId) loadSuggestions(sceneId);
+      } catch (e) {
+        console.error("Failed to detect all references:", e);
+      }
+    };
     window.addEventListener("kindling:detectReferences", handler);
-    return () => window.removeEventListener("kindling:detectReferences", handler);
+    window.addEventListener("kindling:detectAllReferences", allHandler);
+    return () => {
+      window.removeEventListener("kindling:detectReferences", handler);
+      window.removeEventListener("kindling:detectAllReferences", allHandler);
+    };
   });
 </script>
 
