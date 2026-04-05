@@ -172,6 +172,8 @@
         showTimeDropdown = !showTimeDropdown;
       }}
       {disabled}
+      aria-expanded={showTimeDropdown}
+      aria-haspopup="listbox"
       class="flex items-center gap-1.5 px-3 py-2 text-sm bg-bg-card text-text-primary border border-bg-card rounded-lg hover:border-accent/50 transition-colors disabled:opacity-60"
     >
       <span class="uppercase">{timeOfDay}</span>
@@ -204,4 +206,7 @@
   </div>
 </div>
 
-<svelte:window onclick={() => (showTimeDropdown = false)} />
+<svelte:window
+  onclick={() => (showTimeDropdown = false)}
+  onkeydown={(e) => { if (e.key === "Escape") showTimeDropdown = false; }}
+/>
