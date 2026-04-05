@@ -111,6 +111,8 @@ pub async fn apply_template(
     if clear_existing.unwrap_or(false) {
         let pid = uuid.to_string();
         let scene_sub = "SELECT id FROM scenes WHERE chapter_id IN (SELECT id FROM chapters WHERE project_id = ?1)";
+        // NOTE: keep this list in sync with schema.rs — if a new scene-child
+        // table is added, it must be included here to avoid orphaned rows.
         for table in &[
             "beats",
             "scene_character_refs",
@@ -208,6 +210,7 @@ pub async fn apply_template(
     }
 
     tx.commit().map_err(|e| e.to_string())?;
+    db::update_project_modified(&conn, &uuid).map_err(|e| e.to_string())?;
     Ok(())
 }
 
