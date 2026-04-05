@@ -172,7 +172,7 @@
     <div class="max-w-2xl w-full">
       <!-- Progress indicator -->
       <div class="flex justify-center gap-2 mb-8">
-        {#each STEP_ORDER as step, i (step)}
+        {#each STEP_ORDER as step, i}
           <button
             onclick={() => ui.goToStep(step)}
             class="w-2 h-2 rounded-full transition-all {i === ui.currentStepIndex
