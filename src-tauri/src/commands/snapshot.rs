@@ -385,9 +385,16 @@ fn restore_create_new(
     db::insert_project(&tx, &new_project).map_err(|e| e.to_string())?;
 
     // Insert chapters with remapped IDs
+    let map_id = |old: &Uuid| -> Result<Uuid, String> {
+        id_map
+            .get(old)
+            .copied()
+            .ok_or_else(|| format!("Missing ID mapping for {old}"))
+    };
+
     for chapter in &data.chapters {
         let new_chapter = Chapter {
-            id: *id_map.get(&chapter.id).unwrap(),
+            id: map_id(&chapter.id)?,
             project_id: new_project_id,
             title: chapter.title.clone(),
             position: chapter.position,
@@ -404,8 +411,8 @@ fn restore_create_new(
     // Insert scenes with remapped IDs
     for scene in &data.scenes {
         let new_scene = Scene {
-            id: *id_map.get(&scene.id).unwrap(),
-            chapter_id: *id_map.get(&scene.chapter_id).unwrap(),
+            id: map_id(&scene.id)?,
+            chapter_id: map_id(&scene.chapter_id)?,
             title: scene.title.clone(),
             synopsis: scene.synopsis.clone(),
             prose: scene.prose.clone(),
@@ -424,8 +431,8 @@ fn restore_create_new(
     // Insert beats with remapped IDs
     for beat in &data.beats {
         let new_beat = Beat {
-            id: *id_map.get(&beat.id).unwrap(),
-            scene_id: *id_map.get(&beat.scene_id).unwrap(),
+            id: map_id(&beat.id)?,
+            scene_id: map_id(&beat.scene_id)?,
             content: beat.content.clone(),
             prose: beat.prose.clone(),
             position: beat.position,
@@ -437,7 +444,7 @@ fn restore_create_new(
     // Insert characters with remapped IDs
     for character in &data.characters {
         let new_character = Character {
-            id: *id_map.get(&character.id).unwrap(),
+            id: map_id(&character.id)?,
             project_id: new_project_id,
             name: character.name.clone(),
             description: character.description.clone(),
@@ -450,7 +457,7 @@ fn restore_create_new(
     // Insert locations with remapped IDs
     for location in &data.locations {
         let new_location = Location {
-            id: *id_map.get(&location.id).unwrap(),
+            id: map_id(&location.id)?,
             project_id: new_project_id,
             name: location.name.clone(),
             description: location.description.clone(),
@@ -463,7 +470,7 @@ fn restore_create_new(
     // Insert reference items with remapped IDs
     for item in &data.reference_items {
         let new_item = ReferenceItem {
-            id: *id_map.get(&item.id).unwrap(),
+            id: map_id(&item.id)?,
             project_id: new_project_id,
             reference_type: item.reference_type.clone(),
             name: item.name.clone(),
@@ -476,37 +483,37 @@ fn restore_create_new(
 
     // Insert scene-character references with remapped IDs
     for r in &data.scene_character_refs {
-        let new_scene_id = id_map.get(&r.scene_id).unwrap();
-        let new_character_id = id_map.get(&r.character_id).unwrap();
-        db::add_scene_character_ref(&tx, new_scene_id, new_character_id)
+        let new_scene_id = map_id(&r.scene_id)?;
+        let new_character_id = map_id(&r.character_id)?;
+        db::add_scene_character_ref(&tx, &new_scene_id, &new_character_id)
             .map_err(|e| e.to_string())?;
     }
 
     // Insert scene-location references with remapped IDs
     for r in &data.scene_location_refs {
-        let new_scene_id = id_map.get(&r.scene_id).unwrap();
-        let new_location_id = id_map.get(&r.location_id).unwrap();
-        db::add_scene_location_ref(&tx, new_scene_id, new_location_id)
+        let new_scene_id = map_id(&r.scene_id)?;
+        let new_location_id = map_id(&r.location_id)?;
+        db::add_scene_location_ref(&tx, &new_scene_id, &new_location_id)
             .map_err(|e| e.to_string())?;
     }
 
     // Insert scene-reference-item references with remapped IDs
     for r in &data.scene_reference_item_refs {
-        let new_scene_id = id_map.get(&r.scene_id).unwrap();
-        let new_reference_item_id = id_map.get(&r.reference_item_id).unwrap();
-        db::add_scene_reference_item_ref(&tx, new_scene_id, new_reference_item_id)
+        let new_scene_id = map_id(&r.scene_id)?;
+        let new_reference_item_id = map_id(&r.reference_item_id)?;
+        db::add_scene_reference_item_ref(&tx, &new_scene_id, &new_reference_item_id)
             .map_err(|e| e.to_string())?;
     }
 
     // Insert scene reference state entries with remapped IDs
     for state in &data.scene_reference_states {
-        let new_scene_id = id_map.get(&state.scene_id).unwrap();
+        let new_scene_id = map_id(&state.scene_id)?;
         let new_reference_id = match id_map.get(&state.reference_id) {
             Some(id) => id,
             None => continue,
         };
         let new_state = SceneReferenceState {
-            scene_id: *new_scene_id,
+            scene_id: new_scene_id,
             reference_type: state.reference_type.clone(),
             reference_id: *new_reference_id,
             position: state.position,
@@ -517,10 +524,10 @@ fn restore_create_new(
 
     // Insert discovery notes with remapped IDs
     for note in &data.discovery_notes {
-        let new_scene_id = id_map.get(&note.scene_id).unwrap();
+        let new_scene_id = map_id(&note.scene_id)?;
         let new_note = DiscoveryNote {
-            id: *id_map.get(&note.id).unwrap(),
-            scene_id: *new_scene_id,
+            id: map_id(&note.id)?,
+            scene_id: new_scene_id,
             content: note.content.clone(),
             tags: note.tags.clone(),
             position: note.position,
