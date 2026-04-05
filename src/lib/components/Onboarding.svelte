@@ -13,8 +13,10 @@
     Loader2,
     Kanban,
     BookOpen,
-    MapPin,
+    CircleDot,
+    FilePlus,
     PenTool,
+    Scroll,
     User,
     Users,
     Zap,
@@ -31,7 +33,7 @@
   let { onImportComplete }: Props = $props();
 
   // Guided import wizard state (within import step)
-  type GuidedFormat = "plottr" | "markdown" | "ywriter" | "longform";
+  type GuidedFormat = "plottr" | "markdown" | "ywriter" | "longform" | "scrivener";
   let guidedPreview = $state<ImportPreview | null>(null);
   let guidedPath = $state<string | null>(null);
   let guidedFormat = $state<GuidedFormat | null>(null);
@@ -70,6 +72,7 @@
     markdown: { name: "Markdown", extensions: ["md", "markdown"] },
     ywriter: { name: "yWriter 7", extensions: ["yw7"] },
     longform: { name: "Longform Index", extensions: ["md", "markdown"] },
+    scrivener: { name: "Scrivener 3", extensions: ["scriv"], directory: true },
   };
 
   async function startGuidedImport(format: GuidedFormat) {
@@ -132,6 +135,9 @@
           break;
         case "longform":
           project = await invoke<Project>("import_longform", { path });
+          break;
+        case "scrivener":
+          project = await invoke<Project>("import_scrivener", { path });
           break;
       }
       currentProject.setProject(project);
@@ -291,7 +297,7 @@
                     <div
                       class="flex items-center gap-2 p-2 rounded bg-accent/10 border border-accent/30"
                     >
-                      <FileText class="w-4 h-4 text-accent" />
+                      <CircleDot class="w-3 h-3 text-accent" />
                       <span class="text-text-primary">Opening Scene</span>
                     </div>
                     <!-- Label -->
@@ -307,7 +313,7 @@
 
                   <div class="relative">
                     <div class="flex items-center gap-2 p-2 rounded hover:bg-bg-panel">
-                      <FileText class="w-4 h-4 text-text-secondary" />
+                      <CircleDot class="w-3 h-3 text-text-secondary" />
                       <span class="text-text-secondary">The Discovery</span>
                     </div>
                     <!-- Label -->
@@ -344,6 +350,24 @@
                   <span
                     >The <strong class="text-text-primary">highlighted scene</strong> is your current
                     working scene</span
+                  >
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-accent mt-0.5">•</span>
+                  <span
+                    >Imported and template projects may include <strong class="text-text-primary"
+                      >Parts</strong
+                    > (Acts) as collapsible groups above chapters</span
+                  >
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-accent mt-0.5">•</span>
+                  <span
+                    >Screenplay projects use <strong class="text-text-primary"
+                      >Acts → Sequences → Scenes</strong
+                    >
+                    instead of Chapters → Scenes, with
+                    <strong class="text-text-primary">page count</strong> estimates alongside each act</span
                   >
                 </li>
               </ul>
@@ -462,6 +486,26 @@
                   <span class="text-accent mt-0.5">•</span>
                   <span>Use beats as your writing prompts to draft each section</span>
                 </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-accent mt-0.5">•</span>
+                  <span
+                    >Switch between <strong class="text-text-primary">Beat view</strong>
+                    (outline-guided) and
+                    <strong class="text-text-primary">Page view</strong> (free-form writing) using the
+                    toggle above</span
+                  >
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-accent mt-0.5">•</span>
+                  <span
+                    >In screenplays, scene titles are <strong class="text-text-primary"
+                      >sluglines</strong
+                    >
+                    (e.g.,
+                    <code class="text-xs bg-bg-card px-1 py-0.5 rounded">INT. CASTLE - NIGHT</code
+                    >). Kindling auto-suggests locations from your reference panel</span
+                  >
+                </li>
               </ul>
             </div>
 
@@ -549,7 +593,7 @@
                     <div
                       class="w-10 h-10 rounded-full bg-spark-gold/20 flex items-center justify-center"
                     >
-                      <MapPin class="w-5 h-5 text-spark-gold" />
+                      <User class="w-5 h-5 text-spark-gold" />
                     </div>
                     <div>
                       <span class="text-text-primary font-medium">Marcus</span>
@@ -618,14 +662,15 @@
                 <li class="flex items-start gap-2">
                   <span class="text-accent mt-0.5">•</span>
                   <span
-                    ><strong class="text-text-primary">Collapse All</strong> closes all expanded character/location
-                    cards</span
+                    >Use the <strong class="text-text-primary">+</strong> button to search and link references
+                    to a scene</span
                   >
                 </li>
                 <li class="flex items-start gap-2">
                   <span class="text-accent mt-0.5">•</span>
                   <span
-                    ><strong class="text-text-primary">Sort A-Z</strong> alphabetizes the list</span
+                    >Kindling can <strong class="text-text-primary">auto-detect</strong> character and
+                    location mentions in your prose — look for ⚡ suggestions</span
                   >
                 </li>
                 <li class="flex items-start gap-2">
@@ -647,7 +692,10 @@
                 Back
               </button>
               <button
-                onclick={() => ui.nextStep()}
+                onclick={() => {
+                  localStorage.setItem("kindling:onboardingCompleted", "true");
+                  ui.nextStep();
+                }}
                 class="py-2 px-4 bg-accent hover:bg-flame-orange text-white font-medium rounded-lg transition-colors flex items-center gap-1"
               >
                 Start Importing
@@ -755,50 +803,71 @@
                 </p>
               </div>
 
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
                 <button
                   onclick={trySampleProject}
-                  class="flex flex-col items-center p-5 bg-accent/10 border-2 border-accent/30 rounded-lg hover:bg-accent/20 transition-colors cursor-pointer"
+                  class="flex flex-col items-center p-4 bg-accent/10 border-2 border-accent/30 rounded-lg hover:bg-accent/20 transition-colors cursor-pointer"
                 >
-                  <BookOpen class="w-12 h-12 text-accent mb-3" />
-                  <span class="text-text-primary font-medium">Try Sample</span>
-                  <span class="text-text-secondary text-sm">Explore without importing</span>
+                  <BookOpen class="w-10 h-10 text-accent mb-2" />
+                  <span class="text-text-primary font-medium text-sm">Try Sample</span>
+                  <span class="text-text-secondary text-xs">Explore first</span>
                 </button>
 
                 <button
                   onclick={() => startGuidedImport("plottr")}
-                  class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
+                  class="flex flex-col items-center p-4 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
                 >
-                  <Kanban class="w-12 h-12 text-accent mb-3" />
-                  <span class="text-text-primary font-medium">Plottr</span>
-                  <span class="text-text-secondary text-sm">.pltr</span>
+                  <Kanban class="w-10 h-10 text-accent mb-2" />
+                  <span class="text-text-primary font-medium text-sm">Plottr</span>
+                  <span class="text-text-secondary text-xs">.pltr</span>
+                </button>
+
+                <button
+                  onclick={() => startGuidedImport("scrivener")}
+                  class="flex flex-col items-center p-4 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
+                >
+                  <Scroll class="w-10 h-10 text-accent mb-2" />
+                  <span class="text-text-primary font-medium text-sm">Scrivener</span>
+                  <span class="text-text-secondary text-xs">.scriv</span>
                 </button>
 
                 <button
                   onclick={() => startGuidedImport("markdown")}
-                  class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
+                  class="flex flex-col items-center p-4 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
                 >
-                  <FileText class="w-12 h-12 text-accent mb-3" />
-                  <span class="text-text-primary font-medium">Markdown</span>
-                  <span class="text-text-secondary text-sm">.md file</span>
+                  <FileText class="w-10 h-10 text-accent mb-2" />
+                  <span class="text-text-primary font-medium text-sm">Markdown</span>
+                  <span class="text-text-secondary text-xs">.md file</span>
                 </button>
 
                 <button
                   onclick={() => startGuidedImport("longform")}
-                  class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
+                  class="flex flex-col items-center p-4 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
                 >
-                  <BookOpen class="w-12 h-12 text-accent mb-3" />
-                  <span class="text-text-primary font-medium">Longform</span>
-                  <span class="text-text-secondary text-sm">Index file</span>
+                  <BookOpen class="w-10 h-10 text-accent mb-2" />
+                  <span class="text-text-primary font-medium text-sm">Longform</span>
+                  <span class="text-text-secondary text-xs">Index file</span>
                 </button>
 
                 <button
                   onclick={() => startGuidedImport("ywriter")}
-                  class="flex flex-col items-center p-5 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
+                  class="flex flex-col items-center p-4 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
                 >
-                  <PenTool class="w-12 h-12 text-accent mb-3" />
-                  <span class="text-text-primary font-medium">yWriter</span>
-                  <span class="text-text-secondary text-sm">.yw7</span>
+                  <PenTool class="w-10 h-10 text-accent mb-2" />
+                  <span class="text-text-primary font-medium text-sm">yWriter</span>
+                  <span class="text-text-secondary text-xs">.yw7</span>
+                </button>
+              </div>
+
+              <div class="text-center mb-4">
+                <button
+                  onclick={skipOnboarding}
+                  class="inline-flex items-center gap-2 px-4 py-2 bg-bg-card rounded-lg hover:bg-beat-header transition-colors border border-transparent hover:border-accent/30"
+                >
+                  <FilePlus class="w-4 h-4 text-accent" />
+                  <span class="text-text-primary text-sm font-medium"
+                    >Start a new project from scratch</span
+                  >
                 </button>
               </div>
 

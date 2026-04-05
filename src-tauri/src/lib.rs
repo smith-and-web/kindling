@@ -30,11 +30,21 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_process::init());
+
+    // MCP plugin for QA automation — only in dev builds
+    #[cfg(debug_assertions)]
+    let builder = builder.plugin(tauri_plugin_mcp::init_with_config(
+        tauri_plugin_mcp::PluginConfig::new("Kindling".to_string())
+            .start_socket_server(true)
+            .socket_path("/tmp/kindling-mcp.sock".into()),
+    ));
+
+    builder
         .setup(|app| {
             // Get the app data directory
             let app_data_dir = app
@@ -91,6 +101,7 @@ pub fn run() {
             commands::delete_beat,
             commands::reorder_beats,
             commands::split_beat,
+            commands::rename_beat,
             commands::merge_beats,
             commands::get_discovery_notes,
             commands::create_discovery_note,

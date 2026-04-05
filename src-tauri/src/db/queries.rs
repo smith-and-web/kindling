@@ -369,6 +369,35 @@ pub fn switch_scene_editor_mode(conn: &Connection, scene_id: &Uuid, mode: &str) 
                 params![page_prose, scene_id.to_string()],
             )?;
         }
+    } else if mode == "beat" {
+        let scene =
+            get_scene_by_id(conn, scene_id)?.ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)?;
+        if let Some(page_prose) = scene.prose.as_deref().filter(|p| !p.is_empty()) {
+            let beats = get_beats(conn, scene_id)?;
+            if !beats.is_empty() {
+                let segments: Vec<&str> = page_prose.split("<hr>").collect();
+                for (i, beat) in beats.iter().enumerate() {
+                    let new_prose = if i < segments.len() {
+                        let trimmed = segments[i].trim();
+                        if i == beats.len() - 1 && segments.len() > beats.len() {
+                            // Append overflow segments to the last beat
+                            let overflow = segments[i..].join("<hr>");
+                            Some(overflow)
+                        } else if trimmed.is_empty() {
+                            None
+                        } else {
+                            Some(trimmed.to_string())
+                        }
+                    } else {
+                        None
+                    };
+                    conn.execute(
+                        "UPDATE beats SET prose = ?1 WHERE id = ?2",
+                        params![new_prose, beat.id.to_string()],
+                    )?;
+                }
+            }
+        }
     }
 
     conn.execute(

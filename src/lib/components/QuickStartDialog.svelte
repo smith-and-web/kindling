@@ -87,6 +87,12 @@
               ><strong class="text-text-primary">Longform</strong> — Obsidian vault or index file</span
             >
           </li>
+          <li class="flex items-start gap-2">
+            <FileText class="w-4 h-4 text-accent shrink-0 mt-0.5" />
+            <span
+              ><strong class="text-text-primary">Scrivener 3</strong> — .scriv project bundles</span
+            >
+          </li>
         </ul>
       </section>
 

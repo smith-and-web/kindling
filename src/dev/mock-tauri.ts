@@ -64,6 +64,15 @@ function getArg<T>(args: Record<string, unknown>, ...keys: string[]): T | undefi
   return undefined;
 }
 
+// Stubs for @tauri-apps/api/core exports consumed by plugins (e.g. updater).
+// Only used when useMocks is enabled in vite.config.ts for browser-only dev.
+export class Resource {
+  close() {}
+}
+export class Channel<T = unknown> {
+  onmessage: ((msg: T) => void) | undefined;
+}
+
 export async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
   const projectId = getArg<string>(args, "projectId", "project_id");
   const chapterId = getArg<string>(args, "chapterId", "chapter_id");
@@ -310,6 +319,14 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         .forEach((b) => b.position++);
       beats.push(newBeat);
       return newBeat as T;
+    }
+
+    case "rename_beat": {
+      if (!beatId) throw new Error("Missing beatId");
+      const content = getArg<string>(args, "content");
+      const b = beats.find((x) => x.id === beatId);
+      if (b && content) b.content = content;
+      return undefined as T;
     }
 
     case "merge_beats": {

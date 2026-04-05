@@ -873,6 +873,34 @@ fn find_paragraph_offset(html: &str, paragraph_index: u32) -> Option<usize> {
     None
 }
 
+fn generate_beat_title_from_prose(prose: &str) -> String {
+    let plain: String = {
+        let mut out = String::with_capacity(prose.len());
+        let mut in_tag = false;
+        for ch in prose.chars() {
+            match ch {
+                '<' => in_tag = true,
+                '>' => {
+                    in_tag = false;
+                    out.push(' ');
+                }
+                _ if !in_tag => out.push(ch),
+                _ => {}
+            }
+        }
+        out
+    };
+    let words: Vec<&str> = plain.split_whitespace().take(6).collect();
+    if words.is_empty() {
+        return String::new();
+    }
+    let mut title = words.join(" ");
+    if plain.split_whitespace().count() > 6 {
+        title.push('…');
+    }
+    title
+}
+
 #[tauri::command]
 pub async fn split_beat(
     beat_id: String,
@@ -921,10 +949,12 @@ pub async fn split_beat(
     let new_position = beat.position + 1;
     db::shift_beat_positions(&conn, &beat.scene_id, new_position).map_err(|e| e.to_string())?;
 
+    let auto_title = generate_beat_title_from_prose(prose_after);
+
     let new_beat = Beat {
         id: Uuid::new_v4(),
         scene_id: beat.scene_id,
-        content: String::new(),
+        content: auto_title,
         prose: Some(prose_after.to_string()),
         position: new_position,
         source_id: None,
@@ -938,6 +968,30 @@ pub async fn split_beat(
     }
 
     Ok(new_beat)
+}
+
+#[tauri::command]
+pub async fn rename_beat(
+    beat_id: String,
+    content: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let beat_uuid = Uuid::parse_str(&beat_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let beat = db::get_beat(&conn, &beat_uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or("Beat not found")?;
+
+    db::update_beat(&conn, &beat_uuid, &content, beat.position).map_err(|e| e.to_string())?;
+
+    if let Some(project_id) =
+        db::get_scene_project_id(&conn, &beat.scene_id).map_err(|e| e.to_string())?
+    {
+        let _ = db::update_project_modified(&conn, &project_id);
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

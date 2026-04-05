@@ -65,6 +65,7 @@
   );
 
   let beatViewRef: ReturnType<typeof BeatView> | undefined = $state();
+  let scrollContainerRef: HTMLDivElement | undefined = $state();
   let synopsisSaveTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Synopsis editing state
@@ -155,7 +156,7 @@
     if (!projectId) return;
     try {
       const [tags, entityTags] = await Promise.all([
-        invoke<Tag[]>("get_project_tags", { projectId }),
+        invoke<Tag[]>("get_tags", { projectId }),
         invoke<Tag[]>("get_entity_tags", { entityType: "scene", entityId: sceneId }),
       ]);
       allProjectTags = tags;
@@ -303,6 +304,7 @@
     const sceneId = currentProject.currentScene?.id ?? null;
     if (lastSceneId && sceneId !== lastSceneId) {
       beatViewRef?.flushOnSceneChange();
+      if (scrollContainerRef) scrollContainerRef.scrollTop = 0;
     }
     lastSceneId = sceneId;
   });
@@ -456,6 +458,11 @@
 
     switchingMode = true;
     try {
+      // Flush unsaved beat prose before leaving beat mode
+      if (scene.editor_mode === "beat") {
+        beatViewRef?.flushOnSceneChange();
+      }
+
       if (scene.editor_mode === "page" && pageProseSaveTimeout) {
         clearTimeout(pageProseSaveTimeout);
         pageProseSaveTimeout = null;
@@ -474,6 +481,11 @@
       if (targetMode === "page") {
         lastPageViewSceneId = updated.id;
         pageProseContent = updated.prose ?? "";
+      } else if (targetMode === "beat") {
+        const freshBeats = await invoke<Beat[]>("get_beats", {
+          sceneId: scene.id,
+        });
+        currentProject.setBeats(freshBeats);
       }
     } catch (e) {
       console.error("Failed to switch editor mode:", e);
@@ -548,7 +560,7 @@
 <div data-testid="scene-panel" class="flex-1 flex flex-col h-full overflow-hidden">
   {#if currentProject.currentScene}
     {@const scene = currentProject.currentScene}
-    <div class="flex-1 overflow-y-auto">
+    <div bind:this={scrollContainerRef} class="flex-1 overflow-y-auto">
       <div class="max-w-3xl mx-auto p-8">
         <!-- Scene Title -->
         <header class="mb-8">
@@ -1002,7 +1014,7 @@
                           type="button"
                           onclick={createDiscoveryNote}
                           disabled={!newDiscoveryNoteContent.trim() || creatingDiscoveryNote}
-                          class="px-3 py-1.5 rounded-md bg-accent text-accent-foreground text-sm font-medium disabled:opacity-50"
+                          class="px-3 py-1.5 rounded-md bg-accent text-white text-sm font-medium disabled:opacity-50"
                         >
                           {creatingDiscoveryNote ? "Adding…" : "Add"}
                         </button>
@@ -1033,7 +1045,7 @@
                             type="button"
                             onclick={() =>
                               updateDiscoveryNote(note.id, editingDiscoveryNoteContent)}
-                            class="px-3 py-1.5 rounded-md bg-accent text-accent-foreground text-sm font-medium"
+                            class="px-3 py-1.5 rounded-md bg-accent text-white text-sm font-medium"
                           >
                             Save
                           </button>
@@ -1147,7 +1159,8 @@
 {#if showSwitchToBeatConfirm}
   <ConfirmDialog
     title="Switch to Beat View"
-    message="Switching to Beat View will not split your page prose back into beats. Your prose will remain on the scene and you can edit individual beats separately. Continue?"
+    message="Any changes made in Page View will be synced back to the corresponding beats. Continue?"
+    confirmLabel="Switch"
     onConfirm={() => {
       showSwitchToBeatConfirm = false;
       doSwitchMode("beat");

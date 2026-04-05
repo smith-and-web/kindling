@@ -222,7 +222,7 @@
     const { from } = editor.state.selection;
     const resolved = editor.state.doc.resolve(from);
     if (resolved.depth < 1) return 0;
-    return resolved.index(1) as number;
+    return resolved.index(0) as number;
   }
 </script>
 
@@ -493,15 +493,21 @@
     cursor: text;
   }
 
-  /* Paragraph styles */
+  /* Paragraph styles — use ::before inline-block spacer for first-line
+     indent instead of text-indent, which renders incorrectly in WebKit
+     contenteditable under pre-wrap/break-spaces */
   :global(.novel-editor-content p) {
-    margin: 0;
-    text-indent: 1.5em;
+    margin: 0.25em 0 0 0;
   }
 
-  :global(.novel-editor-content p:first-child),
-  :global(.novel-editor-content p.is-editor-empty:first-child) {
-    text-indent: 0;
+  :global(.novel-editor-content p:first-child) {
+    margin-top: 0;
+  }
+
+  :global(.novel-editor-content p:not(:first-child))::before {
+    content: "";
+    display: inline-block;
+    width: 1.5em;
   }
 
   :global(.novel-editor-content p.is-editor-empty:first-child::before) {

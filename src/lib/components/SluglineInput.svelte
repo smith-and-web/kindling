@@ -50,9 +50,13 @@
       return { prefix: "INT" as const, location: "", timeOfDay: "DAY" };
     }
     const upper = trimmed.toUpperCase();
-    const isExt = upper.startsWith("EXT.");
-    const prefixVal: "INT" | "EXT" = isExt ? "EXT" : "INT";
-    const rest = trimmed.slice(prefixVal.length + 1).trim(); // +1 for the dot
+    const hasIntPrefix = upper.startsWith("INT.");
+    const hasExtPrefix = upper.startsWith("EXT.");
+    if (!hasIntPrefix && !hasExtPrefix) {
+      return { prefix: "INT" as const, location: trimmed, timeOfDay: "DAY" };
+    }
+    const prefixVal: "INT" | "EXT" = hasExtPrefix ? "EXT" : "INT";
+    const rest = trimmed.slice(prefixVal.length + 1).trim();
     const dashIdx = rest.indexOf(" - ");
     let loc: string;
     let time = "DAY";
@@ -163,7 +167,10 @@
   <div class="relative">
     <button
       type="button"
-      onclick={() => (showTimeDropdown = !showTimeDropdown)}
+      onclick={(e) => {
+        e.stopPropagation();
+        showTimeDropdown = !showTimeDropdown;
+      }}
       {disabled}
       class="flex items-center gap-1.5 px-3 py-2 text-sm bg-bg-card text-text-primary border border-bg-card rounded-lg hover:border-accent/50 transition-colors disabled:opacity-60"
     >

@@ -61,6 +61,7 @@
         await invoke("apply_template", {
           projectId: project.id,
           templateJson: JSON.stringify(selectedTemplate),
+          clearExisting: true,
         });
       }
 

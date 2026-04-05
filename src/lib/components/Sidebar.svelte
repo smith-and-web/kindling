@@ -499,6 +499,9 @@
       });
       if (requestId !== scenesRequestId || currentProject.currentChapter?.id !== chapterId) return;
       currentProject.setScenes(scenes);
+      if (scenes.length === 1 && currentProject.value?.project_type === "screenplay") {
+        selectScene(scenes[0]);
+      }
     } catch (e) {
       console.error("Failed to load scenes:", e);
     }

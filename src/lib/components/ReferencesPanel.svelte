@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { onMount } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import {
     ArrowDownAZ,
@@ -199,7 +200,7 @@
 
       // Load all project tags + per-entity tag assignments
       try {
-        allTags = await invoke<Tag[]>("get_project_tags", { projectId: project.id });
+        allTags = await invoke<Tag[]>("get_tags", { projectId: project.id });
         const tagMap: Record<string, string[]> = {};
         for (const id of allEntityIds) {
           const entityType =
@@ -782,6 +783,15 @@
     if (currentProject.value) {
       loadReferences();
     }
+  });
+
+  onMount(() => {
+    const handler = () => {
+      const sceneId = currentProject.currentScene?.id;
+      if (sceneId) loadSuggestions(sceneId);
+    };
+    window.addEventListener("kindling:detectReferences", handler);
+    return () => window.removeEventListener("kindling:detectReferences", handler);
   });
 </script>
 

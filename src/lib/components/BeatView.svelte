@@ -8,6 +8,7 @@
     GripVertical,
     MoreVertical,
     Trash2,
+    Pencil,
   } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { tick } from "svelte";
@@ -54,6 +55,8 @@
   let beatContextMenu: { beat: Beat; x: number; y: number } | null = $state(null);
   let deleteBeatDialog: Beat | null = $state(null);
   let deletingBeat = $state(false);
+  let editingBeatId: string | null = $state(null);
+  let editingBeatContent = $state("");
 
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   let pendingSaveBeatId: string | null = null;
@@ -93,6 +96,11 @@
   }
 
   export function handleEscape() {
+    if (editingBeatId) {
+      editingBeatId = null;
+      editingBeatContent = "";
+      return true;
+    }
     if (addingBeat) {
       addingBeat = false;
       newBeatContent = "";
@@ -110,12 +118,9 @@
         localSaveStatus = "idle";
         return;
       }
-      pendingProseUpdates.set(beatId, prose);
+      currentProject.updateBeatProse(beatId, prose);
+      pendingProseUpdates.delete(beatId);
       draftProse.delete(beatId);
-      if (ui.expandedBeatId !== beatId) {
-        currentProject.updateBeatProse(beatId, prose);
-        pendingProseUpdates.delete(beatId);
-      }
       setTimeout(() => {
         localSaveStatus = "idle";
       }, 1000);
@@ -195,6 +200,47 @@
     }
   }
 
+  function startRenamingBeat(beat: Beat) {
+    editingBeatId = beat.id;
+    editingBeatContent = beat.content;
+    tick().then(() => {
+      const input = document.querySelector<HTMLInputElement>(`[data-rename-beat="${beat.id}"]`);
+      input?.focus();
+      input?.select();
+    });
+  }
+
+  async function saveRenameBeat() {
+    if (!editingBeatId) return;
+    const content = editingBeatContent.trim();
+    if (!content) {
+      editingBeatId = null;
+      editingBeatContent = "";
+      return;
+    }
+    try {
+      await invoke("rename_beat", { beatId: editingBeatId, content });
+      const freshBeats = await invoke<Beat[]>("get_beats", {
+        sceneId: currentProject.currentScene!.id,
+      });
+      currentProject.setBeats(freshBeats);
+    } catch (e) {
+      console.error("Failed to rename beat:", e);
+    }
+    editingBeatId = null;
+    editingBeatContent = "";
+  }
+
+  function handleRenameKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      saveRenameBeat();
+    } else if (e.key === "Escape") {
+      editingBeatId = null;
+      editingBeatContent = "";
+    }
+  }
+
   function getBeatContextMenuItems(beat: Beat) {
     const beatIndex = beats.findIndex((b) => b.id === beat.id);
     const nextBeat = beatIndex >= 0 && beatIndex < beats.length - 1 ? beats[beatIndex + 1] : null;
@@ -205,6 +251,12 @@
       (novelEditorRef.getSplitBeforeParagraph() ?? 0) >= 1;
 
     return [
+      {
+        label: "Rename",
+        icon: Pencil,
+        action: () => startRenamingBeat(beat),
+        disabled: false,
+      },
       {
         label: "Split at cursor",
         icon: ChevronRight,
@@ -376,7 +428,10 @@
   }
 
   function stripHtml(html: string): string {
-    return html.replace(/<[^>]*>/g, "").trim();
+    return html
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   function getBeatWordCount(prose: string | null): number {
@@ -439,36 +494,62 @@
                 <GripVertical class="w-3.5 h-3.5" />
               </div>
             {/if}
-            <button
-              data-testid="beat-header"
-              onclick={() => toggleBeat(beat.id)}
-              class="flex-1 flex items-center gap-3 text-left min-w-0"
-            >
-              <span class="text-text-secondary shrink-0">
-                {#if isExpanded}
-                  <ChevronDown class="w-4 h-4" />
-                {:else}
-                  <ChevronRight class="w-4 h-4" />
-                {/if}
-              </span>
-              <span
-                class="w-6 h-6 rounded-full bg-accent text-white text-xs font-medium flex items-center justify-center shrink-0"
-              >
-                {index + 1}
-              </span>
-              <p class="text-text-primary text-sm font-medium flex-1 truncate">
-                {beat.content}
-              </p>
-              {#if beat.prose}
-                <span class="text-xs text-text-secondary shrink-0" title="Word count">
-                  {getBeatWordCount(beat.prose)}w
+            {#if editingBeatId === beat.id}
+              <div class="flex-1 flex items-center gap-3 min-w-0">
+                <span class="text-text-secondary shrink-0">
+                  {#if isExpanded}
+                    <ChevronDown class="w-4 h-4" />
+                  {:else}
+                    <ChevronRight class="w-4 h-4" />
+                  {/if}
                 </span>
-              {/if}
-            </button>
+                <span
+                  class="w-6 h-6 rounded-full bg-accent text-white text-xs font-medium flex items-center justify-center shrink-0"
+                >
+                  {index + 1}
+                </span>
+                <input
+                  data-rename-beat={beat.id}
+                  type="text"
+                  bind:value={editingBeatContent}
+                  onkeydown={handleRenameKeydown}
+                  onblur={saveRenameBeat}
+                  class="flex-1 min-w-0 bg-bg-card rounded px-2 py-0.5 text-text-primary text-sm font-medium focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+              </div>
+            {:else}
+              <button
+                data-testid="beat-header"
+                onclick={() => toggleBeat(beat.id)}
+                class="flex-1 flex items-center gap-3 text-left min-w-0"
+              >
+                <span class="text-text-secondary shrink-0">
+                  {#if isExpanded}
+                    <ChevronDown class="w-4 h-4" />
+                  {:else}
+                    <ChevronRight class="w-4 h-4" />
+                  {/if}
+                </span>
+                <span
+                  class="w-6 h-6 rounded-full bg-accent text-white text-xs font-medium flex items-center justify-center shrink-0"
+                >
+                  {index + 1}
+                </span>
+                <p class="text-text-primary text-sm font-medium flex-1 truncate">
+                  {beat.content}
+                </p>
+                {#if beat.prose || draftProse.get(beat.id)}
+                  <span class="text-xs text-text-secondary shrink-0" title="Word count">
+                    {getBeatWordCount(draftProse.get(beat.id) ?? beat.prose)}w
+                  </span>
+                {/if}
+              </button>
+            {/if}
             {#if !isLocked}
               <button
                 data-testid="beat-menu-button"
                 onclick={(e) => {
+                  e.stopPropagation();
                   beatContextMenu = { beat, x: e.clientX, y: e.clientY };
                 }}
                 class="p-1 text-text-secondary hover:text-text-primary transition-opacity shrink-0"
@@ -494,16 +575,35 @@
               />
             </div>
           {:else if beat.prose}
-            <div class="px-4 py-3 border-t border-bg-card">
-              <p
-                class="text-text-primary font-prose leading-relaxed whitespace-pre-wrap line-clamp-3"
-              >
+            <div
+              class="px-4 py-3 border-t border-bg-card cursor-pointer hover:bg-bg-card/50 transition-colors overflow-hidden"
+              style="max-height: 6.5rem;"
+              onclick={() => toggleBeat(beat.id)}
+              onkeydown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggleBeat(beat.id);
+                }
+              }}
+              role="button"
+              tabindex="0"
+            >
+              <p class="text-text-primary font-prose leading-relaxed line-clamp-3">
                 {stripHtml(beat.prose)}
               </p>
             </div>
           {/if}
         </article>
       {/each}
+      {#if !addingBeat && !isLocked}
+        <button
+          onclick={startAddingBeat}
+          class="w-full flex items-center justify-center gap-1.5 py-2 mt-2 text-text-secondary hover:text-text-primary text-sm transition-colors rounded-lg hover:bg-bg-card"
+        >
+          <Plus class="w-3.5 h-3.5" />
+          <span>Add Beat</span>
+        </button>
+      {/if}
     </div>
   {:else if !addingBeat && !isLocked}
     <button

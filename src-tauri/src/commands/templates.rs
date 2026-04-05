@@ -96,6 +96,7 @@ pub async fn get_user_templates(
 pub async fn apply_template(
     project_id: String,
     template_json: String,
+    clear_existing: Option<bool>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
@@ -103,16 +104,44 @@ pub async fn apply_template(
         serde_json::from_str(&template_json).map_err(|e| e.to_string())?;
 
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-
-    let existing_chapters = db::get_chapters(&conn, &uuid).map_err(|e| e.to_string())?;
-    let max_pos = existing_chapters
-        .iter()
-        .map(|c| c.position)
-        .max()
-        .unwrap_or(-1);
-    let mut next_pos = max_pos + 1;
-
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+
+    let mut next_pos = 0i32;
+
+    if clear_existing.unwrap_or(false) {
+        let pid = uuid.to_string();
+        let scene_sub = "SELECT id FROM scenes WHERE chapter_id IN (SELECT id FROM chapters WHERE project_id = ?1)";
+        for table in &[
+            "beats",
+            "scene_character_refs",
+            "scene_location_refs",
+            "scene_reference_item_refs",
+            "scene_reference_state",
+            "discovery_notes",
+            "dismissed_suggestions",
+        ] {
+            tx.execute(
+                &format!("DELETE FROM {table} WHERE scene_id IN ({scene_sub})"),
+                params![pid],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        tx.execute(
+            "DELETE FROM scenes WHERE chapter_id IN (SELECT id FROM chapters WHERE project_id = ?1)",
+            params![pid],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute("DELETE FROM chapters WHERE project_id = ?1", params![pid])
+            .map_err(|e| e.to_string())?;
+    } else {
+        let existing_chapters = db::get_chapters(&tx, &uuid).map_err(|e| e.to_string())?;
+        next_pos = existing_chapters
+            .iter()
+            .map(|c| c.position)
+            .max()
+            .unwrap_or(-1)
+            + 1;
+    }
 
     for part in &template.structure {
         let part_id = Uuid::new_v4();
