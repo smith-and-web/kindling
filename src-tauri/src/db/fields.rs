@@ -134,12 +134,14 @@ pub fn delete_field_definition(conn: &Connection, id: &Uuid) -> Result<()> {
 }
 
 pub fn reorder_field_definitions(conn: &Connection, ids: &[Uuid]) -> Result<()> {
+    let tx = conn.unchecked_transaction()?;
     for (i, id) in ids.iter().enumerate() {
-        conn.execute(
+        tx.execute(
             "UPDATE field_definitions SET position = ?2 WHERE id = ?1",
             params![id.to_string(), i as i32],
         )?;
     }
+    tx.commit()?;
     Ok(())
 }
 

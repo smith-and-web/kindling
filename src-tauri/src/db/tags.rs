@@ -90,12 +90,14 @@ pub fn delete_tag(conn: &Connection, id: &Uuid) -> Result<()> {
 }
 
 pub fn reorder_tags(conn: &Connection, ids: &[Uuid]) -> Result<()> {
+    let tx = conn.unchecked_transaction()?;
     for (i, id) in ids.iter().enumerate() {
-        conn.execute(
+        tx.execute(
             "UPDATE tags SET position = ?2 WHERE id = ?1",
             params![id.to_string(), i as i32],
         )?;
     }
+    tx.commit()?;
     Ok(())
 }
 

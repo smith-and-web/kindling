@@ -213,17 +213,15 @@ pub async fn duplicate_chapter(
 ) -> Result<Chapter, String> {
     let uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
-    // Get the original chapter
-    let original = db::get_chapter_by_id(&conn, &uuid)
+    let original = db::get_chapter_by_id(&tx, &uuid)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "Chapter not found".to_string())?;
 
-    // Get the next position
     let max_pos =
-        db::get_max_chapter_position(&conn, &original.project_id).map_err(|e| e.to_string())?;
+        db::get_max_chapter_position(&tx, &original.project_id).map_err(|e| e.to_string())?;
 
-    // Create new chapter with copy title
     let new_chapter = Chapter {
         id: Uuid::new_v4(),
         project_id: original.project_id,
@@ -237,10 +235,9 @@ pub async fn duplicate_chapter(
         planning_status: original.planning_status,
     };
 
-    db::insert_chapter(&conn, &new_chapter).map_err(|e| e.to_string())?;
+    db::insert_chapter(&tx, &new_chapter).map_err(|e| e.to_string())?;
 
-    // Copy all scenes from the original chapter
-    let scenes = db::get_scenes(&conn, &uuid).map_err(|e| e.to_string())?;
+    let scenes = db::get_scenes(&tx, &uuid).map_err(|e| e.to_string())?;
     for scene in scenes {
         let new_scene = Scene {
             id: Uuid::new_v4(),
@@ -257,10 +254,9 @@ pub async fn duplicate_chapter(
             planning_status: PlanningStatus::Fixed,
             editor_mode: scene.editor_mode,
         };
-        db::insert_scene(&conn, &new_scene).map_err(|e| e.to_string())?;
+        db::insert_scene(&tx, &new_scene).map_err(|e| e.to_string())?;
 
-        // Copy beats for this scene
-        let beats = db::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
+        let beats = db::get_beats(&tx, &scene.id).map_err(|e| e.to_string())?;
         for beat in beats {
             let new_beat = Beat {
                 id: Uuid::new_v4(),
@@ -270,11 +266,12 @@ pub async fn duplicate_chapter(
                 position: beat.position,
                 source_id: None,
             };
-            db::insert_beat(&conn, &new_beat).map_err(|e| e.to_string())?;
+            db::insert_beat(&tx, &new_beat).map_err(|e| e.to_string())?;
         }
     }
 
-    db::update_project_modified(&conn, &original.project_id).map_err(|e| e.to_string())?;
+    db::update_project_modified(&tx, &original.project_id).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
 
     Ok(new_chapter)
 }
@@ -599,17 +596,15 @@ pub async fn duplicate_scene(
 ) -> Result<Scene, String> {
     let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
-    // Get the original scene
-    let original = db::get_scene_by_id(&conn, &uuid)
+    let original = db::get_scene_by_id(&tx, &uuid)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "Scene not found".to_string())?;
 
-    // Get the next position
     let max_pos =
-        db::get_max_scene_position(&conn, &original.chapter_id).map_err(|e| e.to_string())?;
+        db::get_max_scene_position(&tx, &original.chapter_id).map_err(|e| e.to_string())?;
 
-    // Create new scene with copy title
     let new_scene = Scene {
         id: Uuid::new_v4(),
         chapter_id: original.chapter_id,
@@ -626,10 +621,9 @@ pub async fn duplicate_scene(
         editor_mode: original.editor_mode,
     };
 
-    db::insert_scene(&conn, &new_scene).map_err(|e| e.to_string())?;
+    db::insert_scene(&tx, &new_scene).map_err(|e| e.to_string())?;
 
-    // Copy beats from the original scene
-    let beats = db::get_beats(&conn, &uuid).map_err(|e| e.to_string())?;
+    let beats = db::get_beats(&tx, &uuid).map_err(|e| e.to_string())?;
     for beat in beats {
         let new_beat = Beat {
             id: Uuid::new_v4(),
@@ -639,15 +633,16 @@ pub async fn duplicate_scene(
             position: beat.position,
             source_id: None,
         };
-        db::insert_beat(&conn, &new_beat).map_err(|e| e.to_string())?;
+        db::insert_beat(&tx, &new_beat).map_err(|e| e.to_string())?;
     }
 
-    // Update project modified time
     if let Some(project_id) =
-        db::get_chapter_project_id(&conn, &original.chapter_id).map_err(|e| e.to_string())?
+        db::get_chapter_project_id(&tx, &original.chapter_id).map_err(|e| e.to_string())?
     {
-        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+        db::update_project_modified(&tx, &project_id).map_err(|e| e.to_string())?;
     }
+
+    tx.commit().map_err(|e| e.to_string())?;
 
     Ok(new_scene)
 }
@@ -785,9 +780,10 @@ pub async fn delete_beat(beat_id: String, state: State<'_, AppState>) -> Result<
         return Err("Cannot delete beats in a locked scene".to_string());
     }
 
-    // If beat has prose, merge into previous beat
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+
     if let Some(ref prose) = beat.prose {
-        let beats = db::get_beats(&conn, &beat.scene_id).map_err(|e| e.to_string())?;
+        let beats = db::get_beats(&tx, &beat.scene_id).map_err(|e| e.to_string())?;
         if let Some(prev_idx) = beats
             .iter()
             .position(|b| b.id == beat_uuid)
@@ -798,25 +794,26 @@ pub async fn delete_beat(beat_id: String, state: State<'_, AppState>) -> Result<
                 Some(p) => format!("{}<p></p>{}", p, prose),
                 None => prose.clone(),
             };
-            db::update_beat_prose(&conn, &prev.id, &merged).map_err(|e| e.to_string())?;
+            db::update_beat_prose(&tx, &prev.id, &merged).map_err(|e| e.to_string())?;
         }
     }
 
-    db::delete_beat(&conn, &beat_uuid).map_err(|e| e.to_string())?;
+    db::delete_beat(&tx, &beat_uuid).map_err(|e| e.to_string())?;
 
-    // Rebase positions of beats after the deleted one
-    let beats = db::get_beats(&conn, &beat.scene_id).map_err(|e| e.to_string())?;
+    let beats = db::get_beats(&tx, &beat.scene_id).map_err(|e| e.to_string())?;
     for (i, b) in beats.iter().enumerate() {
         if b.position != i as i32 {
-            db::update_beat_position(&conn, &b.id, i as i32).map_err(|e| e.to_string())?;
+            db::update_beat_position(&tx, &b.id, i as i32).map_err(|e| e.to_string())?;
         }
     }
 
     if let Some(project_id) =
-        db::get_scene_project_id(&conn, &beat.scene_id).map_err(|e| e.to_string())?
+        db::get_scene_project_id(&tx, &beat.scene_id).map_err(|e| e.to_string())?
     {
-        let _ = db::update_project_modified(&conn, &project_id);
+        db::update_project_modified(&tx, &project_id).map_err(|e| e.to_string())?;
     }
+
+    tx.commit().map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -944,10 +941,12 @@ pub async fn split_beat(
         return Err("Nothing to split off - split position is at end of content".to_string());
     }
 
-    db::update_beat_prose(&conn, &beat.id, prose_before.trim()).map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+
+    db::update_beat_prose(&tx, &beat.id, prose_before.trim()).map_err(|e| e.to_string())?;
 
     let new_position = beat.position + 1;
-    db::shift_beat_positions(&conn, &beat.scene_id, new_position).map_err(|e| e.to_string())?;
+    db::shift_beat_positions(&tx, &beat.scene_id, new_position).map_err(|e| e.to_string())?;
 
     let auto_title = generate_beat_title_from_prose(prose_after);
 
@@ -959,13 +958,15 @@ pub async fn split_beat(
         position: new_position,
         source_id: None,
     };
-    db::insert_beat(&conn, &new_beat).map_err(|e| e.to_string())?;
+    db::insert_beat(&tx, &new_beat).map_err(|e| e.to_string())?;
 
     if let Some(project_id) =
-        db::get_scene_project_id(&conn, &beat.scene_id).map_err(|e| e.to_string())?
+        db::get_scene_project_id(&tx, &beat.scene_id).map_err(|e| e.to_string())?
     {
-        let _ = db::update_project_modified(&conn, &project_id);
+        db::update_project_modified(&tx, &project_id).map_err(|e| e.to_string())?;
     }
+
+    tx.commit().map_err(|e| e.to_string())?;
 
     Ok(new_beat)
 }
@@ -1036,23 +1037,27 @@ pub async fn merge_beats(
         (None, None) => String::new(),
     };
 
-    db::update_beat(&conn, &first.id, &merged_content, first.position)
-        .map_err(|e| e.to_string())?;
-    db::update_beat_prose(&conn, &first.id, &merged_prose).map_err(|e| e.to_string())?;
-    db::delete_beat(&conn, &second.id).map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
-    let beats = db::get_beats(&conn, &first.scene_id).map_err(|e| e.to_string())?;
+    db::update_beat(&tx, &first.id, &merged_content, first.position)
+        .map_err(|e| e.to_string())?;
+    db::update_beat_prose(&tx, &first.id, &merged_prose).map_err(|e| e.to_string())?;
+    db::delete_beat(&tx, &second.id).map_err(|e| e.to_string())?;
+
+    let beats = db::get_beats(&tx, &first.scene_id).map_err(|e| e.to_string())?;
     for (i, b) in beats.iter().enumerate() {
         if b.position != i as i32 {
-            db::update_beat_position(&conn, &b.id, i as i32).map_err(|e| e.to_string())?;
+            db::update_beat_position(&tx, &b.id, i as i32).map_err(|e| e.to_string())?;
         }
     }
 
     if let Some(project_id) =
-        db::get_scene_project_id(&conn, &first.scene_id).map_err(|e| e.to_string())?
+        db::get_scene_project_id(&tx, &first.scene_id).map_err(|e| e.to_string())?
     {
-        let _ = db::update_project_modified(&conn, &project_id);
+        db::update_project_modified(&tx, &project_id).map_err(|e| e.to_string())?;
     }
+
+    tx.commit().map_err(|e| e.to_string())?;
 
     let mut result = first.clone();
     result.content = merged_content;
