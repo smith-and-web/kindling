@@ -521,6 +521,7 @@
               <button
                 data-testid="beat-header"
                 onclick={() => toggleBeat(beat.id)}
+                aria-expanded={isExpanded}
                 class="flex-1 flex items-center gap-3 text-left min-w-0"
               >
                 <span class="text-text-secondary shrink-0">
@@ -564,7 +565,7 @@
 
           <!-- Expanded Beat Content -->
           {#if isExpanded}
-            <div class="border-t border-bg-card relative" style="height: 50rem;">
+            <div class="border-t border-bg-card relative" style="min-height: 20rem; height: calc(100vh - 20rem); max-height: 50rem;">
               <NovelEditor
                 bind:this={novelEditorRef}
                 content={beat.prose || ""}
