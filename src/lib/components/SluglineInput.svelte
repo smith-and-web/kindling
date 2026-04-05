@@ -208,5 +208,7 @@
 
 <svelte:window
   onclick={() => (showTimeDropdown = false)}
-  onkeydown={(e) => { if (e.key === "Escape") showTimeDropdown = false; }}
+  onkeydown={(e) => {
+    if (e.key === "Escape") showTimeDropdown = false;
+  }}
 />

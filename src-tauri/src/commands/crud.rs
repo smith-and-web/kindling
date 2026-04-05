@@ -1027,8 +1027,7 @@ pub async fn merge_beats(
 
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
-    db::update_beat(&tx, &first.id, &merged_content, first.position)
-        .map_err(|e| e.to_string())?;
+    db::update_beat(&tx, &first.id, &merged_content, first.position).map_err(|e| e.to_string())?;
     db::update_beat_prose(&tx, &first.id, &merged_prose).map_err(|e| e.to_string())?;
     db::delete_beat(&tx, &second.id).map_err(|e| e.to_string())?;
 
@@ -1494,8 +1493,8 @@ pub async fn reclassify_references(
 
             match current_type.as_str() {
                 "characters" => {
-                    let character = current_character
-                    .ok_or_else(|| "Character not found".to_string())?;
+                    let character =
+                        current_character.ok_or_else(|| "Character not found".to_string())?;
                     match target_type.as_str() {
                         "locations" => {
                             let location = Location {
@@ -1536,8 +1535,8 @@ pub async fn reclassify_references(
                         .map_err(|e| e.to_string())?;
                 }
                 "locations" => {
-                    let location = current_location
-                    .ok_or_else(|| "Location not found".to_string())?;
+                    let location =
+                        current_location.ok_or_else(|| "Location not found".to_string())?;
                     match target_type.as_str() {
                         "characters" => {
                             let character = Character {
@@ -1579,7 +1578,7 @@ pub async fn reclassify_references(
                 }
                 _ => {
                     let item = current_reference_item
-                    .ok_or_else(|| "Reference item not found".to_string())?;
+                        .ok_or_else(|| "Reference item not found".to_string())?;
                     match target_type.as_str() {
                         "characters" => {
                             let character = Character {

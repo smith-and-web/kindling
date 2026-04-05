@@ -565,7 +565,10 @@
 
           <!-- Expanded Beat Content -->
           {#if isExpanded}
-            <div class="border-t border-bg-card relative" style="min-height: 20rem; height: calc(100vh - 20rem); max-height: 50rem;">
+            <div
+              class="border-t border-bg-card relative"
+              style="min-height: 20rem; height: calc(100vh - 20rem); max-height: 50rem;"
+            >
               <NovelEditor
                 bind:this={novelEditorRef}
                 content={beat.prose || ""}
