@@ -493,21 +493,15 @@
     cursor: text;
   }
 
-  /* Paragraph styles — use ::before inline-block spacer for first-line
-     indent instead of text-indent, which renders incorrectly in WebKit
-     contenteditable under pre-wrap/break-spaces */
+  /* Paragraph styles */
   :global(.novel-editor-content p) {
-    margin: 0.25em 0 0 0;
+    margin: 0;
+    text-indent: 1.5em;
   }
 
-  :global(.novel-editor-content p:first-child) {
-    margin-top: 0;
-  }
-
-  :global(.novel-editor-content p:not(:first-child))::before {
-    content: "";
-    display: inline-block;
-    width: 1.5em;
+  :global(.novel-editor-content p:first-child),
+  :global(.novel-editor-content p.is-editor-empty:first-child) {
+    text-indent: 0;
   }
 
   :global(.novel-editor-content p.is-editor-empty:first-child::before) {
