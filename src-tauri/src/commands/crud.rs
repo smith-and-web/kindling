@@ -735,33 +735,21 @@ pub async fn save_beat_prose(
     let uuid = Uuid::parse_str(&beat_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
-    // Get the scene_id from the beat and check if it's locked
-    let scene_id: Option<Uuid> = conn
-        .query_row(
-            "SELECT scene_id FROM beats WHERE id = ?1",
-            rusqlite::params![uuid.to_string()],
-            |row| {
-                let id_str: String = row.get(0)?;
-                Ok(Uuid::parse_str(&id_str).ok())
-            },
-        )
-        .ok()
-        .flatten();
+    let beat = db::get_beat(&conn, &uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Beat not found".to_string())?;
 
-    if let Some(scene_id) = scene_id.as_ref() {
-        if db::is_scene_locked(&conn, scene_id).map_err(|e| e.to_string())? {
-            return Err("Cannot edit beats in a locked scene".to_string());
-        }
+    let scene_id = beat.scene_id;
+    if db::is_scene_locked(&conn, &scene_id).map_err(|e| e.to_string())? {
+        return Err("Cannot edit beats in a locked scene".to_string());
     }
 
     db::update_beat_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())?;
 
-    if let Some(scene_id) = scene_id {
-        if let Some(project_id) =
-            db::get_scene_project_id(&conn, &scene_id).map_err(|e| e.to_string())?
-        {
-            let _ = db::update_project_modified(&conn, &project_id);
-        }
+    if let Some(project_id) =
+        db::get_scene_project_id(&conn, &scene_id).map_err(|e| e.to_string())?
+    {
+        let _ = db::update_project_modified(&conn, &project_id);
     }
 
     Ok(())
