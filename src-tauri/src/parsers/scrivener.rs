@@ -9,6 +9,7 @@
 //! - `<project>.scrivx` — XML index file with the document tree
 //! - `Files/Data/<UUID>/content.rtf` — RTF content per document
 
+use quick_xml::escape::unescape;
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 use std::io::Cursor;
@@ -39,6 +40,7 @@ pub struct BinderItem {
     pub modified: String,
     pub include_in_compile: bool,
     pub children: Vec<BinderItem>,
+    pub kindling_project_type: Option<String>,
 }
 
 /// Parsed contents of a .scrivx file
@@ -113,7 +115,9 @@ fn parse_binder_item(
     let mut title = String::new();
     let mut include_in_compile = true;
     let mut children: Vec<BinderItem> = Vec::new();
+    let mut kindling_project_type: Option<String> = None;
     let mut current_element = String::new();
+    let mut compile_buf = String::new();
 
     loop {
         match reader.read_event() {
@@ -127,10 +131,18 @@ fn parse_binder_item(
                 }
             }
             Ok(Event::Text(ref e)) => {
-                let text = String::from_utf8_lossy(e).to_string();
+                let raw = String::from_utf8_lossy(e);
+                let text = unescape(&raw)
+                    .map(|c| c.to_string())
+                    .unwrap_or_else(|_| raw.to_string());
                 match current_element.as_str() {
-                    "Title" => title = text,
-                    "IncludeInCompile" => include_in_compile = text == "Yes",
+                    "Title" => title.push_str(&text),
+                    "IncludeInCompile" => compile_buf.push_str(&text),
+                    "KindlingProjectType" => {
+                        kindling_project_type
+                            .get_or_insert_with(String::new)
+                            .push_str(&text);
+                    }
                     _ => {}
                 }
             }
@@ -138,6 +150,10 @@ fn parse_binder_item(
                 let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
                 if name == "BinderItem" {
                     break;
+                }
+                if name == "IncludeInCompile" {
+                    include_in_compile = compile_buf.trim() == "Yes";
+                    compile_buf.clear();
                 }
                 if name == current_element {
                     current_element.clear();
@@ -157,6 +173,7 @@ fn parse_binder_item(
         modified,
         include_in_compile,
         children,
+        kindling_project_type,
     })
 }
 
@@ -192,12 +209,14 @@ pub struct ExportChapter {
     pub created: String,
     pub modified: String,
     pub scenes: Vec<ExportScene>,
+    pub children: Vec<ExportChapter>,
 }
 
 /// Generate a complete .scrivx XML for a new Scrivener project
 pub fn generate_scrivx(
     project_title: &str,
     chapters: &[ExportChapter],
+    project_type: &str,
 ) -> Result<String, ScrivenerError> {
     let mut writer = Writer::new_with_indent(Cursor::new(Vec::new()), b' ', 2);
 
@@ -225,12 +244,14 @@ pub fn generate_scrivx(
     writer.write_event(Event::Start(draft))?;
 
     write_title(&mut writer, project_title)?;
-    write_metadata(&mut writer, true)?;
+    write_metadata_with_project_type(&mut writer, true, project_type)?;
 
     // Children of Draft
     writer.write_event(Event::Start(BytesStart::new("Children")))?;
     for chapter in chapters {
-        if chapter.is_part {
+        if chapter.is_part && !chapter.children.is_empty() {
+            write_part_folder_item(&mut writer, chapter)?;
+        } else if chapter.is_part {
             write_text_item(
                 &mut writer,
                 &chapter.uuid,
@@ -238,15 +259,6 @@ pub fn generate_scrivx(
                 &chapter.created,
                 &chapter.modified,
                 true,
-            )?;
-        } else if chapter.scenes.is_empty() {
-            write_folder_item(
-                &mut writer,
-                &chapter.uuid,
-                &chapter.title,
-                &chapter.created,
-                &chapter.modified,
-                &[],
             )?;
         } else {
             write_folder_item(
@@ -319,6 +331,28 @@ fn write_metadata(
     Ok(())
 }
 
+fn write_metadata_with_project_type(
+    writer: &mut Writer<Cursor<Vec<u8>>>,
+    include_in_compile: bool,
+    project_type: &str,
+) -> Result<(), ScrivenerError> {
+    writer.write_event(Event::Start(BytesStart::new("MetaData")))?;
+    writer.write_event(Event::Start(BytesStart::new("IncludeInCompile")))?;
+    writer.write_event(Event::Text(BytesText::new(if include_in_compile {
+        "Yes"
+    } else {
+        "No"
+    })))?;
+    writer.write_event(Event::End(BytesEnd::new("IncludeInCompile")))?;
+    writer.write_event(Event::Start(BytesStart::new("CustomMetaData")))?;
+    writer.write_event(Event::Start(BytesStart::new("KindlingProjectType")))?;
+    writer.write_event(Event::Text(BytesText::new(project_type)))?;
+    writer.write_event(Event::End(BytesEnd::new("KindlingProjectType")))?;
+    writer.write_event(Event::End(BytesEnd::new("CustomMetaData")))?;
+    writer.write_event(Event::End(BytesEnd::new("MetaData")))?;
+    Ok(())
+}
+
 fn write_text_item(
     writer: &mut Writer<Cursor<Vec<u8>>>,
     uuid: &str,
@@ -364,6 +398,34 @@ fn write_folder_item(
             &scene.created,
             &scene.modified,
             true,
+        )?;
+    }
+    writer.write_event(Event::End(BytesEnd::new("Children")))?;
+    writer.write_event(Event::End(BytesEnd::new("BinderItem")))?;
+    Ok(())
+}
+
+fn write_part_folder_item(
+    writer: &mut Writer<Cursor<Vec<u8>>>,
+    part: &ExportChapter,
+) -> Result<(), ScrivenerError> {
+    let mut elem = BytesStart::new("BinderItem");
+    elem.push_attribute(("UUID", part.uuid.as_str()));
+    elem.push_attribute(("Type", "Folder"));
+    elem.push_attribute(("Created", part.created.as_str()));
+    elem.push_attribute(("Modified", part.modified.as_str()));
+    writer.write_event(Event::Start(elem))?;
+    write_title(writer, &part.title)?;
+    write_metadata(writer, true)?;
+    writer.write_event(Event::Start(BytesStart::new("Children")))?;
+    for child in &part.children {
+        write_folder_item(
+            writer,
+            &child.uuid,
+            &child.title,
+            &child.created,
+            &child.modified,
+            &child.scenes,
         )?;
     }
     writer.write_event(Event::End(BytesEnd::new("Children")))?;
@@ -459,7 +521,13 @@ fn process_tag(tag: &str, rtf: &mut String, tags: &mut Vec<String>, first_paragr
                 rtf.push_str("\\par\n");
             }
             *first_paragraph = false;
-            rtf.push_str("\\pard\\pardirnatural\\partightenfactor0\n\\f0\\fs24 \\cf2 ");
+            if tags.iter().any(|t| t == "blockquote") {
+                rtf.push_str(
+                    "\\pard\\li720\\pardirnatural\\partightenfactor0\n\\f0\\i\\fs24 \\cf2 ",
+                );
+            } else {
+                rtf.push_str("\\pard\\pardirnatural\\partightenfactor0\n\\f0\\fs24 \\cf2 ");
+            }
         }
         "p" if is_closing => {}
         "strong" | "b" if !is_closing => {
@@ -521,7 +589,6 @@ fn process_tag(tag: &str, rtf: &mut String, tags: &mut Vec<String>, first_paragr
                 rtf.push_str("\\par\n");
             }
             *first_paragraph = false;
-            rtf.push_str("\\pard\\li720\\pardirnatural\\partightenfactor0\n\\f0\\i\\fs24 \\cf2 ");
             tags.push("blockquote".to_string());
         }
         "blockquote" if is_closing => {
@@ -582,6 +649,10 @@ fn decode_entity(entity: &str) -> String {
 // RTF → HTML Converter (for Scrivener import)
 // =============================================================================
 
+/// Left indent in twips at or above this threshold is treated as `<blockquote>`
+/// (matches `html_to_rtf` which uses `\li720` for blockquotes).
+const BLOCKQUOTE_LI_THRESHOLD: i32 = 360;
+
 /// Convert Scrivener RTF content to TipTap-compatible HTML.
 ///
 /// Each text run is self-contained with its own formatting tags, so changes
@@ -592,6 +663,8 @@ pub fn rtf_to_html(rtf: &str) -> String {
     let mut bold = false;
     let mut italic = false;
     let mut underline = false;
+    let mut li_twips: i32 = 0;
+    let mut blockquote_active = false;
     let mut skip_depth: u32 = 0;
     let mut chars = rtf.chars().peekable();
     let mut text_buf = String::new();
@@ -699,6 +772,8 @@ pub fn rtf_to_html(rtf: &str) -> String {
                                     &mut html,
                                     &mut text_buf,
                                     &mut in_paragraph,
+                                    &mut blockquote_active,
+                                    li_twips,
                                     bold,
                                     italic,
                                     underline,
@@ -713,6 +788,8 @@ pub fn rtf_to_html(rtf: &str) -> String {
                                     &mut html,
                                     &mut text_buf,
                                     &mut in_paragraph,
+                                    &mut blockquote_active,
+                                    li_twips,
                                     bold,
                                     italic,
                                     underline,
@@ -724,6 +801,8 @@ pub fn rtf_to_html(rtf: &str) -> String {
                                     &mut html,
                                     &mut text_buf,
                                     &mut in_paragraph,
+                                    &mut blockquote_active,
+                                    li_twips,
                                     bold,
                                     italic,
                                     underline,
@@ -735,6 +814,8 @@ pub fn rtf_to_html(rtf: &str) -> String {
                                     &mut html,
                                     &mut text_buf,
                                     &mut in_paragraph,
+                                    &mut blockquote_active,
+                                    li_twips,
                                     bold,
                                     italic,
                                     underline,
@@ -746,11 +827,26 @@ pub fn rtf_to_html(rtf: &str) -> String {
                                     &mut html,
                                     &mut text_buf,
                                     &mut in_paragraph,
+                                    &mut blockquote_active,
+                                    li_twips,
                                     bold,
                                     italic,
                                     underline,
                                 );
                                 underline = false;
+                            }
+                            "li" => {
+                                rtf_flush_run(
+                                    &mut html,
+                                    &mut text_buf,
+                                    &mut in_paragraph,
+                                    &mut blockquote_active,
+                                    li_twips,
+                                    bold,
+                                    italic,
+                                    underline,
+                                );
+                                li_twips = param.parse::<i32>().unwrap_or(0).max(0);
                             }
                             "u" => {
                                 if let Ok(code) = param.parse::<i32>() {
@@ -774,6 +870,8 @@ pub fn rtf_to_html(rtf: &str) -> String {
                                     &mut html,
                                     &mut text_buf,
                                     &mut in_paragraph,
+                                    &mut blockquote_active,
+                                    li_twips,
                                     bold,
                                     italic,
                                     underline,
@@ -781,6 +879,7 @@ pub fn rtf_to_html(rtf: &str) -> String {
                                 bold = false;
                                 italic = false;
                                 underline = false;
+                                li_twips = 0;
                             }
                             _ => {}
                         }
@@ -801,6 +900,8 @@ pub fn rtf_to_html(rtf: &str) -> String {
         &mut html,
         &mut text_buf,
         &mut in_paragraph,
+        &mut blockquote_active,
+        li_twips,
         bold,
         italic,
         underline,
@@ -809,15 +910,21 @@ pub fn rtf_to_html(rtf: &str) -> String {
     if in_paragraph {
         html.push_str("</p>");
     }
+    if blockquote_active {
+        html.push_str("</blockquote>");
+    }
 
     html
 }
 
 /// Flush accumulated text as a self-contained formatted run.
+#[allow(clippy::too_many_arguments)]
 fn rtf_flush_run(
     html: &mut String,
     text_buf: &mut String,
     in_paragraph: &mut bool,
+    blockquote_active: &mut bool,
+    li_twips: i32,
     bold: bool,
     italic: bool,
     underline: bool,
@@ -827,6 +934,14 @@ fn rtf_flush_run(
     }
 
     if !*in_paragraph {
+        if *blockquote_active && li_twips < BLOCKQUOTE_LI_THRESHOLD {
+            html.push_str("</blockquote>");
+            *blockquote_active = false;
+        }
+        if !*blockquote_active && li_twips >= BLOCKQUOTE_LI_THRESHOLD {
+            html.push_str("<blockquote>");
+            *blockquote_active = true;
+        }
         html.push_str("<p>");
         *in_paragraph = true;
     }
@@ -870,6 +985,147 @@ pub struct ParsedScrivener {
     pub project: crate::models::Project,
     pub chapters: Vec<crate::models::Chapter>,
     pub scenes: Vec<crate::models::Scene>,
+    pub beats: Vec<crate::models::Beat>,
+}
+
+/// Recursively process binder children, detecting Parts from nested Folder structure.
+/// A Folder with at least one Folder child is treated as a Part (`is_part: true`).
+fn process_binder_children(
+    children: &[BinderItem],
+    project_id: uuid::Uuid,
+    data_dir: &std::path::Path,
+    chapters: &mut Vec<crate::models::Chapter>,
+    scenes: &mut Vec<crate::models::Scene>,
+    beats: &mut Vec<crate::models::Beat>,
+    position: &mut i32,
+) {
+    use crate::models::{Beat, Chapter, Scene};
+
+    for child in children {
+        match child.item_type.as_str() {
+            "Folder" => {
+                let has_folder_children = child.children.iter().any(|c| c.item_type == "Folder");
+
+                if has_folder_children {
+                    chapters.push(Chapter {
+                        id: uuid::Uuid::new_v4(),
+                        project_id,
+                        title: child.title.clone(),
+                        synopsis: None,
+                        position: *position,
+                        is_part: true,
+                        archived: false,
+                        locked: false,
+                        source_id: Some(child.uuid.clone()),
+                        planning_status: Default::default(),
+                    });
+                    *position += 1;
+
+                    process_binder_children(
+                        &child.children,
+                        project_id,
+                        data_dir,
+                        chapters,
+                        scenes,
+                        beats,
+                        position,
+                    );
+                } else {
+                    let chapter = Chapter {
+                        id: uuid::Uuid::new_v4(),
+                        project_id,
+                        title: child.title.clone(),
+                        synopsis: None,
+                        position: *position,
+                        is_part: false,
+                        archived: false,
+                        locked: false,
+                        source_id: Some(child.uuid.clone()),
+                        planning_status: Default::default(),
+                    };
+
+                    let mut scene_pos: i32 = 0;
+                    for scene_item in &child.children {
+                        if scene_item.item_type == "Text" {
+                            let prose = read_rtf_content(data_dir, &scene_item.uuid);
+                            let scene_id = uuid::Uuid::new_v4();
+
+                            if let Some(ref prose_html) = prose {
+                                let mut beat = Beat::new(scene_id, "Scene Content".to_string(), 0)
+                                    .with_source_id(Some(format!("{}-prose", scene_item.uuid)));
+                                beat.prose = Some(prose_html.clone());
+                                beats.push(beat);
+                            }
+
+                            scenes.push(Scene {
+                                id: scene_id,
+                                chapter_id: chapter.id,
+                                title: scene_item.title.clone(),
+                                synopsis: None,
+                                prose: None,
+                                position: scene_pos,
+                                source_id: Some(scene_item.uuid.clone()),
+                                archived: false,
+                                locked: false,
+                                scene_type: Default::default(),
+                                scene_status: Default::default(),
+                                planning_status: Default::default(),
+                                editor_mode: Default::default(),
+                            });
+                            scene_pos += 1;
+                        }
+                    }
+
+                    chapters.push(chapter);
+                    *position += 1;
+                }
+            }
+            "Text" => {
+                let chapter = Chapter {
+                    id: uuid::Uuid::new_v4(),
+                    project_id,
+                    title: child.title.clone(),
+                    synopsis: None,
+                    position: *position,
+                    is_part: false,
+                    archived: false,
+                    locked: false,
+                    source_id: Some(child.uuid.clone()),
+                    planning_status: Default::default(),
+                };
+
+                let prose = read_rtf_content(data_dir, &child.uuid);
+                let scene_id = uuid::Uuid::new_v4();
+
+                if let Some(ref prose_html) = prose {
+                    let mut beat = Beat::new(scene_id, "Scene Content".to_string(), 0)
+                        .with_source_id(Some(format!("{}-prose", child.uuid)));
+                    beat.prose = Some(prose_html.clone());
+                    beats.push(beat);
+                }
+
+                scenes.push(Scene {
+                    id: scene_id,
+                    chapter_id: chapter.id,
+                    title: child.title.clone(),
+                    synopsis: None,
+                    prose: None,
+                    position: 0,
+                    source_id: Some(child.uuid.clone()),
+                    archived: false,
+                    locked: false,
+                    scene_type: Default::default(),
+                    scene_status: Default::default(),
+                    planning_status: Default::default(),
+                    editor_mode: Default::default(),
+                });
+
+                chapters.push(chapter);
+                *position += 1;
+            }
+            _ => {}
+        }
+    }
 }
 
 /// Parse a .scriv bundle directory into Kindling data structures
@@ -897,10 +1153,10 @@ pub fn parse_scrivener_bundle(
         SourceType::Scrivener,
         Some(scriv_path.to_string_lossy().to_string()),
     );
-    project.project_type = "novel".to_string();
 
     let mut chapters: Vec<Chapter> = Vec::new();
     let mut scenes: Vec<Scene> = Vec::new();
+    let mut beats: Vec<crate::models::Beat> = Vec::new();
 
     // Find the Draft folder in the binder
     let draft = doc
@@ -909,89 +1165,32 @@ pub fn parse_scrivener_bundle(
         .find(|item| item.item_type == "DraftFolder");
 
     if let Some(draft_folder) = draft {
+        // Check for Kindling project type metadata on the DraftFolder
+        if let Some(ref pt) = draft_folder.kindling_project_type {
+            project.project_type = pt.clone();
+        }
+
         let mut position: i32 = 0;
+        process_binder_children(
+            &draft_folder.children,
+            project.id,
+            &data_dir,
+            &mut chapters,
+            &mut scenes,
+            &mut beats,
+            &mut position,
+        );
+    }
 
-        for child in &draft_folder.children {
-            match child.item_type.as_str() {
-                "Folder" => {
-                    let chapter = Chapter {
-                        id: uuid::Uuid::new_v4(),
-                        project_id: project.id,
-                        title: child.title.clone(),
-                        synopsis: None,
-                        position,
-                        is_part: false,
-                        archived: false,
-                        locked: false,
-                        source_id: Some(child.uuid.clone()),
-                        planning_status: Default::default(),
-                    };
-
-                    let mut scene_pos: i32 = 0;
-                    for scene_item in &child.children {
-                        if scene_item.item_type == "Text" {
-                            let prose = read_rtf_content(&data_dir, &scene_item.uuid);
-                            let scene = Scene {
-                                id: uuid::Uuid::new_v4(),
-                                chapter_id: chapter.id,
-                                title: scene_item.title.clone(),
-                                synopsis: None,
-                                prose,
-                                position: scene_pos,
-                                source_id: Some(scene_item.uuid.clone()),
-                                archived: false,
-                                locked: false,
-                                scene_type: Default::default(),
-                                scene_status: Default::default(),
-                                planning_status: Default::default(),
-                                editor_mode: Default::default(),
-                            };
-                            scenes.push(scene);
-                            scene_pos += 1;
-                        }
-                    }
-
-                    chapters.push(chapter);
-                    position += 1;
-                }
-                "Text" => {
-                    // Top-level text item in Draft — create a chapter for it
-                    let chapter = Chapter {
-                        id: uuid::Uuid::new_v4(),
-                        project_id: project.id,
-                        title: child.title.clone(),
-                        synopsis: None,
-                        position,
-                        is_part: false,
-                        archived: false,
-                        locked: false,
-                        source_id: Some(child.uuid.clone()),
-                        planning_status: Default::default(),
-                    };
-
-                    let prose = read_rtf_content(&data_dir, &child.uuid);
-                    let scene = Scene {
-                        id: uuid::Uuid::new_v4(),
-                        chapter_id: chapter.id,
-                        title: child.title.clone(),
-                        synopsis: None,
-                        prose,
-                        position: 0,
-                        source_id: Some(child.uuid.clone()),
-                        archived: false,
-                        locked: false,
-                        scene_type: Default::default(),
-                        scene_status: Default::default(),
-                        planning_status: Default::default(),
-                        editor_mode: Default::default(),
-                    };
-
-                    chapters.push(chapter);
-                    scenes.push(scene);
-                    position += 1;
-                }
-                _ => {}
-            }
+    // If no explicit project type was set, use content-based detection:
+    // any scene title matching INT./EXT. slugline pattern → screenplay
+    if project.project_type == "novel" {
+        let has_sluglines = scenes.iter().any(|s| {
+            let upper = s.title.trim().to_uppercase();
+            upper.starts_with("INT.") || upper.starts_with("EXT.")
+        });
+        if has_sluglines {
+            project.project_type = "screenplay".to_string();
         }
     }
 
@@ -999,6 +1198,7 @@ pub fn parse_scrivener_bundle(
         project,
         chapters,
         scenes,
+        beats,
     })
 }
 
@@ -1170,6 +1370,7 @@ mod tests {
             created: String::new(),
             modified: String::new(),
             include_in_compile: true,
+            kindling_project_type: None,
             children: vec![
                 BinderItem {
                     uuid: "SC-1".to_string(),
@@ -1178,6 +1379,7 @@ mod tests {
                     created: String::new(),
                     modified: String::new(),
                     include_in_compile: true,
+                    kindling_project_type: None,
                     children: vec![],
                 },
                 BinderItem {
@@ -1187,6 +1389,7 @@ mod tests {
                     created: String::new(),
                     modified: String::new(),
                     include_in_compile: true,
+                    kindling_project_type: None,
                     children: vec![BinderItem {
                         uuid: "SC-2".to_string(),
                         item_type: "Text".to_string(),
@@ -1194,6 +1397,7 @@ mod tests {
                         created: String::new(),
                         modified: String::new(),
                         include_in_compile: true,
+                        kindling_project_type: None,
                         children: vec![],
                     }],
                 },
@@ -1220,9 +1424,10 @@ mod tests {
                 created: "2024-01-01 00:00:00 +0000".to_string(),
                 modified: "2024-01-01 00:00:00 +0000".to_string(),
             }],
+            children: Vec::new(),
         }];
 
-        let xml = generate_scrivx("Test Project", &chapters).unwrap();
+        let xml = generate_scrivx("Test Project", &chapters, "novel").unwrap();
         let doc = parse_scrivx(&xml).unwrap();
 
         assert_eq!(doc.binder.len(), 3); // Draft, Research, Trash
@@ -1233,6 +1438,69 @@ mod tests {
         assert_eq!(draft.children[0].item_type, "Folder");
         assert_eq!(draft.children[0].children.len(), 1);
         assert_eq!(draft.children[0].children[0].title, "Opening Scene");
+    }
+
+    #[test]
+    fn test_generate_scrivx_preserves_project_type() {
+        let chapters = vec![ExportChapter {
+            uuid: "CH-UUID-1".to_string(),
+            title: "Chapter One".to_string(),
+            is_part: false,
+            created: "2024-01-01 00:00:00 +0000".to_string(),
+            modified: "2024-01-01 00:00:00 +0000".to_string(),
+            scenes: Vec::new(),
+            children: Vec::new(),
+        }];
+
+        let xml = generate_scrivx("Test", &chapters, "screenplay").unwrap();
+        let doc = parse_scrivx(&xml).unwrap();
+        let draft = &doc.binder[0];
+        assert_eq!(draft.kindling_project_type.as_deref(), Some("screenplay"));
+    }
+
+    #[test]
+    fn test_generate_scrivx_part_hierarchy() {
+        let chapters = vec![ExportChapter {
+            uuid: "PART-UUID".to_string(),
+            title: "Act I".to_string(),
+            is_part: true,
+            created: "2024-01-01 00:00:00 +0000".to_string(),
+            modified: "2024-01-01 00:00:00 +0000".to_string(),
+            scenes: Vec::new(),
+            children: vec![ExportChapter {
+                uuid: "CH-UUID-1".to_string(),
+                title: "Sequence 1".to_string(),
+                is_part: false,
+                created: "2024-01-01 00:00:00 +0000".to_string(),
+                modified: "2024-01-01 00:00:00 +0000".to_string(),
+                scenes: vec![ExportScene {
+                    uuid: "SC-UUID-1".to_string(),
+                    title: "Scene 1".to_string(),
+                    created: "2024-01-01 00:00:00 +0000".to_string(),
+                    modified: "2024-01-01 00:00:00 +0000".to_string(),
+                }],
+                children: Vec::new(),
+            }],
+        }];
+
+        let xml = generate_scrivx("Test", &chapters, "screenplay").unwrap();
+        let doc = parse_scrivx(&xml).unwrap();
+        let draft = &doc.binder[0];
+
+        // Act I should be a Folder (not Text)
+        assert_eq!(draft.children.len(), 1);
+        assert_eq!(draft.children[0].title, "Act I");
+        assert_eq!(draft.children[0].item_type, "Folder");
+
+        // Sequence 1 should be a nested Folder under Act I
+        assert_eq!(draft.children[0].children.len(), 1);
+        assert_eq!(draft.children[0].children[0].title, "Sequence 1");
+        assert_eq!(draft.children[0].children[0].item_type, "Folder");
+
+        // Scene 1 should be a Text under Sequence 1
+        assert_eq!(draft.children[0].children[0].children.len(), 1);
+        assert_eq!(draft.children[0].children[0].children[0].title, "Scene 1");
+        assert_eq!(draft.children[0].children[0].children[0].item_type, "Text");
     }
 
     #[test]
@@ -1356,6 +1624,36 @@ mod tests {
         assert!(html.contains("Some text."), "got: {html}");
     }
 
+    #[test]
+    fn test_rtf_to_html_li720_blockquote() {
+        // Mirrors Kindling's html_to_rtf blockquote output: \pard\li720 ...
+        let rtf = r"{\rtf1\ansi\pard\li720\i Quoted line\i0\par}";
+        let html = rtf_to_html(rtf);
+        assert!(
+            html.contains("<blockquote>") && html.contains("</blockquote>"),
+            "expected blockquote wrapper, got: {html}"
+        );
+        assert!(html.contains("Quoted line"), "got: {html}");
+    }
+
+    #[test]
+    fn test_html_rtf_html_blockquote_roundtrip() {
+        let original =
+            "<p>Before</p><blockquote><p>My dearest Eleanor,</p></blockquote><p>After</p>";
+        let rtf = html_to_rtf(original);
+        let html = rtf_to_html(&rtf);
+        assert!(
+            html.contains("<blockquote>"),
+            "blockquote lost in round-trip, got: {html}"
+        );
+        assert!(
+            html.contains("My dearest Eleanor,"),
+            "quoted text lost, got: {html}"
+        );
+        assert!(html.contains("Before"), "got: {html}");
+        assert!(html.contains("After"), "got: {html}");
+    }
+
     // =========================================================================
     // Bundle parser tests (filesystem)
     // =========================================================================
@@ -1415,14 +1713,21 @@ mod tests {
         assert_eq!(parsed.scenes.len(), 2);
         assert_eq!(parsed.scenes[0].title, "Opening");
         assert!(
-            parsed.scenes[0]
+            parsed.scenes[0].prose.is_none(),
+            "prose should be on beats, not scenes"
+        );
+        assert_eq!(parsed.beats.len(), 2);
+        assert!(
+            parsed.beats[0]
                 .prose
                 .as_ref()
                 .unwrap()
                 .contains("dark and stormy"),
-            "prose: {:?}",
-            parsed.scenes[0].prose
+            "beat prose: {:?}",
+            parsed.beats[0].prose
         );
+        assert_eq!(parsed.beats[0].scene_id, parsed.scenes[0].id);
+        assert_eq!(parsed.beats[1].scene_id, parsed.scenes[1].id);
         assert_eq!(parsed.scenes[1].title, "Middle");
         assert_eq!(parsed.scenes[0].source_id.as_deref(), Some("SC1"));
         assert_eq!(parsed.scenes[1].source_id.as_deref(), Some("SC2"));
@@ -1465,11 +1770,14 @@ mod tests {
         assert_eq!(parsed.chapters[0].title, "Standalone Scene");
         assert_eq!(parsed.scenes.len(), 1);
         assert_eq!(parsed.scenes[0].title, "Standalone Scene");
-        assert!(parsed.scenes[0]
+        assert!(parsed.scenes[0].prose.is_none());
+        assert_eq!(parsed.beats.len(), 1);
+        assert!(parsed.beats[0]
             .prose
             .as_ref()
             .unwrap()
-            .contains("lonely scene"),);
+            .contains("lonely scene"));
+        assert_eq!(parsed.beats[0].scene_id, parsed.scenes[0].id);
     }
 
     #[test]

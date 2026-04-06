@@ -27,7 +27,7 @@
 
   interface Props {
     onImportLongform?: () => void;
-    onImportComplete?: (project: Project) => void;
+    onImportComplete?: (project: Project, type: string) => void;
   }
 
   let { onImportComplete }: Props = $props();
@@ -55,7 +55,6 @@
       currentProject.setProject(project);
       ui.completeOnboarding();
       ui.setView("editor");
-      onImportComplete?.(project);
     } catch (e) {
       console.error("Failed to create sample project:", e);
       ui.showError(`Failed to create sample project: ${e}`);
@@ -143,7 +142,7 @@
       currentProject.setProject(project);
       ui.completeOnboarding();
       ui.setView("editor");
-      onImportComplete?.(project);
+      onImportComplete?.(project, format);
     } catch (e) {
       console.error("Import failed:", e);
       ui.showError(`Import failed: ${e}`);

@@ -23,7 +23,7 @@
   interface Props {
     recentProjects: Project[];
     onImportLongform?: () => void;
-    onImportComplete?: (project: Project) => void;
+    onImportComplete?: (project: Project, type: ImportType) => void;
     onOpenQuickStart?: () => void;
     onNewProject?: () => void;
   }
@@ -47,7 +47,7 @@
     if (!project) return;
     currentProject.setProject(project);
     ui.setView("editor");
-    onImportComplete?.(project);
+    onImportComplete?.(project, type);
   }
 
   const importPlottr = () => handleImport("plottr");
@@ -67,7 +67,6 @@
       const project = await invoke<Project>("create_sample_project");
       currentProject.setProject(project);
       ui.setView("editor");
-      onImportComplete?.(project);
     } catch (e) {
       console.error("Failed to create sample project:", e);
       ui.showError(`Failed to create sample project: ${e}`);

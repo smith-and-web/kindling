@@ -4432,6 +4432,28 @@ pub async fn export_to_scrivener(
     }
 }
 
+/// Group a flat list of ExportChapters into hierarchy where Parts contain
+/// subsequent non-Part chapters as children.
+fn group_chapters_into_hierarchy(
+    flat: Vec<crate::parsers::scrivener::ExportChapter>,
+) -> Vec<crate::parsers::scrivener::ExportChapter> {
+    let mut result: Vec<crate::parsers::scrivener::ExportChapter> = Vec::new();
+    for ch in flat {
+        if ch.is_part {
+            result.push(ch);
+        } else if let Some(last) = result.last_mut() {
+            if last.is_part {
+                last.children.push(ch);
+            } else {
+                result.push(ch);
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+    result
+}
+
 fn create_new_scriv_bundle(
     conn: &rusqlite::Connection,
     project: &Project,
@@ -4450,7 +4472,7 @@ fn create_new_scriv_bundle(
     let now = chrono::Utc::now()
         .format("%Y-%m-%d %H:%M:%S %z")
         .to_string();
-    let mut export_chapters: Vec<scrivener::ExportChapter> = Vec::new();
+    let mut flat_chapters: Vec<scrivener::ExportChapter> = Vec::new();
     let mut files_created: usize = 0;
     let mut chapters_exported: usize = 0;
     let mut scenes_exported: usize = 0;
@@ -4459,7 +4481,6 @@ fn create_new_scriv_bundle(
         let ch_uuid = Uuid::new_v4().to_string().to_uppercase();
 
         if chapter.is_part {
-            // Parts become text items (section separators)
             let part_dir = data_dir.join(&ch_uuid);
             fs::create_dir_all(&part_dir)
                 .map_err(|e| format!("Failed to create Part directory: {}", e))?;
@@ -4472,13 +4493,14 @@ fn create_new_scriv_bundle(
                 files_created += 1;
             }
 
-            export_chapters.push(scrivener::ExportChapter {
+            flat_chapters.push(scrivener::ExportChapter {
                 uuid: ch_uuid,
                 title: chapter.title.clone(),
                 is_part: true,
                 created: now.clone(),
                 modified: now.clone(),
                 scenes: Vec::new(),
+                children: Vec::new(),
             });
             chapters_exported += 1;
         } else {
@@ -4514,26 +4536,30 @@ fn create_new_scriv_bundle(
                 scenes_exported += 1;
             }
 
-            // Create chapter folder data dir (for chapter-level content if needed)
             let ch_dir = data_dir.join(&ch_uuid);
             fs::create_dir_all(&ch_dir)
                 .map_err(|e| format!("Failed to create chapter directory: {}", e))?;
 
-            export_chapters.push(scrivener::ExportChapter {
+            flat_chapters.push(scrivener::ExportChapter {
                 uuid: ch_uuid,
                 title: chapter.title.clone(),
                 is_part: false,
                 created: now.clone(),
                 modified: now.clone(),
                 scenes: export_scenes,
+                children: Vec::new(),
             });
             chapters_exported += 1;
         }
     }
 
+    // Group flat chapters into hierarchy: Parts absorb subsequent non-Part chapters as children
+    let export_chapters = group_chapters_into_hierarchy(flat_chapters);
+
     // Generate and write the .scrivx file
     let scrivx_xml =
-        scrivener::generate_scrivx(&project.name, &export_chapters).map_err(|e| e.to_string())?;
+        scrivener::generate_scrivx(&project.name, &export_chapters, &project.project_type)
+            .map_err(|e| e.to_string())?;
 
     let scrivx_filename = format!("{}.scrivx", sanitize_filename(&project.name));
     fs::write(scriv_path.join(&scrivx_filename), &scrivx_xml)
@@ -4678,6 +4704,7 @@ fn update_existing_scriv_bundle(
                 created: now.clone(),
                 modified: now.clone(),
                 scenes: new_scenes_for_chapter,
+                children: Vec::new(),
             });
         }
 
@@ -4758,8 +4785,9 @@ fn append_to_scrivx(
     // Build the new items as XML fragments
     let mut new_items_xml = String::new();
     for chapter in new_chapters {
-        let xml_fragment = scrivener::generate_scrivx("_temp_", std::slice::from_ref(chapter))
-            .map_err(|e| e.to_string())?;
+        let xml_fragment =
+            scrivener::generate_scrivx("_temp_", std::slice::from_ref(chapter), "novel")
+                .map_err(|e| e.to_string())?;
 
         // Extract just the folder BinderItem from the generated XML
         if let Some(start) = xml_fragment.find("<BinderItem") {

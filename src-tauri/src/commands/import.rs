@@ -80,7 +80,7 @@ pub async fn preview_import(path: String, format: String) -> Result<ImportPrevie
                 project_name: parsed.project.name,
                 chapter_count: parsed.chapters.len() as i32,
                 scene_count: parsed.scenes.len() as i32,
-                beat_count: 0,
+                beat_count: parsed.beats.len() as i32,
                 character_count: 0,
                 location_count: 0,
             }
@@ -280,6 +280,10 @@ pub async fn import_scrivener(path: String, state: State<'_, AppState>) -> Resul
 
     for scene in &parsed.scenes {
         db::insert_scene(&tx, scene).map_err(|e| e.to_string())?;
+    }
+
+    for beat in &parsed.beats {
+        db::insert_beat(&tx, beat).map_err(|e| e.to_string())?;
     }
 
     tx.commit().map_err(|e| e.to_string())?;

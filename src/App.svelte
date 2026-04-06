@@ -297,7 +297,11 @@
     <StartScreen
       {recentProjects}
       onImportLongform={openLongformImportDialog}
-      onImportComplete={openReferenceClassificationDialog}
+      onImportComplete={(project, type) => {
+        if (HAS_REFERENCES.includes(type)) {
+          openReferenceClassificationDialog(project);
+        }
+      }}
       onOpenQuickStart={() => (showQuickStart = true)}
       onNewProject={() => (showNewProjectDialog = true)}
     />
@@ -323,7 +327,11 @@
 <!-- Onboarding overlay (shown on first launch) -->
 <Onboarding
   onImportLongform={openLongformImportDialog}
-  onImportComplete={openReferenceClassificationDialog}
+  onImportComplete={(project: Project, type: string) => {
+    if (HAS_REFERENCES.includes(type as ImportType)) {
+      openReferenceClassificationDialog(project);
+    }
+  }}
 />
 
 {#if showReferenceClassificationDialog && referenceClassificationProjectId}

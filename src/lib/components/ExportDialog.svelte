@@ -1337,6 +1337,10 @@
           </fieldset>
         {/if}
 
+        <p class="text-xs text-text-secondary bg-bg-card/50 rounded-lg px-3 py-2">
+          Note: Characters, locations, and scene references are not included in Scrivener exports.
+        </p>
+
         <!-- Save/Select Location -->
         <div>
           <label

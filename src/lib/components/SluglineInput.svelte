@@ -42,6 +42,7 @@
   let location = $state("");
   let timeOfDay = $state("DAY");
   let showTimeDropdown = $state(false);
+  let isSluglineFormat = $state(false);
 
   // Parse existing slugline on init/change
   function parseSlugline(s: string) {
@@ -78,6 +79,8 @@
 
   $effect(() => {
     const parsed = parseSlugline(value);
+    const upper = value.trim().toUpperCase();
+    isSluglineFormat = upper.startsWith("INT.") || upper.startsWith("EXT.");
     prefix = parsed.prefix;
     location = parsed.location;
     timeOfDay = parsed.timeOfDay;
@@ -92,18 +95,20 @@
   }
 
   function emitSave() {
-    const slugline = buildSlugline().trim();
-    if (slugline) onSave(slugline);
+    const result = isSluglineFormat ? buildSlugline().trim() : location.trim();
+    if (result) onSave(result);
   }
 
   function setPrefix(p: "INT" | "EXT") {
     prefix = p;
+    isSluglineFormat = true;
     emitSave();
   }
 
   function setTime(t: string) {
     timeOfDay = t;
     showTimeDropdown = false;
+    isSluglineFormat = true;
     emitSave();
   }
 

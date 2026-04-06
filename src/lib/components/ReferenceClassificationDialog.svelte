@@ -106,7 +106,11 @@
   }
 
   $effect(() => {
-    loadReferences();
+    loadReferences().then(() => {
+      if (!loading && !error && references.length === 0) {
+        onClose();
+      }
+    });
   });
 
   function updateReferenceType(id: string, nextType: ReferenceTypeId) {
