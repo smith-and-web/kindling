@@ -24,13 +24,14 @@
   import { currentProject } from "../stores/project.svelte";
   import { ui, type OnboardingStep } from "../stores/ui.svelte";
   import type { ImportPreview, Project } from "../types";
+  import { pickScrivenerProjectPath } from "$lib/utils/import";
 
   interface Props {
     onImportLongform?: () => void;
     onImportComplete?: (project: Project, type: string) => void;
   }
 
-  let { onImportComplete }: Props = $props();
+  let { onImportComplete, onImportLongform }: Props = $props();
 
   // Guided import wizard state (within import step)
   type GuidedFormat = "plottr" | "markdown" | "ywriter" | "longform" | "scrivener";
@@ -80,16 +81,27 @@
     guidedPath = null;
     guidedFormat = format;
     const config = FORMAT_CONFIG[format];
-    const path = await open({
-      multiple: false,
-      filters: [{ name: config.name, extensions: config.extensions }],
-      directory: config.directory ?? false,
-    });
+    const path =
+      format === "scrivener"
+        ? await pickScrivenerProjectPath()
+        : await open({
+            multiple: false,
+            filters: [{ name: config.name, extensions: config.extensions }],
+            directory: config.directory ?? false,
+          });
     if (path) {
       await loadPreview(path, format);
     } else {
       guidedFormat = null;
     }
+  }
+
+  function handleLongformImportClick() {
+    if (onImportLongform) {
+      onImportLongform();
+      return;
+    }
+    void startGuidedImport("longform");
   }
 
   async function loadPreview(path: string, format: GuidedFormat) {
@@ -840,7 +852,7 @@
                 </button>
 
                 <button
-                  onclick={() => startGuidedImport("longform")}
+                  onclick={handleLongformImportClick}
                   class="flex flex-col items-center p-4 bg-bg-card rounded-lg hover:bg-beat-header transition-colors cursor-pointer border border-transparent hover:border-accent/30"
                 >
                   <BookOpen class="w-10 h-10 text-accent mb-2" />

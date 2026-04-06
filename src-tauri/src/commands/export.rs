@@ -4574,6 +4574,20 @@ fn create_new_scriv_bundle(
     })
 }
 
+/// Last Part row's Scrivener binder UUID (`source_id`) before this chapter, if any.
+fn enclosing_part_binder_uuid<'a>(chapters: &'a [&'a Chapter], idx: usize) -> Option<&'a str> {
+    if idx >= chapters.len() || chapters[idx].is_part {
+        return None;
+    }
+    let mut last: Option<&str> = None;
+    for ch in chapters.iter().take(idx) {
+        if ch.is_part {
+            last = ch.source_id.as_deref();
+        }
+    }
+    last
+}
+
 fn update_existing_scriv_bundle(
     conn: &rusqlite::Connection,
     _project: &Project,
@@ -4633,12 +4647,11 @@ fn update_existing_scriv_bundle(
         .format("%Y-%m-%d %H:%M:%S %z")
         .to_string();
 
-    // Track new items that need to be added to the .scrivx
-    let mut new_chapters: Vec<scrivener::ExportChapter> = Vec::new();
+    // Track new items that need to be added to the .scrivx (`None` = Draft root).
+    let mut new_chapters: Vec<(Option<String>, scrivener::ExportChapter)> = Vec::new();
 
-    for chapter in chapters {
+    for (idx, chapter) in chapters.iter().enumerate() {
         if chapter.is_part {
-            chapters_exported += 1;
             continue;
         }
 
@@ -4697,15 +4710,19 @@ fn update_existing_scriv_bundle(
             fs::create_dir_all(&ch_dir)
                 .map_err(|e| format!("Failed to create chapter dir: {}", e))?;
 
-            new_chapters.push(scrivener::ExportChapter {
-                uuid: ch_uuid,
-                title: chapter.title.clone(),
-                is_part: false,
-                created: now.clone(),
-                modified: now.clone(),
-                scenes: new_scenes_for_chapter,
-                children: Vec::new(),
-            });
+            let parent_binder = enclosing_part_binder_uuid(chapters, idx).map(String::from);
+            new_chapters.push((
+                parent_binder,
+                scrivener::ExportChapter {
+                    uuid: ch_uuid,
+                    title: chapter.title.clone(),
+                    is_part: false,
+                    created: now.clone(),
+                    modified: now.clone(),
+                    scenes: new_scenes_for_chapter,
+                    children: Vec::new(),
+                },
+            ));
         }
 
         chapters_exported += 1;
@@ -4713,7 +4730,7 @@ fn update_existing_scriv_bundle(
 
     // If there are new items, regenerate the .scrivx with the new items appended
     if !new_chapters.is_empty() {
-        let updated_xml = append_to_scrivx(&scrivx_content, &new_chapters)?;
+        let updated_xml = append_to_scrivx(&scrivx_content, new_chapters)?;
         fs::write(&scrivx_path, &updated_xml)
             .map_err(|e| format!("Failed to update .scrivx: {}", e))?;
     }
@@ -4764,64 +4781,112 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Append new chapters/scenes to an existing .scrivx XML
-/// Inserts new BinderItems at the end of the Draft folder's Children
+fn group_new_scriv_chapters_by_parent(
+    items: Vec<(Option<String>, crate::parsers::scrivener::ExportChapter)>,
+) -> Vec<(
+    Option<String>,
+    Vec<crate::parsers::scrivener::ExportChapter>,
+)> {
+    let mut key_order: Vec<Option<String>> = Vec::new();
+    let mut map: HashMap<Option<String>, Vec<crate::parsers::scrivener::ExportChapter>> =
+        HashMap::new();
+    for (parent, ch) in items {
+        if !map.contains_key(&parent) {
+            key_order.push(parent.clone());
+            map.insert(parent.clone(), Vec::new());
+        }
+        map.get_mut(&parent).expect("key just inserted").push(ch);
+    }
+    key_order
+        .into_iter()
+        .map(|k| {
+            let v = map.remove(&k).expect("batch key from order");
+            (k, v)
+        })
+        .collect()
+}
+
+/// Byte index of the closing `</Children>` that matches the first `<Children>` after `binder_uuid`.
+fn find_binders_children_close_index(xml: &str, binder_uuid: &str) -> Option<usize> {
+    let marker = format!("UUID=\"{}\"", binder_uuid);
+    let uuid_pos = xml.find(&marker)?;
+    let tail = &xml[uuid_pos..];
+    let rel = tail.find("<Children>")?;
+    let inner_start = uuid_pos + rel + "<Children>".len();
+    find_balanced_children_close_index(xml, inner_start)
+}
+
+fn find_balanced_children_close_index(xml: &str, inner_start: usize) -> Option<usize> {
+    let mut depth = 1usize;
+    let mut pos = inner_start;
+    while depth > 0 {
+        if pos >= xml.len() {
+            return None;
+        }
+        let slice = &xml[pos..];
+        let open = slice.find("<Children>");
+        let close = slice.find("</Children>");
+        let next = match (open, close) {
+            (Some(o), Some(c)) if o < c => (o, true),
+            (Some(_), Some(c)) => (c, false),
+            (Some(o), None) => (o, true),
+            (None, Some(c)) => (c, false),
+            (None, None) => return None,
+        };
+        let (offset, is_open) = next;
+        if is_open {
+            depth += 1;
+            pos += offset + "<Children>".len();
+        } else {
+            depth -= 1;
+            if depth == 0 {
+                return Some(pos + offset);
+            }
+            pos += offset + "</Children>".len();
+        }
+    }
+    None
+}
+
+/// Append new chapters/scenes to an existing .scrivx XML — inserts `BinderItem` trees before
+/// the matching `</Children>` of the Draft folder (or of a Part folder when `parent` is set).
 fn append_to_scrivx(
     existing_xml: &str,
-    new_chapters: &[crate::parsers::scrivener::ExportChapter],
+    new_chapters: Vec<(Option<String>, crate::parsers::scrivener::ExportChapter)>,
 ) -> Result<String, String> {
     use crate::parsers::scrivener;
 
-    // Parse existing to find where to inject
     let doc = scrivener::parse_scrivx(existing_xml).map_err(|e| e.to_string())?;
-
-    // Find the Draft folder
     let draft = doc
         .binder
         .iter()
         .find(|item| item.item_type == "DraftFolder")
-        .ok_or("No Draft folder found in .scrivx")?;
+        .ok_or_else(|| "No Draft folder found in .scrivx".to_string())?;
 
-    // Build the new items as XML fragments
-    let mut new_items_xml = String::new();
-    for chapter in new_chapters {
-        let xml_fragment =
-            scrivener::generate_scrivx("_temp_", std::slice::from_ref(chapter), "novel")
-                .map_err(|e| e.to_string())?;
-
-        // Extract just the folder BinderItem from the generated XML
-        if let Some(start) = xml_fragment.find("<BinderItem") {
-            // Find the matching end — the first BinderItem in Children of Draft
-            if let Some(children_start) = xml_fragment[start..].find("<Children>") {
-                let children_offset = start + children_start + "<Children>".len();
-                if let Some(children_end) = xml_fragment[children_offset..].find("</Children>") {
-                    let inner = &xml_fragment[children_offset..children_offset + children_end];
-                    new_items_xml.push_str(inner.trim());
-                }
-            }
+    let batches = group_new_scriv_chapters_by_parent(new_chapters);
+    let mut ops: Vec<(usize, usize, String)> = Vec::new();
+    for (batch_idx, (parent, chapters)) in batches.iter().enumerate() {
+        let mut combined = String::new();
+        for ch in chapters {
+            let frag = scrivener::export_chapter_binder_fragment(ch).map_err(|e| e.to_string())?;
+            combined.push_str(&frag);
+            combined.push('\n');
         }
+        let target_uuid = parent.as_deref().unwrap_or(draft.uuid.as_str());
+        let insert_pos =
+            find_binders_children_close_index(existing_xml, target_uuid).ok_or_else(|| {
+                format!("Could not find <Children> close for binder UUID {target_uuid}")
+            })?;
+        ops.push((insert_pos, batch_idx, combined));
     }
 
-    // Find the closing </Children> of the DraftFolder and insert before it
-    // We look for the draft folder's Children closing tag
-    // Simple approach: find the DraftFolder UUID and then its </Children> tag
-    let draft_marker = format!("UUID=\"{}\"", draft.uuid);
-    if let Some(draft_pos) = existing_xml.find(&draft_marker) {
-        // Find the last </Children> before the Draft folder's </BinderItem>
-        let after_draft = &existing_xml[draft_pos..];
-        if let Some(children_end_pos) = after_draft.find("</Children>") {
-            let insert_pos = draft_pos + children_end_pos;
-            let mut result = String::with_capacity(existing_xml.len() + new_items_xml.len());
-            result.push_str(&existing_xml[..insert_pos]);
-            result.push_str("\n      ");
-            result.push_str(&new_items_xml);
-            result.push('\n');
-            result.push_str(&existing_xml[insert_pos..]);
-            return Ok(result);
-        }
-    }
+    ops.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)));
 
-    Err("Could not find insertion point in .scrivx".to_string())
+    let mut result = existing_xml.to_string();
+    for (pos, _, frag) in ops {
+        result.insert_str(pos, &format!("\n      {}", frag));
+    }
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -6583,6 +6648,175 @@ mod tests {
         assert_eq!(result.scenes_exported, 1);
         let rtf = std::fs::read_to_string(data_dir.join("content.rtf")).unwrap();
         assert!(rtf.contains("Matched by title"));
+    }
+
+    #[test]
+    fn test_append_to_scrivx_inserts_under_draft_not_inside_nested_folder() {
+        let scrivx = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="T" Version="2.0">
+  <Binder>
+    <BinderItem UUID="DRAFT-1" Type="DraftFolder" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Draft</Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+      <Children>
+        <BinderItem UUID="FOLDER-1" Type="Folder" Created="2024-01-01" Modified="2024-01-01">
+          <Title>Act</Title>
+          <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+          <Children>
+            <BinderItem UUID="T1" Type="Text" Created="2024-01-01" Modified="2024-01-01">
+              <Title>Existing</Title>
+              <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+            </BinderItem>
+          </Children>
+        </BinderItem>
+      </Children>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#;
+
+        use crate::parsers::scrivener::{ExportChapter, ExportScene};
+        let ch = ExportChapter {
+            uuid: "NEW-CH".to_string(),
+            title: "New Chapter".to_string(),
+            is_part: false,
+            created: "2024-01-01".to_string(),
+            modified: "2024-01-01".to_string(),
+            scenes: vec![ExportScene {
+                uuid: "NEW-SC".to_string(),
+                title: "Scene".to_string(),
+                created: "2024-01-01".to_string(),
+                modified: "2024-01-01".to_string(),
+            }],
+            children: vec![],
+        };
+
+        let out = append_to_scrivx(scrivx, vec![(None, ch)]).unwrap();
+        let act_open = out.find("FOLDER-1").unwrap();
+        let sub = &out[act_open..];
+        let ch_rel = sub.find("<Children>").unwrap();
+        let inner_start = act_open + ch_rel + "<Children>".len();
+        let close_act_children = find_balanced_children_close_index(&out, inner_start).unwrap();
+        let new_ch_pos = out.find("NEW-CH").unwrap();
+        assert!(
+            new_ch_pos > close_act_children,
+            "new binder should be under Draft, not inside Act folder"
+        );
+    }
+
+    #[test]
+    fn test_update_existing_scriv_appends_new_chapter_under_part() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                project_id.to_string(),
+                "Part Nest",
+                "scrivener",
+                "2024-01-01T00:00:00Z",
+                "2024-01-01T00:00:00Z",
+                "novel",
+            ],
+        )
+        .unwrap();
+
+        let part_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, source_id, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![
+                part_id.to_string(),
+                project_id.to_string(),
+                "Act I",
+                0i32,
+                "PART-BIND",
+                true,
+                false,
+            ],
+        )
+        .unwrap();
+
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                ch_id.to_string(),
+                project_id.to_string(),
+                "Sequence 1",
+                1i32,
+                false,
+                false,
+            ],
+        )
+        .unwrap();
+
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                sc_id.to_string(),
+                ch_id.to_string(),
+                "Brand New Scene",
+                "<p>New</p>",
+                0i32,
+                false,
+            ],
+        )
+        .unwrap();
+
+        let scriv_dir = dir.path().join("PartNest.scriv");
+        std::fs::create_dir_all(scriv_dir.join("Files").join("Data")).unwrap();
+
+        let scrivx = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="P1" Version="2.0">
+  <Binder>
+    <BinderItem UUID="DRAFT-1" Type="DraftFolder" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Draft</Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+      <Children>
+        <BinderItem UUID="PART-BIND" Type="Folder" Created="2024-01-01" Modified="2024-01-01">
+          <Title>Act I</Title>
+          <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+          <Children>
+          </Children>
+        </BinderItem>
+      </Children>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#;
+        std::fs::write(scriv_dir.join("PartNest.scrivx"), scrivx).unwrap();
+
+        let project = db::queries::get_project(&conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(&conn, &project_id).unwrap();
+        let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+        let options = ScrivenerExportOptions {
+            mode: ScrivenerExportMode::Update,
+            output_path: scriv_dir.to_string_lossy().to_string(),
+            backup: false,
+            include_unmatched: true,
+            create_snapshot: false,
+        };
+
+        update_existing_scriv_bundle(&conn, &project, &active_chapters, &scriv_dir, &options)
+            .unwrap();
+
+        let xml = std::fs::read_to_string(scriv_dir.join("PartNest.scrivx")).unwrap();
+        let part_pos = xml.find("PART-BIND").unwrap();
+        let sub = &xml[part_pos..];
+        let rel = sub.find("<Children>").unwrap();
+        let inner_start = part_pos + rel + "<Children>".len();
+        let part_children_close = find_balanced_children_close_index(&xml, inner_start).unwrap();
+        let region = &xml[inner_start..part_children_close];
+        assert!(
+            region.contains("Sequence 1"),
+            "new folder should appear under Part binder, region: {region}"
+        );
     }
 
     // =========================================================================

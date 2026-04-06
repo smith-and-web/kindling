@@ -433,6 +433,34 @@ fn write_part_folder_item(
     Ok(())
 }
 
+/// One `BinderItem` subtree (folder + scenes, part branch, or empty part as Text) for appending to an existing `.scrivx`.
+pub fn export_chapter_binder_fragment(chapter: &ExportChapter) -> Result<String, ScrivenerError> {
+    let mut writer = Writer::new_with_indent(Cursor::new(Vec::new()), b' ', 2);
+    if chapter.is_part && !chapter.children.is_empty() {
+        write_part_folder_item(&mut writer, chapter)?;
+    } else if chapter.is_part {
+        write_text_item(
+            &mut writer,
+            &chapter.uuid,
+            &chapter.title,
+            &chapter.created,
+            &chapter.modified,
+            true,
+        )?;
+    } else {
+        write_folder_item(
+            &mut writer,
+            &chapter.uuid,
+            &chapter.title,
+            &chapter.created,
+            &chapter.modified,
+            &chapter.scenes,
+        )?;
+    }
+    let bytes = writer.into_inner().into_inner();
+    String::from_utf8(bytes).map_err(|e| ScrivenerError::InvalidStructure(e.to_string()))
+}
+
 // =============================================================================
 // HTML → RTF Converter
 // =============================================================================
@@ -650,8 +678,9 @@ fn decode_entity(entity: &str) -> String {
 // =============================================================================
 
 /// Left indent in twips at or above this threshold is treated as `<blockquote>`
-/// (matches `html_to_rtf` which uses `\li720` for blockquotes).
-const BLOCKQUOTE_LI_THRESHOLD: i32 = 360;
+/// (matches `html_to_rtf` which uses `\li720` for blockquotes). Use 720 so normal
+/// indented paragraphs (\li360, etc.) are not misclassified.
+const BLOCKQUOTE_LI_THRESHOLD: i32 = 720;
 
 /// Convert Scrivener RTF content to TipTap-compatible HTML.
 ///
@@ -1634,6 +1663,17 @@ mod tests {
             "expected blockquote wrapper, got: {html}"
         );
         assert!(html.contains("Quoted line"), "got: {html}");
+    }
+
+    #[test]
+    fn test_rtf_to_html_li360_not_blockquote() {
+        let rtf = r"{\rtf1\ansi\pard\li360 Indented\par}";
+        let html = rtf_to_html(rtf);
+        assert!(
+            !html.contains("<blockquote>"),
+            "li360 should stay plain paragraph, got: {html}"
+        );
+        assert!(html.contains("Indented"), "got: {html}");
     }
 
     #[test]
