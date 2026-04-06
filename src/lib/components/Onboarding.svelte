@@ -72,7 +72,7 @@
     markdown: { name: "Markdown", extensions: ["md", "markdown"] },
     ywriter: { name: "yWriter 7", extensions: ["yw7"] },
     longform: { name: "Longform Index", extensions: ["md", "markdown"] },
-    scrivener: { name: "Scrivener 3", extensions: ["scriv"], directory: true },
+    scrivener: { name: "Scrivener 3", extensions: ["scriv"] },
   };
 
   async function startGuidedImport(format: GuidedFormat) {

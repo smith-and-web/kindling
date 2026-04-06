@@ -43,7 +43,7 @@ const IMPORT_CONFIGS: Record<string, ImportOptions> = {
   },
   scrivener: {
     command: "import_scrivener",
-    directory: true,
+    filters: [{ name: "Scrivener Project", extensions: ["scriv"] }],
     label: "Scrivener project",
   },
 };
