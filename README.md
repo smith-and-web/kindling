@@ -41,7 +41,7 @@
 ## Why Kindling?
 
 - **Your outline stays visible while you write.** Scene beats appear as expandable prompts in your drafting space. No more switching between apps.
-- **Import your existing work.** Bring in projects from Plottr (.pltr), yWriter (.yw7), or Obsidian Longform — no starting from scratch.
+- **Import your existing work.** Bring in projects from Scrivener (.scriv), Plottr (.pltr), yWriter (.yw7), Obsidian Longform, or Markdown — no starting from scratch.
 - **No AI. No subscription. No cloud.** Every word is yours. Your projects are local SQLite files. Works completely offline.
 - **Free and open source.** MIT licensed. Inspect the code, contribute, or fork it. Your tools should be as permanent as your writing.
 
@@ -51,8 +51,7 @@ Get Kindling for free at **[kindlingwriter.com/download](https://kindlingwriter.
 
 | Platform | Download |
 |----------|----------|
-| macOS (Apple Silicon) | `Kindling_*_aarch64.dmg` |
-| macOS (Intel) | `Kindling_*_x64.dmg` |
+| macOS (Universal) | `Kindling_*_universal.dmg` |
 | Windows | `Kindling_*_x64-setup.msi` |
 | Linux | `Kindling_*_amd64.AppImage` or `.deb` |
 
@@ -62,15 +61,19 @@ Or grab the latest directly from the [Releases page](https://github.com/smith-an
 
 | Feature | Description |
 |---------|-------------|
-| **Import from popular tools** | Plottr (`.pltr`), Markdown (`.md`), yWriter (`.yw7`), and Longform/Obsidian (index or vault) |
-| **Scaffolded writing view** | Scene beats appear as expandable prompts |
-| **Rich text prose editor** | Write with formatting, auto-save, and beat context |
-| **Export formats** | DOCX (Standard Manuscript Format), Markdown, Longform/Obsidian, and EPUB |
-| **Reference types** | Characters, locations, items, objectives, and organizations |
-| **Sync/reimport** | Preview and apply source changes while preserving prose |
-| **Distraction-free dark mode** | Easy on the eyes for long writing sessions |
+| **Import from popular tools** | Scrivener 3 (`.scriv`), Plottr (`.pltr`), Markdown (`.md`), yWriter (`.yw7`), and Longform/Obsidian |
+| **Scaffolded writing view** | Scene beats appear as expandable prompts — or switch to full-page prose editing |
+| **Rich text prose editor** | Write with formatting, auto-save, word count, and beat context |
+| **Export formats** | Scrivener (`.scriv`), DOCX (Standard Manuscript Format), EPUB, Markdown, Longform/Obsidian, and Treatment (1-page & 5-page) |
+| **Screenplay support** | Screenplay project type with sluglines, acts/sequences, and page count estimates |
+| **Reference auto-detection** | Characters and locations are auto-detected in your prose — no manual linking needed |
+| **Custom fields & tags** | Add typed custom fields (text, number, select, etc.) and hierarchical tags to any entity |
+| **Beat sheet templates** | Start from Hero's Journey, Save the Cat, Three-Act Structure, Story Circle, and more |
+| **Reference panel** | Characters, locations, items, objectives, and organizations — linked per scene |
+| **Sync/reimport** | Preview and apply source changes while preserving your prose |
+| **Light & dark themes** | System preference detection with manual override |
 | **Local-first** | Your work stays on your machine in a SQLite database |
-| **Cross-platform** | macOS, Windows, and Linux support |
+| **Cross-platform** | macOS, Windows, and Linux |
 
 See the full [features overview](https://kindlingwriter.com/features/) on the website.
 
@@ -79,7 +82,7 @@ See the full [features overview](https://kindlingwriter.com/features/) on the we
 - **Frontend**: [Svelte 5](https://svelte.dev/) + [Tailwind CSS](https://tailwindcss.com/)
 - **Backend**: [Rust](https://www.rust-lang.org/) + [Tauri 2.x](https://tauri.app/)
 - **Database**: [SQLite](https://sqlite.org/) via rusqlite
-- **Parsers**: Native Rust parsers for Plottr and Markdown
+- **Parsers**: Native Rust parsers for Scrivener 3, Plottr, yWriter, Longform, and Markdown
 
 ## From Source
 
@@ -113,7 +116,7 @@ Track progress on the [project board](https://github.com/users/smith-and-web/pro
 | **v0.2 - Outline View** | ✅ Complete | Drag-and-drop reordering, create/delete scenes |
 | **v0.3 - Writing & Export** | ✅ Complete | Prose editor, DOCX export with Standard Manuscript Format |
 | **v1.0 - Release** | ✅ Complete | Additional importers, polish, performance, stability |
-| **v1.2 - Next** | 🔄 In Progress | Sync/reimport UI, bug fixes, new features |
+| **v1.2 - Features** | ✅ Complete | Scrivener import/export, screenplay support, light theme, custom fields, tags, templates, auto-detection, EPUB, treatments |
 
 See the [milestones](https://github.com/smith-and-web/kindling/milestones) for detailed breakdowns.
 
@@ -123,10 +126,10 @@ Kindling maintains high test coverage standards to ensure code quality and preve
 
 | Metric | Minimum | Current |
 |--------|---------|---------|
-| Statements | 95% | 95%+ |
-| Branches | 65% | 65%+ |
-| Functions | 98% | 98%+ |
-| Lines | 95% | 95%+ |
+| Statements | 95% | 100% |
+| Branches | 65% | 100% |
+| Functions | 98% | 100% |
+| Lines | 95% | 100% |
 
 **CI will fail if coverage drops below these thresholds.** New code must include appropriate tests.
 
@@ -169,7 +172,7 @@ Your sponsorship helps keep Kindling free and open source.
 ## Acknowledgments
 
 - Built with [Tauri](https://tauri.app/) and [Svelte](https://svelte.dev/)
-- Inspired by [Plottr](https://plottr.com/) and [Scrivener](https://www.literatureandlatte.com/scrivener/)
+- Inspired by [Scrivener](https://www.literatureandlatte.com/scrivener/) and [Plottr](https://plottr.com/)
 
 ---
 
