@@ -13,6 +13,10 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
   save: vi.fn(),
 }));
 
+vi.mock("@tauri-apps/plugin-os", () => ({
+  platform: vi.fn(() => "macos"),
+}));
+
 // Mock @tauri-apps/plugin-process
 vi.mock("@tauri-apps/plugin-process", () => ({
   exit: vi.fn(),

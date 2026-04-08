@@ -56,11 +56,20 @@ pub struct Project {
     /// Enabled reference types for this project
     #[serde(default = "Project::default_reference_types")]
     pub reference_types: Vec<String>,
+    /// Project type: "novel" or "screenplay"
+    #[serde(default = "Project::default_project_type")]
+    pub project_type: String,
+    /// Target page count (screenplay only, ~250 words/page)
+    pub target_page_count: Option<i32>,
 }
 
 impl Project {
     pub fn default_reference_types() -> Vec<String> {
         vec!["characters".to_string(), "locations".to_string()]
+    }
+
+    pub fn default_project_type() -> String {
+        "novel".to_string()
     }
 
     pub fn new(name: String, source_type: SourceType, source_path: Option<String>) -> Self {
@@ -77,6 +86,8 @@ impl Project {
             description: None,
             word_target: None,
             reference_types: Self::default_reference_types(),
+            project_type: Self::default_project_type(),
+            target_page_count: None,
         }
     }
 }

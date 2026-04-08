@@ -8,7 +8,7 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::db;
-use crate::models::{Beat, Chapter, PlanningStatus, Scene};
+use crate::models::{Beat, Chapter, EditorMode, PlanningStatus, Scene};
 use crate::parsers::{
     parse_longform_index, parse_markdown_outline, parse_plottr_file, parse_ywriter_file,
 };
@@ -245,6 +245,7 @@ pub async fn reimport_project(
                     scene_type: new_scene.scene_type,
                     scene_status: new_scene.scene_status,
                     planning_status: PlanningStatus::Fixed,
+                    editor_mode: EditorMode::Beat,
                 };
                 db::insert_scene(&tx, &scene_to_insert).map_err(|e| e.to_string())?;
                 summary.scenes_added += 1;
@@ -863,6 +864,7 @@ pub async fn apply_sync(
                         scene_type: new_scene.scene_type,
                         scene_status: new_scene.scene_status,
                         planning_status: PlanningStatus::Fixed,
+                        editor_mode: EditorMode::Beat,
                     };
                     db::insert_scene(&tx, &scene_to_insert).map_err(|e| e.to_string())?;
                     summary.scenes_added += 1;

@@ -19,6 +19,8 @@ const mockProject: Project = {
   description: null,
   word_target: null,
   reference_types: ["characters", "locations", "items", "objectives", "organizations"],
+  project_type: "novel",
+  target_page_count: null,
 };
 
 const mockCharacters: Character[] = [

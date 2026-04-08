@@ -79,6 +79,14 @@ export const COMMAND_DEFS: CommandDef[] = [
     keywords: ["import", "ywriter", "yw7"],
     requiresProject: false,
   },
+  {
+    id: "import_scrivener",
+    label: "Import Scrivener 3 (.scriv)",
+    shortcut: "⌘⇧I",
+    category: "File",
+    keywords: ["import", "scrivener", "scriv"],
+    requiresProject: false,
+  },
   // Project
   {
     id: "project_settings",
@@ -120,6 +128,31 @@ export const COMMAND_DEFS: CommandDef[] = [
     shortcut: "⌘D",
     category: "View",
     keywords: ["discovery", "notes", "draft"],
+    requiresProject: true,
+  },
+  {
+    id: "toggle_editor_mode",
+    label: "Toggle beat/page view",
+    shortcut: "⌘⇧V",
+    category: "View",
+    keywords: ["page", "beat", "view", "mode", "prose", "editor"],
+    requiresProject: true,
+  },
+  // Project - Detection
+  {
+    id: "detect_references",
+    label: "Detect references in scene",
+    shortcut: "",
+    category: "Project",
+    keywords: ["detect", "references", "scan", "suggest", "smart"],
+    requiresProject: true,
+  },
+  {
+    id: "detect_all_references",
+    label: "Detect references in all scenes",
+    shortcut: "",
+    category: "Project",
+    keywords: ["detect", "all", "references", "scan", "suggest", "bulk"],
     requiresProject: true,
   },
   // Help

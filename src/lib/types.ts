@@ -10,6 +10,9 @@
 /** Supported outline import formats */
 export type SourceType = "Plottr" | "Markdown" | "YWriter" | "Scrivener" | "Longform" | "Blank";
 
+/** Project type: novel (default) or screenplay */
+export type ProjectType = "novel" | "screenplay";
+
 /** Rolling outline planning status for chapters and scenes */
 export type PlanningStatus = "fixed" | "flexible" | "undefined";
 
@@ -43,6 +46,10 @@ export interface Project {
   word_target: number | null;
   /** Enabled reference types for this project */
   reference_types: ReferenceTypeId[];
+  /** Project type: novel or screenplay */
+  project_type: ProjectType;
+  /** Target page count (screenplay, ~250 words/page) */
+  target_page_count: number | null;
 }
 
 /** App-wide settings (stored in JSON file, not database) */
@@ -99,7 +106,11 @@ export interface Scene {
   scene_status: SceneStatus;
   /** Rolling outline planning status */
   planning_status: PlanningStatus;
+  /** Editor mode: beat cards or full-page prose */
+  editor_mode: EditorMode;
 }
+
+export type EditorMode = "beat" | "page";
 
 export type SceneType = "normal" | "notes" | "todo" | "unused";
 
@@ -158,8 +169,89 @@ export interface Location {
   source_id: string | null;
 }
 
+/** A user-defined tag with optional color and hierarchy */
+export interface Tag {
+  id: string;
+  project_id: string;
+  name: string;
+  color: string | null;
+  parent_id: string | null;
+  position: number;
+  created_at: string;
+}
+
+/** A link between a tag and an entity */
+export interface EntityTag {
+  tag_id: string;
+  entity_type: string;
+  entity_id: string;
+}
+
+/** A saved filter query */
+export interface SavedFilter {
+  id: string;
+  project_id: string;
+  name: string;
+  entity_type: string;
+  filter_json: string;
+  position: number;
+}
+
+/** Filter criteria for tag-based filtering */
+export interface TagFilter {
+  tags: string[];
+  operator: "AND" | "OR";
+}
+
+/** A suggested reference link detected from prose text */
+export interface ReferenceSuggestion {
+  reference_id: string;
+  reference_type: string;
+  reference_name: string;
+  match_text: string;
+  positions: number[];
+  confidence: number;
+}
+
 /** Supported reference types for the References panel */
 export type ReferenceTypeId = "characters" | "locations" | "items" | "objectives" | "organizations";
+
+/** Supported field types for custom fields */
+export type FieldType = "text" | "number" | "date" | "select" | "multiselect" | "checkbox" | "url";
+
+/** Entity types that support custom fields */
+export type FieldEntityType =
+  | "character"
+  | "location"
+  | "scene"
+  | "item"
+  | "objective"
+  | "organization";
+
+/** Project-level definition for a custom field */
+export interface FieldDefinition {
+  id: string;
+  project_id: string;
+  entity_type: FieldEntityType;
+  name: string;
+  field_type: FieldType;
+  /** JSON-encoded options for select/multiselect fields */
+  options: string | null;
+  default_value: string | null;
+  position: number;
+  required: boolean;
+  visible: boolean;
+  created_at: string;
+}
+
+/** A stored value for a custom field on a specific entity */
+export interface FieldValue {
+  id: string;
+  field_definition_id: string;
+  entity_id: string;
+  /** JSON-encoded value */
+  value: string | null;
+}
 
 /** Generic reference card used for extended reference types */
 export interface ReferenceItem {
@@ -358,6 +450,41 @@ export interface EpubExportOptions {
   cover_image_path?: string;
 }
 
+/** Detail level for treatment generation */
+export type TreatmentLevel = "one_page" | "five_page" | "full";
+
+/** Output format for treatment generation */
+export type TreatmentFormat = "docx" | "txt";
+
+/** Options for generating a treatment document */
+export interface TreatmentOptions {
+  detail_level: TreatmentLevel;
+  format: TreatmentFormat;
+  output_path: string;
+  create_snapshot?: boolean;
+}
+
+/** Export mode for Scrivener */
+export type ScrivenerExportMode = "create_new" | "update";
+
+/** Options for Scrivener export */
+export interface ScrivenerExportOptions {
+  mode: ScrivenerExportMode;
+  output_path: string;
+  backup?: boolean;
+  include_unmatched?: boolean;
+  create_snapshot?: boolean;
+}
+
+/** Preview of how scenes map to Scrivener documents */
+export interface ScrivenerMatchPreview {
+  scene_id: string;
+  scene_title: string;
+  chapter_title: string;
+  matched_scriv_title: string | null;
+  match_method: string | null;
+}
+
 /** Result of an export operation */
 export interface ExportResult {
   /** Path where export was saved */
@@ -416,4 +543,35 @@ export interface RestoreSnapshotOptions {
 export interface SnapshotPreview {
   metadata: SnapshotMetadata;
   project_name: string;
+}
+
+/** A scene within a story template */
+export interface TemplateScene {
+  title: string;
+  synopsis?: string | null;
+}
+
+/** A chapter within a story template part */
+export interface TemplateChapter {
+  title: string;
+  synopsis?: string | null;
+  scenes: TemplateScene[];
+}
+
+/** A part (act) within a story template */
+export interface TemplatePart {
+  title: string;
+  children: TemplateChapter[];
+}
+
+/** A story structure template (bundled or user-created) */
+export interface StoryTemplate {
+  id: string;
+  name: string;
+  source?: string | null;
+  description?: string | null;
+  project_types: ProjectType[];
+  structure: TemplatePart[];
+  bundled: boolean;
+  created_at?: string | null;
 }

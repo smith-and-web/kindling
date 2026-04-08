@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 use crate::db;
 use crate::models::{
-    Beat, Chapter, Character, Location, PlanningStatus, Project, ReferenceItem, Scene, SceneStatus,
-    SceneType, SourceType,
+    Beat, Chapter, Character, EditorMode, Location, PlanningStatus, Project, ReferenceItem, Scene,
+    SceneStatus, SceneType, SourceType,
 };
 
 use super::AppState;
@@ -36,6 +36,8 @@ pub async fn create_sample_project(state: State<'_, AppState>) -> Result<Project
         description: Some("A sample project to explore Kindling. Try the sidebar, scene panel, beats, and references.".to_string()),
         word_target: None,
         reference_types: Project::default_reference_types(),
+        project_type: Project::default_project_type(),
+        target_page_count: None,
     };
 
     let chapter_id = Uuid::new_v4();
@@ -73,6 +75,7 @@ pub async fn create_sample_project(state: State<'_, AppState>) -> Result<Project
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
             planning_status: PlanningStatus::Fixed,
+            editor_mode: EditorMode::Beat,
         },
         Scene {
             id: scene2_id,
@@ -87,6 +90,7 @@ pub async fn create_sample_project(state: State<'_, AppState>) -> Result<Project
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
             planning_status: PlanningStatus::Fixed,
+            editor_mode: EditorMode::Beat,
         },
         Scene {
             id: scene3_id,
@@ -103,6 +107,7 @@ pub async fn create_sample_project(state: State<'_, AppState>) -> Result<Project
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
             planning_status: PlanningStatus::Fixed,
+            editor_mode: EditorMode::Beat,
         },
     ];
 

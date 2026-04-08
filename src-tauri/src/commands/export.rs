@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 use zip::write::FileOptions;
@@ -452,12 +452,13 @@ fn strip_html(html: &str) -> String {
         .join("\n\n")
 }
 
-/// A text run with formatting information for DOCX export
+/// A text run with formatting information for DOCX/EPUB export
 #[derive(Debug, Clone, PartialEq)]
 struct FormattedRun {
     text: String,
     bold: bool,
     italic: bool,
+    underline: bool,
 }
 
 /// Type of paragraph for styling purposes
@@ -466,6 +467,7 @@ enum ParagraphType {
     #[default]
     Normal,
     Blockquote,
+    Heading(u8),
 }
 
 /// A paragraph containing formatted runs, for DOCX export
@@ -593,6 +595,7 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
     let mut current_runs: Vec<FormattedRun> = Vec::new();
     let mut bold_depth: u32 = 0;
     let mut italic_depth: u32 = 0;
+    let mut underline_depth: u32 = 0;
     let mut blockquote_depth: u32 = 0;
     let mut current_para_type = ParagraphType::Normal;
 
@@ -608,8 +611,8 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                 match tag_name.as_str() {
                     "strong" | "b" => bold_depth += 1,
                     "em" | "i" => italic_depth += 1,
+                    "u" => underline_depth += 1,
                     "blockquote" => {
-                        // Start of blockquote - save current runs if any
                         if !current_runs.is_empty() {
                             paragraphs.push(FormattedParagraph {
                                 runs: std::mem::take(&mut current_runs),
@@ -619,15 +622,23 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                         blockquote_depth += 1;
                         current_para_type = ParagraphType::Blockquote;
                     }
-                    "p" => {
-                        // Start of a new paragraph - save current runs if any
+                    "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
                         if !current_runs.is_empty() {
                             paragraphs.push(FormattedParagraph {
                                 runs: std::mem::take(&mut current_runs),
                                 paragraph_type: current_para_type,
                             });
                         }
-                        // Set paragraph type based on whether we're in a blockquote
+                        let level = tag_name.as_bytes()[1] - b'0';
+                        current_para_type = ParagraphType::Heading(level);
+                    }
+                    "p" => {
+                        if !current_runs.is_empty() {
+                            paragraphs.push(FormattedParagraph {
+                                runs: std::mem::take(&mut current_runs),
+                                paragraph_type: current_para_type,
+                            });
+                        }
                         current_para_type = if blockquote_depth > 0 {
                             ParagraphType::Blockquote
                         } else {
@@ -642,8 +653,8 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                 match tag_name.as_str() {
                     "strong" | "b" => bold_depth = bold_depth.saturating_sub(1),
                     "em" | "i" => italic_depth = italic_depth.saturating_sub(1),
+                    "u" => underline_depth = underline_depth.saturating_sub(1),
                     "blockquote" => {
-                        // End of blockquote - save current runs if any
                         if !current_runs.is_empty() {
                             paragraphs.push(FormattedParagraph {
                                 runs: std::mem::take(&mut current_runs),
@@ -657,8 +668,20 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                             ParagraphType::Normal
                         };
                     }
+                    "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
+                        if !current_runs.is_empty() {
+                            paragraphs.push(FormattedParagraph {
+                                runs: std::mem::take(&mut current_runs),
+                                paragraph_type: current_para_type,
+                            });
+                        }
+                        current_para_type = if blockquote_depth > 0 {
+                            ParagraphType::Blockquote
+                        } else {
+                            ParagraphType::Normal
+                        };
+                    }
                     "p" => {
-                        // End of paragraph - save current runs
                         if !current_runs.is_empty() {
                             paragraphs.push(FormattedParagraph {
                                 runs: std::mem::take(&mut current_runs),
@@ -672,33 +695,28 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
             Ok(Event::Empty(e)) => {
                 let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
                 if tag_name == "br" {
-                    // Line break within paragraph - add a space or handle specially
-                    // For manuscripts, we typically want a space here
-                    if !current_runs.is_empty() {
-                        if let Some(last_run) = current_runs.last_mut() {
-                            if !last_run.text.ends_with(' ') {
-                                last_run.text.push(' ');
-                            }
-                        }
-                    }
+                    current_runs.push(FormattedRun {
+                        text: "\n".to_string(),
+                        bold: bold_depth > 0,
+                        italic: italic_depth > 0,
+                        underline: underline_depth > 0,
+                    });
                 }
             }
             Ok(Event::Text(e)) => {
-                // In quick-xml 0.39, use from_utf8_lossy on the bytes
                 let text = String::from_utf8_lossy(&e).to_string();
                 if !text.is_empty() {
-                    // Apply text transformations (smart quotes, punctuation)
                     let transformed = transform_text(&text);
                     if !transformed.is_empty() {
                         current_runs.push(FormattedRun {
                             text: transformed,
                             bold: bold_depth > 0,
                             italic: italic_depth > 0,
+                            underline: underline_depth > 0,
                         });
                     }
                 }
             }
-            // Handle entity references (e.g., &amp; &lt; &gt;)
             Ok(Event::GeneralRef(e)) => {
                 let entity = String::from_utf8_lossy(&e);
                 let decoded = match entity.as_ref() {
@@ -716,12 +734,12 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                         text: transformed,
                         bold: bold_depth > 0,
                         italic: italic_depth > 0,
+                        underline: underline_depth > 0,
                     });
                 }
             }
             Ok(Event::Eof) => break,
             Err(_) => {
-                // If XML parsing fails, fall back to plain text with transformations
                 let plain = strip_html(html);
                 let transformed = transform_text(&plain);
                 if !transformed.is_empty() {
@@ -730,6 +748,7 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                             text: transformed,
                             bold: false,
                             italic: false,
+                            underline: false,
                         }],
                         paragraph_type: ParagraphType::Normal,
                     }];
@@ -765,8 +784,16 @@ fn merge_adjacent_runs(runs: Vec<FormattedRun>) -> Vec<FormattedRun> {
     let mut merged: Vec<FormattedRun> = Vec::new();
 
     for run in runs {
+        if run.text == "\n" {
+            merged.push(run);
+            continue;
+        }
         if let Some(last) = merged.last_mut() {
-            if last.bold == run.bold && last.italic == run.italic {
+            if last.text != "\n"
+                && last.bold == run.bold
+                && last.italic == run.italic
+                && last.underline == run.underline
+            {
                 last.text.push_str(&run.text);
                 continue;
             }
@@ -918,16 +945,24 @@ fn render_formatted_paragraphs(paragraphs: &[FormattedParagraph]) -> String {
     for paragraph in paragraphs {
         let mut runs_html = String::new();
         for run in &paragraph.runs {
+            if run.text == "\n" {
+                runs_html.push_str("<br/>");
+                continue;
+            }
             let text = escape_xml(&run.text);
-            let run_html = if run.bold && run.italic {
-                format!("<strong><em>{}</em></strong>", text)
-            } else if run.bold {
-                format!("<strong>{}</strong>", text)
-            } else if run.italic {
-                format!("<em>{}</em>", text)
-            } else {
-                text
-            };
+            let mut run_html = text;
+            if run.bold {
+                run_html = format!("<strong>{}</strong>", run_html);
+            }
+            if run.italic {
+                run_html = format!("<em>{}</em>", run_html);
+            }
+            if run.underline {
+                run_html = format!(
+                    "<span style=\"text-decoration:underline\">{}</span>",
+                    run_html
+                );
+            }
             runs_html.push_str(&run_html);
         }
 
@@ -938,6 +973,13 @@ fn render_formatted_paragraphs(paragraphs: &[FormattedParagraph]) -> String {
         match paragraph.paragraph_type {
             ParagraphType::Blockquote => {
                 output.push_str(&format!("<blockquote><p>{}</p></blockquote>\n", runs_html));
+            }
+            ParagraphType::Heading(level) => {
+                output.push_str(&format!(
+                    "<h{level}>{content}</h{level}>\n",
+                    level = level,
+                    content = runs_html
+                ));
             }
             ParagraphType::Normal => {
                 output.push_str(&format!("<p>{}</p>\n", runs_html));
@@ -2804,6 +2846,12 @@ fn add_beat_to_docx(
                 if run_data.italic {
                     run = run.italic();
                 }
+                if run_data.underline {
+                    run = run.underline("single");
+                }
+                if run_data.text == "\n" {
+                    run = Run::new().add_break(BreakType::TextWrapping);
+                }
 
                 para = para.add_run(run);
             }
@@ -2813,20 +2861,17 @@ fn add_beat_to_docx(
                 .line_spacing(LineSpacing::new().line(line_spacing_twips))
                 .widow_control(true);
 
-            // Apply styling based on paragraph type
             match formatted_para.paragraph_type {
                 ParagraphType::Blockquote => {
-                    // Blockquotes: left margin (720 twips = 0.5"), no first-line indent
-                    // The third parameter is end/right indent
                     para = para.indent(Some(720), None, Some(720), None);
                 }
+                ParagraphType::Heading(_) => {
+                    para = para.style("Heading2");
+                }
                 ParagraphType::Normal => {
-                    // SMF: First paragraph after chapter heading or scene break has no indent
-                    // Subsequent paragraphs have 0.5" first-line indent
                     let needs_indent = !(is_first_para_in_section && regular_para_index == 0);
 
                     if needs_indent {
-                        // 720 twips = 0.5 inch first-line indent
                         para = para.indent(None, None, Some(720), None);
                     }
 
@@ -3539,6 +3584,1311 @@ pub async fn export_to_epub(
     })
 }
 
+// =============================================================================
+// Treatment Generation
+// =============================================================================
+
+/// Detail level for treatment export
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TreatmentLevel {
+    /// Title + logline + 3-paragraph synopsis (one per act)
+    OnePage,
+    /// Title + logline + act summaries + key scene descriptions
+    FivePage,
+    /// Title + logline + every scene's synopsis and beat descriptions
+    Full,
+}
+
+/// Output format for treatment export
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TreatmentFormat {
+    Docx,
+    Txt,
+}
+
+/// Options for treatment generation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TreatmentOptions {
+    pub detail_level: TreatmentLevel,
+    pub format: TreatmentFormat,
+    pub output_path: String,
+    #[serde(default)]
+    pub create_snapshot: bool,
+}
+
+/// Intermediate structure for compiling treatment content
+struct TreatmentContent {
+    title: String,
+    author: String,
+    logline: String,
+    parts: Vec<TreatmentPart>,
+}
+
+struct TreatmentPart {
+    title: String,
+    synopsis: String,
+    chapters: Vec<TreatmentChapter>,
+}
+
+struct TreatmentChapter {
+    title: String,
+    synopsis: String,
+    scenes: Vec<TreatmentScene>,
+}
+
+struct TreatmentScene {
+    title: String,
+    synopsis: String,
+    beat_summaries: Vec<String>,
+}
+
+/// Compile project data into treatment content
+fn compile_treatment_content(
+    conn: &rusqlite::Connection,
+    project: &Project,
+    app_settings: &AppSettings,
+) -> Result<TreatmentContent, String> {
+    let author = project
+        .author_pen_name
+        .as_ref()
+        .filter(|s| !s.trim().is_empty())
+        .or(app_settings.author_name.as_ref())
+        .cloned()
+        .unwrap_or_default();
+
+    let logline = project.description.as_ref().cloned().unwrap_or_default();
+
+    let chapters = db::queries::get_chapters(conn, &project.id).map_err(|e| e.to_string())?;
+    let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+    let mut parts: Vec<TreatmentPart> = Vec::new();
+    let mut current_part: Option<TreatmentPart> = None;
+    let mut loose_chapters: Vec<TreatmentChapter> = Vec::new();
+
+    for chapter in &active_chapters {
+        if chapter.is_part {
+            if let Some(part) = current_part.take() {
+                parts.push(part);
+            }
+            if !loose_chapters.is_empty() {
+                parts.push(TreatmentPart {
+                    title: String::new(),
+                    synopsis: String::new(),
+                    chapters: std::mem::take(&mut loose_chapters),
+                });
+            }
+            current_part = Some(TreatmentPart {
+                title: chapter.title.clone(),
+                synopsis: chapter.synopsis.as_deref().unwrap_or("").to_string(),
+                chapters: Vec::new(),
+            });
+        } else {
+            let scenes = db::queries::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
+            let mut treatment_scenes = Vec::new();
+
+            for scene in scenes.iter().filter(|s| !s.archived) {
+                let beats = db::queries::get_beats(conn, &scene.id).map_err(|e| e.to_string())?;
+                let beat_summaries: Vec<String> = beats
+                    .iter()
+                    .filter(|b| {
+                        !b.content.trim().is_empty()
+                            || b.prose.as_ref().is_some_and(|p| !p.trim().is_empty())
+                    })
+                    .map(|b| {
+                        if !b.content.trim().is_empty() {
+                            b.content.clone()
+                        } else {
+                            let text = strip_html(b.prose.as_deref().unwrap_or(""));
+                            let words: Vec<&str> = text.split_whitespace().collect();
+                            if words.len() > 30 {
+                                format!("{}...", words[..30].join(" "))
+                            } else {
+                                words.join(" ")
+                            }
+                        }
+                    })
+                    .collect();
+
+                treatment_scenes.push(TreatmentScene {
+                    title: scene.title.clone(),
+                    synopsis: scene.synopsis.as_deref().unwrap_or("").to_string(),
+                    beat_summaries,
+                });
+            }
+
+            let tc = TreatmentChapter {
+                title: chapter.title.clone(),
+                synopsis: chapter.synopsis.as_deref().unwrap_or("").to_string(),
+                scenes: treatment_scenes,
+            };
+
+            if let Some(ref mut part) = current_part {
+                part.chapters.push(tc);
+            } else {
+                loose_chapters.push(tc);
+            }
+        }
+    }
+
+    if let Some(part) = current_part.take() {
+        parts.push(part);
+    }
+    if !loose_chapters.is_empty() {
+        parts.push(TreatmentPart {
+            title: String::new(),
+            synopsis: String::new(),
+            chapters: loose_chapters,
+        });
+    }
+
+    Ok(TreatmentContent {
+        title: project.name.clone(),
+        author,
+        logline,
+        parts,
+    })
+}
+
+/// Generate treatment as plain text
+fn treatment_to_text(content: &TreatmentContent, level: &TreatmentLevel) -> String {
+    let mut out = String::new();
+
+    // Title
+    out.push_str(&content.title.to_uppercase());
+    out.push('\n');
+    if !content.author.is_empty() {
+        out.push_str(&format!("by {}", content.author));
+        out.push('\n');
+    }
+    out.push('\n');
+
+    // Logline
+    if !content.logline.is_empty() {
+        out.push_str(&content.logline);
+        out.push_str("\n\n");
+    }
+
+    match level {
+        TreatmentLevel::OnePage => {
+            for part in &content.parts {
+                if !part.title.is_empty() && !part.synopsis.is_empty() {
+                    out.push_str(&part.synopsis);
+                    out.push_str("\n\n");
+                } else if !part.title.is_empty() {
+                    let combined = part
+                        .chapters
+                        .iter()
+                        .filter(|c| !c.synopsis.is_empty())
+                        .map(|c| c.synopsis.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    if !combined.is_empty() {
+                        out.push_str(&combined);
+                        out.push_str("\n\n");
+                    }
+                }
+            }
+        }
+        TreatmentLevel::FivePage => {
+            for part in &content.parts {
+                if !part.title.is_empty() {
+                    out.push_str(&part.title.to_uppercase());
+                    out.push('\n');
+                    if !part.synopsis.is_empty() {
+                        out.push_str(&part.synopsis);
+                        out.push('\n');
+                    }
+                    out.push('\n');
+                }
+
+                for chapter in &part.chapters {
+                    out.push_str(&chapter.title);
+                    out.push('\n');
+                    if !chapter.synopsis.is_empty() {
+                        out.push_str(&chapter.synopsis);
+                        out.push('\n');
+                    }
+
+                    for scene in &chapter.scenes {
+                        if !scene.synopsis.is_empty() {
+                            out.push_str(&format!("  {}: {}", scene.title, scene.synopsis));
+                            out.push('\n');
+                        }
+                    }
+                    out.push('\n');
+                }
+            }
+        }
+        TreatmentLevel::Full => {
+            for part in &content.parts {
+                if !part.title.is_empty() {
+                    out.push_str(&part.title.to_uppercase());
+                    out.push('\n');
+                    if !part.synopsis.is_empty() {
+                        out.push_str(&part.synopsis);
+                        out.push('\n');
+                    }
+                    out.push('\n');
+                }
+
+                for chapter in &part.chapters {
+                    out.push_str(&chapter.title);
+                    out.push('\n');
+                    if !chapter.synopsis.is_empty() {
+                        out.push_str(&chapter.synopsis);
+                        out.push('\n');
+                    }
+                    out.push('\n');
+
+                    for scene in &chapter.scenes {
+                        out.push_str(&format!("  {}", scene.title));
+                        out.push('\n');
+                        if !scene.synopsis.is_empty() {
+                            out.push_str(&format!("  {}", scene.synopsis));
+                            out.push('\n');
+                        }
+                        for beat in &scene.beat_summaries {
+                            out.push_str(&format!("    - {}", beat));
+                            out.push('\n');
+                        }
+                        out.push('\n');
+                    }
+                }
+            }
+        }
+    }
+
+    out.trim_end().to_string()
+}
+
+/// Generate treatment as DOCX
+fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx {
+    let font = "Courier New";
+    let line_sp = 480i32; // double spacing
+
+    let page_margin = PageMargin::new()
+        .top(1440)
+        .bottom(1440)
+        .left(1440)
+        .right(1440);
+
+    let mut docx = Docx::new()
+        .page_margin(page_margin)
+        .add_style(
+            Style::new("Heading1", StyleType::Paragraph)
+                .name("Heading 1")
+                .size(28)
+                .bold()
+                .fonts(RunFonts::new().ascii(font)),
+        )
+        .add_style(
+            Style::new("Heading2", StyleType::Paragraph)
+                .name("Heading 2")
+                .size(24)
+                .bold()
+                .fonts(RunFonts::new().ascii(font)),
+        );
+
+    // Title page
+    for _ in 0..10 {
+        docx = docx.add_paragraph(Paragraph::new());
+    }
+    docx = docx.add_paragraph(
+        Paragraph::new()
+            .add_run(
+                Run::new()
+                    .add_text(content.title.to_uppercase())
+                    .size(28)
+                    .bold()
+                    .fonts(RunFonts::new().ascii(font)),
+            )
+            .align(AlignmentType::Center),
+    );
+    if !content.author.is_empty() {
+        docx = docx.add_paragraph(
+            Paragraph::new()
+                .add_run(
+                    Run::new()
+                        .add_text(format!("by {}", content.author))
+                        .size(24)
+                        .fonts(RunFonts::new().ascii(font)),
+                )
+                .align(AlignmentType::Center),
+        );
+    }
+    docx = docx.add_paragraph(Paragraph::new());
+    docx = docx.add_paragraph(
+        Paragraph::new()
+            .add_run(
+                Run::new()
+                    .add_text("A Treatment")
+                    .size(24)
+                    .fonts(RunFonts::new().ascii(font)),
+            )
+            .align(AlignmentType::Center),
+    );
+
+    // Logline
+    if !content.logline.is_empty() {
+        docx = docx.add_paragraph(Paragraph::new().page_break_before(true));
+        docx = docx.add_paragraph(
+            Paragraph::new()
+                .add_run(
+                    Run::new()
+                        .add_text(&content.logline)
+                        .size(24)
+                        .italic()
+                        .fonts(RunFonts::new().ascii(font)),
+                )
+                .line_spacing(LineSpacing::new().line(line_sp)),
+        );
+        docx = docx.add_paragraph(Paragraph::new());
+    } else {
+        docx = docx.add_paragraph(Paragraph::new().page_break_before(true));
+    }
+
+    match level {
+        TreatmentLevel::OnePage => {
+            for part in &content.parts {
+                let text = if !part.synopsis.is_empty() {
+                    part.synopsis.clone()
+                } else {
+                    part.chapters
+                        .iter()
+                        .filter(|c| !c.synopsis.is_empty())
+                        .map(|c| c.synopsis.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                };
+                if !text.is_empty() {
+                    docx = docx.add_paragraph(
+                        Paragraph::new()
+                            .add_run(
+                                Run::new()
+                                    .add_text(&text)
+                                    .size(24)
+                                    .fonts(RunFonts::new().ascii(font)),
+                            )
+                            .line_spacing(LineSpacing::new().line(line_sp)),
+                    );
+                    docx = docx.add_paragraph(Paragraph::new());
+                }
+            }
+        }
+        TreatmentLevel::FivePage => {
+            for part in &content.parts {
+                if !part.title.is_empty() {
+                    docx = docx.add_paragraph(
+                        Paragraph::new()
+                            .add_run(
+                                Run::new()
+                                    .add_text(part.title.to_uppercase())
+                                    .size(28)
+                                    .bold()
+                                    .fonts(RunFonts::new().ascii(font)),
+                            )
+                            .style("Heading1")
+                            .line_spacing(LineSpacing::new().line(line_sp)),
+                    );
+                    if !part.synopsis.is_empty() {
+                        docx = docx.add_paragraph(
+                            Paragraph::new()
+                                .add_run(
+                                    Run::new()
+                                        .add_text(&part.synopsis)
+                                        .size(24)
+                                        .fonts(RunFonts::new().ascii(font)),
+                                )
+                                .line_spacing(LineSpacing::new().line(line_sp)),
+                        );
+                    }
+                    docx = docx.add_paragraph(Paragraph::new());
+                }
+
+                for chapter in &part.chapters {
+                    docx = docx.add_paragraph(
+                        Paragraph::new()
+                            .add_run(
+                                Run::new()
+                                    .add_text(&chapter.title)
+                                    .size(24)
+                                    .bold()
+                                    .fonts(RunFonts::new().ascii(font)),
+                            )
+                            .style("Heading2")
+                            .line_spacing(LineSpacing::new().line(line_sp)),
+                    );
+                    if !chapter.synopsis.is_empty() {
+                        docx = docx.add_paragraph(
+                            Paragraph::new()
+                                .add_run(
+                                    Run::new()
+                                        .add_text(&chapter.synopsis)
+                                        .size(24)
+                                        .fonts(RunFonts::new().ascii(font)),
+                                )
+                                .line_spacing(LineSpacing::new().line(line_sp)),
+                        );
+                    }
+                    for scene in &chapter.scenes {
+                        if !scene.synopsis.is_empty() {
+                            docx = docx.add_paragraph(
+                                Paragraph::new()
+                                    .add_run(
+                                        Run::new()
+                                            .add_text(format!(
+                                                "{} — {}",
+                                                scene.title, scene.synopsis
+                                            ))
+                                            .size(24)
+                                            .fonts(RunFonts::new().ascii(font)),
+                                    )
+                                    .indent(Some(720), None, None, None)
+                                    .line_spacing(LineSpacing::new().line(line_sp)),
+                            );
+                        }
+                    }
+                    docx = docx.add_paragraph(Paragraph::new());
+                }
+            }
+        }
+        TreatmentLevel::Full => {
+            for part in &content.parts {
+                if !part.title.is_empty() {
+                    docx = docx.add_paragraph(
+                        Paragraph::new()
+                            .add_run(
+                                Run::new()
+                                    .add_text(part.title.to_uppercase())
+                                    .size(28)
+                                    .bold()
+                                    .fonts(RunFonts::new().ascii(font)),
+                            )
+                            .style("Heading1")
+                            .line_spacing(LineSpacing::new().line(line_sp)),
+                    );
+                    if !part.synopsis.is_empty() {
+                        docx = docx.add_paragraph(
+                            Paragraph::new()
+                                .add_run(
+                                    Run::new()
+                                        .add_text(&part.synopsis)
+                                        .size(24)
+                                        .fonts(RunFonts::new().ascii(font)),
+                                )
+                                .line_spacing(LineSpacing::new().line(line_sp)),
+                        );
+                    }
+                    docx = docx.add_paragraph(Paragraph::new());
+                }
+
+                for chapter in &part.chapters {
+                    docx = docx.add_paragraph(
+                        Paragraph::new()
+                            .add_run(
+                                Run::new()
+                                    .add_text(&chapter.title)
+                                    .size(24)
+                                    .bold()
+                                    .fonts(RunFonts::new().ascii(font)),
+                            )
+                            .style("Heading2")
+                            .line_spacing(LineSpacing::new().line(line_sp)),
+                    );
+                    if !chapter.synopsis.is_empty() {
+                        docx = docx.add_paragraph(
+                            Paragraph::new()
+                                .add_run(
+                                    Run::new()
+                                        .add_text(&chapter.synopsis)
+                                        .size(24)
+                                        .fonts(RunFonts::new().ascii(font)),
+                                )
+                                .line_spacing(LineSpacing::new().line(line_sp)),
+                        );
+                    }
+                    docx = docx.add_paragraph(Paragraph::new());
+
+                    for scene in &chapter.scenes {
+                        docx = docx.add_paragraph(
+                            Paragraph::new()
+                                .add_run(
+                                    Run::new()
+                                        .add_text(&scene.title)
+                                        .size(24)
+                                        .bold()
+                                        .italic()
+                                        .fonts(RunFonts::new().ascii(font)),
+                                )
+                                .indent(Some(720), None, None, None)
+                                .line_spacing(LineSpacing::new().line(line_sp)),
+                        );
+                        if !scene.synopsis.is_empty() {
+                            docx = docx.add_paragraph(
+                                Paragraph::new()
+                                    .add_run(
+                                        Run::new()
+                                            .add_text(&scene.synopsis)
+                                            .size(24)
+                                            .fonts(RunFonts::new().ascii(font)),
+                                    )
+                                    .indent(Some(720), None, None, None)
+                                    .line_spacing(LineSpacing::new().line(line_sp)),
+                            );
+                        }
+                        for beat in &scene.beat_summaries {
+                            docx = docx.add_paragraph(
+                                Paragraph::new()
+                                    .add_run(
+                                        Run::new()
+                                            .add_text(format!("— {}", beat))
+                                            .size(24)
+                                            .fonts(RunFonts::new().ascii(font)),
+                                    )
+                                    .indent(Some(1080), None, None, None)
+                                    .line_spacing(LineSpacing::new().line(line_sp)),
+                            );
+                        }
+                        docx = docx.add_paragraph(Paragraph::new());
+                    }
+                }
+            }
+        }
+    }
+
+    docx
+}
+
+/// Generate a treatment document from project content
+#[tauri::command]
+pub async fn generate_treatment(
+    project_id: String,
+    options: TreatmentOptions,
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ExportResult, String> {
+    let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+
+    if options.create_snapshot {
+        let snapshot_options = super::CreateSnapshotOptions {
+            name: "Pre-treatment snapshot".to_string(),
+            description: Some("Automatic snapshot created before treatment generation".to_string()),
+            trigger_type: SnapshotTrigger::Export,
+        };
+
+        super::create_snapshot(
+            project_id.clone(),
+            snapshot_options,
+            app_handle.clone(),
+            state.clone(),
+        )
+        .await?;
+    }
+
+    let app_settings = load_app_settings(&app_handle)?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let project = db::queries::get_project(&conn, &project_uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Project not found: {}", project_id))?;
+
+    let content = compile_treatment_content(&conn, &project, &app_settings)?;
+
+    let chapters_exported = content.parts.iter().map(|p| p.chapters.len()).sum();
+    let scenes_exported: usize = content
+        .parts
+        .iter()
+        .flat_map(|p| &p.chapters)
+        .map(|c| c.scenes.len())
+        .sum();
+
+    let output_path = PathBuf::from(&options.output_path);
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create output directory: {}", e))?;
+    }
+
+    match options.format {
+        TreatmentFormat::Txt => {
+            let text = treatment_to_text(&content, &options.detail_level);
+            let mut file = fs::File::create(&output_path)
+                .map_err(|e| format!("Failed to create output file: {}", e))?;
+            file.write_all(text.as_bytes())
+                .map_err(|e| format!("Failed to write treatment file: {}", e))?;
+        }
+        TreatmentFormat::Docx => {
+            let docx = treatment_to_docx(&content, &options.detail_level);
+            let file = fs::File::create(&output_path)
+                .map_err(|e| format!("Failed to create output file: {}", e))?;
+            docx.build()
+                .pack(file)
+                .map_err(|e| format!("Failed to write DOCX file: {}", e))?;
+        }
+    }
+
+    Ok(ExportResult {
+        output_path: output_path.to_string_lossy().to_string(),
+        files_created: 1,
+        chapters_exported,
+        scenes_exported,
+    })
+}
+
+// =============================================================================
+// Scrivener Export
+// =============================================================================
+
+/// Export mode for Scrivener
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScrivenerExportMode {
+    /// Create a fresh .scriv bundle
+    CreateNew,
+    /// Update an existing .scriv bundle (match by source_id or title)
+    Update,
+}
+
+/// Options for Scrivener export
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScrivenerExportOptions {
+    pub mode: ScrivenerExportMode,
+    pub output_path: String,
+    /// Create a backup of the existing .scriv before updating
+    #[serde(default = "default_backup")]
+    pub backup: bool,
+    /// Create new Scrivener documents for scenes without matches (update mode)
+    #[serde(default)]
+    pub include_unmatched: bool,
+    /// Create a project snapshot before exporting
+    #[serde(default)]
+    pub create_snapshot: bool,
+}
+
+fn default_backup() -> bool {
+    true
+}
+
+/// Gather beat prose for a scene, concatenated
+fn gather_scene_prose(conn: &rusqlite::Connection, scene: &Scene) -> Result<String, String> {
+    let beats = db::queries::get_beats(conn, &scene.id).map_err(|e| e.to_string())?;
+    let mut parts: Vec<String> = Vec::new();
+
+    if let Some(ref prose) = scene.prose {
+        if !prose.trim().is_empty() {
+            parts.push(prose.clone());
+        }
+    }
+
+    for beat in &beats {
+        if let Some(ref prose) = beat.prose {
+            if !prose.trim().is_empty() {
+                parts.push(prose.clone());
+            }
+        }
+    }
+
+    if parts.is_empty() {
+        Ok(String::new())
+    } else {
+        Ok(parts.join("\n"))
+    }
+}
+
+/// Export project to a Scrivener .scriv bundle
+#[derive(serde::Serialize)]
+pub struct ScrivenerMatchPreview {
+    pub scene_id: String,
+    pub scene_title: String,
+    pub chapter_title: String,
+    pub matched_scriv_title: Option<String>,
+    pub match_method: Option<String>,
+}
+
+#[tauri::command]
+pub async fn preview_scrivener_matches(
+    project_id: String,
+    scriv_path: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<ScrivenerMatchPreview>, String> {
+    use crate::parsers::scrivener;
+
+    let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let scriv_dir = std::path::Path::new(&scriv_path);
+    if !scriv_dir.is_dir() {
+        return Err(format!("Scrivener bundle not found: {scriv_path}"));
+    }
+
+    let scrivx_path = find_scrivx_file(scriv_dir)?;
+    let scrivx_content =
+        fs::read_to_string(&scrivx_path).map_err(|e| format!("Failed to read .scrivx: {e}"))?;
+    let scrivx_doc = scrivener::parse_scrivx(&scrivx_content).map_err(|e| e.to_string())?;
+
+    let existing_docs = scrivener::collect_text_documents(&scrivx_doc.binder);
+    let mut uuid_by_title: HashMap<String, String> = HashMap::new();
+    let mut title_by_uuid: HashMap<String, String> = HashMap::new();
+    let mut uuid_by_source_id: HashMap<String, String> = HashMap::new();
+
+    for doc in &existing_docs {
+        uuid_by_title
+            .entry(doc.title.to_lowercase())
+            .or_insert_with(|| doc.uuid.clone());
+        title_by_uuid.insert(doc.uuid.clone(), doc.title.clone());
+        uuid_by_source_id.insert(doc.uuid.clone(), doc.uuid.clone());
+    }
+
+    let chapters = db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    let active_chapters: Vec<&Chapter> = chapters
+        .iter()
+        .filter(|c| !c.archived && !c.is_part)
+        .collect();
+
+    let mut previews: Vec<ScrivenerMatchPreview> = Vec::new();
+
+    for chapter in &active_chapters {
+        let scenes = db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
+        let active_scenes: Vec<Scene> = scenes.into_iter().filter(|s| !s.archived).collect();
+
+        for scene in &active_scenes {
+            let matched = scene
+                .source_id
+                .as_ref()
+                .and_then(|sid| {
+                    uuid_by_source_id
+                        .get(sid)
+                        .map(|uuid| (uuid.clone(), "source_id"))
+                })
+                .or_else(|| {
+                    uuid_by_title
+                        .get(&scene.title.to_lowercase())
+                        .map(|uuid| (uuid.clone(), "title"))
+                });
+
+            let (matched_scriv_title, match_method) = match matched {
+                Some((uuid, method)) => {
+                    (title_by_uuid.get(&uuid).cloned(), Some(method.to_string()))
+                }
+                None => (None, None),
+            };
+
+            previews.push(ScrivenerMatchPreview {
+                scene_id: scene.id.to_string(),
+                scene_title: scene.title.clone(),
+                chapter_title: chapter.title.clone(),
+                matched_scriv_title,
+                match_method,
+            });
+        }
+    }
+
+    Ok(previews)
+}
+
+#[tauri::command]
+pub async fn export_to_scrivener(
+    project_id: String,
+    options: ScrivenerExportOptions,
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ExportResult, String> {
+    let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+
+    if options.create_snapshot {
+        let snapshot_options = super::CreateSnapshotOptions {
+            name: "Pre-Scrivener-export snapshot".to_string(),
+            description: Some("Automatic snapshot created before Scrivener export".to_string()),
+            trigger_type: SnapshotTrigger::Export,
+        };
+        super::create_snapshot(
+            project_id.clone(),
+            snapshot_options,
+            app_handle.clone(),
+            state.clone(),
+        )
+        .await?;
+    }
+
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    let project = db::queries::get_project(&conn, &project_uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Project not found: {}", project_id))?;
+
+    let chapters = db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+    let scriv_path = PathBuf::from(&options.output_path);
+
+    match options.mode {
+        ScrivenerExportMode::CreateNew => {
+            create_new_scriv_bundle(&conn, &project, &active_chapters, &scriv_path)
+        }
+        ScrivenerExportMode::Update => {
+            update_existing_scriv_bundle(&conn, &project, &active_chapters, &scriv_path, &options)
+        }
+    }
+}
+
+/// Group a flat list of ExportChapters into hierarchy where Parts contain
+/// subsequent non-Part chapters as children.
+fn group_chapters_into_hierarchy(
+    flat: Vec<crate::parsers::scrivener::ExportChapter>,
+) -> Vec<crate::parsers::scrivener::ExportChapter> {
+    let mut result: Vec<crate::parsers::scrivener::ExportChapter> = Vec::new();
+    for ch in flat {
+        if ch.is_part {
+            result.push(ch);
+        } else if let Some(last) = result.last_mut() {
+            if last.is_part {
+                last.children.push(ch);
+            } else {
+                result.push(ch);
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+    result
+}
+
+fn create_new_scriv_bundle(
+    conn: &rusqlite::Connection,
+    project: &Project,
+    chapters: &[&Chapter],
+    scriv_path: &Path,
+) -> Result<ExportResult, String> {
+    use crate::parsers::scrivener;
+
+    // Create the .scriv directory structure
+    let data_dir = scriv_path.join("Files").join("Data");
+    fs::create_dir_all(&data_dir)
+        .map_err(|e| format!("Failed to create .scriv directory: {}", e))?;
+    fs::create_dir_all(scriv_path.join("Settings"))
+        .map_err(|e| format!("Failed to create Settings directory: {}", e))?;
+
+    let now = chrono::Utc::now()
+        .format("%Y-%m-%d %H:%M:%S %z")
+        .to_string();
+    let mut flat_chapters: Vec<scrivener::ExportChapter> = Vec::new();
+    let mut files_created: usize = 0;
+    let mut chapters_exported: usize = 0;
+    let mut scenes_exported: usize = 0;
+
+    for chapter in chapters {
+        let ch_uuid = Uuid::new_v4().to_string().to_uppercase();
+
+        if chapter.is_part {
+            let part_dir = data_dir.join(&ch_uuid);
+            fs::create_dir_all(&part_dir)
+                .map_err(|e| format!("Failed to create Part directory: {}", e))?;
+
+            let synopsis = chapter.synopsis.as_deref().unwrap_or("");
+            if !synopsis.is_empty() {
+                let rtf = scrivener::html_to_rtf(&format!("<p>{}</p>", synopsis));
+                fs::write(part_dir.join("content.rtf"), &rtf)
+                    .map_err(|e| format!("Failed to write part RTF: {}", e))?;
+                files_created += 1;
+            }
+
+            flat_chapters.push(scrivener::ExportChapter {
+                uuid: ch_uuid,
+                title: chapter.title.clone(),
+                is_part: true,
+                created: now.clone(),
+                modified: now.clone(),
+                scenes: Vec::new(),
+                children: Vec::new(),
+            });
+            chapters_exported += 1;
+        } else {
+            let scenes = db::queries::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
+            let active_scenes: Vec<Scene> = scenes.into_iter().filter(|s| !s.archived).collect();
+
+            let mut export_scenes: Vec<scrivener::ExportScene> = Vec::new();
+
+            for scene in &active_scenes {
+                let sc_uuid = Uuid::new_v4().to_string().to_uppercase();
+                let scene_dir = data_dir.join(&sc_uuid);
+                fs::create_dir_all(&scene_dir)
+                    .map_err(|e| format!("Failed to create scene directory: {}", e))?;
+
+                let html = gather_scene_prose(conn, scene)?;
+                if !html.is_empty() {
+                    let rtf = scrivener::html_to_rtf(&html);
+                    fs::write(scene_dir.join("content.rtf"), &rtf)
+                        .map_err(|e| format!("Failed to write scene RTF: {}", e))?;
+                } else {
+                    let rtf = scrivener::html_to_rtf("");
+                    fs::write(scene_dir.join("content.rtf"), &rtf)
+                        .map_err(|e| format!("Failed to write empty RTF: {}", e))?;
+                }
+                files_created += 1;
+
+                export_scenes.push(scrivener::ExportScene {
+                    uuid: sc_uuid,
+                    title: scene.title.clone(),
+                    created: now.clone(),
+                    modified: now.clone(),
+                });
+                scenes_exported += 1;
+            }
+
+            let ch_dir = data_dir.join(&ch_uuid);
+            fs::create_dir_all(&ch_dir)
+                .map_err(|e| format!("Failed to create chapter directory: {}", e))?;
+
+            flat_chapters.push(scrivener::ExportChapter {
+                uuid: ch_uuid,
+                title: chapter.title.clone(),
+                is_part: false,
+                created: now.clone(),
+                modified: now.clone(),
+                scenes: export_scenes,
+                children: Vec::new(),
+            });
+            chapters_exported += 1;
+        }
+    }
+
+    // Group flat chapters into hierarchy: Parts absorb subsequent non-Part chapters as children
+    let export_chapters = group_chapters_into_hierarchy(flat_chapters);
+
+    // Generate and write the .scrivx file
+    let scrivx_xml =
+        scrivener::generate_scrivx(&project.name, &export_chapters, &project.project_type)
+            .map_err(|e| e.to_string())?;
+
+    let scrivx_filename = format!("{}.scrivx", sanitize_filename(&project.name));
+    fs::write(scriv_path.join(&scrivx_filename), &scrivx_xml)
+        .map_err(|e| format!("Failed to write .scrivx: {}", e))?;
+    files_created += 1;
+
+    Ok(ExportResult {
+        output_path: scriv_path.to_string_lossy().to_string(),
+        files_created,
+        chapters_exported,
+        scenes_exported,
+    })
+}
+
+/// Last Part row's Scrivener binder UUID (`source_id`) before this chapter, if any.
+fn enclosing_part_binder_uuid<'a>(chapters: &'a [&'a Chapter], idx: usize) -> Option<&'a str> {
+    if idx >= chapters.len() || chapters[idx].is_part {
+        return None;
+    }
+    let mut last: Option<&str> = None;
+    for ch in chapters.iter().take(idx) {
+        if ch.is_part {
+            last = ch.source_id.as_deref();
+        }
+    }
+    last
+}
+
+fn update_existing_scriv_bundle(
+    conn: &rusqlite::Connection,
+    _project: &Project,
+    chapters: &[&Chapter],
+    scriv_path: &Path,
+    options: &ScrivenerExportOptions,
+) -> Result<ExportResult, String> {
+    use crate::parsers::scrivener;
+
+    // Verify the .scriv bundle exists
+    if !scriv_path.is_dir() {
+        return Err(format!(
+            "Scrivener bundle not found: {}",
+            scriv_path.display()
+        ));
+    }
+
+    // Backup if requested
+    if options.backup {
+        let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+        let backup_name = format!(
+            "{}_backup_{}.scriv",
+            scriv_path.file_stem().unwrap_or_default().to_string_lossy(),
+            timestamp
+        );
+        let backup_path = scriv_path.parent().unwrap_or(scriv_path).join(backup_name);
+        copy_dir_recursive(scriv_path, &backup_path)?;
+    }
+
+    // Find and parse the .scrivx file
+    let scrivx_path = find_scrivx_file(scriv_path)?;
+    let scrivx_content =
+        fs::read_to_string(&scrivx_path).map_err(|e| format!("Failed to read .scrivx: {}", e))?;
+    let scrivx_doc = scrivener::parse_scrivx(&scrivx_content).map_err(|e| e.to_string())?;
+
+    // Build a map of existing Scrivener documents (uuid → title)
+    let existing_docs = scrivener::collect_text_documents(&scrivx_doc.binder);
+    let mut uuid_by_title: HashMap<String, String> = HashMap::new();
+    let mut uuid_by_source_id: HashMap<String, String> = HashMap::new();
+
+    for doc in &existing_docs {
+        uuid_by_title
+            .entry(doc.title.to_lowercase())
+            .or_insert_with(|| doc.uuid.clone());
+    }
+
+    // Also build reverse: for scenes that have source_ids matching Scrivener UUIDs
+    for doc in &existing_docs {
+        uuid_by_source_id.insert(doc.uuid.clone(), doc.uuid.clone());
+    }
+
+    let data_dir = scriv_path.join("Files").join("Data");
+    let mut files_created: usize = 0;
+    let mut chapters_exported: usize = 0;
+    let mut scenes_exported: usize = 0;
+    let now = chrono::Utc::now()
+        .format("%Y-%m-%d %H:%M:%S %z")
+        .to_string();
+
+    // Track new items that need to be added to the .scrivx (`None` = Draft root).
+    let mut new_chapters: Vec<(Option<String>, scrivener::ExportChapter)> = Vec::new();
+
+    for (idx, chapter) in chapters.iter().enumerate() {
+        if chapter.is_part {
+            continue;
+        }
+
+        let scenes = db::queries::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
+        let active_scenes: Vec<Scene> = scenes.into_iter().filter(|s| !s.archived).collect();
+
+        let mut new_scenes_for_chapter: Vec<scrivener::ExportScene> = Vec::new();
+
+        for scene in &active_scenes {
+            // Try to match: source_id first, then title
+            let matched_uuid = scene
+                .source_id
+                .as_ref()
+                .and_then(|sid| uuid_by_source_id.get(sid))
+                .or_else(|| uuid_by_title.get(&scene.title.to_lowercase()))
+                .cloned();
+
+            if let Some(ref scriv_uuid) = matched_uuid {
+                // Update existing document
+                let scene_dir = data_dir.join(scriv_uuid);
+                fs::create_dir_all(&scene_dir)
+                    .map_err(|e| format!("Failed to create scene directory: {}", e))?;
+
+                let html = gather_scene_prose(conn, scene)?;
+                let rtf = scrivener::html_to_rtf(&html);
+                fs::write(scene_dir.join("content.rtf"), &rtf)
+                    .map_err(|e| format!("Failed to write RTF: {}", e))?;
+                files_created += 1;
+                scenes_exported += 1;
+            } else if options.include_unmatched {
+                // Create new document
+                let sc_uuid = Uuid::new_v4().to_string().to_uppercase();
+                let scene_dir = data_dir.join(&sc_uuid);
+                fs::create_dir_all(&scene_dir)
+                    .map_err(|e| format!("Failed to create scene directory: {}", e))?;
+
+                let html = gather_scene_prose(conn, scene)?;
+                let rtf = scrivener::html_to_rtf(&html);
+                fs::write(scene_dir.join("content.rtf"), &rtf)
+                    .map_err(|e| format!("Failed to write RTF: {}", e))?;
+                files_created += 1;
+                scenes_exported += 1;
+
+                new_scenes_for_chapter.push(scrivener::ExportScene {
+                    uuid: sc_uuid,
+                    title: scene.title.clone(),
+                    created: now.clone(),
+                    modified: now.clone(),
+                });
+            }
+        }
+
+        if !new_scenes_for_chapter.is_empty() {
+            let ch_uuid = Uuid::new_v4().to_string().to_uppercase();
+            let ch_dir = data_dir.join(&ch_uuid);
+            fs::create_dir_all(&ch_dir)
+                .map_err(|e| format!("Failed to create chapter dir: {}", e))?;
+
+            let parent_binder = enclosing_part_binder_uuid(chapters, idx).map(String::from);
+            new_chapters.push((
+                parent_binder,
+                scrivener::ExportChapter {
+                    uuid: ch_uuid,
+                    title: chapter.title.clone(),
+                    is_part: false,
+                    created: now.clone(),
+                    modified: now.clone(),
+                    scenes: new_scenes_for_chapter,
+                    children: Vec::new(),
+                },
+            ));
+        }
+
+        chapters_exported += 1;
+    }
+
+    // If there are new items, regenerate the .scrivx with the new items appended
+    if !new_chapters.is_empty() {
+        let updated_xml = append_to_scrivx(&scrivx_content, new_chapters)?;
+        fs::write(&scrivx_path, &updated_xml)
+            .map_err(|e| format!("Failed to update .scrivx: {}", e))?;
+    }
+
+    Ok(ExportResult {
+        output_path: scriv_path.to_string_lossy().to_string(),
+        files_created,
+        chapters_exported,
+        scenes_exported,
+    })
+}
+
+/// Find the .scrivx file inside a .scriv bundle
+fn find_scrivx_file(scriv_path: &Path) -> Result<PathBuf, String> {
+    let entries =
+        fs::read_dir(scriv_path).map_err(|e| format!("Failed to read .scriv directory: {}", e))?;
+
+    for entry in entries.flatten() {
+        if let Some(ext) = entry.path().extension() {
+            if ext == "scrivx" {
+                return Ok(entry.path());
+            }
+        }
+    }
+
+    Err("No .scrivx file found in the .scriv bundle".to_string())
+}
+
+/// Recursively copy a directory
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
+    fs::create_dir_all(dst).map_err(|e| format!("Failed to create backup directory: {}", e))?;
+
+    let entries =
+        fs::read_dir(src).map_err(|e| format!("Failed to read source directory: {}", e))?;
+
+    for entry in entries.flatten() {
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+
+        if src_path.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            fs::copy(&src_path, &dst_path)
+                .map_err(|e| format!("Failed to copy file {}: {}", src_path.display(), e))?;
+        }
+    }
+
+    Ok(())
+}
+
+fn group_new_scriv_chapters_by_parent(
+    items: Vec<(Option<String>, crate::parsers::scrivener::ExportChapter)>,
+) -> Vec<(
+    Option<String>,
+    Vec<crate::parsers::scrivener::ExportChapter>,
+)> {
+    let mut key_order: Vec<Option<String>> = Vec::new();
+    let mut map: HashMap<Option<String>, Vec<crate::parsers::scrivener::ExportChapter>> =
+        HashMap::new();
+    for (parent, ch) in items {
+        if !map.contains_key(&parent) {
+            key_order.push(parent.clone());
+            map.insert(parent.clone(), Vec::new());
+        }
+        map.get_mut(&parent).expect("key just inserted").push(ch);
+    }
+    key_order
+        .into_iter()
+        .map(|k| {
+            let v = map.remove(&k).expect("batch key from order");
+            (k, v)
+        })
+        .collect()
+}
+
+/// Byte index of the closing `</Children>` that matches the first `<Children>` after `binder_uuid`.
+fn find_binders_children_close_index(xml: &str, binder_uuid: &str) -> Option<usize> {
+    let marker = format!("UUID=\"{}\"", binder_uuid);
+    let uuid_pos = xml.find(&marker)?;
+    let tail = &xml[uuid_pos..];
+    let rel = tail.find("<Children>")?;
+    let inner_start = uuid_pos + rel + "<Children>".len();
+    find_balanced_children_close_index(xml, inner_start)
+}
+
+fn find_balanced_children_close_index(xml: &str, inner_start: usize) -> Option<usize> {
+    let mut depth = 1usize;
+    let mut pos = inner_start;
+    while depth > 0 {
+        if pos >= xml.len() {
+            return None;
+        }
+        let slice = &xml[pos..];
+        let open = slice.find("<Children>");
+        let close = slice.find("</Children>");
+        let next = match (open, close) {
+            (Some(o), Some(c)) if o < c => (o, true),
+            (Some(_), Some(c)) => (c, false),
+            (Some(o), None) => (o, true),
+            (None, Some(c)) => (c, false),
+            (None, None) => return None,
+        };
+        let (offset, is_open) = next;
+        if is_open {
+            depth += 1;
+            pos += offset + "<Children>".len();
+        } else {
+            depth -= 1;
+            if depth == 0 {
+                return Some(pos + offset);
+            }
+            pos += offset + "</Children>".len();
+        }
+    }
+    None
+}
+
+/// Append new chapters/scenes to an existing .scrivx XML — inserts `BinderItem` trees before
+/// the matching `</Children>` of the Draft folder (or of a Part folder when `parent` is set).
+fn append_to_scrivx(
+    existing_xml: &str,
+    new_chapters: Vec<(Option<String>, crate::parsers::scrivener::ExportChapter)>,
+) -> Result<String, String> {
+    use crate::parsers::scrivener;
+
+    let doc = scrivener::parse_scrivx(existing_xml).map_err(|e| e.to_string())?;
+    let draft = doc
+        .binder
+        .iter()
+        .find(|item| item.item_type == "DraftFolder")
+        .ok_or_else(|| "No Draft folder found in .scrivx".to_string())?;
+
+    let batches = group_new_scriv_chapters_by_parent(new_chapters);
+    let mut ops: Vec<(usize, usize, String)> = Vec::new();
+    for (batch_idx, (parent, chapters)) in batches.iter().enumerate() {
+        let mut combined = String::new();
+        for ch in chapters {
+            let frag = scrivener::export_chapter_binder_fragment(ch).map_err(|e| e.to_string())?;
+            combined.push_str(&frag);
+            combined.push('\n');
+        }
+        let target_uuid = parent.as_deref().unwrap_or(draft.uuid.as_str());
+        let insert_pos =
+            find_binders_children_close_index(existing_xml, target_uuid).ok_or_else(|| {
+                format!("Could not find <Children> close for binder UUID {target_uuid}")
+            })?;
+        ops.push((insert_pos, batch_idx, combined));
+    }
+
+    ops.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)));
+
+    let mut result = existing_xml.to_string();
+    for (pos, _, frag) in ops {
+        result.insert_str(pos, &format!("\n      {}", frag));
+    }
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3864,7 +5214,7 @@ mod tests {
 
     #[test]
     fn test_add_scene_to_docx() {
-        use crate::models::{Beat, PlanningStatus, Scene, SceneStatus, SceneType};
+        use crate::models::{Beat, EditorMode, PlanningStatus, Scene, SceneStatus, SceneType};
         use uuid::Uuid;
 
         let scene = Scene {
@@ -3880,6 +5230,7 @@ mod tests {
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
             planning_status: PlanningStatus::Fixed,
+            editor_mode: EditorMode::Beat,
         };
 
         let beats = vec![Beat {
@@ -3946,6 +5297,8 @@ mod tests {
             description: Some("A story about creativity.".to_string()),
             word_target: Some(75000),
             reference_types: Project::default_reference_types(),
+            project_type: Project::default_project_type(),
+            target_page_count: None,
         };
 
         let app_settings = AppSettings {
@@ -3983,6 +5336,8 @@ mod tests {
             description: None,
             word_target: None,
             reference_types: Project::default_reference_types(),
+            project_type: Project::default_project_type(),
+            target_page_count: None,
         };
 
         let app_settings = AppSettings::default();
@@ -4149,7 +5504,9 @@ mod tests {
 
     #[test]
     fn test_add_chapter_to_docx() {
-        use crate::models::{Beat, Chapter, PlanningStatus, Scene, SceneStatus, SceneType};
+        use crate::models::{
+            Beat, Chapter, EditorMode, PlanningStatus, Scene, SceneStatus, SceneType,
+        };
         use std::collections::HashMap;
         use uuid::Uuid;
 
@@ -4179,6 +5536,7 @@ mod tests {
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
             planning_status: PlanningStatus::Fixed,
+            editor_mode: EditorMode::Beat,
         };
 
         let beat = Beat {
@@ -4215,7 +5573,9 @@ mod tests {
 
     #[test]
     fn test_add_chapter_with_multiple_scenes() {
-        use crate::models::{Beat, Chapter, PlanningStatus, Scene, SceneStatus, SceneType};
+        use crate::models::{
+            Beat, Chapter, EditorMode, PlanningStatus, Scene, SceneStatus, SceneType,
+        };
         use std::collections::HashMap;
         use uuid::Uuid;
 
@@ -4245,6 +5605,7 @@ mod tests {
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
             planning_status: PlanningStatus::Fixed,
+            editor_mode: EditorMode::Beat,
         };
 
         let scene2 = Scene {
@@ -4260,6 +5621,7 @@ mod tests {
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
             planning_status: PlanningStatus::Fixed,
+            editor_mode: EditorMode::Beat,
         };
 
         let beat1 = Beat {
@@ -4421,31 +5783,37 @@ mod tests {
                 text: "Hello".to_string(),
                 bold: false,
                 italic: false,
+                underline: false,
             },
             FormattedRun {
                 text: " ".to_string(),
                 bold: false,
                 italic: false,
+                underline: false,
             },
             FormattedRun {
                 text: "World".to_string(),
                 bold: false,
                 italic: false,
+                underline: false,
             },
             FormattedRun {
                 text: "!".to_string(),
                 bold: true,
                 italic: false,
+                underline: false,
             },
             FormattedRun {
                 text: "!".to_string(),
                 bold: true,
                 italic: false,
+                underline: false,
             },
             FormattedRun {
                 text: "?".to_string(),
                 bold: false,
                 italic: true,
+                underline: false,
             },
         ];
 
@@ -4602,5 +5970,1339 @@ mod tests {
         assert!(markdown.contains("## Scenes"));
         assert!(markdown.contains("- [[Scene 3]]"));
         assert!(!markdown.contains("## Appearances"));
+    }
+
+    fn make_treatment_content() -> TreatmentContent {
+        TreatmentContent {
+            title: "Test Screenplay".to_string(),
+            author: "Jane Doe".to_string(),
+            logline: "A detective uncovers a conspiracy.".to_string(),
+            parts: vec![
+                TreatmentPart {
+                    title: "Act I — Setup".to_string(),
+                    synopsis: "The world is established.".to_string(),
+                    chapters: vec![TreatmentChapter {
+                        title: "Sequence 1".to_string(),
+                        synopsis: "We meet the hero.".to_string(),
+                        scenes: vec![TreatmentScene {
+                            title: "INT. OFFICE - DAY".to_string(),
+                            synopsis: "Detective reviews case files.".to_string(),
+                            beat_summaries: vec![
+                                "Opens case file".to_string(),
+                                "Notices discrepancy".to_string(),
+                            ],
+                        }],
+                    }],
+                },
+                TreatmentPart {
+                    title: "Act II — Confrontation".to_string(),
+                    synopsis: "Obstacles mount.".to_string(),
+                    chapters: vec![TreatmentChapter {
+                        title: "Sequence 2".to_string(),
+                        synopsis: "The investigation deepens.".to_string(),
+                        scenes: vec![],
+                    }],
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn test_treatment_text_one_page() {
+        let content = make_treatment_content();
+        let text = treatment_to_text(&content, &TreatmentLevel::OnePage);
+        assert!(text.contains("TEST SCREENPLAY"));
+        assert!(text.contains("by Jane Doe"));
+        assert!(text.contains("A detective uncovers a conspiracy."));
+        assert!(text.contains("The world is established."));
+        assert!(text.contains("Obstacles mount."));
+        assert!(!text.contains("INT. OFFICE"));
+    }
+
+    #[test]
+    fn test_treatment_text_five_page() {
+        let content = make_treatment_content();
+        let text = treatment_to_text(&content, &TreatmentLevel::FivePage);
+        assert!(text.contains("ACT I — SETUP"));
+        assert!(text.contains("Sequence 1"));
+        assert!(text.contains("INT. OFFICE - DAY: Detective reviews case files."));
+        assert!(!text.contains("Opens case file"));
+    }
+
+    #[test]
+    fn test_treatment_text_full() {
+        let content = make_treatment_content();
+        let text = treatment_to_text(&content, &TreatmentLevel::Full);
+        assert!(text.contains("ACT I — SETUP"));
+        assert!(text.contains("Sequence 1"));
+        assert!(text.contains("INT. OFFICE - DAY"));
+        assert!(text.contains("Detective reviews case files."));
+        assert!(text.contains("- Opens case file"));
+        assert!(text.contains("- Notices discrepancy"));
+    }
+
+    #[test]
+    fn test_treatment_text_empty_logline() {
+        let content = TreatmentContent {
+            title: "No Logline".to_string(),
+            author: String::new(),
+            logline: String::new(),
+            parts: vec![],
+        };
+        let text = treatment_to_text(&content, &TreatmentLevel::OnePage);
+        assert!(text.contains("NO LOGLINE"));
+        assert!(!text.contains("by "));
+    }
+
+    #[test]
+    fn test_treatment_text_no_parts() {
+        let content = TreatmentContent {
+            title: "Empty".to_string(),
+            author: "Author".to_string(),
+            logline: "A story.".to_string(),
+            parts: vec![],
+        };
+        let text = treatment_to_text(&content, &TreatmentLevel::Full);
+        assert!(text.contains("EMPTY"));
+        assert!(text.contains("by Author"));
+        assert!(text.contains("A story."));
+    }
+
+    #[test]
+    fn test_treatment_docx_builds() {
+        let content = make_treatment_content();
+        let docx = treatment_to_docx(&content, &TreatmentLevel::Full);
+        let mut buf = Vec::new();
+        let cursor = std::io::Cursor::new(&mut buf);
+        docx.build().pack(cursor).unwrap();
+        assert!(!buf.is_empty());
+    }
+
+    #[test]
+    fn test_compile_treatment_content() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let project = Project {
+            id: uuid::Uuid::new_v4(),
+            name: "Treatment Test".to_string(),
+            source_type: crate::models::SourceType::Blank,
+            source_path: None,
+            created_at: now.clone(),
+            modified_at: now,
+            author_pen_name: Some("Pen Name".to_string()),
+            genre: None,
+            description: Some("A logline.".to_string()),
+            word_target: None,
+            reference_types: Project::default_reference_types(),
+            project_type: "screenplay".to_string(),
+            target_page_count: Some(120),
+        };
+        crate::db::insert_project(&conn, &project).unwrap();
+
+        let act_id = uuid::Uuid::new_v4();
+        crate::db::insert_chapter(
+            &conn,
+            &Chapter {
+                id: act_id,
+                project_id: project.id,
+                title: "Act I".to_string(),
+                position: 0,
+                source_id: None,
+                archived: false,
+                locked: false,
+                is_part: true,
+                synopsis: Some("Act one synopsis.".to_string()),
+                planning_status: crate::models::PlanningStatus::Undefined,
+            },
+        )
+        .unwrap();
+
+        let seq_id = uuid::Uuid::new_v4();
+        crate::db::insert_chapter(
+            &conn,
+            &Chapter {
+                id: seq_id,
+                project_id: project.id,
+                title: "Sequence 1".to_string(),
+                position: 1,
+                source_id: None,
+                archived: false,
+                locked: false,
+                is_part: false,
+                synopsis: Some("Seq synopsis.".to_string()),
+                planning_status: crate::models::PlanningStatus::Undefined,
+            },
+        )
+        .unwrap();
+
+        let scene_id = uuid::Uuid::new_v4();
+        crate::db::insert_scene(
+            &conn,
+            &Scene {
+                id: scene_id,
+                chapter_id: seq_id,
+                title: "INT. OFFICE - DAY".to_string(),
+                synopsis: Some("Scene synopsis.".to_string()),
+                prose: None,
+                position: 0,
+                source_id: None,
+                archived: false,
+                locked: false,
+                scene_type: crate::models::SceneType::Normal,
+                scene_status: crate::models::SceneStatus::Draft,
+                planning_status: crate::models::PlanningStatus::Undefined,
+                editor_mode: crate::models::EditorMode::Beat,
+            },
+        )
+        .unwrap();
+
+        crate::db::insert_beat(
+            &conn,
+            &Beat {
+                id: uuid::Uuid::new_v4(),
+                scene_id,
+                content: "Opens case file".to_string(),
+                prose: None,
+                position: 0,
+                source_id: None,
+            },
+        )
+        .unwrap();
+
+        let settings = AppSettings {
+            author_name: Some("Real Name".to_string()),
+            contact_address_line1: None,
+            contact_address_line2: None,
+            contact_phone: None,
+            contact_email: None,
+        };
+
+        let result = compile_treatment_content(&conn, &project, &settings).unwrap();
+        assert_eq!(result.title, "Treatment Test");
+        assert_eq!(result.author, "Pen Name");
+        assert_eq!(result.logline, "A logline.");
+        assert_eq!(result.parts.len(), 1);
+        assert_eq!(result.parts[0].title, "Act I");
+        assert_eq!(result.parts[0].synopsis, "Act one synopsis.");
+        assert_eq!(result.parts[0].chapters.len(), 1);
+        assert_eq!(result.parts[0].chapters[0].title, "Sequence 1");
+        assert_eq!(result.parts[0].chapters[0].scenes.len(), 1);
+        assert_eq!(
+            result.parts[0].chapters[0].scenes[0].title,
+            "INT. OFFICE - DAY"
+        );
+        assert_eq!(
+            result.parts[0].chapters[0].scenes[0].beat_summaries.len(),
+            1
+        );
+        assert_eq!(
+            result.parts[0].chapters[0].scenes[0].beat_summaries[0],
+            "Opens case file"
+        );
+    }
+
+    // =========================================================================
+    // Scrivener Export Tests
+    // =========================================================================
+
+    #[test]
+    fn test_create_new_scriv_bundle() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                project_id.to_string(),
+                "Scriv Test",
+                "blank",
+                "2024-01-01T00:00:00Z",
+                "2024-01-01T00:00:00Z",
+                "novel",
+            ],
+        ).unwrap();
+
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Chapter 1", 0, false, false],
+        ).unwrap();
+
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![sc_id.to_string(), ch_id.to_string(), "Opening", "<p>Hello world.</p>", 0, false],
+        ).unwrap();
+
+        let scriv_dir = dir.path().join("Test.scriv");
+        let project = db::queries::get_project(&conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(&conn, &project_id).unwrap();
+        let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+        let result =
+            create_new_scriv_bundle(&conn, &project, &active_chapters, &scriv_dir).unwrap();
+
+        assert_eq!(result.chapters_exported, 1);
+        assert_eq!(result.scenes_exported, 1);
+        assert!(result.files_created >= 2); // 1 scene RTF + 1 .scrivx
+
+        // Verify directory structure
+        assert!(scriv_dir.join("Files").join("Data").exists());
+        assert!(scriv_dir.join("Settings").exists());
+
+        // Verify .scrivx exists
+        let scrivx_path = find_scrivx_file(&scriv_dir).unwrap();
+        assert!(scrivx_path.exists());
+
+        // Verify .scrivx is valid XML and contains our chapter
+        let xml = std::fs::read_to_string(&scrivx_path).unwrap();
+        assert!(xml.contains("Chapter 1"));
+        assert!(xml.contains("Opening"));
+    }
+
+    #[test]
+    fn test_create_new_scriv_bundle_with_parts() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "Parts Test", "blank", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+
+        // Part (is_part = true)
+        let part_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![part_id.to_string(), project_id.to_string(), "Act One", 0, true, false],
+        ).unwrap();
+
+        // Chapter under the part
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Chapter 1", 1, false, false],
+        ).unwrap();
+
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![sc_id.to_string(), ch_id.to_string(), "Scene 1", "<p>Content</p>", 0, false],
+        ).unwrap();
+
+        let scriv_dir = dir.path().join("Parts.scriv");
+        let project = db::queries::get_project(&conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(&conn, &project_id).unwrap();
+        let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+        let result =
+            create_new_scriv_bundle(&conn, &project, &active_chapters, &scriv_dir).unwrap();
+
+        assert_eq!(result.chapters_exported, 2); // Part + Chapter
+        assert_eq!(result.scenes_exported, 1);
+    }
+
+    #[test]
+    fn test_copy_dir_recursive() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("source");
+        std::fs::create_dir_all(src.join("sub")).unwrap();
+        std::fs::write(src.join("file.txt"), "hello").unwrap();
+        std::fs::write(src.join("sub").join("nested.txt"), "world").unwrap();
+
+        let dst = dir.path().join("backup");
+        copy_dir_recursive(&src, &dst).unwrap();
+
+        assert!(dst.join("file.txt").exists());
+        assert!(dst.join("sub").join("nested.txt").exists());
+        assert_eq!(
+            std::fs::read_to_string(dst.join("file.txt")).unwrap(),
+            "hello"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dst.join("sub").join("nested.txt")).unwrap(),
+            "world"
+        );
+    }
+
+    #[test]
+    fn test_find_scrivx_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let scriv_dir = dir.path().join("Test.scriv");
+        std::fs::create_dir_all(&scriv_dir).unwrap();
+        std::fs::write(scriv_dir.join("Test.scrivx"), "<xml/>").unwrap();
+
+        let result = find_scrivx_file(&scriv_dir.to_path_buf()).unwrap();
+        assert!(result.to_string_lossy().ends_with(".scrivx"));
+    }
+
+    #[test]
+    fn test_find_scrivx_file_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let scriv_dir = dir.path().join("Empty.scriv");
+        std::fs::create_dir_all(&scriv_dir).unwrap();
+
+        let result = find_scrivx_file(&scriv_dir.to_path_buf());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_gather_scene_prose_scene_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "Test", "blank", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Ch", 0, false, false],
+        ).unwrap();
+
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![sc_id.to_string(), ch_id.to_string(), "Sc", "<p>Scene prose</p>", 0, false],
+        ).unwrap();
+
+        let scene = db::queries::get_scenes(&conn, &ch_id)
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        let prose = gather_scene_prose(&conn, &scene).unwrap();
+        assert_eq!(prose, "<p>Scene prose</p>");
+    }
+
+    #[test]
+    fn test_gather_scene_prose_with_beats() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "Test", "blank", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Ch", 0, false, false],
+        ).unwrap();
+
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, position, archived) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![sc_id.to_string(), ch_id.to_string(), "Sc", 0, false],
+        ).unwrap();
+
+        let beat_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO beats (id, scene_id, content, prose, position) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![beat_id.to_string(), sc_id.to_string(), "Beat 1", "<p>Beat content</p>", 0],
+        ).unwrap();
+
+        let scene = db::queries::get_scenes(&conn, &ch_id)
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        let prose = gather_scene_prose(&conn, &scene).unwrap();
+        assert_eq!(prose, "<p>Beat content</p>");
+    }
+
+    #[test]
+    fn test_update_existing_scriv_bundle_with_matching() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "Update Test", "scrivener", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Chapter 1", 0, false, false],
+        ).unwrap();
+
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived, source_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![sc_id.to_string(), ch_id.to_string(), "Scene A", "<p>Updated prose</p>", 0, false, "EXISTING-UUID"],
+        ).unwrap();
+
+        // Create an existing .scriv bundle
+        let scriv_dir = dir.path().join("Existing.scriv");
+        let data_dir = scriv_dir.join("Files").join("Data").join("EXISTING-UUID");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        std::fs::write(data_dir.join("content.rtf"), "old content").unwrap();
+
+        let scrivx = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="TEST-123" Version="2.0">
+  <Binder>
+    <BinderItem UUID="DRAFT-1" Type="DraftFolder" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Draft</Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+      <Children>
+        <BinderItem UUID="EXISTING-UUID" Type="Text" Created="2024-01-01" Modified="2024-01-01">
+          <Title>Scene A</Title>
+          <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+        </BinderItem>
+      </Children>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#;
+        std::fs::write(scriv_dir.join("Existing.scrivx"), scrivx).unwrap();
+
+        let project = db::queries::get_project(&conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(&conn, &project_id).unwrap();
+        let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+        let options = ScrivenerExportOptions {
+            mode: ScrivenerExportMode::Update,
+            output_path: scriv_dir.to_string_lossy().to_string(),
+            backup: false,
+            include_unmatched: false,
+            create_snapshot: false,
+        };
+
+        let result = update_existing_scriv_bundle(
+            &conn,
+            &project,
+            &active_chapters,
+            &scriv_dir.to_path_buf(),
+            &options,
+        )
+        .unwrap();
+
+        assert_eq!(result.scenes_exported, 1);
+        assert_eq!(result.files_created, 1);
+
+        // Verify the RTF was updated
+        let rtf_content = std::fs::read_to_string(data_dir.join("content.rtf")).unwrap();
+        assert!(rtf_content.contains("Updated prose"));
+        assert!(rtf_content.starts_with("{\\rtf1"));
+    }
+
+    #[test]
+    fn test_update_scriv_with_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "Backup Test", "scrivener", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+
+        // Create a minimal .scriv
+        let scriv_dir = dir.path().join("Backup.scriv");
+        std::fs::create_dir_all(scriv_dir.join("Files").join("Data")).unwrap();
+        let scrivx = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="TEST-BACKUP" Version="2.0">
+  <Binder>
+    <BinderItem UUID="DRAFT-1" Type="DraftFolder" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Draft</Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+      <Children></Children>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#;
+        std::fs::write(scriv_dir.join("Backup.scrivx"), scrivx).unwrap();
+
+        let project = db::queries::get_project(&conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(&conn, &project_id).unwrap();
+        let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+        let options = ScrivenerExportOptions {
+            mode: ScrivenerExportMode::Update,
+            output_path: scriv_dir.to_string_lossy().to_string(),
+            backup: true,
+            include_unmatched: false,
+            create_snapshot: false,
+        };
+
+        update_existing_scriv_bundle(
+            &conn,
+            &project,
+            &active_chapters,
+            &scriv_dir.to_path_buf(),
+            &options,
+        )
+        .unwrap();
+
+        // Verify backup was created
+        let entries: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains("backup"))
+            .collect();
+        assert_eq!(entries.len(), 1);
+        let backup_dir = entries[0].path();
+        assert!(backup_dir.join("Backup.scrivx").exists());
+    }
+
+    #[test]
+    fn test_update_scriv_title_matching() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "Title Match", "blank", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Ch 1", 0, false, false],
+        ).unwrap();
+
+        // Scene with title matching a Scrivener doc (case-insensitive)
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![sc_id.to_string(), ch_id.to_string(), "the opening", "<p>Matched by title</p>", 0, false],
+        ).unwrap();
+
+        let scriv_dir = dir.path().join("TitleMatch.scriv");
+        let data_dir = scriv_dir.join("Files").join("Data").join("TITLE-UUID");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        std::fs::write(data_dir.join("content.rtf"), "old").unwrap();
+
+        let scrivx = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="TM-1" Version="2.0">
+  <Binder>
+    <BinderItem UUID="DRAFT-1" Type="DraftFolder" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Draft</Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+      <Children>
+        <BinderItem UUID="TITLE-UUID" Type="Text" Created="2024-01-01" Modified="2024-01-01">
+          <Title>The Opening</Title>
+          <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+        </BinderItem>
+      </Children>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#;
+        std::fs::write(scriv_dir.join("TitleMatch.scrivx"), scrivx).unwrap();
+
+        let project = db::queries::get_project(&conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(&conn, &project_id).unwrap();
+        let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+        let options = ScrivenerExportOptions {
+            mode: ScrivenerExportMode::Update,
+            output_path: scriv_dir.to_string_lossy().to_string(),
+            backup: false,
+            include_unmatched: false,
+            create_snapshot: false,
+        };
+
+        let result = update_existing_scriv_bundle(
+            &conn,
+            &project,
+            &active_chapters,
+            &scriv_dir.to_path_buf(),
+            &options,
+        )
+        .unwrap();
+
+        assert_eq!(result.scenes_exported, 1);
+        let rtf = std::fs::read_to_string(data_dir.join("content.rtf")).unwrap();
+        assert!(rtf.contains("Matched by title"));
+    }
+
+    #[test]
+    fn test_append_to_scrivx_inserts_under_draft_not_inside_nested_folder() {
+        let scrivx = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="T" Version="2.0">
+  <Binder>
+    <BinderItem UUID="DRAFT-1" Type="DraftFolder" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Draft</Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+      <Children>
+        <BinderItem UUID="FOLDER-1" Type="Folder" Created="2024-01-01" Modified="2024-01-01">
+          <Title>Act</Title>
+          <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+          <Children>
+            <BinderItem UUID="T1" Type="Text" Created="2024-01-01" Modified="2024-01-01">
+              <Title>Existing</Title>
+              <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+            </BinderItem>
+          </Children>
+        </BinderItem>
+      </Children>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#;
+
+        use crate::parsers::scrivener::{ExportChapter, ExportScene};
+        let ch = ExportChapter {
+            uuid: "NEW-CH".to_string(),
+            title: "New Chapter".to_string(),
+            is_part: false,
+            created: "2024-01-01".to_string(),
+            modified: "2024-01-01".to_string(),
+            scenes: vec![ExportScene {
+                uuid: "NEW-SC".to_string(),
+                title: "Scene".to_string(),
+                created: "2024-01-01".to_string(),
+                modified: "2024-01-01".to_string(),
+            }],
+            children: vec![],
+        };
+
+        let out = append_to_scrivx(scrivx, vec![(None, ch)]).unwrap();
+        let act_open = out.find("FOLDER-1").unwrap();
+        let sub = &out[act_open..];
+        let ch_rel = sub.find("<Children>").unwrap();
+        let inner_start = act_open + ch_rel + "<Children>".len();
+        let close_act_children = find_balanced_children_close_index(&out, inner_start).unwrap();
+        let new_ch_pos = out.find("NEW-CH").unwrap();
+        assert!(
+            new_ch_pos > close_act_children,
+            "new binder should be under Draft, not inside Act folder"
+        );
+    }
+
+    #[test]
+    fn test_update_existing_scriv_appends_new_chapter_under_part() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                project_id.to_string(),
+                "Part Nest",
+                "scrivener",
+                "2024-01-01T00:00:00Z",
+                "2024-01-01T00:00:00Z",
+                "novel",
+            ],
+        )
+        .unwrap();
+
+        let part_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, source_id, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![
+                part_id.to_string(),
+                project_id.to_string(),
+                "Act I",
+                0i32,
+                "PART-BIND",
+                true,
+                false,
+            ],
+        )
+        .unwrap();
+
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                ch_id.to_string(),
+                project_id.to_string(),
+                "Sequence 1",
+                1i32,
+                false,
+                false,
+            ],
+        )
+        .unwrap();
+
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                sc_id.to_string(),
+                ch_id.to_string(),
+                "Brand New Scene",
+                "<p>New</p>",
+                0i32,
+                false,
+            ],
+        )
+        .unwrap();
+
+        let scriv_dir = dir.path().join("PartNest.scriv");
+        std::fs::create_dir_all(scriv_dir.join("Files").join("Data")).unwrap();
+
+        let scrivx = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="P1" Version="2.0">
+  <Binder>
+    <BinderItem UUID="DRAFT-1" Type="DraftFolder" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Draft</Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+      <Children>
+        <BinderItem UUID="PART-BIND" Type="Folder" Created="2024-01-01" Modified="2024-01-01">
+          <Title>Act I</Title>
+          <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+          <Children>
+          </Children>
+        </BinderItem>
+      </Children>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#;
+        std::fs::write(scriv_dir.join("PartNest.scrivx"), scrivx).unwrap();
+
+        let project = db::queries::get_project(&conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(&conn, &project_id).unwrap();
+        let active_chapters: Vec<&Chapter> = chapters.iter().filter(|c| !c.archived).collect();
+
+        let options = ScrivenerExportOptions {
+            mode: ScrivenerExportMode::Update,
+            output_path: scriv_dir.to_string_lossy().to_string(),
+            backup: false,
+            include_unmatched: true,
+            create_snapshot: false,
+        };
+
+        update_existing_scriv_bundle(&conn, &project, &active_chapters, &scriv_dir, &options)
+            .unwrap();
+
+        let xml = std::fs::read_to_string(scriv_dir.join("PartNest.scrivx")).unwrap();
+        let part_pos = xml.find("PART-BIND").unwrap();
+        let sub = &xml[part_pos..];
+        let rel = sub.find("<Children>").unwrap();
+        let inner_start = part_pos + rel + "<Children>".len();
+        let part_children_close = find_balanced_children_close_index(&xml, inner_start).unwrap();
+        let region = &xml[inner_start..part_children_close];
+        assert!(
+            region.contains("Sequence 1"),
+            "new folder should appear under Part binder, region: {region}"
+        );
+    }
+
+    // =========================================================================
+    // EPUB Export Tests
+    // =========================================================================
+
+    #[test]
+    fn test_build_epub_css_classic() {
+        let css = build_epub_css(&EpubTheme::Classic);
+        assert!(css.contains("Georgia"));
+        assert!(css.contains("line-height"));
+        assert!(css.contains(".chapter-title"));
+        assert!(css.contains(".scene-break"));
+    }
+
+    #[test]
+    fn test_build_epub_css_modern() {
+        let css = build_epub_css(&EpubTheme::Modern);
+        assert!(css.contains("Helvetica"));
+    }
+
+    #[test]
+    fn test_build_epub_css_minimal() {
+        let css = build_epub_css(&EpubTheme::Minimal);
+        assert!(css.contains("text-indent: 0"));
+    }
+
+    #[test]
+    fn test_build_epub_xhtml_document() {
+        let doc = build_epub_xhtml_document("Test Title", "<p>Body</p>", "en");
+        assert!(doc.contains("<?xml version=\"1.0\""));
+        assert!(doc.contains("xmlns=\"http://www.w3.org/1999/xhtml\""));
+        assert!(doc.contains("<title>Test Title</title>"));
+        assert!(doc.contains("<p>Body</p>"));
+        assert!(doc.contains("lang=\"en\""));
+        assert!(doc.contains("styles.css"));
+    }
+
+    #[test]
+    fn test_build_epub_xhtml_escapes_special_chars() {
+        let doc = build_epub_xhtml_document("Title <&>", "<p>OK</p>", "en");
+        assert!(doc.contains("Title &lt;&amp;&gt;"));
+    }
+
+    #[test]
+    fn test_build_epub_container_xml() {
+        let xml = build_epub_container_xml();
+        assert!(xml.contains("container version=\"1.0\""));
+        assert!(xml.contains("OEBPS/content.opf"));
+        assert!(xml.contains("application/oebps-package+xml"));
+    }
+
+    #[test]
+    fn test_build_epub_nav_xhtml() {
+        let entries = vec![
+            ("Chapter 1".to_string(), "chapter-01.xhtml".to_string()),
+            ("Chapter 2".to_string(), "chapter-02.xhtml".to_string()),
+        ];
+        let nav = build_epub_nav_xhtml(&entries, "en");
+        assert!(nav.contains("epub:type=\"toc\""));
+        assert!(nav.contains("<a href=\"chapter-01.xhtml\">Chapter 1</a>"));
+        assert!(nav.contains("<a href=\"chapter-02.xhtml\">Chapter 2</a>"));
+    }
+
+    #[test]
+    fn test_build_epub_toc_ncx() {
+        let entries = vec![("Chapter 1".to_string(), "chapter-01.xhtml".to_string())];
+        let ncx = build_epub_toc_ncx(&entries, "Test Book", "uuid-123");
+        assert!(ncx.contains("dtb:uid"));
+        assert!(ncx.contains("uuid:uuid-123"));
+        assert!(ncx.contains("<text>Chapter 1</text>"));
+        assert!(ncx.contains("playOrder=\"1\""));
+    }
+
+    #[test]
+    fn test_build_epub_content_opf() {
+        let metadata = EpubMetadata {
+            title: "My Book".to_string(),
+            author: "Author Name".to_string(),
+            description: Some("A great book".to_string()),
+            language: "en".to_string(),
+        };
+        let manifest = vec![
+            "    <item id=\"chapter-01\" href=\"chapter-01.xhtml\" media-type=\"application/xhtml+xml\" />\n".to_string(),
+        ];
+        let spine = vec!["    <itemref idref=\"chapter-01\" />\n".to_string()];
+        let opf = build_epub_content_opf(
+            &metadata,
+            "uuid-456",
+            "2024-01-01T00:00:00Z",
+            &manifest,
+            &spine,
+            false,
+        );
+        assert!(opf.contains("<dc:title>My Book</dc:title>"));
+        assert!(opf.contains("<dc:creator>Author Name</dc:creator>"));
+        assert!(opf.contains("<dc:language>en</dc:language>"));
+        assert!(opf.contains("A great book"));
+        assert!(opf.contains("uuid:uuid-456"));
+        assert!(opf.contains("chapter-01.xhtml"));
+    }
+
+    #[test]
+    fn test_build_epub_content_opf_with_cover() {
+        let metadata = EpubMetadata {
+            title: "Cover Book".to_string(),
+            author: "Author".to_string(),
+            description: None,
+            language: "en".to_string(),
+        };
+        let opf = build_epub_content_opf(&metadata, "id", "2024-01-01T00:00:00Z", &[], &[], true);
+        assert!(opf.contains("cover"));
+    }
+
+    #[test]
+    fn test_format_epub_chapter_label() {
+        assert_eq!(
+            format_epub_chapter_label(1, "The Start"),
+            "Chapter 1: The Start"
+        );
+        assert_eq!(format_epub_chapter_label(2, ""), "Chapter 2");
+        assert_eq!(format_epub_chapter_label(3, "   "), "Chapter 3");
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_simple() {
+        let xhtml = render_html_to_xhtml("<p>Hello world.</p>");
+        assert!(xhtml.contains("<p>"));
+        assert!(xhtml.contains("Hello world."));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_bold_italic() {
+        let xhtml = render_html_to_xhtml("<p><strong>Bold</strong> and <em>italic</em></p>");
+        assert!(xhtml.contains("<strong>"));
+        assert!(xhtml.contains("<em>"));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_underline() {
+        let xhtml = render_html_to_xhtml("<p><u>Underlined text</u></p>");
+        assert!(xhtml.contains("text-decoration:underline"));
+        assert!(xhtml.contains("Underlined text"));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_headings() {
+        let xhtml = render_html_to_xhtml("<h1>Title</h1><p>Body</p>");
+        assert!(xhtml.contains("<h1>"));
+        assert!(xhtml.contains("</h1>"));
+        assert!(xhtml.contains("Title"));
+        assert!(xhtml.contains("<p>Body</p>"));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_heading_levels() {
+        let xhtml = render_html_to_xhtml("<h2>Sub</h2><h3>SubSub</h3>");
+        assert!(xhtml.contains("<h2>Sub</h2>"));
+        assert!(xhtml.contains("<h3>SubSub</h3>"));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_line_break() {
+        let xhtml = render_html_to_xhtml("<p>Line one<br/>Line two</p>");
+        assert!(xhtml.contains("<br/>"));
+        assert!(xhtml.contains("Line one"));
+        assert!(xhtml.contains("Line two"));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_blockquote() {
+        let xhtml = render_html_to_xhtml("<blockquote><p>Quoted text</p></blockquote>");
+        assert!(xhtml.contains("<blockquote>"));
+        assert!(xhtml.contains("Quoted text"));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_combined_formatting() {
+        let xhtml = render_html_to_xhtml("<p><strong><em>Bold italic</em></strong></p>");
+        assert!(xhtml.contains("<strong>"));
+        assert!(xhtml.contains("<em>"));
+    }
+
+    #[test]
+    fn test_render_html_to_xhtml_empty() {
+        let xhtml = render_html_to_xhtml("");
+        assert!(xhtml.is_empty() || xhtml.trim().is_empty());
+    }
+
+    #[test]
+    fn test_parse_html_underline() {
+        let paragraphs = parse_html_to_paragraphs("<p><u>underlined</u></p>");
+        assert_eq!(paragraphs.len(), 1);
+        assert!(paragraphs[0].runs[0].underline);
+        assert!(paragraphs[0].runs[0].text.contains("underlined"));
+    }
+
+    #[test]
+    fn test_parse_html_heading_paragraph_type() {
+        let paragraphs = parse_html_to_paragraphs("<h2>Section</h2><p>Text</p>");
+        assert_eq!(paragraphs.len(), 2);
+        assert_eq!(paragraphs[0].paragraph_type, ParagraphType::Heading(2));
+        assert_eq!(paragraphs[1].paragraph_type, ParagraphType::Normal);
+    }
+
+    #[test]
+    fn test_parse_html_br_creates_newline_run() {
+        let paragraphs = parse_html_to_paragraphs("<p>Line one<br/>Line two</p>");
+        assert_eq!(paragraphs.len(), 1);
+        let has_newline = paragraphs[0].runs.iter().any(|r| r.text.contains('\n'));
+        assert!(has_newline);
+    }
+
+    #[test]
+    fn test_cover_media_type_jpg() {
+        assert_eq!(cover_media_type("photo.jpg").unwrap(), "image/jpeg");
+        assert_eq!(cover_media_type("photo.jpeg").unwrap(), "image/jpeg");
+    }
+
+    #[test]
+    fn test_cover_media_type_png() {
+        assert_eq!(cover_media_type("cover.png").unwrap(), "image/png");
+    }
+
+    #[test]
+    fn test_cover_media_type_gif() {
+        assert_eq!(cover_media_type("anim.gif").unwrap(), "image/gif");
+    }
+
+    #[test]
+    fn test_cover_media_type_webp() {
+        assert_eq!(cover_media_type("photo.webp").unwrap(), "image/webp");
+    }
+
+    #[test]
+    fn test_cover_media_type_invalid() {
+        assert!(cover_media_type("file.bmp").is_err());
+    }
+
+    #[test]
+    fn test_epub_full_export() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        crate::db::schema::initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "EPUB Test", "blank", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Chapter 1", 0, false, false],
+        ).unwrap();
+
+        let sc_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![sc_id.to_string(), ch_id.to_string(), "Scene 1", "<p>Hello <strong>bold</strong> world.</p>", 0, false],
+        ).unwrap();
+
+        let beat_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO beats (id, scene_id, content, prose, position) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![beat_id.to_string(), sc_id.to_string(), "Opening", "<p>Beat prose here.</p>", 0],
+        ).unwrap();
+
+        // Build EPUB in-memory by calling the helpers directly
+        let project = db::queries::get_project(&conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(&conn, &project_id).unwrap();
+        let active_chapters: Vec<_> = chapters.iter().filter(|c| !c.archived).collect();
+
+        let metadata = EpubMetadata {
+            title: project.name.clone(),
+            author: "Test Author".to_string(),
+            description: Some("A test book".to_string()),
+            language: "en".to_string(),
+        };
+
+        let mut xhtml_items: Vec<EpubXhtmlItem> = Vec::new();
+
+        // Title page
+        let title_body = format!(
+            "<section class=\"title-page\"><h1>{}</h1><p class=\"author\">{}</p></section>",
+            escape_xml(&metadata.title),
+            escape_xml(&metadata.author)
+        );
+        xhtml_items.push(EpubXhtmlItem {
+            id: "title".to_string(),
+            href: "title.xhtml".to_string(),
+            title: "Title Page".to_string(),
+            content: build_epub_xhtml_document("Title Page", &title_body, "en"),
+            include_in_toc: true,
+            linear: true,
+        });
+
+        // Chapter
+        let mut chapter_number = 0;
+        for chapter in &active_chapters {
+            if chapter.is_part {
+                continue;
+            }
+            chapter_number += 1;
+            let chapter_label = format_epub_chapter_label(chapter_number, &chapter.title);
+            let mut body = format!(
+                "<h1 class=\"chapter-title\">{}</h1>",
+                escape_xml(&chapter_label)
+            );
+
+            let scenes = db::queries::get_scenes(&conn, &chapter.id).unwrap();
+            for scene in scenes.iter().filter(|s| !s.archived) {
+                if let Some(ref prose) = scene.prose {
+                    body.push_str(&render_html_to_xhtml(prose));
+                }
+                let beats = db::queries::get_beats(&conn, &scene.id).unwrap();
+                for beat in &beats {
+                    if let Some(ref prose) = beat.prose {
+                        body.push_str(&render_html_to_xhtml(prose));
+                    }
+                }
+            }
+
+            xhtml_items.push(EpubXhtmlItem {
+                id: format!("chapter-{:02}", chapter_number),
+                href: format!("chapter-{:02}.xhtml", chapter_number),
+                title: chapter_label,
+                content: build_epub_xhtml_document(&chapter.title, &body, "en"),
+                include_in_toc: true,
+                linear: true,
+            });
+        }
+
+        let toc_entries: Vec<(String, String)> = xhtml_items
+            .iter()
+            .filter(|item| item.include_in_toc)
+            .map(|item| (item.title.clone(), item.href.clone()))
+            .collect();
+
+        let nav_xhtml = build_epub_nav_xhtml(&toc_entries, "en");
+        let identifier = Uuid::new_v4().to_string();
+        let modified = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+        let toc_ncx = build_epub_toc_ncx(&toc_entries, &metadata.title, &identifier);
+
+        let mut manifest_items: Vec<String> = Vec::new();
+        let mut spine_items: Vec<String> = Vec::new();
+
+        manifest_items.push("    <item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\" />\n".to_string());
+        manifest_items.push(
+            "    <item id=\"toc\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\" />\n"
+                .to_string(),
+        );
+        manifest_items.push(
+            "    <item id=\"css\" href=\"styles.css\" media-type=\"text/css\" />\n".to_string(),
+        );
+        manifest_items.push(
+            "    <item id=\"title\" href=\"title.xhtml\" media-type=\"application/xhtml+xml\" />\n"
+                .to_string(),
+        );
+
+        for item in &xhtml_items {
+            if item.id == "title" {
+                continue;
+            }
+            manifest_items.push(format!(
+                "    <item id=\"{}\" href=\"{}\" media-type=\"application/xhtml+xml\" />\n",
+                escape_xml(&item.id),
+                escape_xml(&item.href)
+            ));
+        }
+
+        for item in &xhtml_items {
+            let linear_attr = if item.linear { "" } else { " linear=\"no\"" };
+            spine_items.push(format!(
+                "    <itemref idref=\"{}\"{} />\n",
+                escape_xml(&item.id),
+                linear_attr
+            ));
+        }
+
+        let content_opf = build_epub_content_opf(
+            &metadata,
+            &identifier,
+            &modified,
+            &manifest_items,
+            &spine_items,
+            false,
+        );
+
+        // Write the EPUB file
+        let epub_path = dir.path().join("test.epub");
+        let file = std::fs::File::create(&epub_path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+
+        let stored = FileOptions::<()>::default()
+            .compression_method(CompressionMethod::Stored)
+            .unix_permissions(0o644);
+        let deflated = FileOptions::<()>::default()
+            .compression_method(CompressionMethod::Deflated)
+            .unix_permissions(0o644);
+
+        // mimetype MUST be first and uncompressed
+        zip.start_file("mimetype", stored).unwrap();
+        zip.write_all(b"application/epub+zip").unwrap();
+
+        zip.add_directory("META-INF/", deflated).unwrap();
+        zip.add_directory("OEBPS/", deflated).unwrap();
+
+        zip.start_file("META-INF/container.xml", deflated).unwrap();
+        zip.write_all(build_epub_container_xml().as_bytes())
+            .unwrap();
+
+        zip.start_file("OEBPS/styles.css", deflated).unwrap();
+        zip.write_all(build_epub_css(&EpubTheme::Classic).as_bytes())
+            .unwrap();
+
+        zip.start_file("OEBPS/nav.xhtml", deflated).unwrap();
+        zip.write_all(nav_xhtml.as_bytes()).unwrap();
+
+        zip.start_file("OEBPS/toc.ncx", deflated).unwrap();
+        zip.write_all(toc_ncx.as_bytes()).unwrap();
+
+        zip.start_file("OEBPS/content.opf", deflated).unwrap();
+        zip.write_all(content_opf.as_bytes()).unwrap();
+
+        for item in &xhtml_items {
+            zip.start_file(format!("OEBPS/{}", item.href), deflated)
+                .unwrap();
+            zip.write_all(item.content.as_bytes()).unwrap();
+        }
+
+        zip.finish().unwrap();
+
+        // Verify the EPUB file
+        assert!(epub_path.exists());
+        let epub_size = std::fs::metadata(&epub_path).unwrap().len();
+        assert!(epub_size > 0);
+
+        // Re-open and verify structure
+        let epub_file = std::fs::File::open(&epub_path).unwrap();
+        let mut archive = zip::ZipArchive::new(epub_file).unwrap();
+
+        // Verify mimetype is first entry
+        {
+            let first_entry = archive.by_index(0).unwrap();
+            assert_eq!(first_entry.name(), "mimetype");
+        }
+
+        // Verify key files exist
+        let file_names: Vec<String> = (0..archive.len())
+            .map(|i| {
+                let entry = archive.by_index(i).unwrap();
+                entry.name().to_string()
+            })
+            .collect();
+
+        assert!(file_names.contains(&"META-INF/container.xml".to_string()));
+        assert!(file_names.contains(&"OEBPS/content.opf".to_string()));
+        assert!(file_names.contains(&"OEBPS/nav.xhtml".to_string()));
+        assert!(file_names.contains(&"OEBPS/toc.ncx".to_string()));
+        assert!(file_names.contains(&"OEBPS/styles.css".to_string()));
+        assert!(file_names.contains(&"OEBPS/title.xhtml".to_string()));
+        assert!(file_names.contains(&"OEBPS/chapter-01.xhtml".to_string()));
+
+        // Verify chapter content contains our prose
+        let mut chapter_content = String::new();
+        {
+            let mut chapter_file = archive.by_name("OEBPS/chapter-01.xhtml").unwrap();
+            std::io::Read::read_to_string(&mut chapter_file, &mut chapter_content).unwrap();
+        }
+        assert!(chapter_content.contains("<strong>bold</strong>"));
+        assert!(chapter_content.contains("Beat prose here."));
+    }
+
+    #[test]
+    fn test_escape_xml() {
+        assert_eq!(escape_xml("&"), "&amp;");
+        assert_eq!(escape_xml("<"), "&lt;");
+        assert_eq!(escape_xml(">"), "&gt;");
+        assert_eq!(escape_xml("\""), "&quot;");
+        assert_eq!(escape_xml("'"), "&apos;");
+        assert_eq!(escape_xml("normal text"), "normal text");
+        assert_eq!(escape_xml("a & b < c"), "a &amp; b &lt; c");
     }
 }

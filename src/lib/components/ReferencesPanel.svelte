@@ -1,11 +1,14 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { onMount } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import {
     ArrowDownAZ,
     ChevronDown,
+    ChevronRight,
     ChevronsLeft,
     ChevronsRight,
+    Zap,
     GripVertical,
     Link2,
     ListChevronsDownUp,
@@ -20,8 +23,12 @@
     Project,
     ReferenceItem,
     ReferenceTypeId,
+    ReferenceSuggestion,
     SceneReferenceState,
     SceneReferenceStateUpdate,
+    FieldDefinition,
+    FieldValue,
+    Tag,
   } from "../types";
   import {
     DEFAULT_REFERENCE_TYPES,
@@ -31,6 +38,8 @@
   } from "../referenceTypes";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import ReferenceEditDialog from "./ReferenceEditDialog.svelte";
+  import SuggestionCard from "./SuggestionCard.svelte";
+  import TagSelector from "./TagSelector.svelte";
   import Tooltip from "./Tooltip.svelte";
 
   let activeTab = $state<ReferenceTypeId | null>(null);
@@ -44,6 +53,8 @@
   let sceneReferenceLoading = $state(false);
   let sceneReferenceError = $state<string | null>(null);
   let sceneReferenceRequestId = 0;
+  let loadReferencesRequestId = 0;
+  let suggestionsRequestId = 0;
   let showReferenceTypeSettings = $state(false);
   let referenceTypeSelection = $state<ReferenceTypeId[]>([]);
   let referenceTypeSaving = $state(false);
@@ -58,6 +69,13 @@
     reference?: ReferenceItem;
   } | null>(null);
   let deleteTarget = $state<ReferenceItem | null>(null);
+  let fieldDefsMap = $state<Record<string, FieldDefinition[]>>({});
+  let fieldValuesMap = $state<Record<string, Record<string, string | null>>>({});
+  let suggestions = $state<ReferenceSuggestion[]>([]);
+  let suggestionsLoading = $state(false);
+  let suggestionsOpen = $state(true);
+  let allTags = $state<Tag[]>([]);
+  let entityTagIds = $state<Record<string, string[]>>({});
   let activeTypeOption = $derived(getReferenceTypeOption(activeTab));
   let activeSceneStates = $derived(
     activeTab && currentProject.currentScene
@@ -93,6 +111,7 @@
   let iconTextClass = $derived(activeTypeOption?.accentClass ?? "text-accent");
 
   async function loadReferences() {
+    const requestId = ++loadReferencesRequestId;
     const project = currentProject.value;
     if (!project) return;
 
@@ -125,6 +144,8 @@
         })
       );
 
+      if (requestId !== loadReferencesRequestId) return;
+
       const next: Record<ReferenceTypeId, ReferenceItem[]> = {
         ...(referencesByType as Record<ReferenceTypeId, ReferenceItem[]>),
       };
@@ -139,10 +160,77 @@
       if (next.locations) {
         currentProject.setLocations(next.locations);
       }
+
+      // Load field definitions for each entity type
+      const entityTypeMap: Record<string, string> = {
+        characters: "character",
+        locations: "location",
+        items: "item",
+        objectives: "objective",
+        organizations: "organization",
+      };
+      const defsMap: Record<string, FieldDefinition[]> = {};
+      for (const type of enabledTypes) {
+        const entityType = entityTypeMap[type] ?? type;
+        try {
+          defsMap[type] = await invoke<FieldDefinition[]>("get_field_definitions", {
+            projectId: project.id,
+            entityType,
+          });
+        } catch {
+          defsMap[type] = [];
+        }
+      }
+      fieldDefsMap = defsMap;
+
+      // Load field values for all entities in bulk
+      const allEntityIds = Object.values(next)
+        .flat()
+        .map((item) => item.id);
+      if (allEntityIds.length > 0) {
+        try {
+          const allValues = await invoke<FieldValue[]>("get_field_values_bulk", {
+            entityIds: allEntityIds,
+          });
+          const vMap: Record<string, Record<string, string | null>> = {};
+          for (const v of allValues) {
+            if (!vMap[v.entity_id]) vMap[v.entity_id] = {};
+            vMap[v.entity_id][v.field_definition_id] = v.value;
+          }
+          fieldValuesMap = vMap;
+        } catch {
+          fieldValuesMap = {};
+        }
+      }
+
+      // Load all project tags + per-entity tag assignments
+      try {
+        allTags = await invoke<Tag[]>("get_tags", { projectId: project.id });
+        const tagMap: Record<string, string[]> = {};
+        for (const id of allEntityIds) {
+          const entityType =
+            Object.entries(entityTypeMap).find(([typeKey]) =>
+              (next[typeKey as ReferenceTypeId] ?? []).some((item) => item.id === id)
+            )?.[1] ?? "item";
+          try {
+            const tags = await invoke<Tag[]>("get_entity_tags", { entityType, entityId: id });
+            tagMap[id] = tags.map((t) => t.id);
+          } catch {
+            tagMap[id] = [];
+          }
+        }
+        entityTagIds = tagMap;
+      } catch {
+        allTags = [];
+        entityTagIds = {};
+      }
     } catch (e) {
+      if (requestId !== loadReferencesRequestId) return;
       console.error("Failed to load references:", e);
     } finally {
-      loading = false;
+      if (requestId === loadReferencesRequestId) {
+        loading = false;
+      }
     }
   }
 
@@ -224,6 +312,72 @@
       if (requestId === sceneReferenceRequestId) {
         sceneReferenceLoading = false;
       }
+    }
+  }
+
+  async function loadSuggestions(sceneId: string) {
+    const requestId = ++suggestionsRequestId;
+    suggestionsLoading = true;
+    try {
+      const result = await invoke<ReferenceSuggestion[]>("detect_scene_references", { sceneId });
+      if (requestId !== suggestionsRequestId) return;
+      suggestions = result;
+    } catch (e) {
+      if (requestId !== suggestionsRequestId) return;
+      console.error("Failed to detect references:", e);
+      suggestions = [];
+    } finally {
+      if (requestId === suggestionsRequestId) {
+        suggestionsLoading = false;
+      }
+    }
+  }
+
+  function referenceTypeForSuggestion(s: ReferenceSuggestion): ReferenceTypeId {
+    if (s.reference_type === "character") return "characters";
+    if (s.reference_type === "location") return "locations";
+    return s.reference_type as ReferenceTypeId;
+  }
+
+  async function linkSuggestion(s: ReferenceSuggestion) {
+    const scene = currentProject.currentScene;
+    if (!scene) return;
+
+    const refType = referenceTypeForSuggestion(s);
+    const states = getSceneStatesForType(refType);
+    const updates: SceneReferenceStateUpdate[] = [
+      ...states.map((state, i) => ({
+        reference_id: state.reference_id,
+        position: i,
+        expanded: state.expanded,
+      })),
+      { reference_id: s.reference_id, position: states.length, expanded: false },
+    ];
+
+    await saveSceneReferenceState(refType, updates);
+    suggestions = suggestions.filter((x) => x.reference_id !== s.reference_id);
+  }
+
+  async function dismissSuggestion(s: ReferenceSuggestion) {
+    const scene = currentProject.currentScene;
+    if (!scene) return;
+    try {
+      await invoke("dismiss_suggestion", { sceneId: scene.id, referenceId: s.reference_id });
+      suggestions = suggestions.filter((x) => x.reference_id !== s.reference_id);
+    } catch (e) {
+      console.error("Failed to dismiss suggestion:", e);
+    }
+  }
+
+  async function linkAllSuggestions() {
+    for (const s of [...suggestions]) {
+      await linkSuggestion(s);
+    }
+  }
+
+  async function dismissAllSuggestions() {
+    for (const s of [...suggestions]) {
+      await dismissSuggestion(s);
     }
   }
 
@@ -401,23 +555,53 @@
     name: string;
     description: string | null;
     attributes: Record<string, string>;
+    fieldValues?: Record<string, string | null>;
   }) {
     if (!currentProject.value || !editDialog) return;
 
     try {
+      let entityId: string | null = null;
+
       if (editDialog.mode === "create") {
-        await invoke("create_reference", {
+        entityId = await invoke<string>("create_reference", {
           projectId: currentProject.value.id,
           referenceType: editDialog.referenceType.id,
-          reference: data,
+          reference: {
+            name: data.name,
+            description: data.description,
+            attributes: data.attributes,
+          },
         });
       } else if (editDialog.reference) {
+        entityId = editDialog.reference.id;
         await invoke("update_reference", {
           referenceId: editDialog.reference.id,
           referenceType: editDialog.referenceType.id,
-          reference: data,
+          reference: {
+            name: data.name,
+            description: data.description,
+            attributes: data.attributes,
+          },
         });
       }
+
+      if (data.fieldValues && entityId) {
+        for (const [defId, value] of Object.entries(data.fieldValues)) {
+          if (value === null || value === undefined || value === "") {
+            await invoke("clear_field_value", {
+              fieldDefinitionId: defId,
+              entityId,
+            });
+          } else {
+            await invoke("set_field_value", {
+              fieldDefinitionId: defId,
+              entityId,
+              value,
+            });
+          }
+        }
+      }
+
       await loadReferences();
     } catch (e) {
       console.error("Failed to save reference:", e);
@@ -599,11 +783,13 @@
     lastSceneId = sceneId;
     if (sceneId) {
       loadSceneReferenceState(sceneId);
+      loadSuggestions(sceneId);
     } else {
       sceneReferenceStates = [];
       sceneReferenceError = null;
       sceneReferenceLoading = false;
       syncExpandedIdsFromState([]);
+      suggestions = [];
     }
   });
 
@@ -611,6 +797,30 @@
     if (currentProject.value) {
       loadReferences();
     }
+  });
+
+  onMount(() => {
+    const handler = () => {
+      const sceneId = currentProject.currentScene?.id;
+      if (sceneId) loadSuggestions(sceneId);
+    };
+    const allHandler = async () => {
+      const projectId = currentProject.value?.id;
+      if (!projectId) return;
+      try {
+        await invoke("detect_all_references", { projectId });
+        const sceneId = currentProject.currentScene?.id;
+        if (sceneId) loadSuggestions(sceneId);
+      } catch (e) {
+        console.error("Failed to detect all references:", e);
+      }
+    };
+    window.addEventListener("kindling:detectReferences", handler);
+    window.addEventListener("kindling:detectAllReferences", allHandler);
+    return () => {
+      window.removeEventListener("kindling:detectReferences", handler);
+      window.removeEventListener("kindling:detectAllReferences", allHandler);
+    };
   });
 </script>
 
@@ -722,6 +932,62 @@
       {/each}
     </div>
   </div>
+
+  <!-- Suggested References -->
+  {#if currentProject.currentScene && (suggestions.length > 0 || suggestionsLoading)}
+    <div class="border-t border-bg-card">
+      <button
+        onclick={() => (suggestionsOpen = !suggestionsOpen)}
+        class="flex items-center gap-1.5 w-full px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+      >
+        {#if suggestionsOpen}
+          <ChevronDown class="w-3 h-3" />
+        {:else}
+          <ChevronRight class="w-3 h-3" />
+        {/if}
+        <Zap class="w-3 h-3 text-amber-400" />
+        Suggested
+        {#if suggestions.length > 0}
+          <span
+            class="ml-auto bg-amber-500/20 text-amber-400 text-[10px] px-1.5 py-0.5 rounded-full"
+          >
+            {suggestions.length}
+          </span>
+        {/if}
+      </button>
+      {#if suggestionsOpen}
+        <div class="px-2 pb-2 space-y-1">
+          {#if suggestionsLoading}
+            <p class="text-xs text-text-secondary px-1 py-2">Detecting...</p>
+          {:else}
+            {#if suggestions.length > 1}
+              <div class="flex items-center justify-end gap-2 px-1 pb-1">
+                <button
+                  onclick={linkAllSuggestions}
+                  class="text-[10px] text-accent hover:text-accent/80 transition-colors"
+                >
+                  Link All
+                </button>
+                <button
+                  onclick={dismissAllSuggestions}
+                  class="text-[10px] text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  Dismiss All
+                </button>
+              </div>
+            {/if}
+            {#each suggestions as s}
+              <SuggestionCard
+                suggestion={s}
+                onLink={linkSuggestion}
+                onDismiss={dismissSuggestion}
+              />
+            {/each}
+          {/if}
+        </div>
+      {/if}
+    </div>
+  {/if}
 
   <!-- Content -->
   <div class="flex-1 overflow-y-auto p-2">
@@ -837,6 +1103,13 @@
             </div>
 
             {#if isExpanded}
+              {@const refFieldDefs = (activeTab ? (fieldDefsMap[activeTab] ?? []) : []).filter(
+                (d) => d.visible
+              )}
+              {@const refFieldValues = fieldValuesMap[reference.id] ?? {}}
+              {@const hasFieldValues = refFieldDefs.some(
+                (d) => refFieldValues[d.id] != null && refFieldValues[d.id] !== ""
+              )}
               <div class="px-3 pb-3 border-t border-bg-panel">
                 {#if reference.description}
                   <div
@@ -853,6 +1126,41 @@
                   </p>
                 {/if}
 
+                {#if hasFieldValues}
+                  <div class="mt-3 space-y-1.5">
+                    {#each refFieldDefs as def (def.id)}
+                      {@const fv = refFieldValues[def.id]}
+                      {#if fv != null && fv !== ""}
+                        <div class="flex gap-2 text-xs">
+                          <span class="text-text-secondary font-medium shrink-0">{def.name}:</span>
+                          <span class="text-text-primary wrap-break-word">
+                            {#if def.field_type === "checkbox"}
+                              {fv === "true" ? "Yes" : "No"}
+                            {:else if def.field_type === "multiselect"}
+                              {(() => {
+                                try {
+                                  return (JSON.parse(fv) as string[]).join(", ");
+                                } catch {
+                                  return fv;
+                                }
+                              })()}
+                            {:else if def.field_type === "url"}
+                              <a
+                                href={fv}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="text-accent hover:underline">{fv}</a
+                              >
+                            {:else}
+                              {fv}
+                            {/if}
+                          </span>
+                        </div>
+                      {/if}
+                    {/each}
+                  </div>
+                {/if}
+
                 {#if attributes.length > 0}
                   <div class="mt-3 space-y-1.5">
                     {#each attributes as [key, value] (key)}
@@ -864,7 +1172,27 @@
                   </div>
                 {/if}
 
-                {#if !reference.description && !notes && attributes.length === 0}
+                {#if currentProject.value}
+                  <div class="mt-3">
+                    <span class="text-xs text-text-secondary font-medium block mb-1">Tags</span>
+                    <TagSelector
+                      projectId={currentProject.value.id}
+                      entityType={activeTypeOption
+                        ? activeTypeOption.id === "characters"
+                          ? "character"
+                          : activeTypeOption.id === "locations"
+                            ? "location"
+                            : activeTypeOption.id
+                        : "item"}
+                      entityId={reference.id}
+                      {allTags}
+                      entityTagIds={entityTagIds[reference.id] ?? []}
+                      onTagsChanged={() => loadReferences()}
+                    />
+                  </div>
+                {/if}
+
+                {#if !reference.description && !notes && attributes.length === 0 && !hasFieldValues}
                   <p class="text-text-secondary text-sm mt-3 italic">No additional details</p>
                 {/if}
 
@@ -914,6 +1242,7 @@
   <ReferenceEditDialog
     referenceType={editDialog.referenceType}
     reference={editDialog.reference}
+    projectId={currentProject.value?.id ?? ""}
     onClose={() => (editDialog = null)}
     onSave={handleSaveReference}
   />

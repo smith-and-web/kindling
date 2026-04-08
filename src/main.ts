@@ -1,3 +1,9 @@
+// MCP plugin guest JS — must run before any framework mounts (dev only)
+if (import.meta.env.DEV) {
+  const { setupPluginListeners } = await import("tauri-plugin-mcp");
+  await setupPluginListeners();
+}
+
 import "./app.css";
 import App from "./App.svelte";
 import { mount } from "svelte";
