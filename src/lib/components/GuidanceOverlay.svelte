@@ -28,12 +28,12 @@
     },
     references: {
       message:
-        "Link characters, locations, and items to scenes. Drag items into the scene to link them.",
+        "Link characters, locations, and items to scenes. Use the + button to search and add references, or accept auto-detected ⚡ suggestions.",
       position: "right",
     },
     sync: {
       message:
-        "Sync from source reimports your outline file when you've made changes elsewhere. Use it to pull in edits from Plottr, Markdown, or your external editor.",
+        "Sync from source reimports your outline file when you've made changes elsewhere. Use it to pull in edits from Plottr, yWriter, Longform, Scrivener, or Markdown.",
       position: "left",
     },
     planningStatus: {
@@ -41,11 +41,16 @@
         "Use planning status (Fixed, Flexible, Undefined) to control how much structure each scene has. Start loose and tighten as you go.",
       position: "center",
     },
+    screenplay: {
+      message:
+        "This is a screenplay project. Acts and Sequences replace Chapters. Use sluglines for scene headings — the page count estimate updates as you write.",
+      position: "left",
+    },
   };
 
   // planningStatus is shown as an inline banner in ScenePanel, not in this overlay sequence
 
-  const ORDER: GuidanceArea[] = ["sidebar", "scenePanel", "references", "sync"];
+  const ORDER: GuidanceArea[] = ["screenplay", "sidebar", "scenePanel", "references", "sync"];
 
   const currentArea = $derived.by(() => {
     if (!ui.guidanceEnabled || !currentProject.value || ui.showOnboarding) return null;
@@ -55,12 +60,14 @@
     const referencesVisible = !ui.referencesPanelCollapsed;
 
     const hasSourcePath = !!currentProject.value?.source_path;
+    const isScreenplay = currentProject.value?.project_type === "screenplay";
     const visibility: Record<GuidanceArea, boolean> = {
       sidebar: sidebarVisible,
       scenePanel: sceneVisible,
       references: referencesVisible,
       sync: sidebarVisible && hasSourcePath,
       planningStatus: sceneVisible,
+      screenplay: sidebarVisible && isScreenplay,
     };
 
     for (const area of ORDER) {

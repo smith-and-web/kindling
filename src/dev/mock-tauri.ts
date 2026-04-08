@@ -14,6 +14,12 @@ import type {
   AppSettings,
   SnapshotMetadata,
   SceneReferenceState,
+  FieldDefinition,
+  FieldValue,
+  Tag,
+  EntityTag,
+  SavedFilter,
+  StoryTemplate,
 } from "../lib/types";
 
 import {
@@ -38,6 +44,11 @@ let referenceItems: ReferenceItem[] = mockReferenceItems.map((r) => ({ ...r }));
 let appSettings: AppSettings = { ...mockAppSettings };
 let sceneReferenceStates: SceneReferenceState[] = [];
 let snapshots: SnapshotMetadata[] = [];
+let fieldDefinitions: FieldDefinition[] = [];
+let fieldValues: FieldValue[] = [];
+let tags: Tag[] = [];
+let entityTags: EntityTag[] = [];
+let savedFilters: SavedFilter[] = [];
 
 let idCounter = 100;
 
@@ -51,6 +62,15 @@ function getArg<T>(args: Record<string, unknown>, ...keys: string[]): T | undefi
     if (v !== undefined && v !== null) return v as T;
   }
   return undefined;
+}
+
+// Stubs for @tauri-apps/api/core exports consumed by plugins (e.g. updater).
+// Only used when useMocks is enabled in vite.config.ts for browser-only dev.
+export class Resource {
+  close() {}
+}
+export class Channel<T = unknown> {
+  onmessage: ((msg: T) => void) | undefined;
 }
 
 export async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
@@ -67,7 +87,8 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
     case "import_plottr":
     case "import_ywriter":
     case "import_markdown":
-    case "import_longform": {
+    case "import_longform":
+    case "import_scrivener": {
       const path = getArg<string>(args, "path") ?? "/mock/path/story.pltr";
       const project = projects[0]!;
       return { ...project, source_path: path, modified_at: new Date().toISOString() } as T;
@@ -196,6 +217,7 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         scene_type: "normal",
         scene_status: "draft",
         planning_status: "fixed",
+        editor_mode: "beat",
       };
       scenes.push(sc);
       return sc as T;
@@ -297,6 +319,14 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         .forEach((b) => b.position++);
       beats.push(newBeat);
       return newBeat as T;
+    }
+
+    case "rename_beat": {
+      if (!beatId) throw new Error("Missing beatId");
+      const content = getArg<string>(args, "content");
+      const b = beats.find((x) => x.id === beatId);
+      if (b && content) b.content = content;
+      return undefined as T;
     }
 
     case "merge_beats": {
@@ -509,6 +539,28 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       return undefined as T;
     }
 
+    case "switch_scene_editor_mode": {
+      if (!sceneId) throw new Error("Missing sceneId");
+      const mode = getArg<string>(args, "mode") ?? "beat";
+      const sc = scenes.find((s) => s.id === sceneId);
+      if (!sc) throw new Error(`Scene not found: ${sceneId}`);
+      sc.editor_mode = mode as "beat" | "page";
+      if (mode === "page") {
+        const sceneBeats = beats.filter((b) => b.scene_id === sceneId);
+        sceneBeats.sort((a, b) => a.position - b.position);
+        sc.prose = sceneBeats.map((b) => b.prose ?? "").join("");
+      }
+      return sc as T;
+    }
+
+    case "save_scene_page_prose": {
+      if (!sceneId) throw new Error("Missing sceneId");
+      const prose = getArg<string>(args, "prose") ?? "";
+      const sc = scenes.find((s) => s.id === sceneId);
+      if (sc) sc.prose = prose;
+      return undefined as T;
+    }
+
     case "reimport_project": {
       const proj = projects.find((p) => p.id === projectId);
       if (!proj) throw new Error(`Project not found: ${projectId}`);
@@ -681,7 +733,12 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
     case "export_to_markdown":
     case "export_to_longform":
     case "export_to_docx":
-    case "export_to_epub": {
+    case "export_to_epub":
+    case "generate_treatment":
+    case "preview_scrivener_matches":
+      return [] as T;
+
+    case "export_to_scrivener": {
       const options = getArg<{ output_path?: string }>(args, "options");
       const outputPath = options?.output_path ?? "/mock/path/export";
       return {
@@ -778,6 +835,441 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       if (settings) appSettings = { ...appSettings, ...settings };
       return appSettings as T;
     }
+
+    case "get_field_definitions": {
+      const entityType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      return fieldDefinitions
+        .filter((d) => d.project_id === projectId && d.entity_type === entityType)
+        .sort((a, b) => a.position - b.position) as T;
+    }
+
+    case "get_all_field_definitions": {
+      return fieldDefinitions
+        .filter((d) => d.project_id === projectId)
+        .sort((a, b) => a.position - b.position) as T;
+    }
+
+    case "create_field_definition": {
+      const def = getArg<Partial<FieldDefinition>>(args, "definition");
+      if (!def || !projectId) throw new Error("Missing definition or projectId");
+      const existing = fieldDefinitions.filter(
+        (d) => d.project_id === projectId && d.entity_type === def.entity_type
+      );
+      const newDef: FieldDefinition = {
+        id: nextId("fd"),
+        project_id: projectId,
+        entity_type: (def.entity_type ?? "character") as FieldDefinition["entity_type"],
+        name: def.name ?? "Untitled",
+        field_type: (def.field_type ?? "text") as FieldDefinition["field_type"],
+        options: def.options ?? null,
+        default_value: def.default_value ?? null,
+        position: existing.length,
+        required: def.required ?? false,
+        visible: def.visible ?? true,
+        created_at: new Date().toISOString(),
+      };
+      fieldDefinitions.push(newDef);
+      return newDef as T;
+    }
+
+    case "update_field_definition": {
+      const defId = getArg<string>(args, "definitionId", "definition_id") ?? "";
+      const update = getArg<Partial<FieldDefinition>>(args, "definition");
+      const existing = fieldDefinitions.find((d) => d.id === defId);
+      if (existing && update) {
+        if (update.name !== undefined) existing.name = update.name;
+        if (update.field_type !== undefined)
+          existing.field_type = update.field_type as FieldDefinition["field_type"];
+        if (update.options !== undefined) existing.options = update.options;
+        if (update.default_value !== undefined) existing.default_value = update.default_value;
+        if (update.required !== undefined) existing.required = update.required;
+        if (update.visible !== undefined) existing.visible = update.visible;
+      }
+      return undefined as T;
+    }
+
+    case "delete_field_definition": {
+      const defId = getArg<string>(args, "definitionId", "definition_id") ?? "";
+      fieldDefinitions = fieldDefinitions.filter((d) => d.id !== defId);
+      fieldValues = fieldValues.filter((v) => v.field_definition_id !== defId);
+      return undefined as T;
+    }
+
+    case "reorder_field_definitions": {
+      const ids = getArg<string[]>(args, "definitionIds", "definition_ids") ?? [];
+      ids.forEach((id, i) => {
+        const d = fieldDefinitions.find((fd) => fd.id === id);
+        if (d) d.position = i;
+      });
+      return undefined as T;
+    }
+
+    case "get_field_values": {
+      const entityId = getArg<string>(args, "entityId", "entity_id") ?? "";
+      return fieldValues.filter((v) => v.entity_id === entityId) as T;
+    }
+
+    case "get_field_values_bulk": {
+      const entityIds = getArg<string[]>(args, "entityIds", "entity_ids") ?? [];
+      const idSet = new Set(entityIds);
+      return fieldValues.filter((v) => idSet.has(v.entity_id)) as T;
+    }
+
+    case "set_field_value": {
+      const fieldDefId = getArg<string>(args, "fieldDefinitionId", "field_definition_id") ?? "";
+      const entityId = getArg<string>(args, "entityId", "entity_id") ?? "";
+      const value = getArg<string | null>(args, "value") ?? null;
+      const existing = fieldValues.find(
+        (v) => v.field_definition_id === fieldDefId && v.entity_id === entityId
+      );
+      if (existing) {
+        existing.value = value;
+      } else {
+        fieldValues.push({
+          id: nextId("fv"),
+          field_definition_id: fieldDefId,
+          entity_id: entityId,
+          value,
+        });
+      }
+      return undefined as T;
+    }
+
+    case "clear_field_value": {
+      const fieldDefId = getArg<string>(args, "fieldDefinitionId", "field_definition_id") ?? "";
+      const entityId = getArg<string>(args, "entityId", "entity_id") ?? "";
+      fieldValues = fieldValues.filter(
+        (v) => !(v.field_definition_id === fieldDefId && v.entity_id === entityId)
+      );
+      return undefined as T;
+    }
+
+    // Tag commands
+    case "get_tags": {
+      return tags
+        .filter((t) => t.project_id === projectId)
+        .sort((a, b) => a.position - b.position) as T;
+    }
+
+    case "create_tag": {
+      const name = getArg<string>(args, "name") ?? "";
+      const color = getArg<string | null>(args, "color") ?? null;
+      const parentId = getArg<string | null>(args, "parentId", "parent_id") ?? null;
+      const newTag: Tag = {
+        id: nextId("tag"),
+        project_id: projectId ?? "",
+        name,
+        color,
+        parent_id: parentId,
+        position: tags.filter((t) => t.project_id === projectId).length,
+        created_at: new Date().toISOString(),
+      };
+      tags.push(newTag);
+      return newTag as T;
+    }
+
+    case "update_tag": {
+      const tagId = getArg<string>(args, "tagId", "tag_id") ?? "";
+      const update = getArg<Partial<{ name: string; color: string | null }>>(args, "update");
+      const existing = tags.find((t) => t.id === tagId);
+      if (existing && update) {
+        if (update.name !== undefined) existing.name = update.name;
+        if (update.color !== undefined) existing.color = update.color;
+      }
+      return undefined as T;
+    }
+
+    case "delete_tag": {
+      const tagId = getArg<string>(args, "tagId", "tag_id") ?? "";
+      tags = tags.filter((t) => t.id !== tagId);
+      entityTags = entityTags.filter((et) => et.tag_id !== tagId);
+      return undefined as T;
+    }
+
+    case "reorder_tags": {
+      const ids = getArg<string[]>(args, "tagIds", "tag_ids") ?? [];
+      ids.forEach((id, i) => {
+        const t = tags.find((tag) => tag.id === id);
+        if (t) t.position = i;
+      });
+      return undefined as T;
+    }
+
+    case "tag_entity": {
+      const tagId = getArg<string>(args, "tagId", "tag_id") ?? "";
+      const entType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      const entId = getArg<string>(args, "entityId", "entity_id") ?? "";
+      if (
+        !entityTags.some(
+          (et) => et.tag_id === tagId && et.entity_type === entType && et.entity_id === entId
+        )
+      ) {
+        entityTags.push({ tag_id: tagId, entity_type: entType, entity_id: entId });
+      }
+      return undefined as T;
+    }
+
+    case "untag_entity": {
+      const tagId = getArg<string>(args, "tagId", "tag_id") ?? "";
+      const entType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      const entId = getArg<string>(args, "entityId", "entity_id") ?? "";
+      entityTags = entityTags.filter(
+        (et) => !(et.tag_id === tagId && et.entity_type === entType && et.entity_id === entId)
+      );
+      return undefined as T;
+    }
+
+    case "get_entity_tags": {
+      const entType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      const entId = getArg<string>(args, "entityId", "entity_id") ?? "";
+      const tagIds = entityTags
+        .filter((et) => et.entity_type === entType && et.entity_id === entId)
+        .map((et) => et.tag_id);
+      return tags.filter((t) => tagIds.includes(t.id)) as T;
+    }
+
+    case "bulk_tag": {
+      const tagId = getArg<string>(args, "tagId", "tag_id") ?? "";
+      const entType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      const entIds = getArg<string[]>(args, "entityIds", "entity_ids") ?? [];
+      for (const entId of entIds) {
+        if (
+          !entityTags.some(
+            (et) => et.tag_id === tagId && et.entity_type === entType && et.entity_id === entId
+          )
+        ) {
+          entityTags.push({ tag_id: tagId, entity_type: entType, entity_id: entId });
+        }
+      }
+      return undefined as T;
+    }
+
+    case "bulk_untag": {
+      const tagId = getArg<string>(args, "tagId", "tag_id") ?? "";
+      const entType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      const entIds = getArg<string[]>(args, "entityIds", "entity_ids") ?? [];
+      const idSet = new Set(entIds);
+      entityTags = entityTags.filter(
+        (et) => !(et.tag_id === tagId && et.entity_type === entType && idSet.has(et.entity_id))
+      );
+      return undefined as T;
+    }
+
+    case "get_all_entity_tags": {
+      return entityTags.filter((et) => {
+        const tag = tags.find((t) => t.id === et.tag_id);
+        return tag?.project_id === projectId;
+      }) as T;
+    }
+
+    case "filter_entities": {
+      const entType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      const filterJson = getArg<string>(args, "filterJson", "filter_json") ?? "{}";
+      try {
+        const filter = JSON.parse(filterJson) as { tags?: string[]; operator?: string };
+        const filterTagIds = filter.tags ?? [];
+        if (filterTagIds.length === 0) return [] as T;
+        const matchingEts = entityTags.filter(
+          (et) => et.entity_type === entType && filterTagIds.includes(et.tag_id)
+        );
+        const entityIds = [...new Set(matchingEts.map((et) => et.entity_id))];
+        return entityIds as T;
+      } catch {
+        return [] as T;
+      }
+    }
+
+    case "save_filter": {
+      const name = getArg<string>(args, "name") ?? "";
+      const entType = getArg<string>(args, "entityType", "entity_type") ?? "";
+      const filterJson = getArg<string>(args, "filterJson", "filter_json") ?? "{}";
+      const newFilter: SavedFilter = {
+        id: nextId("sf"),
+        project_id: projectId ?? "",
+        name,
+        entity_type: entType,
+        filter_json: filterJson,
+        position: savedFilters.filter((f) => f.project_id === projectId).length,
+      };
+      savedFilters.push(newFilter);
+      return newFilter as T;
+    }
+
+    case "get_saved_filters": {
+      return savedFilters.filter((f) => f.project_id === projectId) as T;
+    }
+
+    case "delete_saved_filter": {
+      const filterId = getArg<string>(args, "filterId", "filter_id") ?? "";
+      savedFilters = savedFilters.filter((f) => f.id !== filterId);
+      return undefined as T;
+    }
+
+    // Detection commands (stubs in dev mode)
+    case "detect_scene_references":
+      return [] as T;
+
+    case "detect_all_references":
+      return {} as T;
+
+    case "dismiss_suggestion":
+      return undefined as T;
+
+    case "create_screenplay_project": {
+      const name = getArg<string>(args, "name") ?? "Untitled Screenplay";
+      const targetLength = getArg<string>(args, "targetLength", "target_length");
+      const targetPage =
+        targetLength === "short" ? 30 : targetLength === "long_feature" ? 150 : 120;
+      const now = new Date().toISOString();
+      const projId = nextId("proj");
+      const proj: Project = {
+        id: projId,
+        name,
+        source_type: "Blank",
+        source_path: null,
+        created_at: now,
+        modified_at: now,
+        author_pen_name: null,
+        genre: null,
+        description: null,
+        word_target: null,
+        reference_types: ["characters", "locations"],
+        project_type: "screenplay",
+        target_page_count: targetPage,
+      };
+      projects.push(proj);
+      const acts = ["Act I — Setup", "Act II — Confrontation", "Act III — Resolution"];
+      acts.forEach((actTitle, actIdx) => {
+        const actId = nextId("ch");
+        chapters.push({
+          id: actId,
+          project_id: projId,
+          title: actTitle,
+          position: actIdx * 2,
+          source_id: null,
+          archived: false,
+          locked: false,
+          is_part: true,
+          synopsis: null,
+          planning_status: "fixed",
+        });
+        const seqId = nextId("ch");
+        chapters.push({
+          id: seqId,
+          project_id: projId,
+          title: "Sequence 1",
+          position: actIdx * 2 + 1,
+          source_id: null,
+          archived: false,
+          locked: false,
+          is_part: false,
+          synopsis: null,
+          planning_status: "fixed",
+        });
+        scenes.push({
+          id: nextId("sc"),
+          chapter_id: seqId,
+          title: "INT. LOCATION - DAY",
+          synopsis: null,
+          prose: null,
+          position: 0,
+          source_id: null,
+          archived: false,
+          locked: false,
+          scene_type: "normal",
+          scene_status: "draft",
+          planning_status: "fixed",
+          editor_mode: "beat",
+        });
+      });
+      return proj as T;
+    }
+
+    case "get_page_count_estimate": {
+      let totalWords = 0;
+      const projChapters = chapters.filter((c) => c.project_id === projectId && !c.archived);
+      for (const ch of projChapters) {
+        const chScenes = scenes.filter((s) => s.chapter_id === ch.id && !s.archived);
+        for (const sc of chScenes) {
+          const scBeats = beats.filter((b) => b.scene_id === sc.id);
+          totalWords += scBeats.reduce(
+            (sum, b) => sum + (b.prose?.split(/\s+/).filter(Boolean).length ?? 0),
+            0
+          );
+          if (sc.prose) totalWords += sc.prose.split(/\s+/).filter(Boolean).length;
+        }
+      }
+      const proj = projects.find((p) => p.id === projectId);
+      const target = proj?.target_page_count != null ? `${proj.target_page_count} pages` : "—";
+      return { pages: totalWords / 250, words: totalWords, target } as T;
+    }
+
+    case "get_bundled_templates": {
+      const bundled: StoryTemplate[] = [
+        {
+          id: "bundled-save-the-cat",
+          name: "Save the Cat",
+          source: "Blake Snyder",
+          description: "15-beat screenplay structure",
+          project_types: ["screenplay", "novel"],
+          structure: [
+            {
+              title: "Act I — Setup",
+              children: [
+                {
+                  title: "Opening Image",
+                  synopsis: "The starting point",
+                  scenes: [{ title: "Opening Image", synopsis: "Establish the world" }],
+                },
+              ],
+            },
+          ],
+          bundled: true,
+        },
+        {
+          id: "bundled-three-act",
+          name: "Three-Act Structure",
+          source: "Classical",
+          description: "Setup, confrontation, resolution",
+          project_types: ["novel", "screenplay"],
+          structure: [
+            {
+              title: "Act I",
+              children: [
+                {
+                  title: "Hook",
+                  scenes: [{ title: "Hook" }],
+                },
+              ],
+            },
+          ],
+          bundled: true,
+        },
+      ];
+      return bundled as T;
+    }
+
+    case "get_user_templates":
+      return [] as T;
+
+    case "apply_template":
+      return undefined as T;
+
+    case "save_project_as_template": {
+      const tpl: StoryTemplate = {
+        id: nextId("tpl"),
+        name: getArg<string>(args, "input.name") ?? "My Template",
+        description: null,
+        project_types: ["novel", "screenplay"],
+        structure: [],
+        bundled: false,
+        created_at: new Date().toISOString(),
+      };
+      return tpl as T;
+    }
+
+    case "delete_user_template":
+      return undefined as T;
 
     default:
       throw new Error(`Mock invoke: unknown command "${cmd}"`);

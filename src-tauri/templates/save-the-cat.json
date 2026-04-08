@@ -1,0 +1,99 @@
+{
+  "id": "bundled-save-the-cat",
+  "name": "Save the Cat",
+  "source": "Blake Snyder",
+  "description": "15-beat screenplay structure from Blake Snyder's influential screenwriting guide. Designed to create a satisfying audience experience with clear emotional beats.",
+  "project_types": ["screenplay", "novel"],
+  "structure": [
+    {
+      "title": "Act I — Setup",
+      "children": [
+        {
+          "title": "Opening Image",
+          "synopsis": "A visual that represents the starting point and tone of the story.",
+          "scenes": [{ "title": "Opening Image", "synopsis": "Establish the world and the hero's current state before the journey begins." }]
+        },
+        {
+          "title": "Theme Stated",
+          "synopsis": "Someone states the theme — usually to the hero, who doesn't yet understand it.",
+          "scenes": [{ "title": "Theme Stated", "synopsis": "The thematic premise is hinted at or spoken aloud." }]
+        },
+        {
+          "title": "Set-Up",
+          "synopsis": "Introduce the hero's world, flaws, and the things that need fixing.",
+          "scenes": [{ "title": "Set-Up", "synopsis": "Show the hero's ordinary world and establish what's missing or broken." }]
+        },
+        {
+          "title": "Catalyst",
+          "synopsis": "Something happens that changes everything — the inciting incident.",
+          "scenes": [{ "title": "Catalyst", "synopsis": "A life-changing event disrupts the hero's status quo." }]
+        },
+        {
+          "title": "Debate",
+          "synopsis": "The hero debates whether to accept the challenge or call to adventure.",
+          "scenes": [{ "title": "Debate", "synopsis": "Internal or external conflict about whether to take the leap." }]
+        }
+      ]
+    },
+    {
+      "title": "Act II — Confrontation",
+      "children": [
+        {
+          "title": "Break into Two",
+          "synopsis": "The hero makes a choice and enters the new world of Act II.",
+          "scenes": [{ "title": "Break into Two", "synopsis": "The hero commits to the journey and crosses the threshold." }]
+        },
+        {
+          "title": "B Story",
+          "synopsis": "A secondary story begins — often a love interest or mentor relationship.",
+          "scenes": [{ "title": "B Story", "synopsis": "Introduce the relationship that carries the theme." }]
+        },
+        {
+          "title": "Fun and Games",
+          "synopsis": "The promise of the premise — the audience gets what they came for.",
+          "scenes": [{ "title": "Fun and Games", "synopsis": "Deliver on the concept. This is the heart of the trailer." }]
+        },
+        {
+          "title": "Midpoint",
+          "synopsis": "A false victory or false defeat that raises the stakes.",
+          "scenes": [{ "title": "Midpoint", "synopsis": "The stakes are raised. The fun is over; things get serious." }]
+        },
+        {
+          "title": "Bad Guys Close In",
+          "synopsis": "External pressures mount and internal team dissent grows.",
+          "scenes": [{ "title": "Bad Guys Close In", "synopsis": "Opposition tightens its grip. Allies may fracture." }]
+        },
+        {
+          "title": "All Is Lost",
+          "synopsis": "The lowest point — a whiff of death (literal or metaphorical).",
+          "scenes": [{ "title": "All Is Lost", "synopsis": "The hero hits rock bottom. Something or someone is lost." }]
+        },
+        {
+          "title": "Dark Night of the Soul",
+          "synopsis": "The hero wallows in hopelessness before finding the strength to go on.",
+          "scenes": [{ "title": "Dark Night of the Soul", "synopsis": "Despair and reflection before the final push." }]
+        }
+      ]
+    },
+    {
+      "title": "Act III — Resolution",
+      "children": [
+        {
+          "title": "Break into Three",
+          "synopsis": "The hero discovers the solution, combining A and B stories.",
+          "scenes": [{ "title": "Break into Three", "synopsis": "Inspiration strikes. The hero knows what must be done." }]
+        },
+        {
+          "title": "Finale",
+          "synopsis": "The hero confronts the problem using lessons learned throughout the story.",
+          "scenes": [{ "title": "Finale", "synopsis": "The climactic sequence where the hero proves transformation." }]
+        },
+        {
+          "title": "Final Image",
+          "synopsis": "The opposite of the opening image — proof that change has occurred.",
+          "scenes": [{ "title": "Final Image", "synopsis": "Mirror the opening to show how far the hero has come." }]
+        }
+      ]
+    }
+  ]
+}

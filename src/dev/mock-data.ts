@@ -28,6 +28,8 @@ export const mockProject: Project = {
   description: "A tale of two siblings bound by fire and memory.",
   word_target: 80000,
   reference_types: ["characters", "locations", "items", "objectives", "organizations"],
+  project_type: "novel",
+  target_page_count: null,
 };
 
 export const mockChapters: Chapter[] = [
@@ -119,6 +121,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
   {
     id: "sc-2",
@@ -133,6 +136,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
   {
     id: "sc-3",
@@ -147,6 +151,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
   {
     id: "sc-4",
@@ -161,6 +166,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
   {
     id: "sc-5",
@@ -175,6 +181,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
   {
     id: "sc-6",
@@ -189,6 +196,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
   {
     id: "sc-7",
@@ -203,6 +211,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
   {
     id: "sc-8",
@@ -217,6 +226,7 @@ export const mockScenes: Scene[] = [
     scene_type: "normal",
     scene_status: "draft",
     planning_status: "fixed",
+    editor_mode: "beat",
   },
 ];
 

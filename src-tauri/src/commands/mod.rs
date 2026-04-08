@@ -16,24 +16,34 @@
 mod archive;
 mod blank_project;
 mod crud;
+mod detect;
 mod export;
+mod fields;
 mod import;
 mod lock;
 mod sample_project;
+mod screenplay_project;
 mod settings;
 mod snapshot;
 mod state;
 mod sync;
+mod tags;
+mod templates;
 
 // Re-export everything for backwards compatibility with lib.rs
 pub use archive::*;
 pub use blank_project::*;
 pub use crud::*;
+pub use detect::*;
 pub use export::*;
+pub use fields::*;
 pub use import::*;
 pub use lock::*;
 pub use sample_project::*;
+pub use screenplay_project::*;
 pub use settings::*;
 pub use snapshot::*;
 pub use state::*;
 pub use sync::*;
+pub use tags::*;
+pub use templates::*;

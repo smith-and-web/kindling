@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::models::{
-    Beat, Chapter, Character, DiscoveryNote, Location, PlanningStatus, Project, ReferenceItem,
-    Scene, SceneCharacterRef, SceneLocationRef, SceneReferenceItemRef, SceneReferenceState,
-    SceneStatus, SceneType, SnapshotMetadata, SnapshotTrigger, SourceType,
+    Beat, Chapter, Character, DiscoveryNote, EditorMode, Location, PlanningStatus, Project,
+    ReferenceItem, Scene, SceneCharacterRef, SceneLocationRef, SceneReferenceItemRef,
+    SceneReferenceState, SceneStatus, SceneType, SnapshotMetadata, SnapshotTrigger, SourceType,
 };
 
-fn parse_uuid(s: &str) -> rusqlite::Result<Uuid> {
+pub(crate) fn parse_uuid(s: &str) -> rusqlite::Result<Uuid> {
     Uuid::parse_str(s)
         .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, Type::Text, Box::new(e)))
 }
@@ -21,8 +21,8 @@ pub fn insert_project(conn: &Connection, project: &Project) -> Result<()> {
     let reference_types_json =
         serde_json::to_string(&project.reference_types).unwrap_or_else(|_| "[]".to_string());
     conn.execute(
-        "INSERT INTO projects (id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        "INSERT INTO projects (id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types, project_type, target_page_count)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         params![
             project.id.to_string(),
             project.name,
@@ -35,6 +35,8 @@ pub fn insert_project(conn: &Connection, project: &Project) -> Result<()> {
             project.description,
             project.word_target,
             reference_types_json,
+            project.project_type,
+            project.target_page_count,
         ],
     )?;
     Ok(())
@@ -48,29 +50,38 @@ fn parse_reference_types(raw: Option<String>) -> Vec<String> {
     }
 }
 
+/// Build a Project from a row selected with columns:
+/// id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types, project_type, target_page_count
+fn project_from_row(row: &rusqlite::Row) -> rusqlite::Result<Project> {
+    Ok(Project {
+        id: parse_uuid(&row.get::<_, String>(0)?)?,
+        name: row.get(1)?,
+        source_type: SourceType::parse(&row.get::<_, String>(2)?).unwrap_or(SourceType::Markdown),
+        source_path: row.get(3)?,
+        created_at: row.get(4)?,
+        modified_at: row.get(5)?,
+        author_pen_name: row.get(6)?,
+        genre: row.get(7)?,
+        description: row.get(8)?,
+        word_target: row.get(9)?,
+        reference_types: parse_reference_types(row.get(10)?),
+        project_type: row
+            .get::<_, String>(11)
+            .unwrap_or_else(|_| Project::default_project_type()),
+        target_page_count: row.get(12)?,
+    })
+}
+
 pub fn get_project(conn: &Connection, id: &Uuid) -> Result<Option<Project>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types
+        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types, project_type, target_page_count
          FROM projects WHERE id = ?1",
     )?;
 
     let mut rows = stmt.query(params![id.to_string()])?;
 
     if let Some(row) = rows.next()? {
-        Ok(Some(Project {
-            id: parse_uuid(&row.get::<_, String>(0)?)?,
-            name: row.get(1)?,
-            source_type: SourceType::parse(&row.get::<_, String>(2)?)
-                .unwrap_or(SourceType::Markdown),
-            source_path: row.get(3)?,
-            created_at: row.get(4)?,
-            modified_at: row.get(5)?,
-            author_pen_name: row.get(6)?,
-            genre: row.get(7)?,
-            description: row.get(8)?,
-            word_target: row.get(9)?,
-            reference_types: parse_reference_types(row.get(10)?),
-        }))
+        Ok(Some(project_from_row(row)?))
     } else {
         Ok(None)
     }
@@ -78,27 +89,12 @@ pub fn get_project(conn: &Connection, id: &Uuid) -> Result<Option<Project>> {
 
 pub fn get_recent_projects(conn: &Connection, limit: usize) -> Result<Vec<Project>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types
+        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types, project_type, target_page_count
          FROM projects ORDER BY modified_at DESC LIMIT ?1",
     )?;
 
     let projects = stmt
-        .query_map(params![limit as i64], |row| {
-            Ok(Project {
-                id: parse_uuid(&row.get::<_, String>(0)?)?,
-                name: row.get(1)?,
-                source_type: SourceType::parse(&row.get::<_, String>(2)?)
-                    .unwrap_or(SourceType::Markdown),
-                source_path: row.get(3)?,
-                created_at: row.get(4)?,
-                modified_at: row.get(5)?,
-                author_pen_name: row.get(6)?,
-                genre: row.get(7)?,
-                description: row.get(8)?,
-                word_target: row.get(9)?,
-                reference_types: parse_reference_types(row.get(10)?),
-            })
-        })?
+        .query_map(params![limit as i64], project_from_row)?
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(projects)
@@ -106,27 +102,12 @@ pub fn get_recent_projects(conn: &Connection, limit: usize) -> Result<Vec<Projec
 
 pub fn get_all_projects(conn: &Connection) -> Result<Vec<Project>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types
+        "SELECT id, name, source_type, source_path, created_at, modified_at, author_pen_name, genre, description, word_target, reference_types, project_type, target_page_count
          FROM projects ORDER BY modified_at DESC",
     )?;
 
     let projects = stmt
-        .query_map([], |row| {
-            Ok(Project {
-                id: parse_uuid(&row.get::<_, String>(0)?)?,
-                name: row.get(1)?,
-                source_type: SourceType::parse(&row.get::<_, String>(2)?)
-                    .unwrap_or(SourceType::Markdown),
-                source_path: row.get(3)?,
-                created_at: row.get(4)?,
-                modified_at: row.get(5)?,
-                author_pen_name: row.get(6)?,
-                genre: row.get(7)?,
-                description: row.get(8)?,
-                word_target: row.get(9)?,
-                reference_types: parse_reference_types(row.get(10)?),
-            })
-        })?
+        .query_map([], project_from_row)?
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(projects)
@@ -175,7 +156,7 @@ fn chapter_from_row(row: &rusqlite::Row) -> rusqlite::Result<Chapter> {
 }
 
 /// Build a Scene from a row selected with columns:
-/// id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status
+/// id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status, editor_mode
 fn scene_from_row(row: &rusqlite::Row) -> rusqlite::Result<Scene> {
     Ok(Scene {
         id: parse_uuid(&row.get::<_, String>(0)?)?,
@@ -192,6 +173,10 @@ fn scene_from_row(row: &rusqlite::Row) -> rusqlite::Result<Scene> {
         planning_status: row
             .get::<_, String>(11)
             .map(|s| PlanningStatus::parse(&s))
+            .unwrap_or_default(),
+        editor_mode: row
+            .get::<_, String>(12)
+            .map(|s| EditorMode::parse(&s))
             .unwrap_or_default(),
     })
 }
@@ -266,8 +251,8 @@ pub fn get_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chapter>
 
 pub fn insert_scene(conn: &Connection, scene: &Scene) -> Result<()> {
     conn.execute(
-        "INSERT INTO scenes (id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        "INSERT INTO scenes (id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status, editor_mode)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         params![
             scene.id.to_string(),
             scene.chapter_id.to_string(),
@@ -281,6 +266,7 @@ pub fn insert_scene(conn: &Connection, scene: &Scene) -> Result<()> {
             scene.scene_type.as_str(),
             scene.scene_status.as_str(),
             scene.planning_status.as_str(),
+            scene.editor_mode.as_str(),
         ],
     )?;
     Ok(())
@@ -349,7 +335,7 @@ pub fn move_scene_to_chapter(
 
 pub fn get_scenes(conn: &Connection, chapter_id: &Uuid) -> Result<Vec<Scene>> {
     let mut stmt = conn.prepare(
-        "SELECT id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status
+        "SELECT id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status, editor_mode
          FROM scenes WHERE chapter_id = ?1 AND archived = 0 ORDER BY position",
     )?;
 
@@ -361,6 +347,71 @@ pub fn get_scenes(conn: &Connection, chapter_id: &Uuid) -> Result<Vec<Scene>> {
 }
 
 pub fn update_scene_prose(conn: &Connection, scene_id: &Uuid, prose: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE scenes SET prose = ?1 WHERE id = ?2",
+        params![prose, scene_id.to_string()],
+    )?;
+    Ok(())
+}
+
+pub fn switch_scene_editor_mode(conn: &Connection, scene_id: &Uuid, mode: &str) -> Result<Scene> {
+    let tx = conn.unchecked_transaction()?;
+
+    if mode == "page" {
+        let beats = get_beats(&tx, scene_id)?;
+        let combined: Vec<String> = beats
+            .iter()
+            .filter_map(|b| b.prose.as_deref().filter(|p| !p.is_empty()))
+            .map(String::from)
+            .collect();
+        let page_prose = combined.join("<hr>");
+        if !page_prose.is_empty() {
+            tx.execute(
+                "UPDATE scenes SET prose = ?1 WHERE id = ?2",
+                params![page_prose, scene_id.to_string()],
+            )?;
+        }
+    } else if mode == "beat" {
+        let scene =
+            get_scene_by_id(&tx, scene_id)?.ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)?;
+        if let Some(page_prose) = scene.prose.as_deref().filter(|p| !p.is_empty()) {
+            let beats = get_beats(&tx, scene_id)?;
+            if !beats.is_empty() {
+                let segments: Vec<&str> = page_prose.split("<hr>").collect();
+                for (i, beat) in beats.iter().enumerate() {
+                    let new_prose = if i < segments.len() {
+                        let trimmed = segments[i].trim();
+                        if i == beats.len() - 1 && segments.len() > beats.len() {
+                            let overflow = segments[i..].join("<hr>");
+                            Some(overflow)
+                        } else if trimmed.is_empty() {
+                            None
+                        } else {
+                            Some(trimmed.to_string())
+                        }
+                    } else {
+                        None
+                    };
+                    tx.execute(
+                        "UPDATE beats SET prose = ?1 WHERE id = ?2",
+                        params![new_prose, beat.id.to_string()],
+                    )?;
+                }
+            }
+        }
+    }
+
+    tx.execute(
+        "UPDATE scenes SET editor_mode = ?1 WHERE id = ?2",
+        params![mode, scene_id.to_string()],
+    )?;
+
+    tx.commit()?;
+
+    get_scene_by_id(conn, scene_id)?.ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)
+}
+
+pub fn save_scene_page_prose(conn: &Connection, scene_id: &Uuid, prose: &str) -> Result<()> {
     conn.execute(
         "UPDATE scenes SET prose = ?1 WHERE id = ?2",
         params![prose, scene_id.to_string()],
@@ -1676,33 +1727,14 @@ pub fn find_scene_by_source_id(
     source_id: &str,
 ) -> Result<Option<Scene>> {
     let mut stmt = conn.prepare(
-        "SELECT id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status
+        "SELECT id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status, editor_mode
          FROM scenes WHERE chapter_id = ?1 AND source_id = ?2",
     )?;
 
-    let mut rows = stmt.query(params![chapter_id.to_string(), source_id])?;
-
-    if let Some(row) = rows.next()? {
-        Ok(Some(Scene {
-            id: parse_uuid(&row.get::<_, String>(0)?)?,
-            chapter_id: parse_uuid(&row.get::<_, String>(1)?)?,
-            title: row.get(2)?,
-            synopsis: row.get(3)?,
-            prose: row.get(4)?,
-            position: row.get(5)?,
-            source_id: row.get(6)?,
-            archived: row.get::<_, i32>(7)? != 0,
-            locked: row.get::<_, i32>(8)? != 0,
-            scene_type: SceneType::parse(&row.get::<_, String>(9)?),
-            scene_status: SceneStatus::parse(&row.get::<_, String>(10)?),
-            planning_status: row
-                .get::<_, String>(11)
-                .map(|s| PlanningStatus::parse(&s))
-                .unwrap_or_default(),
-        }))
-    } else {
-        Ok(None)
-    }
+    let scene = stmt
+        .query_row(params![chapter_id.to_string(), source_id], scene_from_row)
+        .optional()?;
+    Ok(scene)
 }
 
 /// Find a beat by source_id (for reimport matching)
@@ -1868,7 +1900,7 @@ pub fn get_all_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec<Chap
 /// Get all scenes for a project across all chapters (for reimport stats)
 pub fn get_all_project_scenes(conn: &Connection, project_id: &Uuid) -> Result<Vec<Scene>> {
     let mut stmt = conn.prepare(
-        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id, s.archived, s.locked, s.scene_type, s.scene_status, s.planning_status
+        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id, s.archived, s.locked, s.scene_type, s.scene_status, s.planning_status, s.editor_mode
          FROM scenes s
          JOIN chapters c ON s.chapter_id = c.id
          WHERE c.project_id = ?1
@@ -1960,7 +1992,7 @@ pub fn get_archived_chapters(conn: &Connection, project_id: &Uuid) -> Result<Vec
 
 pub fn get_archived_scenes(conn: &Connection, project_id: &Uuid) -> Result<Vec<Scene>> {
     let mut stmt = conn.prepare(
-        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id, s.archived, s.locked, s.scene_type, s.scene_status, s.planning_status
+        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id, s.archived, s.locked, s.scene_type, s.scene_status, s.planning_status, s.editor_mode
          FROM scenes s
          JOIN chapters c ON s.chapter_id = c.id
          WHERE c.project_id = ?1 AND s.archived = 1
@@ -2076,7 +2108,7 @@ pub fn get_chapter_by_id(conn: &Connection, chapter_id: &Uuid) -> Result<Option<
 
 pub fn get_scene_by_id(conn: &Connection, scene_id: &Uuid) -> Result<Option<Scene>> {
     let mut stmt = conn.prepare(
-        "SELECT id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status
+        "SELECT id, chapter_id, title, synopsis, prose, position, source_id, archived, locked, scene_type, scene_status, planning_status, editor_mode
          FROM scenes WHERE id = ?1",
     )?;
 
@@ -2347,7 +2379,7 @@ pub fn get_all_scenes_including_archived(
     project_id: &Uuid,
 ) -> Result<Vec<Scene>> {
     let mut stmt = conn.prepare(
-        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id, s.archived, s.locked, s.scene_type, s.scene_status, s.planning_status
+        "SELECT s.id, s.chapter_id, s.title, s.synopsis, s.prose, s.position, s.source_id, s.archived, s.locked, s.scene_type, s.scene_status, s.planning_status, s.editor_mode
          FROM scenes s
          JOIN chapters c ON s.chapter_id = c.id
          WHERE c.project_id = ?1
@@ -2492,7 +2524,7 @@ pub fn update_project(conn: &Connection, project: &Project) -> Result<()> {
     let reference_types_json =
         serde_json::to_string(&project.reference_types).unwrap_or_else(|_| "[]".to_string());
     conn.execute(
-        "UPDATE projects SET name = ?1, source_type = ?2, source_path = ?3, modified_at = ?4, author_pen_name = ?5, genre = ?6, description = ?7, word_target = ?8, reference_types = ?9 WHERE id = ?10",
+        "UPDATE projects SET name = ?1, source_type = ?2, source_path = ?3, modified_at = ?4, author_pen_name = ?5, genre = ?6, description = ?7, word_target = ?8, reference_types = ?9, project_type = ?10, target_page_count = ?11 WHERE id = ?12",
         params![
             project.name,
             project.source_type.as_str(),
@@ -2503,6 +2535,8 @@ pub fn update_project(conn: &Connection, project: &Project) -> Result<()> {
             project.description,
             project.word_target,
             reference_types_json,
+            project.project_type,
+            project.target_page_count,
             project.id.to_string(),
         ],
     )?;
@@ -2563,6 +2597,7 @@ mod tests {
             scene_type: SceneType::Normal,
             scene_status: SceneStatus::Draft,
             planning_status: PlanningStatus::Fixed,
+            editor_mode: EditorMode::Beat,
         };
         insert_scene(conn, &scene).unwrap();
         scene

@@ -243,6 +243,24 @@ describe("Delete Chapters and Scenes (#16)", () => {
       // Refresh
       await browser.refresh();
       await waitForAppReady();
+      await skipOnboardingIfPresent();
+
+      // After refresh the app may land on the start screen instead of
+      // reopening the project. If so, click the first recent project to
+      // reload from the database (not from the source file).
+      const startScreen = await $('[data-testid="recent-projects"]');
+      if (await startScreen.isExisting()) {
+        const firstProject = await $('[data-testid="project-card"]');
+        await firstProject.waitForExist({ timeout: 5000 });
+        await firstProject.click();
+        await browser.waitUntil(
+          async () => {
+            const sidebar = await $('[data-testid="chapter-item"]');
+            return await sidebar.isExisting();
+          },
+          { timeout: 10000, timeoutMsg: "Project did not reopen after refresh" }
+        );
+      }
 
       // Verify still deleted
       const afterRefresh = await getChapterTitles();

@@ -20,6 +20,7 @@ pub mod menu_ids {
     pub const IMPORT_YWRITER: &str = "import_ywriter";
     pub const IMPORT_MARKDOWN: &str = "import_markdown";
     pub const IMPORT_LONGFORM: &str = "import_longform";
+    pub const IMPORT_SCRIVENER: &str = "import_scrivener";
     pub const EXPORT: &str = "export";
     pub const CLOSE_PROJECT: &str = "close_project";
     pub const PROJECT_SETTINGS: &str = "project_settings";
@@ -56,11 +57,17 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .accelerator("CmdOrCtrl+Shift+L")
         .build(app)?;
 
+    let import_scrivener = MenuItemBuilder::new("Scrivener 3 (.scriv)")
+        .id(menu_ids::IMPORT_SCRIVENER)
+        .accelerator("CmdOrCtrl+Shift+I")
+        .build(app)?;
+
     let import_submenu = SubmenuBuilder::new(app, "Import")
         .item(&import_plottr)
         .item(&import_ywriter)
         .item(&import_markdown)
         .item(&import_longform)
+        .item(&import_scrivener)
         .build()?;
 
     // Export menu item

@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { platform } from "@tauri-apps/plugin-os";
 import { ui } from "$lib/stores/ui.svelte";
 import type { Project } from "$lib/types";
 
@@ -41,6 +42,11 @@ const IMPORT_CONFIGS: Record<string, ImportOptions> = {
     directory: true,
     label: "Longform vault",
   },
+  scrivener: {
+    command: "import_scrivener",
+    filters: [{ name: "Scrivener Project", extensions: ["scriv"] }],
+    label: "Scrivener project",
+  },
 };
 
 export type ImportType = keyof typeof IMPORT_CONFIGS;
@@ -50,14 +56,45 @@ export type ImportType = keyof typeof IMPORT_CONFIGS;
  * resulting Project. Returns `null` if the user cancels the dialog.
  * Handles import progress and error toasts automatically.
  */
+function basename(p: string): string {
+  const normalized = p.replace(/\\/g, "/");
+  const i = normalized.lastIndexOf("/");
+  return i === -1 ? normalized : normalized.slice(i + 1);
+}
+
+/**
+ * Pick a `.scriv` bundle: file picker on macOS (package), folder picker elsewhere
+ * where `.scriv` is a directory.
+ */
+export async function pickScrivenerProjectPath(): Promise<string | null> {
+  const isMacos = platform() === "macos";
+  const path = await open({
+    multiple: false,
+    title: isMacos ? undefined : "Select Scrivener project folder (.scriv)",
+    ...(isMacos ? { filters: IMPORT_CONFIGS.scrivener.filters } : { directory: true }),
+  });
+  if (!path) return null;
+  if (!isMacos) {
+    const name = basename(path).toLowerCase();
+    if (!name.endsWith(".scriv")) {
+      ui.showError("Please select a folder whose name ends with .scriv");
+      return null;
+    }
+  }
+  return path;
+}
+
 export async function runImport(type: ImportType): Promise<Project | null> {
   const config = IMPORT_CONFIGS[type];
   if (!config) throw new Error(`Unknown import type: ${type}`);
 
-  const path = await open({
-    multiple: false,
-    ...(config.directory ? { directory: true } : { filters: config.filters }),
-  });
+  const path =
+    type === "scrivener"
+      ? await pickScrivenerProjectPath()
+      : await open({
+          multiple: false,
+          ...(config.directory ? { directory: true } : { filters: config.filters }),
+        });
 
   if (!path) return null;
 

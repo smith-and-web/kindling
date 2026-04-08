@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
   import type {
@@ -36,7 +37,8 @@
     label: option.label,
   }));
 
-  async function loadReferences() {
+  /** Returns true when references are empty and the dialog should auto-close. */
+  async function loadReferences(): Promise<boolean> {
     loading = true;
     error = null;
     try {
@@ -96,17 +98,21 @@
       ]);
 
       references = [...characters, ...locations, ...items, ...objectives, ...organizations];
+      return references.length === 0;
     } catch (e) {
       console.error("Failed to load reference classifications:", e);
       error = e instanceof Error ? e.message : "Failed to load references";
       references = [];
+      return false;
     } finally {
       loading = false;
     }
   }
 
-  $effect(() => {
-    loadReferences();
+  onMount(() => {
+    void loadReferences().then((shouldAutoClose) => {
+      if (shouldAutoClose) onClose();
+    });
   });
 
   function updateReferenceType(id: string, nextType: ReferenceTypeId) {

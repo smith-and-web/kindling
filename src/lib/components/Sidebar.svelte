@@ -45,6 +45,7 @@
     Beat,
     Chapter,
     PlanningStatus,
+    SavedFilter,
     Scene,
     SceneStatus,
     SceneType,
@@ -281,6 +282,75 @@
     sceneStatusFilter !== "all" || !showNotesScenes || !showTodoScenes || !showUnusedScenes
   );
 
+  let savedFilters = $state<SavedFilter[]>([]);
+  let savedFilterName = $state("");
+  let showSaveFilterInput = $state(false);
+
+  async function loadSavedFilters() {
+    const projectId = currentProject.value?.id;
+    if (!projectId) return;
+    try {
+      savedFilters = await invoke<SavedFilter[]>("get_saved_filters", { projectId });
+    } catch (e) {
+      console.error("Failed to load saved filters:", e);
+    }
+  }
+
+  async function saveCurrentFilter() {
+    const projectId = currentProject.value?.id;
+    const name = savedFilterName.trim();
+    if (!projectId || !name) return;
+
+    const config = {
+      sceneStatusFilter,
+      showNotesScenes,
+      showTodoScenes,
+      showUnusedScenes,
+    };
+
+    try {
+      await invoke("save_filter", {
+        projectId,
+        name,
+        entityType: "scene",
+        filterJson: JSON.stringify(config),
+      });
+      savedFilterName = "";
+      showSaveFilterInput = false;
+      await loadSavedFilters();
+    } catch (e) {
+      console.error("Failed to save filter:", e);
+    }
+  }
+
+  function applySavedFilter(filter: SavedFilter) {
+    try {
+      const config = JSON.parse(filter.filter_json);
+      if (config.sceneStatusFilter) sceneStatusFilter = config.sceneStatusFilter;
+      if (config.showNotesScenes !== undefined) showNotesScenes = config.showNotesScenes;
+      if (config.showTodoScenes !== undefined) showTodoScenes = config.showTodoScenes;
+      if (config.showUnusedScenes !== undefined) showUnusedScenes = config.showUnusedScenes;
+    } catch {
+      console.error("Failed to parse saved filter:", filter.name);
+    }
+    showFilterPopover = false;
+  }
+
+  async function deleteSavedFilter(filterId: string) {
+    try {
+      await invoke("delete_saved_filter", { filterId });
+      await loadSavedFilters();
+    } catch (e) {
+      console.error("Failed to delete saved filter:", e);
+    }
+  }
+
+  // Labels for Part/Chapter vs Act/Sequence (screenplay projects)
+  const partLabel = $derived(currentProject.value?.project_type === "screenplay" ? "Act" : "Part");
+  const chapterLabel = $derived(
+    currentProject.value?.project_type === "screenplay" ? "Sequence" : "Chapter"
+  );
+
   // Chapter synopsis editing
   let editingChapterSynopsisId: string | null = $state(null);
   let chapterSynopsisText = $state("");
@@ -332,6 +402,31 @@
 
   let exportResult: ExportResult | null = $state(null);
 
+  // Page count estimate for screenplay projects
+  let pageCountEstimate: { pages: number; words: number; target: string } | null = $state(null);
+
+  $effect(() => {
+    if (!currentProject.value) pageCountEstimate = null;
+  });
+
+  async function loadPageCountEstimate() {
+    if (!currentProject.value || currentProject.value.project_type !== "screenplay") {
+      pageCountEstimate = null;
+      return;
+    }
+    try {
+      const result = await invoke<{ pages: number; words: number; target: string }>(
+        "get_page_count_estimate",
+        { projectId: currentProject.value.id }
+      );
+      if (currentProject.value?.project_type === "screenplay") {
+        pageCountEstimate = result;
+      }
+    } catch {
+      pageCountEstimate = null;
+    }
+  }
+
   async function loadChapters() {
     if (!currentProject.value) return;
     const projectId = currentProject.value.id;
@@ -360,6 +455,9 @@
         expandedChapters.clear();
         expandedChapters.add(firstChapter.id);
         await loadScenes(firstChapter);
+      }
+      if (currentProject.value?.project_type === "screenplay") {
+        loadPageCountEstimate();
       }
     } catch (e) {
       console.error("Failed to load chapters:", e);
@@ -401,6 +499,9 @@
       });
       if (requestId !== scenesRequestId || currentProject.currentChapter?.id !== chapterId) return;
       currentProject.setScenes(scenes);
+      if (scenes.length === 1 && currentProject.value?.project_type === "screenplay") {
+        selectScene(scenes[0]);
+      }
     } catch (e) {
       console.error("Failed to load scenes:", e);
     }
@@ -939,7 +1040,7 @@
       ...(type === "chapter"
         ? [
             {
-              label: isPart ? "Convert to Chapter" : "Convert to Part",
+              label: isPart ? `Convert to ${chapterLabel}` : `Convert to ${partLabel}`,
               icon: BookOpen,
               action: () => handleTogglePart(item.id, !isPart),
               disabled: isLocked,
@@ -1098,6 +1199,7 @@
 
     if (project && !importing && !chaptersLoaded) {
       loadChapters();
+      loadSavedFilters();
     }
   });
 
@@ -1177,9 +1279,19 @@
     {#if currentProject.value}
       <!-- Project name with action icons -->
       <div class="flex items-center justify-between mt-2 gap-2">
-        <p class="text-text-primary text-base font-semibold truncate min-w-0 flex-1">
-          {currentProject.value.name}
-        </p>
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <p class="text-text-primary text-base font-semibold truncate">
+            {currentProject.value.name}
+          </p>
+          {#if currentProject.value.project_type === "screenplay" && pageCountEstimate}
+            <span
+              class="shrink-0 text-xs text-text-secondary bg-bg-card px-1.5 py-0.5 rounded"
+              title="{pageCountEstimate.words} words · target: {pageCountEstimate.target}"
+            >
+              {pageCountEstimate.pages.toFixed(1)} / {pageCountEstimate.target}
+            </span>
+          {/if}
+        </div>
         <!-- Action icons (primary only; secondary behind more menu) -->
         <div class="flex items-center gap-0.5 shrink-0">
           <Tooltip text="Project settings" position="bottom">
@@ -1352,7 +1464,7 @@
                   class="p-1 text-text-secondary hover:text-text-primary transition-opacity shrink-0"
                   class:opacity-0={hoveredChapterId !== part.id}
                   class:opacity-100={hoveredChapterId === part.id}
-                  aria-label="Part menu"
+                  aria-label="{partLabel} menu"
                 >
                   <MoreVertical class="w-3.5 h-3.5" />
                 </button>
@@ -1429,7 +1541,7 @@
                         class="p-1 text-text-secondary hover:text-text-primary transition-opacity shrink-0"
                         class:opacity-0={hoveredChapterId !== chapter.id}
                         class:opacity-100={hoveredChapterId === chapter.id}
-                        aria-label="Chapter menu"
+                        aria-label="{chapterLabel} menu"
                       >
                         <MoreVertical class="w-3.5 h-3.5" />
                       </button>
@@ -1447,7 +1559,7 @@
                               bind:value={chapterSynopsisText}
                               oninput={() => handleChapterSynopsisInput(chapter.id)}
                               onblur={() => finishEditingChapterSynopsis(chapter.id)}
-                              placeholder="Chapter synopsis..."
+                              placeholder="{chapterLabel} synopsis..."
                               class="w-full text-xs text-text-primary bg-bg-card border border-accent/40 rounded-md px-2.5 py-1.5 resize-none focus:outline-none focus:border-accent"
                               rows="2"
                               autofocus
@@ -1686,6 +1798,62 @@
                                     />
                                   </div>
                                 </div>
+
+                                <!-- Saved filters -->
+                                {#if savedFilters.length > 0}
+                                  <div class="border-t border-bg-card pt-2 space-y-1">
+                                    <span class="text-xs text-text-secondary">Saved filters</span>
+                                    {#each savedFilters as filter}
+                                      <div class="flex items-center gap-1">
+                                        <button
+                                          onclick={() => applySavedFilter(filter)}
+                                          class="flex-1 text-left text-xs px-2 py-1 rounded hover:bg-bg-card text-text-primary truncate"
+                                        >
+                                          {filter.name}
+                                        </button>
+                                        <button
+                                          onclick={() => deleteSavedFilter(filter.id)}
+                                          class="p-0.5 text-text-secondary hover:text-red-400 shrink-0"
+                                          aria-label="Delete saved filter {filter.name}"
+                                        >
+                                          <Trash2 class="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    {/each}
+                                  </div>
+                                {/if}
+
+                                <!-- Save current filter -->
+                                {#if hasActiveFilters}
+                                  <div class="border-t border-bg-card pt-2">
+                                    {#if showSaveFilterInput}
+                                      <div class="flex items-center gap-1">
+                                        <input
+                                          type="text"
+                                          bind:value={savedFilterName}
+                                          placeholder="Filter name..."
+                                          class="flex-1 bg-bg-card text-text-primary text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent"
+                                          onkeydown={(e) =>
+                                            e.key === "Enter" && saveCurrentFilter()}
+                                        />
+                                        <button
+                                          onclick={saveCurrentFilter}
+                                          disabled={!savedFilterName.trim()}
+                                          class="text-xs text-accent hover:underline disabled:opacity-40 disabled:no-underline px-1"
+                                        >
+                                          Save
+                                        </button>
+                                      </div>
+                                    {:else}
+                                      <button
+                                        onclick={() => (showSaveFilterInput = true)}
+                                        class="text-xs text-accent hover:underline"
+                                      >
+                                        Save current filter...
+                                      </button>
+                                    {/if}
+                                  </div>
+                                {/if}
                               </div>
                             {/if}
                           </div>
@@ -1850,7 +2018,7 @@
               bind:value={newTitle}
               onkeydown={handleCreateKeydown}
               onblur={cancelCreate}
-              placeholder={creatingPart ? "Part title..." : "Chapter title..."}
+              placeholder={creatingPart ? `${partLabel} title...` : `${chapterLabel} title...`}
               class="w-full px-2 py-1 text-sm bg-bg-card border border-accent rounded focus:outline-none text-text-primary"
               autofocus
             />
@@ -1861,14 +2029,14 @@
             <div
               class="flex items-stretch rounded-lg bg-bg-card border border-bg-card hover:border-accent/50 transition-colors"
             >
-              <!-- Main action: New Chapter -->
+              <!-- Main action: New Chapter/Sequence -->
               <button
                 data-testid="new-chapter-button"
                 onclick={startCreatingChapter}
                 class="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors rounded-l-lg"
               >
                 <Plus class="w-4 h-4" />
-                New Chapter
+                New {chapterLabel}
               </button>
               <!-- Dropdown trigger -->
               <button
@@ -1892,7 +2060,7 @@
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-card transition-colors"
                 >
                   <Folder class="w-4 h-4" />
-                  New Chapter
+                  New {chapterLabel}
                 </button>
                 <button
                   data-testid="dropdown-new-part"
@@ -1900,7 +2068,7 @@
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-card transition-colors"
                 >
                   <BookOpen class="w-4 h-4" />
-                  New Part
+                  New {partLabel}
                 </button>
               </div>
             {/if}
@@ -1949,6 +2117,8 @@
   <PartDeleteDialog
     partTitle={partDeleteDialog.partTitle}
     childChapterCount={partDeleteDialog.childChapterIds.length}
+    {partLabel}
+    {chapterLabel}
     onDeletePartOnly={executeDeletePartOnly}
     onDeletePartAndChapters={executeDeletePartAndChapters}
     onCancel={() => (partDeleteDialog = null)}
@@ -1973,7 +2143,7 @@
 <!-- Rename Dialog -->
 {#if renameDialog}
   <RenameDialog
-    title="Rename {renameDialog.type === 'chapter' ? 'Chapter' : 'Scene'}"
+    title="Rename {renameDialog.type === 'chapter' ? chapterLabel : 'Scene'}"
     currentName={renameDialog.title}
     onSave={(newName) => handleRename(renameDialog!.type, renameDialog!.id, newName)}
     onClose={() => (renameDialog = null)}

@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 
+// Mock theme utils before importing ui store
+vi.mock("../utils/theme", () => ({
+  getStoredPreference: vi.fn(() => "dark"),
+  setThemePreference: vi.fn(),
+  initTheme: vi.fn(),
+}));
+
 // Mock localStorage before importing ui store
 let store: Record<string, string> = {};
 const localStorageMock = {
@@ -342,6 +349,26 @@ describe("ui store", () => {
       expect(ui.onboardingStep).toBe("welcome");
       expect(ui.onboardingCompleted).toBe(false);
       expect(localStorageMock.removeItem).toHaveBeenCalledWith("kindling:onboardingCompleted");
+    });
+  });
+
+  describe("theme", () => {
+    it("should default to dark theme", () => {
+      expect(ui.theme).toBe("dark");
+    });
+
+    it("should set theme preference", async () => {
+      const { setThemePreference } = await import("../utils/theme");
+      ui.setTheme("light");
+      expect(ui.theme).toBe("light");
+      expect(setThemePreference).toHaveBeenCalledWith("light");
+    });
+
+    it("should set system theme preference", async () => {
+      const { setThemePreference } = await import("../utils/theme");
+      ui.setTheme("system");
+      expect(ui.theme).toBe("system");
+      expect(setThemePreference).toHaveBeenCalledWith("system");
     });
   });
 

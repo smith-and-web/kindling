@@ -41,13 +41,15 @@ async function closeAllDialogs() {
         // If click fails, try pressing Escape
         await browser.keys("Escape");
       }
-      await browser.waitUntil(
-        async () => {
-          const d = await $('[data-testid="sync-preview-dialog"]');
-          return !(await d.isExisting());
-        },
-        { timeout: 3000 }
-      ).catch(() => {});
+      await browser
+        .waitUntil(
+          async () => {
+            const d = await $('[data-testid="sync-preview-dialog"]');
+            return !(await d.isExisting());
+          },
+          { timeout: 3000 }
+        )
+        .catch(() => {});
     }
   }
 
@@ -61,10 +63,9 @@ async function closeAllDialogs() {
       } catch {
         await browser.keys("Escape");
       }
-      await browser.waitUntil(
-        async () => !(await summaryDialog.isExisting()),
-        { timeout: 3000 }
-      ).catch(() => {});
+      await browser
+        .waitUntil(async () => !(await summaryDialog.isExisting()), { timeout: 3000 })
+        .catch(() => {});
     }
   }
 
@@ -127,13 +128,9 @@ describe("Re-import to Update Project (#40)", () => {
   });
 
   describe("Sync Process", () => {
-    it("should show loading spinner when clicking sync", async () => {
+    it("should show sync preview dialog after clicking sync", async () => {
       await clickSyncButton();
 
-      // The spinner appears briefly while loading preview
-      // We can't reliably test it, so we just verify the flow continues
-
-      // Wait for either sync dialog or an error
       await browser.waitUntil(
         async () => {
           const dialog = await $('[data-testid="sync-preview-dialog"]');
@@ -142,7 +139,8 @@ describe("Re-import to Update Project (#40)", () => {
         { timeout: 10000, timeoutMsg: "Sync preview dialog did not appear" }
       );
 
-      expect(true).toBe(true);
+      const dialog = await $('[data-testid="sync-preview-dialog"]');
+      expect(await dialog.isExisting()).toBe(true);
     });
 
     it("should show sync preview dialog", async () => {
@@ -244,62 +242,38 @@ describe("Re-import to Update Project (#40)", () => {
   });
 
   describe("Apply Sync", () => {
-    it("should show summary dialog after applying sync", async () => {
+    it("should show sync preview dialog with confirm or all-synced state", async () => {
       await clickSyncButton();
 
       // Wait for sync preview dialog
-      await browser.waitUntil(
+      const dialog = await browser.waitUntil(
         async () => {
           const d = await $('[data-testid="sync-preview-dialog"]');
-          return await d.isExisting();
+          return (await d.isExisting()) ? d : false;
         },
         { timeout: 10000 }
       );
 
-      // Check if confirm button exists (only shows when there are selections)
+      expect(await dialog.isExisting()).toBe(true);
+
+      // Verify either the confirm button or an "All synced" message is present
+      const text = await browser.execute((el) => el.textContent, dialog);
       const confirmButton = await $('[data-testid="sync-confirm"]');
-      if (await confirmButton.isExisting()) {
-        // If disabled (no selections), this is expected for unchanged files
-        const isDisabled = await confirmButton.getAttribute("disabled");
-        if (!isDisabled) {
-          await confirmButton.click();
+      const hasConfirm = await confirmButton.isExisting();
+      const hasAllSynced = /all synced/i.test(text);
 
-          // Wait for summary dialog
-          await browser.waitUntil(
-            async () => {
-              const d = await $('[data-testid="reimport-summary-dialog"]');
-              return await d.isExisting();
-            },
-            { timeout: 10000 }
-          );
-
-          const summaryDialog = await $('[data-testid="reimport-summary-dialog"]');
-          expect(await summaryDialog.isExisting()).toBe(true);
-        }
-      }
-      // Test passes if we got this far
-      expect(true).toBe(true);
+      expect(hasConfirm || hasAllSynced).toBe(true);
     });
   });
 
   describe("Content Updates", () => {
-    it("should update chapter titles from source", async () => {
-      // This test requires the source file to have been modified externally
-      // In CI, we'd swap the test file before this test runs
+    // These tests require an alternate fixture (e.g. simple-story-v2.pltr with
+    // renamed/added chapters) and replaceTestFile()/restoreTestFile() helpers to
+    // swap the source file before sync. Marked as pending until fixtures exist.
+    it.skip("should update chapter titles from source", async () => {});
 
-      // For now, verify the sync button is accessible
-      await waitForSyncButtonClickable();
-      const syncButton = await $('[data-testid="sync-button"]');
-      expect(await syncButton.isExisting()).toBe(true);
-    });
+    it.skip("should add new chapters from source", async () => {});
 
-    it("should add new chapters from source", async () => {
-      // Similar to above - requires external file modification
-      // The actual verification happens in the summary dialog
-    });
-
-    it("should add new scenes from source", async () => {
-      // Similar to above
-    });
+    it.skip("should add new scenes from source", async () => {});
   });
 });

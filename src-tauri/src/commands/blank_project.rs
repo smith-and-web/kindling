@@ -7,7 +7,9 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::db;
-use crate::models::{Chapter, PlanningStatus, Project, Scene, SceneStatus, SceneType, SourceType};
+use crate::models::{
+    Chapter, EditorMode, PlanningStatus, Project, Scene, SceneStatus, SceneType, SourceType,
+};
 
 use super::AppState;
 
@@ -34,6 +36,8 @@ pub async fn create_blank_project(
         description: None,
         word_target: None,
         reference_types: Project::default_reference_types(),
+        project_type: Project::default_project_type(),
+        target_page_count: None,
     };
 
     let chapter = Chapter {
@@ -62,6 +66,7 @@ pub async fn create_blank_project(
         scene_type: SceneType::Normal,
         scene_status: SceneStatus::Draft,
         planning_status: PlanningStatus::Undefined,
+        editor_mode: EditorMode::Beat,
     };
 
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;

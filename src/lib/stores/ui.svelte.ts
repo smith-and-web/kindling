@@ -18,6 +18,13 @@
  * @see project.svelte.ts for project data state
  */
 
+import {
+  type ThemePreference,
+  getStoredPreference,
+  setThemePreference,
+  initTheme,
+} from "../utils/theme";
+
 export type View = "start" | "editor";
 export type Panel = "sidebar" | "editor" | "references";
 export type OnboardingStep =
@@ -40,7 +47,13 @@ const ONBOARDING_COMPLETED_KEY = "kindling:onboardingCompleted";
 const GUIDANCE_ENABLED_KEY = "kindling:guidanceEnabled";
 const TOOLTIP_SEEN_PREFIX = "kindling:tooltipSeen:";
 
-export type GuidanceArea = "sidebar" | "scenePanel" | "references" | "sync" | "planningStatus";
+export type GuidanceArea =
+  | "sidebar"
+  | "scenePanel"
+  | "references"
+  | "sync"
+  | "planningStatus"
+  | "screenplay";
 
 const ONBOARDING_STEPS: OnboardingStep[] = [
   "welcome",
@@ -74,6 +87,9 @@ class UIStore {
   private _guidanceEnabled = $state(true);
   private _tooltipSeenVersion = $state(0); // Bump to trigger re-check of localStorage
 
+  // Theme
+  private _theme = $state<ThemePreference>("dark");
+
   constructor() {
     const saved = localStorage.getItem(REFERENCES_PANEL_STORAGE_KEY);
     if (saved) {
@@ -89,6 +105,9 @@ class UIStore {
 
     const guidanceStored = localStorage.getItem(GUIDANCE_ENABLED_KEY);
     this._guidanceEnabled = guidanceStored === null ? true : guidanceStored === "true";
+
+    this._theme = getStoredPreference();
+    initTheme();
 
     window.addEventListener("resize", () => {
       const maxWidth = this.referencesPanelMaxWidth;
@@ -297,8 +316,12 @@ class UIStore {
   }
 
   setGuidanceEnabled(enabled: boolean) {
+    const wasDisabled = !this._guidanceEnabled;
     this._guidanceEnabled = enabled;
     localStorage.setItem(GUIDANCE_ENABLED_KEY, String(enabled));
+    if (enabled && wasDisabled) {
+      this.resetGuidanceTooltips();
+    }
   }
 
   hasSeenTooltip(area: GuidanceArea): boolean {
@@ -313,12 +336,29 @@ class UIStore {
 
   // For testing: reset guidance tooltips
   resetGuidanceTooltips() {
-    (["sidebar", "scenePanel", "references", "sync", "planningStatus"] as GuidanceArea[]).forEach(
-      (area) => {
-        localStorage.removeItem(TOOLTIP_SEEN_PREFIX + area);
-      }
-    );
+    (
+      [
+        "sidebar",
+        "scenePanel",
+        "references",
+        "sync",
+        "planningStatus",
+        "screenplay",
+      ] as GuidanceArea[]
+    ).forEach((area) => {
+      localStorage.removeItem(TOOLTIP_SEEN_PREFIX + area);
+    });
     this._tooltipSeenVersion += 1;
+  }
+
+  // Theme
+  get theme(): ThemePreference {
+    return this._theme;
+  }
+
+  setTheme(pref: ThemePreference) {
+    this._theme = pref;
+    setThemePreference(pref);
   }
 }
 
