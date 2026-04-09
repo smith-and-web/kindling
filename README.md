@@ -10,8 +10,10 @@
 </p>
 
 <p align="center">
+  <a href="https://kindlingwriter.com/">Website</a> ·
   <a href="https://kindlingwriter.com/download/">Download</a> ·
   <a href="https://kindlingwriter.com/features/">Features</a> ·
+  <a href="https://kindlingwriter.com/docs/">Docs</a> ·
   <a href="https://kindlingwriter.com/compare/">Compare</a> ·
   <a href="#contributing">Contributing</a>
 </p>
@@ -29,14 +31,19 @@
   <a href="https://github.com/smith-and-web/kindling/stargazers">
     <img src="https://img.shields.io/github/stars/smith-and-web/kindling?style=flat" alt="Stars" />
   </a>
+  <a href="https://github.com/smith-and-web/kindling/releases">
+    <img src="https://img.shields.io/github/downloads/smith-and-web/kindling/total?label=downloads" alt="Downloads" />
+  </a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="Platform" />
 </p>
 
 ---
 
 <p align="center">
-  <img src="docs/assets/demo-1.gif" alt="Kindling demo - scaffolded writing view" width="800" />
+  <img src="docs/assets/demo-2.gif" alt="Kindling demo - scaffolded writing view with light theme" width="800" />
 </p>
+
+> **New in v1.2:** Light theme, full-page prose editing, bidirectional Scrivener import/export, screenplay project type, custom fields & tags, smart reference detection, and story structure templates. [Read the release notes.](https://github.com/smith-and-web/kindling/releases/tag/v1.2.0)
 
 ## Why Kindling?
 
@@ -116,6 +123,7 @@ Track progress on the [project board](https://github.com/users/smith-and-web/pro
 | **v0.2 - Outline View** | ✅ Complete | Drag-and-drop reordering, create/delete scenes |
 | **v0.3 - Writing & Export** | ✅ Complete | Prose editor, DOCX export with Standard Manuscript Format |
 | **v1.0 - Release** | ✅ Complete | Additional importers, polish, performance, stability |
+| **v1.1 - Plantser Support** | ✅ Complete | Rolling Outline Mode, blank projects, beat management, discovery notes, command palette, guided onboarding, auto-updater |
 | **v1.2 - Features** | ✅ Complete | Scrivener import/export, screenplay support, light theme, custom fields, tags, templates, auto-detection, EPUB, treatments |
 
 See the [milestones](https://github.com/smith-and-web/kindling/milestones) for detailed breakdowns.
