@@ -199,7 +199,7 @@ jobs:
             -exec sha256sum {} \; | sort > ../checksums.sha256
 
       - name: Upload checksums to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: checksums.sha256
           tag_name: ${{ github.ref_name }}
