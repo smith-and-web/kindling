@@ -1511,11 +1511,9 @@ fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_
                 *context.scene_status = parse_obsidian_status(value);
             }
         }
-        "synopsis" => {
-            if !context.synopsis_locked {
-                if let Some(text) = normalize_block(value) {
-                    *context.synopsis = Some(text);
-                }
+        "synopsis" if !context.synopsis_locked => {
+            if let Some(text) = normalize_block(value) {
+                *context.synopsis = Some(text);
             }
         }
         _ => {}

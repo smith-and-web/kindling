@@ -681,13 +681,11 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
                             ParagraphType::Normal
                         };
                     }
-                    "p" => {
-                        if !current_runs.is_empty() {
-                            paragraphs.push(FormattedParagraph {
-                                runs: std::mem::take(&mut current_runs),
-                                paragraph_type: current_para_type,
-                            });
-                        }
+                    "p" if !current_runs.is_empty() => {
+                        paragraphs.push(FormattedParagraph {
+                            runs: std::mem::take(&mut current_runs),
+                            paragraph_type: current_para_type,
+                        });
                     }
                     _ => {}
                 }
