@@ -17,6 +17,11 @@
 # gated `auto` or `human`). Keep these names stable so PRDs can reference them.
 #
 # The commands mirror .github/workflows/ci.yml so that "gate passes" => "CI passes".
+#
+# DELIBERATE EXCEPTION: CI's dependency security-audit steps (`npm audit` and
+# `cargo audit`) are intentionally NOT part of any gate below. Those advisories are
+# almost entirely dev/build/test tooling (not shipped in the app), and gating on them
+# would halt blacksmith runs on a red audit unrelated to the work unit. Keep them out.
 
 # Default toolchain — used by any work unit whose layer has no override below.
 # Defaults to the Rust backend (most of Kindling's import/export/SQLite logic lives
