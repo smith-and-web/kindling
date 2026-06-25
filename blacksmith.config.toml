@@ -1,0 +1,38 @@
+# blacksmith runtime config — parsed by blacksmith/config.py (BlacksmithConfig).
+#
+# This is blacksmith's OWN config. Do NOT confuse it with blacksmith.toml (the
+# per-target-repo toolchain test_cmd / lint_cmd read by the test gate).
+#
+# It is discovered by walking up from your current directory to the git root, so a
+# globally-installed `blacksmith` can be run from anywhere inside this repo. It holds
+# no secrets (the API key is read from an env var via .env), so it is safe to commit.
+
+[target]
+# repo_path is intentionally omitted: blacksmith resolves the target to the git root
+# of the directory you run it from. Run `blacksmith <prd>` from inside this repo and
+# it will operate on Kindling. (Set an absolute repo_path here only to run it from
+# outside the repo.)
+default_branch = "main"
+
+[models]
+# Per-node model tiering. Implement runs cheaper-first (Sonnet), escalating to the
+# stronger model only after a gate failure. Current model IDs only — no date suffixes.
+plan = "claude-sonnet-4-6"               # planning + decomposition
+implement = "claude-sonnet-4-6"          # first implementation attempt
+implement_escalate = "claude-opus-4-8"   # escalation retry after a gate failure
+triage = "claude-haiku-4-5"              # cheap triage
+
+[checkpointer]
+# SQLite run checkpoints (resumable via `blacksmith resume --thread-id ...`).
+# Lives under .blacksmith/, which is gitignored.
+db_path = ".blacksmith/checkpoints.sqlite"
+
+[api]
+# blacksmith reads its DEDICATED Anthropic API key from this env var (loaded from
+# .env in the directory you run blacksmith from). This is separate from your
+# interactive Claude Code / subscription auth so its spend stays isolated.
+key_env_var = "BLACKSMITH_ANTHROPIC_API_KEY"
+prompt_caching = true
+
+# [store], [metrics], and [transcripts] use their defaults under .blacksmith/.
+# Override their db_path / dir here if you want them elsewhere.

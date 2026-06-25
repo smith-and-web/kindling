@@ -46,3 +46,14 @@ npm-debug.log*
 coverage/
 coverage-rust/
 kindling-cursor-context.md
+
+# Blacksmith (agentic orchestrator) — local runtime state.
+# blacksmith.toml and blacksmith.config.toml ARE committed; .blacksmith/ is not.
+# (The blacksmith API key lives in .env, already ignored above.)
+.blacksmith/
+
+# Kept local (not committed) per project preference.
+# NOTE: blacksmith runs its agent in a git worktree cut from HEAD, so an uncommitted
+# CLAUDE.md will NOT be present there and its conventions won't reach the agent.
+# PRDs are unaffected — blacksmith reads them from the path you pass on the CLI.
+prds/

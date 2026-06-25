@@ -1,0 +1,53 @@
+# Per-repo toolchain for blacksmith's test gate (read by blacksmith/gate.py).
+#
+# This is the TARGET-repo config: it tells the gate how to PROVE a work unit in a
+# fresh git worktree. It is DISTINCT from blacksmith.config.toml (blacksmith's own
+# runtime config). Commit this file.
+#
+# How the gate runs commands:
+#   * A worktree is cut from HEAD with NO installed deps (node_modules is gitignored).
+#   * Commands run through a shell, so chains/pipes work directly (no `sh -c` wrapper).
+#   * Rust: cargo fetches its own deps and tauri-build stubs the missing frontend
+#     `dist/`, so the Rust gate needs no provisioning step (matches the CI "Rust" job,
+#     which runs cargo without building the frontend).
+#   * Frontend: vitest / eslint / svelte-check are local binaries, so the worktree
+#     must run `npm ci` first — set as the layer's `setup_cmd`.
+#
+# Layer names below are the JOIN KEY with a PRD's `layers:` map (where each name is
+# gated `auto` or `human`). Keep these names stable so PRDs can reference them.
+#
+# The commands mirror .github/workflows/ci.yml so that "gate passes" => "CI passes".
+#
+# DELIBERATE EXCEPTION: CI's dependency security-audit steps (`npm audit` and
+# `cargo audit`) are intentionally NOT part of any gate below. Those advisories are
+# almost entirely dev/build/test tooling (not shipped in the app), and gating on them
+# would halt blacksmith runs on a red audit unrelated to the work unit. Keep them out.
+
+# Default toolchain — used by any work unit whose layer has no override below.
+# Defaults to the Rust backend (most of Kindling's import/export/SQLite logic lives
+# there, and it needs no provisioning).
+test_cmd = "cd src-tauri && cargo test --all-features"
+lint_cmd = "cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings"
+
+# Rust backend (src-tauri/): parsers, exporters, SQLite layer, Tauri IPC commands.
+[layers.rust]
+test_cmd = "cd src-tauri && cargo test --all-features"
+lint_cmd = "cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings"
+
+# Svelte 5 + TypeScript frontend (src/): components, stores, utils.
+# Fresh worktree has no node_modules -> provision with `npm ci` first.
+# `test`/`lint` mirror the CI "Frontend" job (coverage thresholds, types, format, lint).
+[layers.frontend]
+setup_cmd = "npm ci"
+test_cmd = "npm test -- --coverage"
+lint_cmd = "npm run check && npm run format:check && npm run lint"
+
+# Work units that touch BOTH the Rust backend and the Svelte UI.
+[layers.fullstack]
+setup_cmd = "npm ci"
+test_cmd = "npm test -- --coverage && cd src-tauri && cargo test --all-features"
+lint_cmd = "npm run check && npm run format:check && npm run lint && cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings"
+
+# NOTE: the WebDriverIO end-to-end suite (e2e/, `npm run test:e2e`) needs a display
+# and a built app, so it is NOT an auto gate. Gate e2e-style work units as `human`
+# in the PRD (draft PR + manual QA) rather than adding a [layers.e2e] command here.
