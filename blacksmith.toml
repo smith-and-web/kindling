@@ -16,37 +16,45 @@
 # Layer names below are the JOIN KEY with a PRD's `layers:` map (where each name is
 # gated `auto` or `human`). Keep these names stable so PRDs can reference them.
 #
-# The commands mirror .github/workflows/ci.yml so that "gate passes" => "CI passes".
+# The commands track .github/workflows/ci.yml (clippy, tests, type checks) so a passing
+# gate closely tracks a passing CI.
 #
-# DELIBERATE EXCEPTION: CI's dependency security-audit steps (`npm audit` and
-# `cargo audit`) are intentionally NOT part of any gate below. Those advisories are
-# almost entirely dev/build/test tooling (not shipped in the app), and gating on them
-# would halt blacksmith runs on a red audit unrelated to the work unit. Keep them out.
+# DELIBERATE EXCEPTIONS — two CI steps are intentionally NOT gated here:
+#   1. Security audits (`npm audit` / `cargo audit`): advisories are almost entirely
+#      dev/build/test tooling (not shipped in the app), so they must not halt a run.
+#   2. Formatting checks (`cargo fmt --check` / `npm run format:check`): formatting is
+#      mechanical and auto-fixable, but the implement agent commits BEFORE the gate runs
+#      (the gate can only verify, not format-and-commit), and the agent does not reliably
+#      run the formatter itself — so gating on `--check` death-loops it on trivial
+#      whitespace (cost ~$2 and a halt once). Agents are instructed to run the formatters
+#      before finishing (see CLAUDE.md) and CI remains the formatting backstop, so the
+#      gate runs clippy/tests/types but NOT the format check.
 
 # Default toolchain — used by any work unit whose layer has no override below.
 # Defaults to the Rust backend (most of Kindling's import/export/SQLite logic lives
 # there, and it needs no provisioning).
 test_cmd = "cd src-tauri && cargo test --all-features"
-lint_cmd = "cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings"
+lint_cmd = "cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings"
 
 # Rust backend (src-tauri/): parsers, exporters, SQLite layer, Tauri IPC commands.
 [layers.rust]
 test_cmd = "cd src-tauri && cargo test --all-features"
-lint_cmd = "cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings"
+lint_cmd = "cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings"
 
 # Svelte 5 + TypeScript frontend (src/): components, stores, utils.
 # Fresh worktree has no node_modules -> provision with `npm ci` first.
-# `test`/`lint` mirror the CI "Frontend" job (coverage thresholds, types, format, lint).
+# `test`/`lint` track the CI "Frontend" job (coverage thresholds, types, lint) minus the
+# format check (see the formatting exception above).
 [layers.frontend]
 setup_cmd = "npm ci"
 test_cmd = "npm test -- --coverage"
-lint_cmd = "npm run check && npm run format:check && npm run lint"
+lint_cmd = "npm run check && npm run lint"
 
 # Work units that touch BOTH the Rust backend and the Svelte UI.
 [layers.fullstack]
 setup_cmd = "npm ci"
 test_cmd = "npm test -- --coverage && cd src-tauri && cargo test --all-features"
-lint_cmd = "npm run check && npm run format:check && npm run lint && cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings"
+lint_cmd = "npm run check && npm run lint && cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings"
 
 # NOTE: the WebDriverIO end-to-end suite (e2e/, `npm run test:e2e`) needs a display
 # and a built app, so it is NOT an auto gate. Gate e2e-style work units as `human`
