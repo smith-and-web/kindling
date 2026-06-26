@@ -91,3 +91,17 @@ Toolchain gates are in `blacksmith.toml`; runtime config in `blacksmith.config.t
 blacksmith validate prds/<feature>.prd.md   # offline contract check (no spend)
 blacksmith prds/<feature>.prd.md            # run a PRD (needs BLACKSMITH_ANTHROPIC_API_KEY in .env)
 ```
+
+### Working under blacksmith (required for automated runs)
+
+Before completing **any** work unit, run the formatters with their tools — do **not**
+hand-format to match rustfmt/Prettier, and don't rely on the gate to format for you (it
+verifies; it can't format-and-commit your work):
+
+- Rust changes: `cd src-tauri && cargo fmt --all`
+- Frontend changes: `npm run format`
+
+Then run the relevant tests and linters before finishing: `cargo test --all-features` /
+`cargo clippy --all-targets --all-features -- -D warnings` for Rust, and `npm test` /
+`npm run check` / `npm run lint` for the frontend. CI checks formatting with `--check`
+and will reject unformatted code even though the blacksmith gate no longer does.
