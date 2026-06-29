@@ -3,6 +3,29 @@
 # Kindling pre-push hook
 # Runs linting, formatting, type checking, and tests before pushing
 
+# Automation bypass: blacksmith has its own test gate and CI re-runs every check on the
+# PR, and it pushes `blacksmith/*` branches WITHOUT --no-verify. Skip this heavy local
+# suite when every ref being pushed is a blacksmith branch (or SKIP_PREPUSH is set).
+# Human pushes to normal branches still run the full suite below.
+if [ -n "$SKIP_PREPUSH" ]; then
+  echo "pre-push: skipped (SKIP_PREPUSH set)"
+  exit 0
+fi
+_bs_skip=1
+_bs_saw=0
+while read -r _local_ref _rest; do
+  [ -z "$_local_ref" ] && continue
+  _bs_saw=1
+  case "$_local_ref" in
+    refs/heads/blacksmith/*) : ;;
+    *) _bs_skip=0 ;;
+  esac
+done
+if [ "$_bs_saw" = 1 ] && [ "$_bs_skip" = 1 ]; then
+  echo "pre-push: skipping checks for blacksmith automation branch"
+  exit 0
+fi
+
 echo "Running pre-push checks..."
 
 # Store the current directory

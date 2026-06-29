@@ -64,8 +64,12 @@ npm run check:all        # everything CI checks (types, format, lint, rust fmt+c
 
 ## Conventions
 
-- **Commits:** Conventional Commits, enforced by commitlint via `.githooks`
-  (e.g. `feat(export): ...`, `fix(scrivener): ...`, `docs(readme): ...`).
+- **Commits:** [Conventional Commits](https://www.conventionalcommits.org/), enforced by
+  commitlint (`commitlint.config.js`) via the `.githooks/commit-msg` hook **and** the CI
+  "Commit Messages" check. Format is `type(scope): subject` with a lowercase subject;
+  valid types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`,
+  `ci`, `chore`, `revert` (e.g. `feat(export): ...`, `fix(scrivener): ...`). A bare
+  `<word>: ...` (no valid type) is rejected.
 - **Formatting:** Prettier (frontend) and `cargo fmt` (Rust) — run before committing.
 - **Linting:** ESLint (frontend) and `clippy -D warnings` (Rust) must be clean.
 - **Svelte 5:** use runes (`$state`, `$derived`, `$props`, etc.); stores live in

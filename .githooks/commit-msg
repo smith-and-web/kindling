@@ -2,6 +2,14 @@
 # Commit message linting hook
 # Enforces Conventional Commits format
 
+# Automation bypass: blacksmith authors its own intermediate commit messages
+# ("blacksmith: WU-..") and commits WITHOUT --no-verify, then squashes/cherry-picks them
+# into a single PR. Skip Conventional-Commits enforcement for those (and when a tool sets
+# SKIP_COMMIT_LINT). Human commits never use this prefix, so they are unaffected.
+if [ -n "$SKIP_COMMIT_LINT" ] || head -n1 "$1" | grep -qE '^blacksmith[:/]'; then
+  exit 0
+fi
+
 # Run commitlint on the commit message
 npx --no -- commitlint --edit "$1"
 
