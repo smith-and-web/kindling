@@ -92,7 +92,9 @@
     sending = true;
     error = null;
     try {
-      await invoke("submit_feedback", payload);
+      // The Rust command takes a single `input` parameter, so the payload must
+      // be nested under `input` (Tauri maps invoke arg keys to parameter names).
+      await invoke("submit_feedback", { input: payload });
       status = "success";
     } catch (e) {
       status = "error";

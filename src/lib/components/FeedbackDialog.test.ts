@@ -77,9 +77,11 @@ describe("FeedbackDialog", () => {
 
     await waitFor(() => {
       expect(invokeMock).toHaveBeenCalledWith("submit_feedback", {
-        feedbackType: "rating",
-        locale: expectedLocale,
-        rating: 4,
+        input: {
+          feedbackType: "rating",
+          locale: expectedLocale,
+          rating: 4,
+        },
       });
     });
   });
@@ -99,10 +101,12 @@ describe("FeedbackDialog", () => {
 
     await waitFor(() => {
       expect(invokeMock).toHaveBeenCalledWith("submit_feedback", {
-        feedbackType: "bug",
-        locale: expectedLocale,
-        summary: "Crash report",
-        message: "It crashed on launch",
+        input: {
+          feedbackType: "bug",
+          locale: expectedLocale,
+          summary: "Crash report",
+          message: "It crashed on launch",
+        },
       });
     });
   });
