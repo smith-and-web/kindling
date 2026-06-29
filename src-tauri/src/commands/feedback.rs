@@ -257,9 +257,10 @@ fn normalize(value: Option<String>) -> Option<String> {
 
 /// The public Lambda Function URL that accepts feedback POSTs.
 ///
-/// No API key or secret is required. This is the same endpoint the website's
-/// feedback form uses (public client config, not a secret).
-pub const FEEDBACK_ENDPOINT: &str = "https://feedback.kindlingwriter.com/submit";
+/// No API key or secret is required (public client config, not a secret). The
+/// trailing slash is required by the Function URL — do not strip it.
+pub const FEEDBACK_ENDPOINT: &str =
+    "https://2gcszmyn325n5yaey2poh72qbe0tkmre.lambda-url.ca-central-1.on.aws/";
 
 /// Typed error returned by [`submit_feedback`].
 ///
