@@ -5,6 +5,7 @@
   import { onMount } from "svelte";
   import { runImport, type ImportType } from "./lib/utils/import";
   import AboutDialog from "./lib/components/AboutDialog.svelte";
+  import FeedbackDialog from "./lib/components/FeedbackDialog.svelte";
   import Onboarding from "./lib/components/Onboarding.svelte";
   import ReferencesPanel from "./lib/components/ReferencesPanel.svelte";
   import ScenePanel from "./lib/components/ScenePanel.svelte";
@@ -42,6 +43,7 @@
   let showCommandPalette = $state(false);
   let showNewProjectDialog = $state(false);
   let showAboutDialog = $state(false);
+  let showFeedbackDialog = $state(false);
 
   async function loadRecentProjects() {
     try {
@@ -173,6 +175,9 @@
           break;
         case "about":
           showAboutDialog = true;
+          break;
+        case "send_feedback":
+          showFeedbackDialog = true;
           break;
         case "quit":
           exit(0);
@@ -406,5 +411,16 @@
 
 <!-- About Dialog -->
 {#if showAboutDialog}
-  <AboutDialog onClose={() => (showAboutDialog = false)} />
+  <AboutDialog
+    onClose={() => (showAboutDialog = false)}
+    onSendFeedback={() => {
+      showAboutDialog = false;
+      showFeedbackDialog = true;
+    }}
+  />
+{/if}
+
+<!-- Feedback Dialog (opened from the Help menu or the About dialog) -->
+{#if showFeedbackDialog}
+  <FeedbackDialog onClose={() => (showFeedbackDialog = false)} />
 {/if}

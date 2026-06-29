@@ -12,12 +12,14 @@
 //! - [`export`]: Export commands for Markdown, DOCX
 //! - [`snapshot`]: Snapshot/versioning commands
 //! - [`settings`]: App-wide settings
+//! - [`feedback`]: Feedback payload model, builder, and validation
 
 mod archive;
 mod blank_project;
 mod crud;
 mod detect;
 mod export;
+pub mod feedback;
 mod fields;
 mod import;
 mod lock;
@@ -36,6 +38,7 @@ pub use blank_project::*;
 pub use crud::*;
 pub use detect::*;
 pub use export::*;
+pub use feedback::*;
 pub use fields::*;
 pub use import::*;
 pub use lock::*;

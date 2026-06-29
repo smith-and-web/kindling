@@ -200,6 +200,8 @@ pub fn run() {
             commands::apply_template,
             commands::save_project_as_template,
             commands::delete_user_template,
+            // Feedback commands
+            commands::submit_feedback,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
