@@ -31,6 +31,7 @@ pub mod menu_ids {
     pub const SYNC: &str = "sync";
     pub const COMMAND_PALETTE: &str = "command_palette";
     pub const ABOUT: &str = "about";
+    pub const SEND_FEEDBACK: &str = "send_feedback";
     pub const QUIT: &str = "quit";
 }
 
@@ -174,8 +175,13 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .accelerator("CmdOrCtrl+Shift+H")
         .build(app)?;
 
+    let send_feedback = MenuItemBuilder::new("Send Feedback...")
+        .id(menu_ids::SEND_FEEDBACK)
+        .build(app)?;
+
     let help_submenu = SubmenuBuilder::new(app, "Help")
         .item(&about)
+        .item(&send_feedback)
         .separator()
         .item(&command_palette)
         .item(&quick_start)

@@ -1,10 +1,10 @@
 <script lang="ts">
   import { getVersion } from "@tauri-apps/api/app";
   import { openUrl } from "@tauri-apps/plugin-opener";
-  import { X, ExternalLink, Flame } from "lucide-svelte";
+  import { X, ExternalLink, Flame, Send } from "lucide-svelte";
   import { onMount } from "svelte";
 
-  let { onClose }: { onClose: () => void } = $props();
+  let { onClose, onSendFeedback }: { onClose: () => void; onSendFeedback: () => void } = $props();
 
   let version = $state("...");
 
@@ -68,6 +68,13 @@
       </p>
 
       <div class="w-full border-t border-bg-card pt-4 flex flex-col gap-2">
+        <button
+          onclick={onSendFeedback}
+          class="flex items-center gap-2 w-full px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-bg-card rounded-lg transition-colors"
+        >
+          <Send class="w-4 h-4 shrink-0" />
+          Send Feedback
+        </button>
         <button
           onclick={() => openLink("https://github.com/smith-and-web/kindling")}
           class="flex items-center gap-2 w-full px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-bg-card rounded-lg transition-colors"
