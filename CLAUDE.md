@@ -66,8 +66,9 @@ npm run check:all        # everything CI checks (types, format, lint, rust fmt+c
 
 - **Commits:** [Conventional Commits](https://www.conventionalcommits.org/), enforced by
   commitlint (`commitlint.config.js`) via the `.githooks/commit-msg` hook **and** the CI
-  "Commit Messages" check. Format is `type(scope): subject` with a lowercase subject;
-  valid types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`,
+  "Commit Messages" check. Format is `type(scope): subject` (subject case is not
+  enforced); valid types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`,
+  `build`,
   `ci`, `chore`, `revert` (e.g. `feat(export): ...`, `fix(scrivener): ...`). A bare
   `<word>: ...` (no valid type) is rejected.
 - **Formatting:** Prettier (frontend) and `cargo fmt` (Rust) — run before committing.

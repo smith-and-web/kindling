@@ -26,7 +26,10 @@ export default {
     // Scope is optional but encouraged
     "scope-case": [2, "always", "kebab-case"],
     // Subject requirements
-    "subject-case": [2, "always", "lower-case"],
+    // Subject case is intentionally not enforced. Level 0 disables this rule,
+    // which also overrides config-conventional's default that would otherwise
+    // reject a capitalized subject (e.g. sentence-case / proper nouns).
+    "subject-case": [0],
     "subject-empty": [2, "never"],
     "subject-full-stop": [2, "never", "."],
     // Header max length (type + scope + subject)
