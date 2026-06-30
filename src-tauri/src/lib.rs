@@ -28,8 +28,41 @@ pub mod parsers;
 use commands::AppState;
 use tauri::Manager;
 
+/// Returns `Some((key, value))` when the WebKitGTK DMABUF renderer workaround
+/// should be applied, `None` otherwise.
+///
+/// Rules:
+/// - Linux only: always `None` on every other OS.
+/// - Only when the caller-supplied `current_value` is `None` (variable absent from
+///   the environment). Any value the user has already set is respected — the function
+///   returns `None` so the caller makes no change.
+fn webkit_dmabuf_workaround(
+    is_linux: bool,
+    current_value: Option<&str>,
+) -> Option<(&'static str, &'static str)> {
+    if is_linux && current_value.is_none() {
+        Some(("WEBKIT_DISABLE_DMABUF_RENDERER", "1"))
+    } else {
+        None
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Apply the WebKitGTK DMABUF renderer workaround on Linux to prevent a white
+    // screen on startup (https://github.com/tauri-apps/tauri/issues/9304).
+    // Must be set before the Tauri builder is constructed so that WebKitGTK picks
+    // it up during initialisation.  We never override a value the user has already
+    // set in their environment.
+    let dmabuf_current = std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").ok();
+    if let Some((key, val)) =
+        webkit_dmabuf_workaround(cfg!(target_os = "linux"), dmabuf_current.as_deref())
+    {
+        // set_var is safe here: called at the very start of run(), before any
+        // threads are spawned by the Tauri runtime.
+        std::env::set_var(key, val);
+    }
+
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -205,4 +238,40 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::webkit_dmabuf_workaround;
+
+    /// On Linux with no env var set the workaround must be requested.
+    #[test]
+    fn linux_absent_returns_some() {
+        assert_eq!(
+            webkit_dmabuf_workaround(true, None),
+            Some(("WEBKIT_DISABLE_DMABUF_RENDERER", "1"))
+        );
+    }
+
+    /// On Linux when the user has already set the variable to any value the
+    /// workaround must NOT override it.
+    #[test]
+    fn linux_present_returns_none() {
+        assert_eq!(webkit_dmabuf_workaround(true, Some("0")), None);
+        assert_eq!(webkit_dmabuf_workaround(true, Some("1")), None);
+        // Empty string still counts as "user set a value".
+        assert_eq!(webkit_dmabuf_workaround(true, Some("")), None);
+    }
+
+    /// On every non-Linux OS the workaround must never be applied.
+    #[test]
+    fn non_linux_absent_returns_none() {
+        assert_eq!(webkit_dmabuf_workaround(false, None), None);
+    }
+
+    /// On non-Linux platforms the result must also be None when the var is set.
+    #[test]
+    fn non_linux_present_returns_none() {
+        assert_eq!(webkit_dmabuf_workaround(false, Some("1")), None);
+    }
 }
