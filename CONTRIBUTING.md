@@ -258,7 +258,7 @@ We enforce [Conventional Commits](https://www.conventionalcommits.org/) via auto
 
 - **Type** is required (see list below)
 - **Scope** is optional but encouraged (use kebab-case)
-- **Description** must be lowercase and not end with a period
+- **Description** must not end with a period (case is not enforced)
 - **Header** (type + scope + description) max 100 characters
 
 ### Types
