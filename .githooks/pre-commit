@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Scan staged changes for committed credentials.
+#
+# Kindling is a public repository and ships no secrets — the app is offline-only
+# by design. This hook is here so that stays true by construction rather than by
+# habit.
+#
+# Optional by design: if gitleaks isn't installed the hook exits 0 silently, so
+# contributors are never blocked by tooling they didn't ask for. Install it with
+#   brew install gitleaks        (or see https://github.com/gitleaks/gitleaks)
+#
+# Bypass in a genuine emergency with:  git commit --no-verify
+#
+# Enabled via core.hooksPath=.githooks — see CONTRIBUTING.md / npm run prepare.
+
+set -uo pipefail
+
+command -v gitleaks >/dev/null 2>&1 || exit 0
+
+# Nothing staged (e.g. `git commit --amend --no-edit` with no changes).
+git diff --cached --quiet && exit 0
+
+if ! out=$(gitleaks git --pre-commit --staged --no-banner --redact 2>&1); then
+  printf '%s\n' "$out" | grep -vE '^\s*$' | sed 's/^/    /'
+  cat <<'MSG'
+
+✗ Commit blocked — possible credential in staged changes.
+
+  If it is a real secret:
+    git restore --staged <file>
+
+  Kindling has no server, accounts or API keys, so a credential here is almost
+  certainly a mistake — a test fixture, a pasted token, or a local config file
+  that should be gitignored.
+
+  If it is a false positive, add an allowlist entry to .gitleaks.toml rather
+  than bypassing the hook.
+
+  Last resort: git commit --no-verify
+MSG
+  exit 1
+fi
+
+exit 0
