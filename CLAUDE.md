@@ -80,6 +80,35 @@ npm run check:all        # everything CI checks (types, format, lint, rust fmt+c
   behavior change.
 - **DOCX export** follows Standard Manuscript Format — don't change those rules casually.
 
+## The IPC boundary (Rust ↔ TypeScript)
+
+Rust and TypeScript are maintained independently and **nothing checks their
+agreement at build time**. Currently 123 `#[tauri::command]` functions, 123
+registered, and 65 `invoke()` call sites in the frontend. Three things must line
+up for every command:
+
+1. The function is annotated `#[tauri::command]` (in `src-tauri/src/commands/`).
+2. It is listed in `tauri::generate_handler![...]` in `src-tauri/src/lib.rs`.
+   **A command that exists but isn't registered compiles fine and fails only at
+   runtime** — check the count matches after adding or renaming one.
+3. The frontend `invoke("name", { args })` matches the command name and its
+   argument names exactly.
+
+Two conversions that hide mismatches:
+
+- **Tauri maps Rust `snake_case` parameters to `camelCase` on the JS side.** A
+  mismatch here arrives as a missing or `null` argument, not an error.
+- **A Rust `Err` becomes a rejected promise.** With no `catch` at the call site
+  the failure is silent and the UI simply does nothing. Every `invoke` needs
+  error handling; a missing one is a real defect, not a style nit.
+
+Also: a Tauri plugin or filesystem/shell capability the frontend calls must be
+permitted in `src-tauri/capabilities/default.json`, or it fails at runtime with a
+misleading message.
+
+`npm run dev` runs Vite **without** the Rust backend, so every `invoke` fails
+there. Verify anything touching the boundary with `npm run tauri dev`.
+
 ## Sensitive areas (touch only with explicit intent)
 
 - `src-tauri/src/db/schema.rs` — the SQLite schema. Changes affect existing user files.
