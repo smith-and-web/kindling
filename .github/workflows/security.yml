@@ -1,4 +1,18 @@
 name: Security
+#
+# Dependency auditing lives here, and only here — deliberately.
+#
+# This workflow is NOT a required status check on main (main requires only
+# "Frontend" and "Rust" from ci.yml). That is the point: a newly published
+# advisory in a transitive dependency should raise a signal, not block every
+# merge and hold up a release behind unrelated dependency work. Triage happens
+# in a dedicated dependency PR.
+#
+# So a red run here is informational and expected to happen from time to time.
+# Read it, don't route around it — and please don't "fix" it by copying the
+# audit steps back into ci.yml, which is where they used to be. There they ran
+# *before* the test steps, so any advisory both blocked all merges and silently
+# skipped the entire test suite on the way.
 
 on:
   # Run weekly on Monday at 9am UTC
