@@ -75,9 +75,11 @@ jobs:
       - name: Type check
         run: npm run check
 
-      - name: Security audit
-        run: npm audit --audit-level=high
-
+      # Dependency auditing deliberately lives in security.yml, not here.
+      # This job is a required status check on main, so a fresh advisory in a
+      # transitive dev dependency would otherwise block every merge and every
+      # release — and, because the audit ran before the tests, silently skip
+      # the test suite while doing it. See security.yml for the audit.
       - name: Test with coverage
         run: npm test -- --coverage
 
@@ -116,12 +118,6 @@ jobs:
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-registry-
 
-      - name: Cache cargo-audit
-        uses: actions/cache@v5
-        with:
-          path: ~/.cargo/bin/cargo-audit
-          key: ${{ runner.os }}-cargo-audit-0.18
-
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -133,11 +129,7 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Security audit
-        run: |
-          command -v cargo-audit || cargo install cargo-audit --quiet
-          cargo audit
-
+      # See the note in the Frontend job: auditing lives in security.yml.
       - name: Test
         run: cargo test --all-features
 
