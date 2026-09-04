@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "sync:design-system": "bash scripts/sync-design-system.sh",
+    "check:design-system": "node scripts/check-design-system.mjs",
+    "sync:fonts": "bash scripts/vendor-press-fonts.sh",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "tauri": "tauri",
@@ -26,7 +29,7 @@
     "test:e2e:ci": "npm run test:ci --prefix e2e",
     "test:e2e:docker": "docker compose -f e2e/docker-compose.yml up --build --abort-on-container-exit --exit-code-from e2e",
     "test:all": "npm run test && npm run test:rust",
-    "check:all": "npm run check && npm run format:check && npm run lint && npm run format:rust:check && npm run lint:rust",
+    "check:all": "npm run check:design-system && npm run check && npm run format:check && npm run lint && npm run format:rust:check && npm run lint:rust",
     "changelog": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -s",
     "changelog:all": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -s -r 0",
     "prepare": "git config core.hooksPath .githooks"
@@ -52,6 +55,9 @@
     "@commitlint/cli": "^20.4.4",
     "@commitlint/config-conventional": "^20.4.4",
     "@eslint/js": "^10.0.1",
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/newsreader": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@tailwindcss/vite": "^4.2.1",
     "@tauri-apps/cli": "^2.10.1",

@@ -90,25 +90,25 @@
 
 <div
   data-testid="sync-preview-dialog"
-  class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-6 md:p-10"
+  class="fixed inset-0 bg-press-overlay flex items-center justify-center z-press-modal p-6 md:p-10"
   role="dialog"
   aria-modal="true"
   tabindex="-1"
 >
   <div
-    class="bg-bg-panel rounded-2xl w-full h-full max-w-7xl flex flex-col shadow-2xl border border-white/5 overflow-hidden"
+    class="app-dialog-surface bg-press-surface rounded-2xl w-full h-full max-w-7xl flex flex-col shadow-press-overlay border border-press-border overflow-hidden"
   >
     <!-- Header -->
-    <div class="flex items-center justify-between px-8 py-6 border-b border-bg-card/50">
+    <div class="flex items-center justify-between px-8 py-6 border-b border-press-border/50">
       <div>
-        <h2 class="text-2xl font-heading font-semibold text-text-primary">Sync from Source</h2>
-        <p class="text-text-secondary text-sm mt-1">Review and select items to import</p>
+        <h2 class="text-press-h2 font-heading font-semibold text-press-text">Sync from Source</h2>
+        <p class="text-press-muted text-press-ui mt-1">Review and select items to import</p>
       </div>
       <Tooltip text="Close" position="left">
         <button
           data-testid="sync-dialog-close"
           onclick={onClose}
-          class="p-2 text-text-secondary hover:text-text-primary rounded-lg hover:bg-bg-card transition-colors"
+          class="p-2 text-press-muted hover:text-press-text rounded-lg hover:bg-press-sunken transition-colors"
           aria-label="Close"
         >
           <X class="w-6 h-6" />
@@ -122,47 +122,51 @@
       <div class="flex-1 flex items-center justify-center">
         <div class="text-center py-12">
           <div
-            class="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4"
+            class="w-16 h-16 rounded-full bg-press-success-wash flex items-center justify-center mx-auto mb-4"
           >
-            <RefreshCw class="w-8 h-8 text-green-500" />
+            <RefreshCw class="w-8 h-8 text-press-success" />
           </div>
-          <p class="text-text-primary text-lg font-medium">All synced!</p>
-          <p class="text-text-secondary text-sm mt-1">
+          <p class="text-press-text text-press-body-lg font-medium">All synced!</p>
+          <p class="text-press-muted text-press-ui mt-1">
             Your project is up to date with the source file.
           </p>
         </div>
       </div>
     {:else}
       <div
-        class="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-bg-card/50"
+        class="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-press-border"
       >
         <!-- Left Column: Additions -->
         <div class="flex flex-col min-h-0">
-          <div class="flex items-center justify-between px-6 py-4 border-b border-bg-card/30">
+          <div class="flex items-center justify-between px-6 py-4 border-b border-press-border/30">
             <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
-                <Plus class="w-4 h-4 text-green-500" />
+              <div
+                class="w-8 h-8 rounded-lg bg-press-success-wash flex items-center justify-center"
+              >
+                <Plus class="w-4 h-4 text-press-success" />
               </div>
               <div>
-                <h3 class="text-sm font-medium text-text-primary">New Items</h3>
-                <p class="text-xs text-text-secondary">
+                <h3 class="text-press-ui font-medium text-press-text">New Items</h3>
+                <p class="text-press-eyebrow text-press-muted">
                   {selectedAdditions.size} of {syncPreview.additions.length} selected
                 </p>
               </div>
             </div>
             {#if syncPreview.additions.length > 0}
-              <div class="flex gap-2 text-xs">
+              <div class="flex gap-2 text-press-eyebrow">
                 <Tooltip text="Select all" position="bottom">
                   <button
                     onclick={selectAllAdditions}
-                    class="text-text-secondary hover:text-accent transition-colors">All</button
+                    class="text-press-muted hover:text-press-accent-text transition-colors"
+                    >All</button
                   >
                 </Tooltip>
-                <span class="text-text-secondary/30">|</span>
+                <span class="text-press-muted">|</span>
                 <Tooltip text="Deselect all" position="bottom">
                   <button
                     onclick={deselectAllAdditions}
-                    class="text-text-secondary hover:text-accent transition-colors">None</button
+                    class="text-press-muted hover:text-press-accent-text transition-colors"
+                    >None</button
                   >
                 </Tooltip>
               </div>
@@ -171,31 +175,33 @@
 
           <div class="flex-1 overflow-y-auto p-4 space-y-2">
             {#if syncPreview.additions.length === 0}
-              <div class="text-center py-12 text-text-secondary">
+              <div class="text-center py-12 text-press-muted">
                 <p>No new items to import</p>
               </div>
             {:else}
               {#each syncPreview.additions as addition (addition.id)}
                 <label
-                  class="flex items-center gap-4 p-4 bg-bg-card/50 rounded-xl cursor-pointer hover:bg-bg-card transition-colors group"
+                  class="flex items-center gap-4 p-4 bg-press-sunken rounded-xl cursor-pointer hover:bg-press-sunken transition-colors group"
                 >
                   <input
                     type="checkbox"
                     checked={selectedAdditions.has(addition.id)}
                     onchange={() => toggleAddition(addition.id)}
-                    class="w-5 h-5 rounded border-2 border-bg-card bg-transparent text-accent focus:ring-accent focus:ring-offset-0 cursor-pointer"
+                    class="w-5 h-5 rounded border-2 border-press-border bg-transparent text-press-accent-text focus:ring-press-focus focus:ring-offset-0 cursor-pointer"
                   />
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2">
                       <span
-                        class="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/10 text-green-500 uppercase"
+                        class="px-2 py-0.5 text-press-eyebrow font-medium rounded-full bg-press-success-wash text-press-success uppercase"
                       >
                         {addition.item_type}
                       </span>
-                      <span class="text-text-primary font-medium truncate">{addition.title}</span>
+                      <span class="text-press-text font-medium truncate">{addition.title}</span>
                     </div>
                     {#if addition.parent_title}
-                      <p class="text-xs text-text-secondary mt-1">in {addition.parent_title}</p>
+                      <p class="text-press-eyebrow text-press-muted mt-1">
+                        in {addition.parent_title}
+                      </p>
                     {/if}
                   </div>
                 </label>
@@ -206,31 +212,35 @@
 
         <!-- Right Column: Changes -->
         <div class="flex flex-col min-h-0">
-          <div class="flex items-center justify-between px-6 py-4 border-b border-bg-card/30">
+          <div class="flex items-center justify-between px-6 py-4 border-b border-press-border/30">
             <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <Pencil class="w-4 h-4 text-amber-500" />
+              <div
+                class="w-8 h-8 rounded-lg bg-press-warning-wash flex items-center justify-center"
+              >
+                <Pencil class="w-4 h-4 text-press-warning" />
               </div>
               <div>
-                <h3 class="text-sm font-medium text-text-primary">Changes</h3>
-                <p class="text-xs text-text-secondary">
+                <h3 class="text-press-ui font-medium text-press-text">Changes</h3>
+                <p class="text-press-eyebrow text-press-muted">
                   {selectedChanges.size} of {syncPreview.changes.length} selected
                 </p>
               </div>
             </div>
             {#if syncPreview.changes.length > 0}
-              <div class="flex gap-2 text-xs">
+              <div class="flex gap-2 text-press-eyebrow">
                 <Tooltip text="Select all" position="bottom">
                   <button
                     onclick={selectAllChanges}
-                    class="text-text-secondary hover:text-accent transition-colors">All</button
+                    class="text-press-muted hover:text-press-accent-text transition-colors"
+                    >All</button
                   >
                 </Tooltip>
-                <span class="text-text-secondary/30">|</span>
+                <span class="text-press-muted">|</span>
                 <Tooltip text="Deselect all" position="bottom">
                   <button
                     onclick={deselectAllChanges}
-                    class="text-text-secondary hover:text-accent transition-colors">None</button
+                    class="text-press-muted hover:text-press-accent-text transition-colors"
+                    >None</button
                   >
                 </Tooltip>
               </div>
@@ -239,39 +249,38 @@
 
           <div class="flex-1 overflow-y-auto p-4 space-y-2">
             {#if syncPreview.changes.length === 0}
-              <div class="text-center py-12 text-text-secondary">
+              <div class="text-center py-12 text-press-muted">
                 <p>No changes detected</p>
               </div>
             {:else}
               {#each syncPreview.changes as change (change.id)}
                 <label
-                  class="flex items-start gap-4 p-4 bg-bg-card/50 rounded-xl cursor-pointer hover:bg-bg-card transition-colors"
+                  class="flex items-start gap-4 p-4 bg-press-sunken rounded-xl cursor-pointer hover:bg-press-sunken transition-colors"
                 >
                   <input
                     type="checkbox"
                     checked={selectedChanges.has(change.id)}
                     onchange={() => toggleChange(change.id)}
-                    class="mt-0.5 w-5 h-5 rounded border-2 border-bg-card bg-transparent text-accent focus:ring-accent focus:ring-offset-0 cursor-pointer"
+                    class="mt-0.5 w-5 h-5 rounded border-2 border-press-border bg-transparent text-press-accent-text focus:ring-press-focus focus:ring-offset-0 cursor-pointer"
                   />
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 mb-2">
                       <span
-                        class="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-500/10 text-amber-500 uppercase"
+                        class="px-2 py-0.5 text-press-eyebrow font-medium rounded-full bg-press-warning-wash text-press-warning uppercase"
                       >
                         {change.item_type}
                       </span>
-                      <span class="text-text-primary font-medium truncate">{change.item_title}</span
-                      >
-                      <span class="text-text-secondary/60 text-xs">({change.field})</span>
+                      <span class="text-press-text font-medium truncate">{change.item_title}</span>
+                      <span class="text-press-muted text-press-eyebrow">({change.field})</span>
                     </div>
-                    <div class="text-sm space-y-1 font-mono">
-                      <div class="flex gap-2 text-red-400/80">
+                    <div class="text-press-ui space-y-1 font-mono">
+                      <div class="flex gap-2 text-press-error">
                         <span class="flex-shrink-0">-</span>
-                        <span class="line-through opacity-60 truncate"
+                        <span class="line-through text-press-disabled-text truncate"
                           >{change.current_value || "(empty)"}</span
                         >
                       </div>
-                      <div class="flex gap-2 text-green-400/80">
+                      <div class="flex gap-2 text-press-success">
                         <span class="flex-shrink-0">+</span>
                         <span class="truncate">{change.new_value || "(empty)"}</span>
                       </div>
@@ -287,9 +296,9 @@
 
     <!-- Footer -->
     <div
-      class="flex items-center justify-between px-8 py-5 border-t border-bg-card/50 bg-bg-card/20"
+      class="flex items-center justify-between px-8 py-5 border-t border-press-border/50 bg-press-sunken"
     >
-      <p class="text-text-secondary text-sm">
+      <p class="text-press-muted text-press-ui">
         {selectedAdditions.size + selectedChanges.size} item{selectedAdditions.size +
           selectedChanges.size !==
         1
@@ -299,7 +308,7 @@
       <div class="flex gap-4">
         <button
           onclick={onClose}
-          class="px-6 py-2.5 text-text-secondary hover:text-text-primary rounded-lg hover:bg-bg-card transition-colors"
+          class="px-6 py-2.5 text-press-muted hover:text-press-text rounded-lg hover:bg-press-sunken transition-colors"
         >
           Cancel
         </button>
@@ -307,7 +316,7 @@
           data-testid="sync-confirm"
           onclick={applySync}
           disabled={syncing || (selectedAdditions.size === 0 && selectedChanges.size === 0)}
-          class="px-6 py-2.5 bg-accent text-white rounded-lg hover:bg-accent/80 transition-colors disabled:opacity-50 flex items-center gap-2"
+          class="px-6 py-2.5 bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors flex items-center gap-2"
         >
           {#if syncing}
             <Loader2 class="w-4 h-4 animate-spin" />

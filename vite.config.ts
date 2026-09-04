@@ -13,6 +13,7 @@ export default defineConfig(({ command }) => {
 
   return {
     plugins: [svelte(), tailwindcss()],
+    publicDir: "static",
     resolve: {
       alias: {
         $lib: path.resolve("./src/lib"),

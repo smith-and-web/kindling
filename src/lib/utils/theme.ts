@@ -18,7 +18,7 @@ function applyTheme(theme: "dark" | "light") {
 export function getStoredPreference(): ThemePreference {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored === "light" || stored === "dark" || stored === "system") return stored;
-  return "dark";
+  return "light";
 }
 
 export function setThemePreference(pref: ThemePreference) {

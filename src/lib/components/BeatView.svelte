@@ -444,11 +444,11 @@
 
 <section>
   <div class="flex items-center justify-between mb-4">
-    <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">Beats</h2>
+    <h2 class="text-press-ui font-semibold text-press-text uppercase tracking-wide">Beats</h2>
     {#if beats.length > 0 && !addingBeat && !isLocked}
       <button
         onclick={startAddingBeat}
-        class="flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors text-sm"
+        class="flex items-center gap-1 text-press-muted hover:text-press-text transition-colors text-press-ui"
       >
         <Plus class="w-3.5 h-3.5" />
         <span>Add Beat</span>
@@ -463,9 +463,9 @@
         <article
           data-drag-beat={beat.id}
           data-testid="beat-item"
-          class="bg-bg-panel rounded-lg overflow-hidden select-none relative"
+          class="bg-press-surface rounded-lg overflow-hidden select-none relative"
           class:ring-2={dragOverBeatId === beat.id}
-          class:ring-accent={dragOverBeatId === beat.id}
+          class:ring-press-focus={dragOverBeatId === beat.id}
           use:registerBeatRef={beat.id}
           onmouseenter={() => (hoveredBeatId = beat.id)}
           onmouseleave={() => (hoveredBeatId = null)}
@@ -473,7 +473,7 @@
           <!-- Beat Header -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
-            class="w-full bg-beat-header px-4 py-2 flex items-center gap-2 hover:bg-beat-header/80 transition-colors cursor-pointer"
+            class="w-full bg-press-sunken px-4 py-2 flex items-center gap-2 hover:bg-press-sunken/80 transition-colors cursor-pointer"
             oncontextmenu={(e) => {
               if (isLocked) return;
               beatContextMenu = { beat, x: e.clientX, y: e.clientY };
@@ -484,7 +484,7 @@
               <div
                 data-testid="beat-drag-handle"
                 onmousedown={(e) => onBeatDragHandleMouseDown(e, beat.id)}
-                class="cursor-grab active:cursor-grabbing p-0.5 text-text-secondary hover:text-text-primary transition-opacity shrink-0"
+                class="cursor-grab active:cursor-grabbing p-0.5 text-press-muted hover:text-press-text transition-opacity shrink-0"
                 class:opacity-0={hoveredBeatId !== beat.id}
                 class:opacity-100={hoveredBeatId === beat.id}
                 role="button"
@@ -496,7 +496,7 @@
             {/if}
             {#if editingBeatId === beat.id}
               <div class="flex-1 flex items-center gap-3 min-w-0">
-                <span class="text-text-secondary shrink-0">
+                <span class="text-press-muted shrink-0">
                   {#if isExpanded}
                     <ChevronDown class="w-4 h-4" />
                   {:else}
@@ -504,7 +504,7 @@
                   {/if}
                 </span>
                 <span
-                  class="w-6 h-6 rounded-full bg-accent text-white text-xs font-medium flex items-center justify-center shrink-0"
+                  class="w-6 h-6 rounded-full bg-press-accent text-press-on-accent text-press-eyebrow font-medium flex items-center justify-center shrink-0"
                 >
                   {index + 1}
                 </span>
@@ -514,7 +514,7 @@
                   bind:value={editingBeatContent}
                   onkeydown={handleRenameKeydown}
                   onblur={saveRenameBeat}
-                  class="flex-1 min-w-0 bg-bg-card rounded px-2 py-0.5 text-text-primary text-sm font-medium focus:outline-none focus:ring-1 focus:ring-accent"
+                  class="flex-1 min-w-0 bg-press-sunken rounded px-2 py-0.5 text-press-text text-press-ui font-medium focus:outline-none focus:ring-1 focus:ring-press-focus"
                 />
               </div>
             {:else}
@@ -524,7 +524,7 @@
                 aria-expanded={isExpanded}
                 class="flex-1 flex items-center gap-3 text-left min-w-0"
               >
-                <span class="text-text-secondary shrink-0">
+                <span class="text-press-muted shrink-0">
                   {#if isExpanded}
                     <ChevronDown class="w-4 h-4" />
                   {:else}
@@ -532,15 +532,15 @@
                   {/if}
                 </span>
                 <span
-                  class="w-6 h-6 rounded-full bg-accent text-white text-xs font-medium flex items-center justify-center shrink-0"
+                  class="w-6 h-6 rounded-full bg-press-accent text-press-on-accent text-press-eyebrow font-medium flex items-center justify-center shrink-0"
                 >
                   {index + 1}
                 </span>
-                <p class="text-text-primary text-sm font-medium flex-1 truncate">
+                <p class="text-press-text text-press-ui font-medium flex-1 truncate">
                   {beat.content}
                 </p>
                 {#if beat.prose || draftProse.get(beat.id)}
-                  <span class="text-xs text-text-secondary shrink-0" title="Word count">
+                  <span class="text-press-eyebrow text-press-muted shrink-0" title="Word count">
                     {getBeatWordCount(draftProse.get(beat.id) ?? beat.prose)}w
                   </span>
                 {/if}
@@ -553,7 +553,7 @@
                   e.stopPropagation();
                   beatContextMenu = { beat, x: e.clientX, y: e.clientY };
                 }}
-                class="p-1 text-text-secondary hover:text-text-primary transition-opacity shrink-0"
+                class="p-1 text-press-muted hover:text-press-text transition-opacity shrink-0"
                 class:opacity-0={hoveredBeatId !== beat.id}
                 class:opacity-100={hoveredBeatId === beat.id}
                 aria-label="Beat menu"
@@ -566,7 +566,7 @@
           <!-- Expanded Beat Content -->
           {#if isExpanded}
             <div
-              class="border-t border-bg-card relative"
+              class="border-t border-press-border relative"
               style="min-height: 20rem; height: calc(100vh - 20rem); max-height: 50rem;"
             >
               <NovelEditor
@@ -580,7 +580,7 @@
             </div>
           {:else if beat.prose}
             <div
-              class="px-4 py-3 border-t border-bg-card cursor-pointer hover:bg-bg-card/50 transition-colors overflow-hidden"
+              class="px-4 py-3 border-t border-press-border cursor-pointer hover:bg-press-sunken transition-colors overflow-hidden"
               style="max-height: 6.5rem;"
               onclick={() => toggleBeat(beat.id)}
               onkeydown={(e) => {
@@ -592,7 +592,7 @@
               role="button"
               tabindex="0"
             >
-              <p class="text-text-primary font-prose leading-relaxed line-clamp-3">
+              <p class="text-press-text font-prose leading-relaxed line-clamp-3">
                 {stripHtml(beat.prose)}
               </p>
             </div>
@@ -602,7 +602,7 @@
       {#if !addingBeat && !isLocked}
         <button
           onclick={startAddingBeat}
-          class="w-full flex items-center justify-center gap-1.5 py-2 mt-2 text-text-secondary hover:text-text-primary text-sm transition-colors rounded-lg hover:bg-bg-card"
+          class="w-full flex items-center justify-center gap-1.5 py-2 mt-2 text-press-muted hover:text-press-text text-press-ui transition-colors rounded-lg hover:bg-press-sunken"
         >
           <Plus class="w-3.5 h-3.5" />
           <span>Add Beat</span>
@@ -612,40 +612,40 @@
   {:else if !addingBeat && !isLocked}
     <button
       onclick={startAddingBeat}
-      class="w-full flex items-center justify-center gap-2 px-4 py-8 rounded-lg border border-dashed border-bg-card text-text-secondary hover:text-text-primary hover:border-accent transition-colors"
+      class="w-full flex items-center justify-center gap-2 px-4 py-8 rounded-lg border border-dashed border-press-border text-press-muted hover:text-press-text hover:border-press-accent transition-colors"
     >
       <Plus class="w-4 h-4" />
-      <span class="text-sm">Add Your First Beat</span>
+      <span class="text-press-ui">Add Your First Beat</span>
     </button>
   {:else if !addingBeat && isLocked}
     <div
-      class="w-full flex items-center justify-center gap-2 px-4 py-8 rounded-lg border border-dashed border-bg-card text-text-secondary/50"
+      class="w-full flex items-center justify-center gap-2 px-4 py-8 rounded-lg border border-dashed border-press-border text-press-muted"
     >
       <Lock class="w-4 h-4" />
-      <span class="text-sm">Scene is locked</span>
+      <span class="text-press-ui">Scene is locked</span>
     </div>
   {/if}
 
   <!-- Add Beat Input -->
   {#if addingBeat && !isLocked}
-    <div class="mt-4 bg-bg-panel rounded-lg p-4">
+    <div class="mt-4 bg-press-surface rounded-lg p-4">
       <input
         type="text"
-        class="w-full bg-bg-card rounded-lg px-4 py-3 text-text-primary text-sm border border-accent focus:outline-none"
+        class="w-full bg-press-sunken rounded-lg px-4 py-3 text-press-text text-press-ui border border-press-accent focus:outline-none"
         placeholder="Describe what happens in this beat..."
         bind:value={newBeatContent}
         onkeydown={handleNewBeatKeydown}
         disabled={creatingBeat}
       />
       <div class="flex items-center justify-between mt-3">
-        <p class="text-text-secondary text-xs">Press Enter to create, Escape to cancel</p>
+        <p class="text-press-muted text-press-eyebrow">Press Enter to create, Escape to cancel</p>
         <div class="flex gap-2">
           <button
             onclick={() => {
               addingBeat = false;
               newBeatContent = "";
             }}
-            class="px-3 py-1.5 text-text-secondary hover:text-text-primary text-sm transition-colors"
+            class="px-3 py-1.5 text-press-muted hover:text-press-text text-press-ui transition-colors"
             disabled={creatingBeat}
           >
             Cancel
@@ -653,7 +653,7 @@
           <button
             onclick={createBeat}
             disabled={creatingBeat || !newBeatContent.trim()}
-            class="px-3 py-1.5 bg-accent text-white text-sm rounded hover:bg-accent/80 transition-colors disabled:opacity-50"
+            class="px-3 py-1.5 bg-press-accent text-press-on-accent text-press-ui rounded hover:bg-press-accent-text transition-colors"
           >
             {#if creatingBeat}
               <Loader2 class="w-4 h-4 animate-spin" />

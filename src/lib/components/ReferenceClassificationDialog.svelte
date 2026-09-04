@@ -157,50 +157,52 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-  class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+  class="fixed inset-0 bg-press-overlay flex items-center justify-center z-press-modal"
   role="dialog"
   aria-modal="true"
   aria-labelledby="reference-classification-title"
   tabindex="-1"
 >
-  <div class="bg-bg-panel rounded-lg p-6 max-w-3xl w-full mx-4 shadow-xl">
+  <div
+    class="app-dialog-surface bg-press-surface rounded-lg p-6 max-w-3xl w-full mx-4 shadow-press-overlay"
+  >
     <h3
       id="reference-classification-title"
-      class="text-lg font-heading font-medium text-text-primary mb-2"
+      class="text-press-body-lg font-heading font-medium text-press-text mb-2"
     >
       Review Reference Types
     </h3>
-    <p class="text-text-secondary text-sm mb-4">
+    <p class="text-press-muted text-press-ui mb-4">
       We found some references during import. Tweak their type now, or skip to keep our best guess.
     </p>
 
     {#if loading}
-      <div class="text-sm text-text-secondary py-6 text-center">Loading references…</div>
+      <div class="text-press-ui text-press-muted py-6 text-center">Loading references…</div>
     {:else if error}
-      <div class="text-sm text-red-400 py-6 text-center">{error}</div>
+      <div class="text-press-ui text-press-error py-6 text-center">{error}</div>
     {:else if references.length === 0}
-      <div class="text-sm text-text-secondary py-6 text-center">
+      <div class="text-press-ui text-press-muted py-6 text-center">
         No references detected for this project.
       </div>
     {:else}
-      <div class="max-h-[60vh] overflow-y-auto border border-bg-card rounded-lg">
-        <table class="w-full text-sm">
-          <thead class="sticky top-0 bg-bg-panel">
-            <tr class="text-left text-text-secondary">
+      <div class="max-h-[60vh] overflow-y-auto border border-press-border rounded-lg">
+        <table class="w-full text-press-ui">
+          <thead class="sticky top-0 bg-press-surface">
+            <tr class="text-left text-press-muted">
               <th class="px-4 py-3 font-medium">Reference</th>
               <th class="px-4 py-3 font-medium w-48">Type</th>
             </tr>
           </thead>
           <tbody>
             {#each references as reference (reference.id)}
-              <tr class="border-t border-bg-card">
+              <tr class="border-t border-press-border">
                 <td class="px-4 py-3 align-top">
-                  <div class="text-text-primary font-medium wrap-break-word">
+                  <div class="text-press-text font-medium wrap-break-word">
                     {reference.name}
                   </div>
                   {#if reference.description}
                     <div
-                      class="text-xs text-text-secondary mt-1 leading-relaxed wrap-break-word [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
+                      class="text-press-eyebrow text-press-muted mt-1 leading-relaxed wrap-break-word [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
                     >
                       <!-- eslint-disable-next-line svelte/no-at-html-tags -->
                       {@html reference.description}
@@ -209,7 +211,7 @@
                 </td>
                 <td class="px-4 py-3">
                   <select
-                    class="w-full bg-bg-card border border-bg-card rounded-md px-2 py-1 text-sm text-text-primary"
+                    class="w-full bg-press-sunken border border-press-border rounded-md px-2 py-1 text-press-ui text-press-text"
                     bind:value={reference.reference_type}
                     onchange={(event) =>
                       updateReferenceType(
@@ -232,13 +234,13 @@
     <div class="flex items-center justify-between mt-6">
       <button
         onclick={onClose}
-        class="px-4 py-2 rounded bg-bg-card text-text-primary hover:bg-beat-header transition-colors"
+        class="px-4 py-2 rounded bg-press-sunken text-press-text hover:bg-press-sunken transition-colors"
       >
         Skip for now
       </button>
       <button
         onclick={saveChanges}
-        class="px-4 py-2 rounded bg-accent text-white hover:bg-accent/90 transition-colors disabled:opacity-60"
+        class="px-4 py-2 rounded bg-press-accent text-press-on-accent hover:bg-press-accent-text transition-colors"
         disabled={saving || loading || references.length === 0}
       >
         {saving ? "Saving…" : "Apply changes"}

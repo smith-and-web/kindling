@@ -47,8 +47,8 @@ describe("theme utility", () => {
   });
 
   describe("getStoredPreference", () => {
-    it("returns 'dark' when nothing stored", () => {
-      expect(getStoredPreference()).toBe("dark");
+    it("returns 'light' when nothing stored", () => {
+      expect(getStoredPreference()).toBe("light");
     });
 
     it("returns 'light' when stored", () => {
@@ -61,9 +61,9 @@ describe("theme utility", () => {
       expect(getStoredPreference()).toBe("system");
     });
 
-    it("returns 'dark' for invalid stored value", () => {
+    it("returns 'light' for invalid stored value", () => {
       store["kindling:theme"] = "invalid";
-      expect(getStoredPreference()).toBe("dark");
+      expect(getStoredPreference()).toBe("light");
     });
   });
 
@@ -120,9 +120,9 @@ describe("theme utility", () => {
       expect(setAttributeSpy).toHaveBeenCalledWith("data-theme", "light");
     });
 
-    it("defaults to dark when nothing stored", () => {
+    it("defaults to light when nothing stored", () => {
       initTheme();
-      expect(setAttributeSpy).toHaveBeenCalledWith("data-theme", "dark");
+      expect(setAttributeSpy).toHaveBeenCalledWith("data-theme", "light");
     });
 
     it("sets up system listener when preference is system", () => {

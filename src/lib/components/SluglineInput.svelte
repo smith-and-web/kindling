@@ -129,14 +129,14 @@
 </script>
 
 <div class="flex flex-wrap items-center gap-2 {className}">
-  <div class="flex rounded-lg border border-bg-card overflow-hidden">
+  <div class="flex rounded-lg border border-press-border overflow-hidden">
     <button
       type="button"
       onclick={() => setPrefix("INT")}
       {disabled}
-      class="px-3 py-2 text-sm font-medium transition-colors {prefix === 'INT'
-        ? 'bg-accent text-white'
-        : 'bg-bg-card text-text-secondary hover:text-text-primary'}"
+      class="px-3 py-2 text-press-ui font-medium transition-colors {prefix === 'INT'
+        ? 'bg-press-accent text-press-on-accent'
+        : 'bg-press-sunken text-press-muted hover:text-press-text'}"
     >
       INT.
     </button>
@@ -144,10 +144,10 @@
       type="button"
       onclick={() => setPrefix("EXT")}
       {disabled}
-      class="px-3 py-2 text-sm font-medium transition-colors border-l border-bg-panel {prefix ===
+      class="px-3 py-2 text-press-ui font-medium transition-colors border-l border-press-border {prefix ===
       'EXT'
-        ? 'bg-accent text-white'
-        : 'bg-bg-card text-text-secondary hover:text-text-primary'}"
+        ? 'bg-press-accent text-press-on-accent'
+        : 'bg-press-sunken text-press-muted hover:text-press-text'}"
     >
       EXT.
     </button>
@@ -161,7 +161,7 @@
     list="slugline-locations"
     placeholder="LOCATION"
     {disabled}
-    class="flex-1 min-w-[120px] bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent uppercase placeholder:normal-case placeholder:text-text-secondary/60"
+    class="flex-1 min-w-[120px] bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent uppercase placeholder:normal-case placeholder:text-press-muted"
   />
   <datalist id="slugline-locations">
     {#each locationSuggestions as loc}
@@ -179,28 +179,26 @@
       {disabled}
       aria-expanded={showTimeDropdown}
       aria-haspopup="listbox"
-      class="flex items-center gap-1.5 px-3 py-2 text-sm bg-bg-card text-text-primary border border-bg-card rounded-lg hover:border-accent/50 transition-colors disabled:opacity-60"
+      class="flex items-center gap-1.5 px-3 py-2 text-press-ui bg-press-sunken text-press-text border border-press-border rounded-lg hover:border-press-accent transition-colors"
     >
       <span class="uppercase">{timeOfDay}</span>
       <ChevronDown
-        class="w-4 h-4 text-text-secondary transition-transform {showTimeDropdown
-          ? 'rotate-180'
-          : ''}"
+        class="w-4 h-4 text-press-muted transition-transform {showTimeDropdown ? 'rotate-180' : ''}"
       />
     </button>
     {#if showTimeDropdown}
       <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
       <div
-        class="absolute left-0 top-full mt-1 z-50 bg-bg-panel border border-bg-card rounded-lg shadow-lg py-1 max-h-48 overflow-y-auto"
+        class="absolute left-0 top-full mt-1 z-press-dropdown bg-press-surface border border-press-border rounded-lg shadow-press-overlay py-1 max-h-48 overflow-y-auto"
         onclick={(e) => e.stopPropagation()}
       >
         {#each TIME_OPTIONS as t}
           <button
             type="button"
             onclick={() => setTime(t)}
-            class="w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-bg-card transition-colors {timeOfDay ===
+            class="w-full text-left px-3 py-2 text-press-ui text-press-text hover:bg-press-sunken transition-colors {timeOfDay ===
             t
-              ? 'bg-accent/20 text-accent'
+              ? 'bg-press-accent-wash text-press-accent-text'
               : ''}"
           >
             {t}

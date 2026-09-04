@@ -72,6 +72,9 @@ jobs:
       - name: Format check
         run: npm run format:check
 
+      - name: Check Press design-system mirrors
+        run: npm run check:design-system
+
       - name: Type check
         run: npm run check
 

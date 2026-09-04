@@ -101,7 +101,7 @@
 
 <!-- Backdrop -->
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
   onclick={handleBackdropClick}
   onkeydown={(e) => e.key === "Enter" && handleBackdropClick}
   role="dialog"
@@ -111,13 +111,15 @@
 >
   <!-- Dialog -->
   <div
-    class="bg-bg-panel rounded-lg shadow-xl w-full max-w-lg mx-4 overflow-hidden max-h-[90vh] flex flex-col"
+    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-lg mx-4 overflow-hidden max-h-[90vh] flex flex-col"
   >
     <!-- Header -->
-    <div class="flex items-center justify-between px-4 py-3 border-b border-bg-card flex-shrink-0">
+    <div
+      class="flex items-center justify-between px-4 py-3 border-b border-press-border flex-shrink-0"
+    >
       <div class="flex items-center gap-2">
-        <Settings class="w-5 h-5 text-accent" />
-        <h2 id="settings-dialog-title" class="text-lg font-medium text-text-primary">
+        <Settings class="w-5 h-5 text-press-accent-text" />
+        <h2 id="settings-dialog-title" class="text-press-body-lg font-medium text-press-text">
           Kindling Settings
         </h2>
       </div>
@@ -125,7 +127,7 @@
         <button
           type="button"
           onclick={onClose}
-          class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
+          class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
           aria-label="Close"
         >
           <X class="w-5 h-5" />
@@ -137,17 +139,19 @@
     <div class="p-4 space-y-4 overflow-y-auto flex-1">
       {#if loading}
         <div class="flex items-center justify-center py-12">
-          <Loader2 class="w-8 h-8 animate-spin text-accent" />
+          <Loader2 class="w-8 h-8 animate-spin text-press-accent-text" />
         </div>
       {:else}
-        <p class="text-sm text-text-secondary">
+        <p class="text-press-ui text-press-muted">
           These settings apply to all your projects. Your contact information will appear on
           manuscript title pages when exporting.
         </p>
 
         <!-- Section: Appearance -->
         <fieldset>
-          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+          <legend
+            class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3"
+          >
             <Palette class="w-4 h-4" />
             Appearance
           </legend>
@@ -156,8 +160,8 @@
               <label
                 class="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors {ui.theme ===
                 opt.value
-                  ? 'border-accent bg-accent/10 text-text-primary'
-                  : 'border-bg-card bg-bg-card text-text-secondary hover:text-text-primary'}"
+                  ? 'border-press-accent bg-press-accent-wash text-press-text'
+                  : 'border-press-border bg-press-sunken text-press-muted hover:text-press-text'}"
               >
                 <input
                   type="radio"
@@ -167,18 +171,20 @@
                   onchange={() => ui.setTheme(opt.value as "dark" | "light" | "system")}
                   class="sr-only"
                 />
-                <span class="text-sm">{opt.label}</span>
+                <span class="text-press-ui">{opt.label}</span>
               </label>
             {/each}
           </div>
-          <p class="text-xs text-text-secondary mt-2">
+          <p class="text-press-eyebrow text-press-muted mt-2">
             "System" follows your operating system's appearance setting.
           </p>
         </fieldset>
 
         <!-- Section: Guidance -->
         <fieldset>
-          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+          <legend
+            class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3"
+          >
             <Lightbulb class="w-4 h-4" />
             Guidance
           </legend>
@@ -187,11 +193,11 @@
               type="checkbox"
               checked={ui.guidanceEnabled}
               onchange={(e) => ui.setGuidanceEnabled((e.target as HTMLInputElement).checked)}
-              class="rounded border-bg-card text-accent focus:ring-accent"
+              class="rounded border-press-border text-press-accent-text focus:ring-press-focus"
             />
-            <span class="text-sm text-text-primary">Show guidance tips</span>
+            <span class="text-press-ui text-press-text">Show guidance tips</span>
           </label>
-          <p class="text-xs text-text-secondary mt-1 ml-6">
+          <p class="text-press-eyebrow text-press-muted mt-1 ml-6">
             Contextual tips on first visit to sidebar, scene panel, and references. Can be disabled
             for experienced users.
           </p>
@@ -199,13 +205,15 @@
 
         <!-- Section: Author Information -->
         <fieldset>
-          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+          <legend
+            class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3"
+          >
             <User class="w-4 h-4" />
             Author Information
           </legend>
           <div class="space-y-3">
             <div>
-              <label for="author-name" class="block text-sm text-text-secondary mb-1">
+              <label for="author-name" class="block text-press-ui text-press-muted mb-1">
                 Author Name
               </label>
               <input
@@ -214,9 +222,9 @@
                 bind:value={authorName}
                 placeholder="Your legal name"
                 disabled={saving}
-                class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent disabled:opacity-50"
+                class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
               />
-              <p class="text-xs text-text-secondary mt-1">
+              <p class="text-press-eyebrow text-press-muted mt-1">
                 Used in contact info on title pages. Projects can override this with a pen name.
               </p>
             </div>
@@ -225,13 +233,15 @@
 
         <!-- Section: Contact Information -->
         <fieldset>
-          <legend class="block text-sm font-medium text-accent mb-3">Contact Information</legend>
-          <p class="text-xs text-text-secondary mb-3">
+          <legend class="block text-press-ui font-medium text-press-accent-text mb-3"
+            >Contact Information</legend
+          >
+          <p class="text-press-eyebrow text-press-muted mb-3">
             Optional details for manuscript title pages. Use any format that works for your country.
           </p>
           <div class="space-y-3">
             <div>
-              <label for="address-line1" class="block text-sm text-text-secondary mb-1">
+              <label for="address-line1" class="block text-press-ui text-press-muted mb-1">
                 Address Line 1
               </label>
               <input
@@ -240,12 +250,12 @@
                 bind:value={addressLine1}
                 placeholder="Street address or PO Box"
                 disabled={saving}
-                class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent disabled:opacity-50"
+                class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
               />
             </div>
 
             <div>
-              <label for="address-line2" class="block text-sm text-text-secondary mb-1">
+              <label for="address-line2" class="block text-press-ui text-press-muted mb-1">
                 Address Line 2
               </label>
               <input
@@ -254,32 +264,32 @@
                 bind:value={addressLine2}
                 placeholder="City, State/Province, Postal Code, Country"
                 disabled={saving}
-                class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent disabled:opacity-50"
+                class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
               />
             </div>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label for="phone" class="block text-sm text-text-secondary mb-1"> Phone </label>
+                <label for="phone" class="block text-press-ui text-press-muted mb-1"> Phone </label>
                 <input
                   id="phone"
                   type="tel"
                   bind:value={phone}
                   placeholder="+1 (555) 123-4567"
                   disabled={saving}
-                  class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent disabled:opacity-50"
+                  class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
                 />
               </div>
 
               <div>
-                <label for="email" class="block text-sm text-text-secondary mb-1"> Email </label>
+                <label for="email" class="block text-press-ui text-press-muted mb-1"> Email </label>
                 <input
                   id="email"
                   type="email"
                   bind:value={email}
                   placeholder="author@email.com"
                   disabled={saving}
-                  class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent disabled:opacity-50"
+                  class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
                 />
               </div>
             </div>
@@ -288,19 +298,19 @@
 
         <!-- Error Message -->
         {#if error}
-          <p class="text-sm text-red-400">{error}</p>
+          <p class="text-press-ui text-press-error">{error}</p>
         {/if}
       {/if}
     </div>
 
     <!-- Footer -->
     <div
-      class="flex items-center justify-end gap-2 px-4 py-3 border-t border-bg-card flex-shrink-0"
+      class="flex items-center justify-end gap-2 px-4 py-3 border-t border-press-border flex-shrink-0"
     >
       <button
         type="button"
         onclick={onClose}
-        class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+        class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors"
         disabled={saving}
       >
         Cancel
@@ -308,7 +318,7 @@
       <button
         type="button"
         onclick={handleSave}
-        class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/80 transition-colors disabled:opacity-50 flex items-center gap-2"
+        class="px-4 py-2 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors flex items-center gap-2"
         disabled={saving || loading}
       >
         {#if saving}

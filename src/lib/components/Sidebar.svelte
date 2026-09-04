@@ -66,6 +66,7 @@
   import ExportSuccessDialog from "./ExportSuccessDialog.svelte";
   import SnapshotsPanel from "./SnapshotsPanel.svelte";
   import Tooltip from "./Tooltip.svelte";
+  import BrandMark from "./BrandMark.svelte";
 
   import type { ComponentType } from "svelte";
 
@@ -149,9 +150,9 @@
   };
 
   const sceneStatusClasses: Record<SceneStatus, string> = {
-    draft: "bg-text-secondary/40",
-    revised: "bg-warning",
-    final: "bg-success",
+    draft: "bg-press-border",
+    revised: "bg-press-warning",
+    final: "bg-press-success",
   };
 
   let showNotesScenes = $state(true);
@@ -1216,7 +1217,7 @@
 
 <aside
   data-testid="sidebar"
-  class="bg-bg-panel border-r border-bg-card flex flex-col h-full transition-all duration-200"
+  class="bg-press-surface border-r border-press-border flex flex-col h-full transition-all duration-200"
   class:w-80={!ui.sidebarCollapsed}
   class:w-0={ui.sidebarCollapsed}
   class:overflow-hidden={ui.sidebarCollapsed}
@@ -1225,51 +1226,19 @@
   class:p-0={ui.sidebarCollapsed}
 >
   <!-- Header -->
-  <div class="p-4 border-b border-bg-card">
+  <div class="p-4 border-b border-press-border">
     <div class="flex items-center justify-between">
-      <span class="flex items-center gap-2 text-accent font-heading font-medium text-lg">
+      <span
+        class="flex items-center gap-2 text-press-accent-text font-heading font-medium text-press-body-lg"
+      >
         <!-- Mini Logo Mark -->
-        <svg width="24" height="24" viewBox="0 0 1024 1024" class="shrink-0">
-          <defs>
-            <linearGradient
-              id="sidebarBookGrad"
-              x1="509"
-              y1="739"
-              x2="512"
-              y2="609"
-              gradientUnits="userSpaceOnUse"
-            >
-              <stop offset="0" stop-color="#501D0F" />
-              <stop offset="1" stop-color="#89492B" />
-            </linearGradient>
-          </defs>
-          <path
-            fill="#E25227"
-            d="M495.154 288.138C498.378 289.608 505.914 297.445 508.313 300.3C526.269 321.669 539.502 342.79 542.378 370.879C549.115 436.662 490.007 467.903 476.848 526.209C472.415 545.849 474.731 568.443 482.366 587.122C483.763 590.541 490.702 602.324 490.569 604.62L489.492 604.081C466.698 587.526 440.031 561.25 430.639 534.248C403.556 456.377 485.481 402.143 496.346 330.247C498.679 314.804 498.133 303.222 495.154 288.138Z"
-          />
-          <path
-            fill="url(#sidebarBookGrad)"
-            d="M679.512 611.655C679.948 623.671 679.803 636.504 679.711 648.539C679.819 650.345 679.874 650.354 679.431 652.203C678.578 653.105 645.852 669.482 641.946 671.541L551.504 719.091C543.78 723.161 536.109 727.33 528.491 731.597C523.974 734.127 516.055 738.826 511.383 740.578C504.39 737.13 495.509 731.912 488.494 728.114L438.452 701.202C418.928 690.993 399.491 680.618 380.143 670.078C368.598 663.83 355.674 656.975 344.543 650.136C344.526 637.556 344.602 624.446 344.219 611.898C359.414 619.412 379.065 631.083 394.357 639.52L470.64 681.021C479.247 685.796 487.81 690.649 496.33 695.578C500.794 698.136 506.902 701.896 511.48 703.945C532.487 690.677 560.415 676.473 582.602 664.63C615.066 647.267 647.37 629.608 679.512 611.655Z"
-          />
-          <path
-            fill="#F0912D"
-            d="M567.225 404.156C568.003 404.556 568.509 404.868 568.965 405.666C588.192 439.301 602.938 484.462 595.366 523.183C587.91 561.316 558.078 585.951 527.823 605.935L518.591 611.429C510.152 597.693 506.392 586.985 503.912 571.209C497.26 528.911 522.684 499.522 542.221 465.408C552.466 447.518 562.786 424.502 567.225 404.156Z"
-          />
-          <path
-            fill="#F0912D"
-            d="M359.24 550.125C365.269 552.715 379.71 564.412 385.223 568.751C425.497 600.45 464.809 634.729 496.049 675.611C499.494 680.119 508.175 690.937 510.126 695.939C503.857 692.741 497.548 689.208 491.532 685.547C448.751 659.511 402.641 638.037 359.663 612.561C359.387 591.884 359.872 570.732 359.24 550.125Z"
-          />
-          <path
-            fill="#F0912D"
-            d="M664.174 549.059L664.428 593.205C664.417 599.159 664.625 607.179 664.213 612.947C655.817 616.909 647.229 621.897 639.067 626.408L603.341 646.032C582.669 657.264 562.058 668.608 541.509 680.063C534.744 683.835 526.75 687.959 520.246 691.793C518.071 693.047 515.906 694.089 513.66 695.2L519.513 687.005C556.887 634.717 612.459 587.041 664.174 549.059Z"
-          />
-        </svg>
+        <BrandMark size={24} variant="flame" class="shrink-0" />
         kindling
       </span>
       <Tooltip text="Collapse sidebar" position="bottom">
         <button
           onclick={toggleSidebar}
-          class="text-text-secondary hover:text-text-primary p-1"
+          class="text-press-muted hover:text-press-text p-1"
           aria-label="Collapse sidebar"
         >
           <ChevronsLeft class="w-5 h-5" />
@@ -1280,12 +1249,12 @@
       <!-- Project name with action icons -->
       <div class="flex items-center justify-between mt-2 gap-2">
         <div class="flex items-center gap-2 min-w-0 flex-1">
-          <p class="text-text-primary text-base font-semibold truncate">
+          <p class="text-press-text text-press-base font-semibold truncate">
             {currentProject.value.name}
           </p>
           {#if currentProject.value.project_type === "screenplay" && pageCountEstimate}
             <span
-              class="shrink-0 text-xs text-text-secondary bg-bg-card px-1.5 py-0.5 rounded"
+              class="shrink-0 text-press-eyebrow text-press-muted bg-press-sunken px-1.5 py-0.5 rounded"
               title="{pageCountEstimate.words} words · target: {pageCountEstimate.target}"
             >
               {pageCountEstimate.pages.toFixed(1)} / {pageCountEstimate.target}
@@ -1298,7 +1267,7 @@
             <button
               data-testid="settings-button"
               onclick={() => (showSettingsDialog = true)}
-              class="p-1.5 text-text-secondary hover:text-text-primary hover:bg-bg-card rounded transition-colors"
+              class="p-1.5 text-press-muted hover:text-press-text hover:bg-press-sunken rounded transition-colors"
               aria-label="Project settings"
             >
               <Settings class="w-4 h-4" />
@@ -1310,7 +1279,7 @@
                 data-testid="sync-button"
                 onclick={handleSyncClick}
                 disabled={loadingSyncPreview}
-                class="p-1.5 text-text-secondary hover:text-text-primary hover:bg-bg-card rounded transition-colors disabled:opacity-50"
+                class="p-1.5 text-press-muted hover:text-press-text hover:bg-press-sunken rounded transition-colors"
                 aria-label="Sync from source"
               >
                 <RefreshCw class="w-4 h-4 {loadingSyncPreview ? 'animate-spin' : ''}" />
@@ -1321,7 +1290,7 @@
             <Tooltip text="More actions" position="bottom">
               <button
                 onclick={() => (showMoreMenu = !showMoreMenu)}
-                class="p-1.5 text-text-secondary hover:text-text-primary hover:bg-bg-card rounded transition-colors"
+                class="p-1.5 text-press-muted hover:text-press-text hover:bg-press-sunken rounded transition-colors"
                 aria-label="More actions"
               >
                 <MoreVertical class="w-4 h-4" />
@@ -1329,7 +1298,7 @@
             </Tooltip>
             {#if showMoreMenu}
               <div
-                class="absolute right-0 mt-1 w-48 bg-bg-panel border border-bg-card rounded-lg shadow-lg py-1 z-50"
+                class="absolute right-0 mt-1 w-48 bg-press-surface border border-press-border rounded-lg shadow-press-overlay py-1 z-press-dropdown"
               >
                 <button
                   data-testid="export-button"
@@ -1343,9 +1312,9 @@
                       };
                     }
                   }}
-                  class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-primary hover:bg-bg-card transition-colors"
+                  class="w-full flex items-center gap-3 px-3 py-2 text-press-ui text-press-text hover:bg-press-sunken transition-colors"
                 >
-                  <Download class="w-4 h-4 text-text-secondary" />
+                  <Download class="w-4 h-4 text-press-muted" />
                   Export
                 </button>
                 <button
@@ -1354,9 +1323,9 @@
                     showMoreMenu = false;
                     showSnapshotsPanel = true;
                   }}
-                  class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-primary hover:bg-bg-card transition-colors"
+                  class="w-full flex items-center gap-3 px-3 py-2 text-press-ui text-press-text hover:bg-press-sunken transition-colors"
                 >
-                  <Clock class="w-4 h-4 text-text-secondary" />
+                  <Clock class="w-4 h-4 text-press-muted" />
                   Snapshots
                 </button>
                 <button
@@ -1365,9 +1334,9 @@
                     showMoreMenu = false;
                     showArchivePanel = true;
                   }}
-                  class="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-primary hover:bg-bg-card transition-colors"
+                  class="w-full flex items-center gap-3 px-3 py-2 text-press-ui text-press-text hover:bg-press-sunken transition-colors"
                 >
-                  <Archive class="w-4 h-4 text-text-secondary" />
+                  <Archive class="w-4 h-4 text-press-muted" />
                   Archive
                 </button>
               </div>
@@ -1377,7 +1346,7 @@
       </div>
       <button
         onclick={goHome}
-        class="mt-3 w-full flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary rounded-md hover:bg-bg-card transition-colors"
+        class="mt-3 w-full flex items-center gap-2 px-3 py-1.5 text-press-eyebrow text-press-muted hover:text-press-text rounded-md hover:bg-press-sunken transition-colors"
         aria-label="Close project"
       >
         <Home class="w-3.5 h-3.5" />
@@ -1390,11 +1359,11 @@
   <div class="flex-1 overflow-y-auto p-2">
     {#if loading}
       <div class="flex items-center justify-center p-4">
-        <span class="text-text-secondary">Loading...</span>
+        <span class="text-press-muted">Loading...</span>
       </div>
     {:else if currentProject.chapters.length === 0}
       <div class="flex items-center justify-center p-4">
-        <span class="text-text-secondary text-sm">No chapters found</span>
+        <span class="text-press-muted text-press-ui">No chapters found</span>
       </div>
     {:else}
       <nav class="space-y-1" aria-label="Project outline">
@@ -1409,21 +1378,21 @@
               data-drag-chapter={part.id}
               class="select-none relative rounded-lg mt-4"
               class:ring-2={dragOverId === part.id}
-              class:ring-accent={dragOverId === part.id}
+              class:ring-press-focus={dragOverId === part.id}
               onmouseenter={() => (hoveredChapterId = part.id)}
               onmouseleave={() => (hoveredChapterId = null)}
             >
               <!-- Part row -->
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
-                class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group bg-accent/10 border-l-2 border-accent"
+                class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group bg-press-accent-wash border-l-2 border-press-accent"
                 oncontextmenu={(e) => openContextMenu(e, "chapter", part)}
               >
                 <!-- Drag handle -->
                 <div
                   data-testid="drag-handle"
                   onmousedown={(e) => onDragHandleMouseDown(e, "chapter", part.id)}
-                  class="cursor-grab active:cursor-grabbing p-0.5 text-text-secondary hover:text-text-primary transition-opacity"
+                  class="cursor-grab active:cursor-grabbing p-0.5 text-press-muted hover:text-press-text transition-opacity"
                   class:opacity-0={hoveredChapterId !== part.id}
                   class:opacity-100={hoveredChapterId === part.id}
                   role="button"
@@ -1439,21 +1408,21 @@
                   aria-expanded={isPartExpanded}
                 >
                   <ChevronRight
-                    class="w-4 h-4 text-accent transition-transform shrink-0 {isPartExpanded
+                    class="w-4 h-4 text-press-accent-text transition-transform shrink-0 {isPartExpanded
                       ? 'rotate-90'
                       : ''}"
                   />
                   {#if part.locked}
-                    <Lock class="w-3 h-3 text-amber-500 shrink-0" />
+                    <Lock class="w-3 h-3 text-press-warning shrink-0" />
                   {:else if (part.planning_status ?? "fixed") === "flexible"}
-                    <CircleDot class="w-3 h-3 shrink-0 text-amber-500/70" />
+                    <CircleDot class="w-3 h-3 shrink-0 text-press-warning" />
                   {:else if (part.planning_status ?? "fixed") === "undefined"}
-                    <CircleDashed class="w-3 h-3 shrink-0 text-text-secondary/50" />
+                    <CircleDashed class="w-3 h-3 shrink-0 text-press-muted" />
                   {/if}
                   <span
                     data-testid="part-title"
-                    class="font-semibold text-xs uppercase tracking-wider truncate text-accent"
-                    class:opacity-60={part.locked}>{part.title}</span
+                    class="font-semibold text-press-eyebrow uppercase tracking-wider truncate text-press-accent-text"
+                    class:text-press-disabled-text={part.locked}>{part.title}</span
                   >
                 </button>
 
@@ -1461,7 +1430,7 @@
                 <button
                   data-testid="menu-button"
                   onclick={(e) => openContextMenu(e, "chapter", part)}
-                  class="p-1 text-text-secondary hover:text-text-primary transition-opacity shrink-0"
+                  class="p-1 text-press-muted hover:text-press-text transition-opacity shrink-0"
                   class:opacity-0={hoveredChapterId !== part.id}
                   class:opacity-100={hoveredChapterId === part.id}
                   aria-label="{partLabel} menu"
@@ -1483,7 +1452,7 @@
                   data-drag-chapter={chapter.id}
                   class="select-none relative rounded-lg"
                   class:ring-2={dragOverId === chapter.id}
-                  class:ring-accent={dragOverId === chapter.id}
+                  class:ring-press-focus={dragOverId === chapter.id}
                   onmouseenter={() => (hoveredChapterId = chapter.id)}
                   onmouseleave={() => (hoveredChapterId = null)}
                 >
@@ -1491,8 +1460,8 @@
                   <!-- svelte-ignore a11y_no_static_element_interactions -->
                   <div
                     class="w-full flex flex-col gap-1 px-1 py-1.5 rounded-lg transition-colors group"
-                    class:bg-bg-card={isExpanded}
-                    class:hover:bg-bg-card={!isExpanded}
+                    class:bg-press-sunken={isExpanded}
+                    class:hover:bg-press-sunken={!isExpanded}
                     oncontextmenu={(e) => openContextMenu(e, "chapter", chapter)}
                   >
                     <div class="flex items-center gap-1">
@@ -1500,7 +1469,7 @@
                       <div
                         data-testid="drag-handle"
                         onmousedown={(e) => onDragHandleMouseDown(e, "chapter", chapter.id)}
-                        class="cursor-grab active:cursor-grabbing p-0.5 text-text-secondary hover:text-text-primary transition-opacity"
+                        class="cursor-grab active:cursor-grabbing p-0.5 text-press-muted hover:text-press-text transition-opacity"
                         class:opacity-0={hoveredChapterId !== chapter.id}
                         class:opacity-100={hoveredChapterId === chapter.id}
                         role="button"
@@ -1516,21 +1485,21 @@
                         aria-expanded={isExpanded}
                       >
                         <ChevronRight
-                          class="w-4 h-4 text-text-secondary transition-transform shrink-0 {isExpanded
+                          class="w-4 h-4 text-press-muted transition-transform shrink-0 {isExpanded
                             ? 'rotate-90'
                             : ''}"
                         />
                         {#if chapter.locked}
-                          <Lock class="w-3 h-3 text-amber-500 shrink-0" />
+                          <Lock class="w-3 h-3 text-press-warning shrink-0" />
                         {:else if (chapter.planning_status ?? "fixed") === "flexible"}
-                          <CircleDot class="w-3 h-3 shrink-0 text-amber-500/70" />
+                          <CircleDot class="w-3 h-3 shrink-0 text-press-warning" />
                         {:else if (chapter.planning_status ?? "fixed") === "undefined"}
-                          <CircleDashed class="w-3 h-3 shrink-0 text-text-secondary/50" />
+                          <CircleDashed class="w-3 h-3 shrink-0 text-press-muted" />
                         {/if}
                         <span
                           data-testid="chapter-title"
-                          class="font-medium text-sm truncate text-text-primary"
-                          class:opacity-60={chapter.locked}>{chapter.title}</span
+                          class="font-medium text-press-ui truncate text-press-text"
+                          class:text-press-disabled-text={chapter.locked}>{chapter.title}</span
                         >
                       </button>
 
@@ -1538,7 +1507,7 @@
                       <button
                         data-testid="menu-button"
                         onclick={(e) => openContextMenu(e, "chapter", chapter)}
-                        class="p-1 text-text-secondary hover:text-text-primary transition-opacity shrink-0"
+                        class="p-1 text-press-muted hover:text-press-text transition-opacity shrink-0"
                         class:opacity-0={hoveredChapterId !== chapter.id}
                         class:opacity-100={hoveredChapterId === chapter.id}
                         aria-label="{chapterLabel} menu"
@@ -1560,16 +1529,16 @@
                               oninput={() => handleChapterSynopsisInput(chapter.id)}
                               onblur={() => finishEditingChapterSynopsis(chapter.id)}
                               placeholder="{chapterLabel} synopsis..."
-                              class="w-full text-xs text-text-primary bg-bg-card border border-accent/40 rounded-md px-2.5 py-1.5 resize-none focus:outline-none focus:border-accent"
+                              class="w-full text-press-eyebrow text-press-text bg-press-sunken border border-press-accent rounded-md px-2.5 py-1.5 resize-none focus:outline-none focus:border-press-accent"
                               rows="2"
                               autofocus
                             ></textarea>
                           {:else}
                             <button
                               onclick={() => startEditingChapterSynopsis(chapter)}
-                              class="w-full text-left text-xs rounded-md px-2.5 py-1.5 transition-colors hover:bg-bg-card {chapter.synopsis
-                                ? 'text-text-secondary'
-                                : 'text-text-secondary/50 italic'}"
+                              class="w-full text-left text-press-eyebrow rounded-md px-2.5 py-1.5 transition-colors hover:bg-press-sunken {chapter.synopsis
+                                ? 'text-press-muted'
+                                : 'text-press-muted italic'}"
                             >
                               {chapter.synopsis || "Add synopsis..."}
                             </button>
@@ -1579,19 +1548,19 @@
 
                       <!-- Undefined chapter: placeholder, no scene list -->
                       {#if chapterPlanning === "undefined"}
-                        <div class="ml-5 mt-2 pl-2 border-l border-bg-card/60">
+                        <div class="ml-5 mt-2 pl-2 border-l border-press-border/60">
                           <div
-                            class="px-2 py-3 rounded-md bg-bg-panel/50 border border-dashed border-bg-card text-center"
+                            class="px-2 py-3 rounded-md bg-press-surface/50 border border-dashed border-press-border text-center"
                           >
-                            <CircleDashed class="w-5 h-5 text-text-secondary/40 mx-auto mb-1.5" />
-                            <p class="text-xs text-text-secondary">
+                            <CircleDashed class="w-5 h-5 text-press-muted mx-auto mb-1.5" />
+                            <p class="text-press-eyebrow text-press-muted">
                               This chapter is undefined. Add a synopsis and scenes will appear when
                               you promote it to Flexible or Fixed.
                             </p>
                             {#if !chapter.locked}
                               <button
                                 onclick={() => setPlanningStatus("chapter", chapter, "flexible")}
-                                class="mt-2 px-2.5 py-1 rounded-md bg-accent/10 text-accent text-xs font-medium hover:bg-accent/20 transition-colors"
+                                class="mt-2 px-2.5 py-1 rounded-md bg-press-accent-wash text-press-accent-text text-press-eyebrow font-medium hover:text-press-text transition-colors"
                               >
                                 Switch to Flexible
                               </button>
@@ -1601,30 +1570,30 @@
 
                         <!-- Flexible chapter: simplified scene titles, no filters/drag -->
                       {:else if chapterPlanning === "flexible"}
-                        <div class="ml-5 mt-1.5 space-y-0.5 border-l border-bg-card/60 pl-2">
+                        <div class="ml-5 mt-1.5 space-y-0.5 border-l border-press-border/60 pl-2">
                           {#each filteredScenes as scene}
                             {@const isSelected = currentProject.currentScene?.id === scene.id}
                             <button
                               onclick={() => selectScene(scene)}
                               oncontextmenu={(e) => openContextMenu(e, "scene", scene)}
-                              class="w-full flex items-center gap-1.5 text-left px-2 py-1 rounded-md text-sm transition-colors min-w-0"
-                              class:bg-accent={isSelected}
-                              class:text-white={isSelected}
-                              class:text-text-secondary={!isSelected}
-                              class:hover:bg-bg-card={!isSelected}
-                              class:hover:text-text-primary={!isSelected}
+                              class="w-full flex items-center gap-1.5 text-left px-2 py-1 rounded-md text-press-ui transition-colors min-w-0"
+                              class:bg-press-accent={isSelected}
+                              class:text-press-on-accent={isSelected}
+                              class:text-press-muted={!isSelected}
+                              class:hover:bg-press-sunken={!isSelected}
+                              class:hover:text-press-text={!isSelected}
                             >
                               {#if (scene.planning_status ?? "fixed") === "flexible"}
                                 <CircleDot
                                   class="w-3 h-3 shrink-0 {isSelected
-                                    ? 'text-white/80'
-                                    : 'text-amber-500/70'}"
+                                    ? 'text-press-on-accent'
+                                    : 'text-press-warning'}"
                                 />
                               {:else if (scene.planning_status ?? "fixed") === "undefined"}
                                 <CircleDashed
                                   class="w-3 h-3 shrink-0 {isSelected
-                                    ? 'text-white/80'
-                                    : 'text-text-secondary/50'}"
+                                    ? 'text-press-on-accent'
+                                    : 'text-press-muted'}"
                                 />
                               {/if}
                               <span class="truncate">{scene.title}</span>
@@ -1641,7 +1610,7 @@
                                 onkeydown={handleCreateKeydown}
                                 onblur={cancelCreate}
                                 placeholder="Scene title..."
-                                class="w-full px-2 py-1 text-sm bg-bg-card border border-accent rounded focus:outline-none text-text-primary"
+                                class="w-full px-2 py-1 text-press-ui bg-press-sunken border border-press-accent rounded focus:outline-none text-press-text"
                                 autofocus
                               />
                             </div>
@@ -1649,7 +1618,7 @@
                             <button
                               data-testid="new-scene-button"
                               onclick={startCreatingScene}
-                              class="w-full flex items-center gap-2 px-2 py-1 rounded text-xs text-text-secondary hover:text-text-primary hover:bg-bg-card transition-colors"
+                              class="w-full flex items-center gap-2 px-2 py-1 rounded text-press-eyebrow text-press-muted hover:text-press-text hover:bg-press-sunken transition-colors"
                             >
                               <Plus class="w-3 h-3" />
                               New Scene
@@ -1657,7 +1626,7 @@
                           {/if}
 
                           {#if currentProject.scenes.length === 0 && !creatingScene}
-                            <span class="text-text-secondary text-xs px-2 py-1 italic"
+                            <span class="text-press-muted text-press-eyebrow px-2 py-1 italic"
                               >No scenes yet</span
                             >
                           {/if}
@@ -1666,7 +1635,7 @@
                             <div class="px-2 pt-1">
                               <button
                                 onclick={() => setPlanningStatus("chapter", chapter, "fixed")}
-                                class="text-xs text-accent hover:underline"
+                                class="text-press-eyebrow text-press-accent-text hover:underline"
                               >
                                 Define full structure
                               </button>
@@ -1679,14 +1648,14 @@
                         <div class="flex items-center gap-1 pl-6 mt-1">
                           <!-- View toggle pills -->
                           <div
-                            class="flex bg-bg-card rounded-md overflow-hidden border border-text-secondary/20"
+                            class="flex bg-press-sunken rounded-md overflow-hidden border border-press-border"
                           >
                             <button
                               type="button"
-                              class={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                              class={`px-2.5 py-1 text-press-eyebrow font-medium transition-colors ${
                                 outlineViewFilter === "all"
-                                  ? "bg-accent text-white"
-                                  : "text-text-secondary hover:text-text-primary"
+                                  ? "bg-press-accent text-press-on-accent"
+                                  : "text-press-muted hover:text-press-text"
                               }`}
                               onclick={() => (outlineViewFilter = "all")}
                               title="Show all scenes"
@@ -1695,10 +1664,10 @@
                             </button>
                             <button
                               type="button"
-                              class={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                              class={`px-2.5 py-1 text-press-eyebrow font-medium transition-colors ${
                                 outlineViewFilter === "planned_only"
-                                  ? "bg-accent text-white"
-                                  : "text-text-secondary hover:text-text-primary"
+                                  ? "bg-press-accent text-press-on-accent"
+                                  : "text-press-muted hover:text-press-text"
                               }`}
                               onclick={() => (outlineViewFilter = "planned_only")}
                               title="Show only planned scenes"
@@ -1707,10 +1676,10 @@
                             </button>
                             <button
                               type="button"
-                              class={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                              class={`px-2.5 py-1 text-press-eyebrow font-medium transition-colors ${
                                 outlineViewFilter === "next_5"
-                                  ? "bg-accent text-white"
-                                  : "text-text-secondary hover:text-text-primary"
+                                  ? "bg-press-accent text-press-on-accent"
+                                  : "text-press-muted hover:text-press-text"
                               }`}
                               onclick={() => (outlineViewFilter = "next_5")}
                               title="Show next 5 scenes"
@@ -1726,8 +1695,8 @@
                               onclick={() => (showFilterPopover = !showFilterPopover)}
                               class={`p-1.5 rounded transition-colors ${
                                 hasActiveFilters
-                                  ? "text-accent bg-accent/10"
-                                  : "text-text-secondary hover:text-text-primary hover:bg-bg-card"
+                                  ? "text-press-accent-text bg-press-accent-wash"
+                                  : "text-press-muted hover:text-press-text hover:bg-press-sunken"
                               }`}
                               title="Filter by type & status"
                             >
@@ -1735,11 +1704,11 @@
                             </button>
                             {#if showFilterPopover}
                               <div
-                                class="absolute right-0 top-full mt-1 w-56 bg-bg-panel border border-bg-card rounded-lg shadow-lg p-3 z-50 space-y-3"
+                                class="absolute right-0 top-full mt-1 w-56 bg-press-surface border border-press-border rounded-lg shadow-press-overlay p-3 z-press-dropdown space-y-3"
                               >
                                 <div class="flex items-center justify-between">
                                   <span
-                                    class="text-xs font-semibold text-text-primary uppercase tracking-wide"
+                                    class="text-press-eyebrow font-semibold text-press-text uppercase tracking-wide"
                                     >Filters</span
                                   >
                                   {#if hasActiveFilters}
@@ -1750,7 +1719,7 @@
                                         showTodoScenes = true;
                                         showUnusedScenes = true;
                                       }}
-                                      class="text-xs text-accent hover:underline"
+                                      class="text-press-eyebrow text-press-accent-text hover:underline"
                                     >
                                       Reset
                                     </button>
@@ -1759,16 +1728,17 @@
 
                                 <!-- Type filter -->
                                 <div class="space-y-1.5">
-                                  <span class="text-xs text-text-secondary">Scene type</span>
+                                  <span class="text-press-eyebrow text-press-muted">Scene type</span
+                                  >
                                   <div class="flex flex-wrap gap-1.5">
                                     {#each sceneTypeFilterOptions as option}
                                       {@const TypeIcon = option.icon}
                                       <button
                                         type="button"
-                                        class={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors ${
+                                        class={`flex items-center gap-1.5 px-2 py-1 rounded-md text-press-eyebrow transition-colors ${
                                           isSceneTypeVisible(option.type)
-                                            ? "bg-accent/15 text-accent border border-accent/30"
-                                            : "bg-bg-card text-text-secondary border border-transparent hover:text-text-primary"
+                                            ? "bg-press-accent-wash text-press-accent-text border border-press-accent"
+                                            : "bg-press-sunken text-press-muted border border-transparent hover:text-press-text"
                                         }`}
                                         onclick={() => toggleSceneTypeVisible(option.type)}
                                         aria-pressed={isSceneTypeVisible(option.type)}
@@ -1782,11 +1752,11 @@
 
                                 <!-- Status filter -->
                                 <div class="space-y-1.5">
-                                  <span class="text-xs text-text-secondary">Status</span>
+                                  <span class="text-press-eyebrow text-press-muted">Status</span>
                                   <div class="relative">
                                     <select
                                       bind:value={sceneStatusFilter}
-                                      class="w-full appearance-none bg-bg-card text-text-primary text-xs border border-text-secondary/20 rounded-md px-2.5 py-1.5 focus:outline-none focus:border-accent cursor-pointer"
+                                      class="w-full appearance-none bg-press-sunken text-press-text text-press-eyebrow border border-press-border rounded-md px-2.5 py-1.5 focus:outline-none focus:border-press-accent cursor-pointer"
                                       aria-label="Scene status filter"
                                     >
                                       {#each sceneStatusOptions as option}
@@ -1794,26 +1764,28 @@
                                       {/each}
                                     </select>
                                     <ChevronDown
-                                      class="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-text-secondary pointer-events-none"
+                                      class="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-press-muted pointer-events-none"
                                     />
                                   </div>
                                 </div>
 
                                 <!-- Saved filters -->
                                 {#if savedFilters.length > 0}
-                                  <div class="border-t border-bg-card pt-2 space-y-1">
-                                    <span class="text-xs text-text-secondary">Saved filters</span>
+                                  <div class="border-t border-press-border pt-2 space-y-1">
+                                    <span class="text-press-eyebrow text-press-muted"
+                                      >Saved filters</span
+                                    >
                                     {#each savedFilters as filter}
                                       <div class="flex items-center gap-1">
                                         <button
                                           onclick={() => applySavedFilter(filter)}
-                                          class="flex-1 text-left text-xs px-2 py-1 rounded hover:bg-bg-card text-text-primary truncate"
+                                          class="flex-1 text-left text-press-eyebrow px-2 py-1 rounded hover:bg-press-sunken text-press-text truncate"
                                         >
                                           {filter.name}
                                         </button>
                                         <button
                                           onclick={() => deleteSavedFilter(filter.id)}
-                                          class="p-0.5 text-text-secondary hover:text-red-400 shrink-0"
+                                          class="p-0.5 text-press-muted hover:text-press-error shrink-0"
                                           aria-label="Delete saved filter {filter.name}"
                                         >
                                           <Trash2 class="w-3 h-3" />
@@ -1825,21 +1797,21 @@
 
                                 <!-- Save current filter -->
                                 {#if hasActiveFilters}
-                                  <div class="border-t border-bg-card pt-2">
+                                  <div class="border-t border-press-border pt-2">
                                     {#if showSaveFilterInput}
                                       <div class="flex items-center gap-1">
                                         <input
                                           type="text"
                                           bind:value={savedFilterName}
                                           placeholder="Filter name..."
-                                          class="flex-1 bg-bg-card text-text-primary text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent"
+                                          class="flex-1 bg-press-sunken text-press-text text-press-eyebrow rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-press-focus"
                                           onkeydown={(e) =>
                                             e.key === "Enter" && saveCurrentFilter()}
                                         />
                                         <button
                                           onclick={saveCurrentFilter}
                                           disabled={!savedFilterName.trim()}
-                                          class="text-xs text-accent hover:underline disabled:opacity-40 disabled:no-underline px-1"
+                                          class="text-press-eyebrow text-press-accent-text hover:underline disabled:no-underline px-1"
                                         >
                                           Save
                                         </button>
@@ -1847,7 +1819,7 @@
                                     {:else}
                                       <button
                                         onclick={() => (showSaveFilterInput = true)}
-                                        class="text-xs text-accent hover:underline"
+                                        class="text-press-eyebrow text-press-accent-text hover:underline"
                                       >
                                         Save current filter...
                                       </button>
@@ -1859,7 +1831,7 @@
                           </div>
                         </div>
 
-                        <div class="ml-5 mt-1.5 space-y-0.5 border-l border-bg-card/60 pl-2">
+                        <div class="ml-5 mt-1.5 space-y-0.5 border-l border-press-border/60 pl-2">
                           {#each filteredScenes as scene}
                             {@const isSelected = currentProject.currentScene?.id === scene.id}
                             {@const isLocked = scene.locked || chapter.locked}
@@ -1872,7 +1844,7 @@
                               data-testid="scene-item"
                               class="relative flex items-center gap-1 py-0.5"
                               class:ring-2={dragOverId === scene.id}
-                              class:ring-accent={dragOverId === scene.id}
+                              class:ring-press-focus={dragOverId === scene.id}
                               onmouseenter={() => (hoveredSceneId = scene.id)}
                               onmouseleave={() => (hoveredSceneId = null)}
                               oncontextmenu={(e) => openContextMenu(e, "scene", scene)}
@@ -1882,8 +1854,8 @@
                                 data-testid="drag-handle"
                                 onmousedown={(e) => onDragHandleMouseDown(e, "scene", scene.id)}
                                 class="cursor-grab active:cursor-grabbing p-0.5 transition-opacity shrink-0"
-                                class:text-white={isSelected}
-                                class:text-text-secondary={!isSelected}
+                                class:text-press-on-accent={isSelected}
+                                class:text-press-muted={!isSelected}
                                 class:opacity-0={hoveredSceneId !== scene.id}
                                 class:opacity-100={hoveredSceneId === scene.id}
                                 role="button"
@@ -1895,37 +1867,37 @@
 
                               <button
                                 onclick={() => selectScene(scene)}
-                                class="flex-1 flex items-center gap-1.5 text-left px-2 py-1.5 rounded-md text-sm transition-colors min-w-0"
-                                class:bg-accent={isSelected}
-                                class:text-white={isSelected}
-                                class:text-text-secondary={!isSelected}
-                                class:hover:bg-bg-card={!isSelected}
-                                class:hover:text-text-primary={!isSelected}
+                                class="flex-1 flex items-center gap-1.5 text-left px-2 py-1.5 rounded-md text-press-ui transition-colors min-w-0"
+                                class:bg-press-accent={isSelected}
+                                class:text-press-on-accent={isSelected}
+                                class:text-press-muted={!isSelected}
+                                class:hover:bg-press-sunken={!isSelected}
+                                class:hover:text-press-text={!isSelected}
                               >
                                 <!-- Planning status / lock indicator (single leading icon) -->
                                 {#if isLocked}
                                   <Lock
                                     class="w-3 h-3 shrink-0 {isSelected
-                                      ? 'text-white'
-                                      : 'text-amber-500'}"
+                                      ? 'text-press-on-accent'
+                                      : 'text-press-warning'}"
                                   />
                                 {:else if planningStatus === "flexible"}
                                   <CircleDot
                                     class="w-3 h-3 shrink-0 {isSelected
-                                      ? 'text-white/80'
-                                      : 'text-amber-500/70'}"
+                                      ? 'text-press-on-accent'
+                                      : 'text-press-warning'}"
                                   />
                                 {:else if planningStatus === "undefined"}
                                   <CircleDashed
                                     class="w-3 h-3 shrink-0 {isSelected
-                                      ? 'text-white/80'
-                                      : 'text-text-secondary/50'}"
+                                      ? 'text-press-on-accent'
+                                      : 'text-press-muted'}"
                                   />
                                 {/if}
                                 <span
                                   data-testid="scene-title"
                                   class="truncate flex-1"
-                                  class:opacity-60={isLocked}>{scene.title}</span
+                                  class:text-press-disabled-text={isLocked}>{scene.title}</span
                                 >
                                 <!-- Trailing badges: scene type + status dot -->
                                 <span class="flex items-center gap-1 shrink-0 ml-auto">
@@ -1935,7 +1907,7 @@
                                     )?.icon}
                                     {#if SceneTypeIcon}
                                       <SceneTypeIcon
-                                        class={`w-3 h-3 ${isSelected ? "text-white/70" : "text-text-secondary/60"}`}
+                                        class={`w-3 h-3 ${isSelected ? "text-press-on-accent" : "text-press-muted"}`}
                                         title={sceneTypeLabels[sceneType as SceneType]}
                                       />
                                     {/if}
@@ -1952,8 +1924,8 @@
                                 data-testid="menu-button"
                                 onclick={(e) => openContextMenu(e, "scene", scene)}
                                 class="p-0.5 transition-opacity shrink-0"
-                                class:text-white={isSelected}
-                                class:text-text-secondary={!isSelected}
+                                class:text-press-on-accent={isSelected}
+                                class:text-press-muted={!isSelected}
                                 class:opacity-0={hoveredSceneId !== scene.id}
                                 class:opacity-100={hoveredSceneId === scene.id}
                                 aria-label="Scene menu"
@@ -1974,7 +1946,7 @@
                                 onkeydown={handleCreateKeydown}
                                 onblur={cancelCreate}
                                 placeholder="Scene title..."
-                                class="w-full px-2 py-1 text-sm bg-bg-card border border-accent rounded focus:outline-none text-text-primary"
+                                class="w-full px-2 py-1 text-press-ui bg-press-sunken border border-press-accent rounded focus:outline-none text-press-text"
                                 autofocus
                               />
                             </div>
@@ -1982,7 +1954,7 @@
                             <button
                               data-testid="new-scene-button"
                               onclick={startCreatingScene}
-                              class="w-full flex items-center gap-2 px-2 py-1 rounded text-xs text-text-secondary hover:text-text-primary hover:bg-bg-card transition-colors"
+                              class="w-full flex items-center gap-2 px-2 py-1 rounded text-press-eyebrow text-press-muted hover:text-press-text hover:bg-press-sunken transition-colors"
                             >
                               <Plus class="w-3 h-3" />
                               New Scene
@@ -1990,11 +1962,11 @@
                           {/if}
 
                           {#if currentProject.scenes.length === 0 && !creatingScene}
-                            <span class="text-text-secondary text-xs px-2 py-1 italic"
+                            <span class="text-press-muted text-press-eyebrow px-2 py-1 italic"
                               >No scenes yet</span
                             >
                           {:else if filteredScenes.length === 0 && !creatingScene}
-                            <span class="text-text-secondary text-xs px-2 py-1 italic"
+                            <span class="text-press-muted text-press-eyebrow px-2 py-1 italic"
                               >No scenes match filters</span
                             >
                           {/if}
@@ -2019,7 +1991,7 @@
               onkeydown={handleCreateKeydown}
               onblur={cancelCreate}
               placeholder={creatingPart ? `${partLabel} title...` : `${chapterLabel} title...`}
-              class="w-full px-2 py-1 text-sm bg-bg-card border border-accent rounded focus:outline-none text-text-primary"
+              class="w-full px-2 py-1 text-press-ui bg-press-sunken border border-press-accent rounded focus:outline-none text-press-text"
               autofocus
             />
           </div>
@@ -2027,13 +1999,13 @@
           <!-- Split button: New Chapter (default) with dropdown for New Part -->
           <div class="relative mt-2" bind:this={newButtonRef}>
             <div
-              class="flex items-stretch rounded-lg bg-bg-card border border-bg-card hover:border-accent/50 transition-colors"
+              class="flex items-stretch rounded-lg bg-press-sunken border border-press-border hover:border-press-accent transition-colors"
             >
               <!-- Main action: New Chapter/Sequence -->
               <button
                 data-testid="new-chapter-button"
                 onclick={startCreatingChapter}
-                class="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors rounded-l-lg"
+                class="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors rounded-l-lg"
               >
                 <Plus class="w-4 h-4" />
                 New {chapterLabel}
@@ -2042,7 +2014,7 @@
               <button
                 data-testid="new-dropdown-button"
                 onclick={() => (showNewDropdown = !showNewDropdown)}
-                class="px-2 py-2 text-text-secondary hover:text-text-primary transition-colors border-l border-bg-panel hover:bg-bg-panel rounded-r-lg"
+                class="px-2 py-2 text-press-muted hover:text-press-text transition-colors border-l border-press-border hover:bg-press-surface rounded-r-lg"
                 aria-label="More options"
               >
                 <ChevronDown class="w-4 h-4" />
@@ -2052,12 +2024,12 @@
             <!-- Dropdown menu -->
             {#if showNewDropdown}
               <div
-                class="absolute left-0 right-0 mt-1 bg-bg-panel border border-bg-card rounded-lg shadow-lg py-1 z-50"
+                class="absolute left-0 right-0 mt-1 bg-press-surface border border-press-border rounded-lg shadow-press-overlay py-1 z-press-dropdown"
               >
                 <button
                   data-testid="dropdown-new-chapter"
                   onclick={startCreatingChapter}
-                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-card transition-colors"
+                  class="w-full flex items-center gap-2 px-3 py-2 text-press-ui text-press-text hover:bg-press-sunken transition-colors"
                 >
                   <Folder class="w-4 h-4" />
                   New {chapterLabel}
@@ -2065,7 +2037,7 @@
                 <button
                   data-testid="dropdown-new-part"
                   onclick={startCreatingPart}
-                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-card transition-colors"
+                  class="w-full flex items-center gap-2 px-3 py-2 text-press-ui text-press-text hover:bg-press-sunken transition-colors"
                 >
                   <BookOpen class="w-4 h-4" />
                   New {partLabel}
@@ -2084,7 +2056,7 @@
   <Tooltip text="Expand sidebar" position="right">
     <button
       onclick={toggleSidebar}
-      class="fixed left-0 top-1/2 -translate-y-1/2 bg-bg-panel p-2 rounded-r-lg text-text-secondary hover:text-text-primary z-10"
+      class="fixed left-0 top-1/2 -translate-y-1/2 bg-press-surface p-2 rounded-r-lg text-press-muted hover:text-press-text z-press-raised"
       aria-label="Expand sidebar"
     >
       <ChevronsRight class="w-5 h-5" />

@@ -110,7 +110,7 @@
 {#if open}
   <!-- Backdrop -->
   <div
-    class="fixed inset-0 z-[110] bg-black/30 backdrop-blur-sm"
+    class="fixed inset-0 z-press-command-backdrop bg-press-overlay backdrop-blur-sm"
     role="presentation"
     aria-hidden="true"
     onclick={() => (open = false)}
@@ -118,29 +118,32 @@
 
   <!-- Palette -->
   <div
-    class="fixed left-1/2 top-[20%] z-[111] w-[min(32rem,90vw)] -translate-x-1/2 rounded-xl border border-bg-card bg-bg-panel shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+    class="fixed left-1/2 top-[20%] z-press-command w-[min(32rem,90vw)] -translate-x-1/2 rounded-xl border border-press-border bg-press-surface shadow-press-overlay"
     role="dialog"
     aria-modal="true"
     aria-label="Command palette"
   >
     <!-- Search input -->
-    <div class="flex items-center gap-2 border-b border-bg-card px-4 py-3">
-      <Search class="w-4 h-4 shrink-0 text-text-secondary" />
+    <div class="flex items-center gap-2 border-b border-press-border px-4 py-3">
+      <Search class="w-4 h-4 shrink-0 text-press-muted" />
       <!-- svelte-ignore a11y_autofocus -->
       <input
         type="text"
         placeholder="Type a command or search..."
         bind:value={query}
-        class="flex-1 bg-transparent text-text-primary placeholder:text-text-secondary focus:outline-none"
+        class="flex-1 bg-transparent text-press-text placeholder:text-press-muted focus:outline-none"
         autofocus
       />
-      <kbd class="rounded border border-bg-card px-2 py-0.5 text-xs text-text-secondary">⌘K</kbd>
+      <kbd
+        class="rounded border border-press-border px-2 py-0.5 text-press-eyebrow text-press-muted"
+        >⌘K</kbd
+      >
     </div>
 
     <!-- Command list -->
     <div class="max-h-80 overflow-y-auto py-2">
       {#if filteredCommands.length === 0}
-        <p class="px-4 py-8 text-center text-sm text-text-secondary">No matching commands</p>
+        <p class="px-4 py-8 text-center text-press-ui text-press-muted">No matching commands</p>
       {:else}
         {#each filteredCommands as cmd, i}
           <button
@@ -149,15 +152,15 @@
             onclick={() => runCommand(cmd)}
             class="flex w-full items-center justify-between gap-4 px-4 py-2.5 text-left transition-colors {i ===
             selectedIndex
-              ? 'bg-accent/15'
-              : 'hover:bg-accent/10'}"
+              ? 'bg-press-accent-wash'
+              : 'hover:bg-press-accent-wash'}"
           >
             <div class="flex items-center gap-3 min-w-0">
-              <Command class="w-4 h-4 shrink-0 text-text-secondary" />
-              <span class="truncate text-text-primary">{cmd.label}</span>
+              <Command class="w-4 h-4 shrink-0 text-press-muted" />
+              <span class="truncate text-press-text">{cmd.label}</span>
             </div>
             <kbd
-              class="shrink-0 rounded border border-bg-card px-2 py-0.5 text-xs text-text-secondary"
+              class="shrink-0 rounded border border-press-border px-2 py-0.5 text-press-eyebrow text-press-muted"
             >
               {cmd.shortcut}
             </kbd>
@@ -166,7 +169,7 @@
       {/if}
     </div>
 
-    <p class="border-t border-bg-card px-4 py-2 text-xs text-text-secondary">
+    <p class="border-t border-press-border px-4 py-2 text-press-eyebrow text-press-muted">
       ↑↓ to navigate · Enter to run · Esc to close
     </p>
   </div>

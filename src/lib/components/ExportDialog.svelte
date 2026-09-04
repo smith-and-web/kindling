@@ -473,7 +473,7 @@
 
 <!-- Backdrop -->
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -483,29 +483,31 @@
 >
   <!-- Dialog -->
   <div
-    class="bg-bg-panel rounded-lg shadow-xl w-full max-w-lg mx-4 overflow-hidden max-h-[90vh] flex flex-col"
+    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-lg mx-4 overflow-hidden max-h-[90vh] flex flex-col"
   >
     <!-- Header -->
-    <div class="flex items-center justify-between px-5 py-4 border-b border-bg-card flex-shrink-0">
+    <div
+      class="flex items-center justify-between px-5 py-4 border-b border-press-border flex-shrink-0"
+    >
       <div class="flex items-center gap-3">
-        <div class="p-2 bg-accent/10 rounded-lg">
-          <FileDown class="w-5 h-5 text-accent" />
+        <div class="p-2 bg-press-accent-wash rounded-lg">
+          <FileDown class="w-5 h-5 text-press-accent-text" />
         </div>
         <div>
-          <h2 id="export-dialog-title" class="text-lg font-medium text-text-primary">
+          <h2 id="export-dialog-title" class="text-press-body-lg font-medium text-press-text">
             Export {scopeTitle}
           </h2>
-          <p class="text-xs text-text-secondary">Choose format and configure options</p>
+          <p class="text-press-eyebrow text-press-muted">Choose format and configure options</p>
         </div>
       </div>
       <div class="flex items-center gap-2">
         {#if scope === "project"}
-          <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-bg-card/50 rounded-lg">
-            <Hash class="w-3.5 h-3.5 text-text-secondary" />
+          <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-press-sunken rounded-lg">
+            <Hash class="w-3.5 h-3.5 text-press-muted" />
             {#if loadingWordCount}
-              <span class="text-xs text-text-secondary">...</span>
+              <span class="text-press-eyebrow text-press-muted">...</span>
             {:else if formattedWordCount}
-              <span class="text-xs text-text-secondary">{formattedWordCount}</span>
+              <span class="text-press-eyebrow text-press-muted">{formattedWordCount}</span>
             {/if}
           </div>
         {/if}
@@ -513,7 +515,7 @@
           <button
             type="button"
             onclick={onClose}
-            class="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-card transition-colors rounded-lg"
+            class="p-2 text-press-muted hover:text-press-text hover:bg-press-sunken transition-colors rounded-lg"
             aria-label="Close"
           >
             <X class="w-5 h-5" />
@@ -526,13 +528,13 @@
     <div class="p-5 space-y-5 overflow-y-auto flex-1">
       <!-- Format Selection - Card Style -->
       <fieldset>
-        <legend class="block text-sm font-medium text-text-secondary mb-3">Export Format</legend>
+        <legend class="block text-press-ui font-medium text-press-muted mb-3">Export Format</legend>
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <label
             class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
             'docx'
-              ? 'border-accent bg-accent/5'
-              : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+              ? 'border-press-accent bg-press-accent-wash'
+              : 'border-press-border border-press-border bg-press-sunken'}"
           >
             <input
               type="radio"
@@ -542,24 +544,26 @@
               class="sr-only"
             />
             <FileText
-              class="w-8 h-8 mb-2 {exportFormat === 'docx' ? 'text-accent' : 'text-text-secondary'}"
+              class="w-8 h-8 mb-2 {exportFormat === 'docx'
+                ? 'text-press-accent-text'
+                : 'text-press-muted'}"
             />
             <span
-              class="text-sm font-medium {exportFormat === 'docx'
-                ? 'text-text-primary'
-                : 'text-text-secondary'}">Word Document</span
+              class="text-press-ui font-medium {exportFormat === 'docx'
+                ? 'text-press-text'
+                : 'text-press-muted'}">Word Document</span
             >
-            <span class="text-xs text-text-secondary mt-0.5">.docx</span>
+            <span class="text-press-eyebrow text-press-muted mt-0.5">.docx</span>
             {#if exportFormat === "docx"}
-              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
+              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-press-accent"></div>
             {/if}
           </label>
 
           <label
             class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
             'markdown'
-              ? 'border-accent bg-accent/5'
-              : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+              ? 'border-press-accent bg-press-accent-wash'
+              : 'border-press-border border-press-border bg-press-sunken'}"
           >
             <input
               type="radio"
@@ -570,25 +574,25 @@
             />
             <BookOpen
               class="w-8 h-8 mb-2 {exportFormat === 'markdown'
-                ? 'text-accent'
-                : 'text-text-secondary'}"
+                ? 'text-press-accent-text'
+                : 'text-press-muted'}"
             />
             <span
-              class="text-sm font-medium {exportFormat === 'markdown'
-                ? 'text-text-primary'
-                : 'text-text-secondary'}">Markdown</span
+              class="text-press-ui font-medium {exportFormat === 'markdown'
+                ? 'text-press-text'
+                : 'text-press-muted'}">Markdown</span
             >
-            <span class="text-xs text-text-secondary mt-0.5">.md files</span>
+            <span class="text-press-eyebrow text-press-muted mt-0.5">.md files</span>
             {#if exportFormat === "markdown"}
-              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
+              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-press-accent"></div>
             {/if}
           </label>
 
           <label
             class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
             'longform'
-              ? 'border-accent bg-accent/5'
-              : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+              ? 'border-press-accent bg-press-accent-wash'
+              : 'border-press-border border-press-border bg-press-sunken'}"
           >
             <input
               type="radio"
@@ -599,25 +603,25 @@
             />
             <AlignLeft
               class="w-8 h-8 mb-2 {exportFormat === 'longform'
-                ? 'text-accent'
-                : 'text-text-secondary'}"
+                ? 'text-press-accent-text'
+                : 'text-press-muted'}"
             />
             <span
-              class="text-sm font-medium {exportFormat === 'longform'
-                ? 'text-text-primary'
-                : 'text-text-secondary'}">Longform</span
+              class="text-press-ui font-medium {exportFormat === 'longform'
+                ? 'text-press-text'
+                : 'text-press-muted'}">Longform</span
             >
-            <span class="text-xs text-text-secondary mt-0.5">Index + scenes</span>
+            <span class="text-press-eyebrow text-press-muted mt-0.5">Index + scenes</span>
             {#if exportFormat === "longform"}
-              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
+              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-press-accent"></div>
             {/if}
           </label>
 
           <label
             class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
             'epub'
-              ? 'border-accent bg-accent/5'
-              : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+              ? 'border-press-accent bg-press-accent-wash'
+              : 'border-press-border border-press-border bg-press-sunken'}"
           >
             <input
               type="radio"
@@ -627,24 +631,26 @@
               class="sr-only"
             />
             <Book
-              class="w-8 h-8 mb-2 {exportFormat === 'epub' ? 'text-accent' : 'text-text-secondary'}"
+              class="w-8 h-8 mb-2 {exportFormat === 'epub'
+                ? 'text-press-accent-text'
+                : 'text-press-muted'}"
             />
             <span
-              class="text-sm font-medium {exportFormat === 'epub'
-                ? 'text-text-primary'
-                : 'text-text-secondary'}">ePub</span
+              class="text-press-ui font-medium {exportFormat === 'epub'
+                ? 'text-press-text'
+                : 'text-press-muted'}">ePub</span
             >
-            <span class="text-xs text-text-secondary mt-0.5">.epub</span>
+            <span class="text-press-eyebrow text-press-muted mt-0.5">.epub</span>
             {#if exportFormat === "epub"}
-              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
+              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-press-accent"></div>
             {/if}
           </label>
 
           <label
             class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
             'treatment'
-              ? 'border-accent bg-accent/5'
-              : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+              ? 'border-press-accent bg-press-accent-wash'
+              : 'border-press-border border-press-border bg-press-sunken'}"
           >
             <input
               type="radio"
@@ -655,25 +661,25 @@
             />
             <ScrollText
               class="w-8 h-8 mb-2 {exportFormat === 'treatment'
-                ? 'text-accent'
-                : 'text-text-secondary'}"
+                ? 'text-press-accent-text'
+                : 'text-press-muted'}"
             />
             <span
-              class="text-sm font-medium {exportFormat === 'treatment'
-                ? 'text-text-primary'
-                : 'text-text-secondary'}">Treatment</span
+              class="text-press-ui font-medium {exportFormat === 'treatment'
+                ? 'text-press-text'
+                : 'text-press-muted'}">Treatment</span
             >
-            <span class="text-xs text-text-secondary mt-0.5">.docx / .txt</span>
+            <span class="text-press-eyebrow text-press-muted mt-0.5">.docx / .txt</span>
             {#if exportFormat === "treatment"}
-              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
+              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-press-accent"></div>
             {/if}
           </label>
 
           <label
             class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
             'scrivener'
-              ? 'border-accent bg-accent/5'
-              : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+              ? 'border-press-accent bg-press-accent-wash'
+              : 'border-press-border border-press-border bg-press-sunken'}"
           >
             <input
               type="radio"
@@ -684,17 +690,17 @@
             />
             <PenTool
               class="w-8 h-8 mb-2 {exportFormat === 'scrivener'
-                ? 'text-accent'
-                : 'text-text-secondary'}"
+                ? 'text-press-accent-text'
+                : 'text-press-muted'}"
             />
             <span
-              class="text-sm font-medium {exportFormat === 'scrivener'
-                ? 'text-text-primary'
-                : 'text-text-secondary'}">Scrivener</span
+              class="text-press-ui font-medium {exportFormat === 'scrivener'
+                ? 'text-press-text'
+                : 'text-press-muted'}">Scrivener</span
             >
-            <span class="text-xs text-text-secondary mt-0.5">.scriv</span>
+            <span class="text-press-eyebrow text-press-muted mt-0.5">.scriv</span>
             {#if exportFormat === "scrivener"}
-              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent"></div>
+              <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-press-accent"></div>
             {/if}
           </label>
         </div>
@@ -703,7 +709,9 @@
       {#if exportFormat === "docx"}
         <!-- DOCX Options Section -->
         <fieldset>
-          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+          <legend
+            class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3"
+          >
             <Type class="w-4 h-4" />
             Document Structure
           </legend>
@@ -711,26 +719,26 @@
           <!-- Toggle Options -->
           <div class="space-y-2 mb-4">
             <label
-              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors group"
+              class="flex items-center justify-between p-3 bg-press-sunken rounded-lg cursor-pointer hover:bg-press-sunken transition-colors group"
             >
               <div class="flex items-center gap-3">
-                <span class="text-sm text-text-primary">Include title page</span>
+                <span class="text-press-ui text-press-text">Include title page</span>
               </div>
               <div class="relative">
                 <input type="checkbox" bind:checked={includeTitlePage} class="peer sr-only" />
                 <div
-                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                  class="w-10 h-6 bg-press-sunken rounded-full peer-checked:bg-press-accent transition-colors"
                 ></div>
                 <div
-                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                  class="absolute left-1 top-1 w-4 h-4 bg-press-muted rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-press-on-accent"
                 ></div>
               </div>
             </label>
 
             <label
-              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+              class="flex items-center justify-between p-3 bg-press-sunken rounded-lg cursor-pointer hover:bg-press-sunken transition-colors"
             >
-              <span class="text-sm text-text-primary">Page breaks between chapters</span>
+              <span class="text-press-ui text-press-text">Page breaks between chapters</span>
               <div class="relative">
                 <input
                   type="checkbox"
@@ -738,40 +746,40 @@
                   class="peer sr-only"
                 />
                 <div
-                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                  class="w-10 h-6 bg-press-sunken rounded-full peer-checked:bg-press-accent transition-colors"
                 ></div>
                 <div
-                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                  class="absolute left-1 top-1 w-4 h-4 bg-press-muted rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-press-on-accent"
                 ></div>
               </div>
             </label>
 
             <label
-              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+              class="flex items-center justify-between p-3 bg-press-sunken rounded-lg cursor-pointer hover:bg-press-sunken transition-colors"
             >
-              <span class="text-sm text-text-primary">Include beat markers as headings</span>
+              <span class="text-press-ui text-press-text">Include beat markers as headings</span>
               <div class="relative">
                 <input type="checkbox" bind:checked={includeBeatMarkers} class="peer sr-only" />
                 <div
-                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                  class="w-10 h-6 bg-press-sunken rounded-full peer-checked:bg-press-accent transition-colors"
                 ></div>
                 <div
-                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                  class="absolute left-1 top-1 w-4 h-4 bg-press-muted rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-press-on-accent"
                 ></div>
               </div>
             </label>
 
             <label
-              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+              class="flex items-center justify-between p-3 bg-press-sunken rounded-lg cursor-pointer hover:bg-press-sunken transition-colors"
             >
-              <span class="text-sm text-text-primary">Include scene synopses</span>
+              <span class="text-press-ui text-press-text">Include scene synopses</span>
               <div class="relative">
                 <input type="checkbox" bind:checked={includeSynopsis} class="peer sr-only" />
                 <div
-                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                  class="w-10 h-6 bg-press-sunken rounded-full peer-checked:bg-press-accent transition-colors"
                 ></div>
                 <div
-                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                  class="absolute left-1 top-1 w-4 h-4 bg-press-muted rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-press-on-accent"
                 ></div>
               </div>
             </label>
@@ -781,48 +789,54 @@
           <div class="grid grid-cols-2 gap-3">
             <!-- Chapter Heading Style -->
             <div>
-              <label for="chapter-heading-style" class="block text-xs text-text-secondary mb-1.5">
+              <label
+                for="chapter-heading-style"
+                class="block text-press-eyebrow text-press-muted mb-1.5"
+              >
                 Chapter Heading
               </label>
               <div class="relative">
                 <select
                   id="chapter-heading-style"
                   bind:value={chapterHeadingStyle}
-                  class="w-full appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer"
+                  class="w-full appearance-none bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus cursor-pointer"
                 >
                   {#each chapterHeadingStyles as style (style.value)}
                     <option value={style.value}>{style.label}</option>
                   {/each}
                 </select>
                 <ChevronDown
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-press-muted pointer-events-none"
                 />
               </div>
-              <p class="text-xs text-text-secondary/70 mt-1 truncate">
+              <p class="text-press-eyebrow text-press-muted mt-1 truncate">
                 {chapterHeadingStyles.find((s) => s.value === chapterHeadingStyle)?.example}
               </p>
             </div>
 
             <!-- Scene Break Style -->
             <div>
-              <label for="scene-break-style" class="block text-xs text-text-secondary mb-1.5">
+              <label
+                for="scene-break-style"
+                class="block text-press-eyebrow text-press-muted mb-1.5"
+              >
                 Scene Break
               </label>
               <div class="relative">
                 <select
                   id="scene-break-style"
                   bind:value={sceneBreakStyle}
-                  class="w-full appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer"
+                  class="w-full appearance-none bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus cursor-pointer"
                 >
                   {#each sceneBreakStyles as style (style.value)}
                     <option value={style.value}>{style.label}</option>
                   {/each}
                 </select>
                 <ChevronDown
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-press-muted pointer-events-none"
                 />
               </div>
-              <p class="text-xs text-text-secondary/70 mt-1">
+              <p class="text-press-eyebrow text-press-muted mt-1">
                 {sceneBreakStyles.find((s) => s.value === sceneBreakStyle)?.example}
               </p>
             </div>
@@ -831,49 +845,51 @@
 
         <!-- Typography Section -->
         <fieldset>
-          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+          <legend
+            class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3"
+          >
             <AlignLeft class="w-4 h-4" />
             Typography
           </legend>
           <div class="grid grid-cols-2 gap-3">
             <!-- Font Family -->
             <div>
-              <label for="font-family" class="block text-xs text-text-secondary mb-1.5">
+              <label for="font-family" class="block text-press-eyebrow text-press-muted mb-1.5">
                 Font
               </label>
               <div class="relative">
                 <select
                   id="font-family"
                   bind:value={fontFamily}
-                  class="w-full appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer"
+                  class="w-full appearance-none bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus cursor-pointer"
                 >
                   {#each fontFamilies as font (font.value)}
                     <option value={font.value}>{font.label}</option>
                   {/each}
                 </select>
                 <ChevronDown
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-press-muted pointer-events-none"
                 />
               </div>
             </div>
 
             <!-- Line Spacing -->
             <div>
-              <label for="line-spacing" class="block text-xs text-text-secondary mb-1.5">
+              <label for="line-spacing" class="block text-press-eyebrow text-press-muted mb-1.5">
                 Line Spacing
               </label>
               <div class="relative">
                 <select
                   id="line-spacing"
                   bind:value={lineSpacing}
-                  class="w-full appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer"
+                  class="w-full appearance-none bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus cursor-pointer"
                 >
                   {#each lineSpacingOptions as spacing (spacing.value)}
                     <option value={spacing.value}>{spacing.label}</option>
                   {/each}
                 </select>
                 <ChevronDown
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-press-muted pointer-events-none"
                 />
               </div>
             </div>
@@ -882,7 +898,10 @@
 
         <!-- Save Location -->
         <div>
-          <label for="docx-destination" class="block text-sm font-medium text-text-secondary mb-2">
+          <label
+            for="docx-destination"
+            class="block text-press-ui font-medium text-press-muted mb-2"
+          >
             Save Location
           </label>
           <div class="flex gap-2">
@@ -892,14 +911,14 @@
               readonly
               value={docxFilePath}
               placeholder="Choose where to save..."
-              class="flex-1 bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer truncate"
+              class="flex-1 bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2.5 focus:outline-none focus:border-press-accent cursor-pointer truncate"
               onclick={selectDocxFile}
             />
             <Tooltip text="Browse" position="top">
               <button
                 type="button"
                 onclick={selectDocxFile}
-                class="px-3 py-2.5 bg-bg-card text-text-secondary rounded-lg hover:bg-beat-header hover:text-text-primary transition-colors border border-bg-card"
+                class="px-3 py-2.5 bg-press-sunken text-press-muted rounded-lg hover:bg-press-sunken hover:text-press-text transition-colors border border-press-border"
                 aria-label="Choose save location"
               >
                 <FileText class="w-5 h-5" />
@@ -910,38 +929,40 @@
       {:else if exportFormat === "markdown"}
         <!-- Markdown Options -->
         <fieldset>
-          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+          <legend
+            class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3"
+          >
             <Type class="w-4 h-4" />
             Options
           </legend>
 
           <div class="space-y-2 mb-4">
             <label
-              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+              class="flex items-center justify-between p-3 bg-press-sunken rounded-lg cursor-pointer hover:bg-press-sunken transition-colors"
             >
-              <span class="text-sm text-text-primary">Include beat markers as headings</span>
+              <span class="text-press-ui text-press-text">Include beat markers as headings</span>
               <div class="relative">
                 <input type="checkbox" bind:checked={includeBeatMarkers} class="peer sr-only" />
                 <div
-                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                  class="w-10 h-6 bg-press-sunken rounded-full peer-checked:bg-press-accent transition-colors"
                 ></div>
                 <div
-                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                  class="absolute left-1 top-1 w-4 h-4 bg-press-muted rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-press-on-accent"
                 ></div>
               </div>
             </label>
 
             <label
-              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+              class="flex items-center justify-between p-3 bg-press-sunken rounded-lg cursor-pointer hover:bg-press-sunken transition-colors"
             >
-              <span class="text-sm text-text-primary">Delete existing export folder</span>
+              <span class="text-press-ui text-press-text">Delete existing export folder</span>
               <div class="relative">
                 <input type="checkbox" bind:checked={deleteExisting} class="peer sr-only" />
                 <div
-                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                  class="w-10 h-6 bg-press-sunken rounded-full peer-checked:bg-press-accent transition-colors"
                 ></div>
                 <div
-                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                  class="absolute left-1 top-1 w-4 h-4 bg-press-muted rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-press-on-accent"
                 ></div>
               </div>
             </label>
@@ -950,7 +971,7 @@
 
         <!-- Export Name -->
         <div>
-          <label for="export-name" class="block text-sm font-medium text-text-secondary mb-2">
+          <label for="export-name" class="block text-press-ui font-medium text-press-muted mb-2">
             Export Name
           </label>
           <input
@@ -958,10 +979,10 @@
             type="text"
             bind:value={exportName}
             placeholder="Enter export folder name..."
-            class="w-full bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50"
+            class="w-full bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2.5 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus"
           />
-          <p class="text-xs text-text-secondary/70 mt-1.5">
-            Folder: <span class="text-text-secondary"
+          <p class="text-press-eyebrow text-press-muted mt-1.5">
+            Folder: <span class="text-press-muted"
               >{exportName.trim() || currentProject.value?.name || "Project"}</span
             >
           </p>
@@ -969,7 +990,7 @@
 
         <!-- Destination Folder -->
         <div>
-          <label for="destination" class="block text-sm font-medium text-text-secondary mb-2">
+          <label for="destination" class="block text-press-ui font-medium text-press-muted mb-2">
             Destination Folder
           </label>
           <div class="flex gap-2">
@@ -979,14 +1000,14 @@
               readonly
               value={outputPath}
               placeholder="Select a folder..."
-              class="flex-1 bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer truncate"
+              class="flex-1 bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2.5 focus:outline-none focus:border-press-accent cursor-pointer truncate"
               onclick={selectDestination}
             />
             <Tooltip text="Browse" position="top">
               <button
                 type="button"
                 onclick={selectDestination}
-                class="px-3 py-2.5 bg-bg-card text-text-secondary rounded-lg hover:bg-beat-header hover:text-text-primary transition-colors border border-bg-card"
+                class="px-3 py-2.5 bg-press-sunken text-press-muted rounded-lg hover:bg-press-sunken hover:text-press-text transition-colors border border-press-border"
                 aria-label="Browse for folder"
               >
                 <FolderOpen class="w-5 h-5" />
@@ -997,23 +1018,25 @@
       {:else if exportFormat === "longform"}
         <!-- Longform Options -->
         <fieldset>
-          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+          <legend
+            class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3"
+          >
             <Type class="w-4 h-4" />
             Options
           </legend>
 
           <div class="space-y-2 mb-4">
             <label
-              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+              class="flex items-center justify-between p-3 bg-press-sunken rounded-lg cursor-pointer hover:bg-press-sunken transition-colors"
             >
-              <span class="text-sm text-text-primary">Delete existing export folder</span>
+              <span class="text-press-ui text-press-text">Delete existing export folder</span>
               <div class="relative">
                 <input type="checkbox" bind:checked={deleteExisting} class="peer sr-only" />
                 <div
-                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                  class="w-10 h-6 bg-press-sunken rounded-full peer-checked:bg-press-accent transition-colors"
                 ></div>
                 <div
-                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                  class="absolute left-1 top-1 w-4 h-4 bg-press-muted rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-press-on-accent"
                 ></div>
               </div>
             </label>
@@ -1024,7 +1047,7 @@
         <div>
           <label
             for="export-name-longform"
-            class="block text-sm font-medium text-text-secondary mb-2"
+            class="block text-press-ui font-medium text-press-muted mb-2"
           >
             Export Name
           </label>
@@ -1033,14 +1056,14 @@
             type="text"
             bind:value={exportName}
             placeholder="Enter project name..."
-            class="w-full bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50"
+            class="w-full bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2.5 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus"
           />
-          <p class="text-xs text-text-secondary/70 mt-1.5">
-            Folder: <span class="text-text-secondary"
+          <p class="text-press-eyebrow text-press-muted mt-1.5">
+            Folder: <span class="text-press-muted"
               >{exportName.trim() || currentProject.value?.name || "Project"}</span
             >
             · Index:
-            <span class="text-text-secondary"
+            <span class="text-press-muted"
               >{exportName.trim() || currentProject.value?.name || "Project"}.md</span
             >
           </p>
@@ -1050,7 +1073,7 @@
         <div>
           <label
             for="destination-longform"
-            class="block text-sm font-medium text-text-secondary mb-2"
+            class="block text-press-ui font-medium text-press-muted mb-2"
           >
             Destination Folder
           </label>
@@ -1061,14 +1084,14 @@
               readonly
               value={outputPath}
               placeholder="Select a folder..."
-              class="flex-1 bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer truncate"
+              class="flex-1 bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2.5 focus:outline-none focus:border-press-accent cursor-pointer truncate"
               onclick={selectDestination}
             />
             <Tooltip text="Browse" position="top">
               <button
                 type="button"
                 onclick={selectDestination}
-                class="px-3 py-2.5 bg-bg-card text-text-secondary rounded-lg hover:bg-beat-header hover:text-text-primary transition-colors border border-bg-card"
+                class="px-3 py-2.5 bg-press-sunken text-press-muted rounded-lg hover:bg-press-sunken hover:text-press-text transition-colors border border-press-border"
                 aria-label="Browse for folder"
               >
                 <FolderOpen class="w-5 h-5" />
@@ -1079,7 +1102,9 @@
       {:else if exportFormat === "treatment"}
         <!-- Treatment Options -->
         <fieldset>
-          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+          <legend
+            class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3"
+          >
             <ScrollText class="w-4 h-4" />
             Detail Level
           </legend>
@@ -1087,12 +1112,12 @@
             <label
               class="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all {treatmentLevel ===
               'one_page'
-                ? 'bg-accent/10 border border-accent/30'
-                : 'bg-bg-card/50 hover:bg-bg-card border border-transparent'}"
+                ? 'bg-press-accent-wash border border-press-accent'
+                : 'bg-press-sunken hover:bg-press-sunken border border-transparent'}"
             >
               <div>
-                <span class="text-sm text-text-primary">One-Page</span>
-                <p class="text-xs text-text-secondary mt-0.5">
+                <span class="text-press-ui text-press-text">One-Page</span>
+                <p class="text-press-eyebrow text-press-muted mt-0.5">
                   Title, logline, and a short synopsis per act
                 </p>
               </div>
@@ -1107,12 +1132,12 @@
             <label
               class="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all {treatmentLevel ===
               'five_page'
-                ? 'bg-accent/10 border border-accent/30'
-                : 'bg-bg-card/50 hover:bg-bg-card border border-transparent'}"
+                ? 'bg-press-accent-wash border border-press-accent'
+                : 'bg-press-sunken hover:bg-press-sunken border border-transparent'}"
             >
               <div>
-                <span class="text-sm text-text-primary">Five-Page</span>
-                <p class="text-xs text-text-secondary mt-0.5">
+                <span class="text-press-ui text-press-text">Five-Page</span>
+                <p class="text-press-eyebrow text-press-muted mt-0.5">
                   Act summaries with key scene descriptions
                 </p>
               </div>
@@ -1127,12 +1152,12 @@
             <label
               class="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all {treatmentLevel ===
               'full'
-                ? 'bg-accent/10 border border-accent/30'
-                : 'bg-bg-card/50 hover:bg-bg-card border border-transparent'}"
+                ? 'bg-press-accent-wash border border-press-accent'
+                : 'bg-press-sunken hover:bg-press-sunken border border-transparent'}"
             >
               <div>
-                <span class="text-sm text-text-primary">Full Treatment</span>
-                <p class="text-xs text-text-secondary mt-0.5">
+                <span class="text-press-ui text-press-text">Full Treatment</span>
+                <p class="text-press-eyebrow text-press-muted mt-0.5">
                   Every scene synopsis and beat description
                 </p>
               </div>
@@ -1149,7 +1174,9 @@
 
         <!-- Output Format -->
         <fieldset>
-          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+          <legend
+            class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3"
+          >
             <FileText class="w-4 h-4" />
             Output Format
           </legend>
@@ -1157,8 +1184,8 @@
             <label
               class="flex items-center justify-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all {treatmentFormat ===
               'docx'
-                ? 'border-accent bg-accent/5'
-                : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+                ? 'border-press-accent bg-press-accent-wash'
+                : 'border-press-border border-press-border bg-press-sunken'}"
             >
               <input
                 type="radio"
@@ -1168,19 +1195,21 @@
                 class="sr-only"
               />
               <FileText
-                class="w-4 h-4 {treatmentFormat === 'docx' ? 'text-accent' : 'text-text-secondary'}"
+                class="w-4 h-4 {treatmentFormat === 'docx'
+                  ? 'text-press-accent-text'
+                  : 'text-press-muted'}"
               />
               <span
-                class="text-sm font-medium {treatmentFormat === 'docx'
-                  ? 'text-text-primary'
-                  : 'text-text-secondary'}">.docx</span
+                class="text-press-ui font-medium {treatmentFormat === 'docx'
+                  ? 'text-press-text'
+                  : 'text-press-muted'}">.docx</span
               >
             </label>
             <label
               class="flex items-center justify-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all {treatmentFormat ===
               'txt'
-                ? 'border-accent bg-accent/5'
-                : 'border-bg-card hover:border-text-secondary/30 bg-bg-card/50'}"
+                ? 'border-press-accent bg-press-accent-wash'
+                : 'border-press-border border-press-border bg-press-sunken'}"
             >
               <input
                 type="radio"
@@ -1190,12 +1219,14 @@
                 class="sr-only"
               />
               <AlignLeft
-                class="w-4 h-4 {treatmentFormat === 'txt' ? 'text-accent' : 'text-text-secondary'}"
+                class="w-4 h-4 {treatmentFormat === 'txt'
+                  ? 'text-press-accent-text'
+                  : 'text-press-muted'}"
               />
               <span
-                class="text-sm font-medium {treatmentFormat === 'txt'
-                  ? 'text-text-primary'
-                  : 'text-text-secondary'}">.txt</span
+                class="text-press-ui font-medium {treatmentFormat === 'txt'
+                  ? 'text-press-text'
+                  : 'text-press-muted'}">.txt</span
               >
             </label>
           </div>
@@ -1205,7 +1236,7 @@
         <div>
           <label
             for="treatment-destination"
-            class="block text-sm font-medium text-text-secondary mb-2"
+            class="block text-press-ui font-medium text-press-muted mb-2"
           >
             Save Location
           </label>
@@ -1216,14 +1247,14 @@
               readonly
               value={treatmentFilePath}
               placeholder="Choose where to save..."
-              class="flex-1 bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer truncate"
+              class="flex-1 bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2.5 focus:outline-none focus:border-press-accent cursor-pointer truncate"
               onclick={selectTreatmentFile}
             />
             <Tooltip text="Browse" position="top">
               <button
                 type="button"
                 onclick={selectTreatmentFile}
-                class="px-3 py-2.5 bg-bg-card text-text-secondary rounded-lg hover:bg-beat-header hover:text-text-primary transition-colors border border-bg-card"
+                class="px-3 py-2.5 bg-press-sunken text-press-muted rounded-lg hover:bg-press-sunken hover:text-press-text transition-colors border border-press-border"
                 aria-label="Choose save location"
               >
                 <FileText class="w-5 h-5" />
@@ -1234,7 +1265,9 @@
       {:else if exportFormat === "scrivener"}
         <!-- Scrivener Export Options -->
         <fieldset>
-          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+          <legend
+            class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3"
+          >
             <PenTool class="w-4 h-4" />
             Export Mode
           </legend>
@@ -1242,12 +1275,12 @@
             <label
               class="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all {scrivenerMode ===
               'create_new'
-                ? 'bg-accent/10 border border-accent/30'
-                : 'bg-bg-card/50 hover:bg-bg-card border border-transparent'}"
+                ? 'bg-press-accent-wash border border-press-accent'
+                : 'bg-press-sunken hover:bg-press-sunken border border-transparent'}"
             >
               <div>
-                <span class="text-sm text-text-primary">Create New</span>
-                <p class="text-xs text-text-secondary mt-0.5">
+                <span class="text-press-ui text-press-text">Create New</span>
+                <p class="text-press-eyebrow text-press-muted mt-0.5">
                   Build a fresh .scriv project from your outline
                 </p>
               </div>
@@ -1262,12 +1295,12 @@
             <label
               class="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all {scrivenerMode ===
               'update'
-                ? 'bg-accent/10 border border-accent/30'
-                : 'bg-bg-card/50 hover:bg-bg-card border border-transparent'}"
+                ? 'bg-press-accent-wash border border-press-accent'
+                : 'bg-press-sunken hover:bg-press-sunken border border-transparent'}"
             >
               <div>
-                <span class="text-sm text-text-primary">Update Existing</span>
-                <p class="text-xs text-text-secondary mt-0.5">
+                <span class="text-press-ui text-press-text">Update Existing</span>
+                <p class="text-press-eyebrow text-press-muted mt-0.5">
                   Write prose back into an existing .scriv bundle
                 </p>
               </div>
@@ -1285,37 +1318,39 @@
         {#if scrivenerMode === "update"}
           <!-- Update-mode-specific options -->
           <fieldset>
-            <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+            <legend
+              class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3"
+            >
               <Type class="w-4 h-4" />
               Update Options
             </legend>
             <div class="space-y-2">
               <label
-                class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+                class="flex items-center justify-between p-3 bg-press-sunken rounded-lg cursor-pointer hover:bg-press-sunken transition-colors"
               >
                 <div>
-                  <span class="text-sm text-text-primary">Backup before updating</span>
-                  <p class="text-xs text-text-secondary mt-0.5">
+                  <span class="text-press-ui text-press-text">Backup before updating</span>
+                  <p class="text-press-eyebrow text-press-muted mt-0.5">
                     Creates a timestamped copy of the .scriv bundle
                   </p>
                 </div>
                 <div class="relative">
                   <input type="checkbox" bind:checked={scrivenerBackup} class="peer sr-only" />
                   <div
-                    class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                    class="w-10 h-6 bg-press-sunken rounded-full peer-checked:bg-press-accent transition-colors"
                   ></div>
                   <div
-                    class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                    class="absolute left-1 top-1 w-4 h-4 bg-press-muted rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-press-on-accent"
                   ></div>
                 </div>
               </label>
 
               <label
-                class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+                class="flex items-center justify-between p-3 bg-press-sunken rounded-lg cursor-pointer hover:bg-press-sunken transition-colors"
               >
                 <div>
-                  <span class="text-sm text-text-primary">Include unmatched scenes</span>
-                  <p class="text-xs text-text-secondary mt-0.5">
+                  <span class="text-press-ui text-press-text">Include unmatched scenes</span>
+                  <p class="text-press-eyebrow text-press-muted mt-0.5">
                     Create new Scrivener documents for scenes without matches
                   </p>
                 </div>
@@ -1326,10 +1361,10 @@
                     class="peer sr-only"
                   />
                   <div
-                    class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                    class="w-10 h-6 bg-press-sunken rounded-full peer-checked:bg-press-accent transition-colors"
                   ></div>
                   <div
-                    class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                    class="absolute left-1 top-1 w-4 h-4 bg-press-muted rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-press-on-accent"
                   ></div>
                 </div>
               </label>
@@ -1337,7 +1372,7 @@
           </fieldset>
         {/if}
 
-        <p class="text-xs text-text-secondary bg-bg-card/50 rounded-lg px-3 py-2">
+        <p class="text-press-eyebrow text-press-muted bg-press-sunken rounded-lg px-3 py-2">
           Note: Characters, locations, and scene references are not included in Scrivener exports.
         </p>
 
@@ -1345,7 +1380,7 @@
         <div>
           <label
             for="scrivener-destination"
-            class="block text-sm font-medium text-text-secondary mb-2"
+            class="block text-press-ui font-medium text-press-muted mb-2"
           >
             {scrivenerMode === "create_new" ? "Save Location" : "Select .scriv Bundle"}
           </label>
@@ -1358,14 +1393,14 @@
               placeholder={scrivenerMode === "create_new"
                 ? "Choose where to save..."
                 : "Select existing .scriv folder..."}
-              class="flex-1 bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer truncate"
+              class="flex-1 bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2.5 focus:outline-none focus:border-press-accent cursor-pointer truncate"
               onclick={selectScrivenerPath}
             />
             <Tooltip text="Browse" position="top">
               <button
                 type="button"
                 onclick={selectScrivenerPath}
-                class="px-3 py-2.5 bg-bg-card text-text-secondary rounded-lg hover:bg-beat-header hover:text-text-primary transition-colors border border-bg-card"
+                class="px-3 py-2.5 bg-press-sunken text-press-muted rounded-lg hover:bg-press-sunken hover:text-press-text transition-colors border border-press-border"
                 aria-label={scrivenerMode === "create_new"
                   ? "Choose save location"
                   : "Select .scriv bundle"}
@@ -1378,23 +1413,27 @@
       {:else}
         <!-- EPUB Options -->
         <fieldset>
-          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+          <legend
+            class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3"
+          >
             <Type class="w-4 h-4" />
             Metadata
           </legend>
           <div class="space-y-3">
             <div>
-              <label for="epub-title" class="block text-xs text-text-secondary mb-1.5">Title</label>
+              <label for="epub-title" class="block text-press-eyebrow text-press-muted mb-1.5"
+                >Title</label
+              >
               <input
                 id="epub-title"
                 type="text"
                 bind:value={epubTitle}
                 placeholder="Book title"
-                class="w-full bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50"
+                class="w-full bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2.5 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus"
               />
             </div>
             <div>
-              <label for="epub-author" class="block text-xs text-text-secondary mb-1.5"
+              <label for="epub-author" class="block text-press-eyebrow text-press-muted mb-1.5"
                 >Author</label
               >
               <input
@@ -1402,11 +1441,11 @@
                 type="text"
                 bind:value={epubAuthor}
                 placeholder="Author name"
-                class="w-full bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50"
+                class="w-full bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2.5 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus"
               />
             </div>
             <div>
-              <label for="epub-description" class="block text-xs text-text-secondary mb-1.5"
+              <label for="epub-description" class="block text-press-eyebrow text-press-muted mb-1.5"
                 >Description</label
               >
               <textarea
@@ -1414,11 +1453,11 @@
                 rows="3"
                 bind:value={epubDescription}
                 placeholder="Short blurb or summary"
-                class="w-full bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 resize-none"
+                class="w-full bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2.5 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus resize-none"
               ></textarea>
             </div>
             <div>
-              <label for="epub-language" class="block text-xs text-text-secondary mb-1.5"
+              <label for="epub-language" class="block text-press-eyebrow text-press-muted mb-1.5"
                 >Language</label
               >
               <input
@@ -1426,44 +1465,48 @@
                 type="text"
                 bind:value={epubLanguage}
                 placeholder="en"
-                class="w-full bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50"
+                class="w-full bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2.5 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus"
               />
-              <p class="text-xs text-text-secondary/70 mt-1">Use ISO 639-1 codes (e.g., en, es).</p>
+              <p class="text-press-eyebrow text-press-muted mt-1">
+                Use ISO 639-1 codes (e.g., en, es).
+              </p>
             </div>
           </div>
         </fieldset>
 
         <fieldset>
-          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+          <legend
+            class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3"
+          >
             <AlignLeft class="w-4 h-4" />
             Content
           </legend>
           <div class="space-y-2">
             <label
-              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+              class="flex items-center justify-between p-3 bg-press-sunken rounded-lg cursor-pointer hover:bg-press-sunken transition-colors"
             >
-              <span class="text-sm text-text-primary">Include beat markers as headings</span>
+              <span class="text-press-ui text-press-text">Include beat markers as headings</span>
               <div class="relative">
                 <input type="checkbox" bind:checked={includeBeatMarkers} class="peer sr-only" />
                 <div
-                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                  class="w-10 h-6 bg-press-sunken rounded-full peer-checked:bg-press-accent transition-colors"
                 ></div>
                 <div
-                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                  class="absolute left-1 top-1 w-4 h-4 bg-press-muted rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-press-on-accent"
                 ></div>
               </div>
             </label>
             <label
-              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+              class="flex items-center justify-between p-3 bg-press-sunken rounded-lg cursor-pointer hover:bg-press-sunken transition-colors"
             >
-              <span class="text-sm text-text-primary">Include scene synopses</span>
+              <span class="text-press-ui text-press-text">Include scene synopses</span>
               <div class="relative">
                 <input type="checkbox" bind:checked={includeSynopsis} class="peer sr-only" />
                 <div
-                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                  class="w-10 h-6 bg-press-sunken rounded-full peer-checked:bg-press-accent transition-colors"
                 ></div>
                 <div
-                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                  class="absolute left-1 top-1 w-4 h-4 bg-press-muted rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-press-on-accent"
                 ></div>
               </div>
             </label>
@@ -1471,53 +1514,59 @@
         </fieldset>
 
         <fieldset>
-          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+          <legend
+            class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3"
+          >
             <Type class="w-4 h-4" />
             Styling
           </legend>
           <div>
-            <label for="epub-theme" class="block text-xs text-text-secondary mb-1.5">Theme</label>
+            <label for="epub-theme" class="block text-press-eyebrow text-press-muted mb-1.5"
+              >Theme</label
+            >
             <div class="relative">
               <select
                 id="epub-theme"
                 bind:value={epubTheme}
-                class="w-full appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer"
+                class="w-full appearance-none bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus cursor-pointer"
               >
                 {#each epubThemeOptions as theme (theme.value)}
                   <option value={theme.value}>{theme.label}</option>
                 {/each}
               </select>
               <ChevronDown
-                class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-press-muted pointer-events-none"
               />
             </div>
           </div>
         </fieldset>
 
         <fieldset>
-          <legend class="flex items-center gap-2 text-sm font-medium text-accent mb-3">
+          <legend
+            class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3"
+          >
             <ImageIcon class="w-4 h-4" />
             Cover
           </legend>
           <div class="space-y-3">
             <label
-              class="flex items-center justify-between p-3 bg-bg-card/50 rounded-lg cursor-pointer hover:bg-bg-card transition-colors"
+              class="flex items-center justify-between p-3 bg-press-sunken rounded-lg cursor-pointer hover:bg-press-sunken transition-colors"
             >
-              <span class="text-sm text-text-primary">Include cover image</span>
+              <span class="text-press-ui text-press-text">Include cover image</span>
               <div class="relative">
                 <input type="checkbox" bind:checked={includeCoverImage} class="peer sr-only" />
                 <div
-                  class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+                  class="w-10 h-6 bg-press-sunken rounded-full peer-checked:bg-press-accent transition-colors"
                 ></div>
                 <div
-                  class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+                  class="absolute left-1 top-1 w-4 h-4 bg-press-muted rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-press-on-accent"
                 ></div>
               </div>
             </label>
 
             {#if includeCoverImage}
               <div>
-                <label for="cover-image" class="block text-xs text-text-secondary mb-1.5"
+                <label for="cover-image" class="block text-press-eyebrow text-press-muted mb-1.5"
                   >Cover image</label
                 >
                 <div class="flex gap-2">
@@ -1527,14 +1576,14 @@
                     readonly
                     value={coverImagePath}
                     placeholder="Select an image..."
-                    class="flex-1 bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer truncate"
+                    class="flex-1 bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2.5 focus:outline-none focus:border-press-accent cursor-pointer truncate"
                     onclick={selectCoverImage}
                   />
                   <Tooltip text="Browse" position="top">
                     <button
                       type="button"
                       onclick={selectCoverImage}
-                      class="px-3 py-2.5 bg-bg-card text-text-secondary rounded-lg hover:bg-beat-header hover:text-text-primary transition-colors border border-bg-card"
+                      class="px-3 py-2.5 bg-press-sunken text-press-muted rounded-lg hover:bg-press-sunken hover:text-press-text transition-colors border border-press-border"
                       aria-label="Select cover image"
                     >
                       <ImageIcon class="w-5 h-5" />
@@ -1548,7 +1597,10 @@
 
         <!-- Save Location -->
         <div>
-          <label for="epub-destination" class="block text-sm font-medium text-text-secondary mb-2">
+          <label
+            for="epub-destination"
+            class="block text-press-ui font-medium text-press-muted mb-2"
+          >
             Save Location
           </label>
           <div class="flex gap-2">
@@ -1558,14 +1610,14 @@
               readonly
               value={epubFilePath}
               placeholder="Choose where to save..."
-              class="flex-1 bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent cursor-pointer truncate"
+              class="flex-1 bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2.5 focus:outline-none focus:border-press-accent cursor-pointer truncate"
               onclick={selectEpubFile}
             />
             <Tooltip text="Browse" position="top">
               <button
                 type="button"
                 onclick={selectEpubFile}
-                class="px-3 py-2.5 bg-bg-card text-text-secondary rounded-lg hover:bg-beat-header hover:text-text-primary transition-colors border border-bg-card"
+                class="px-3 py-2.5 bg-press-sunken text-press-muted rounded-lg hover:bg-press-sunken hover:text-press-text transition-colors border border-press-border"
                 aria-label="Choose save location"
               >
                 <Book class="w-5 h-5" />
@@ -1576,21 +1628,23 @@
       {/if}
 
       <!-- Snapshot Option (shown for both formats) -->
-      <div class="pt-2 border-t border-bg-card/50">
+      <div class="pt-2 border-t border-press-border/50">
         <label
-          class="flex items-center justify-between p-3 bg-bg-card/30 rounded-lg cursor-pointer hover:bg-bg-card/50 transition-colors"
+          class="flex items-center justify-between p-3 bg-press-sunken rounded-lg cursor-pointer hover:bg-press-sunken transition-colors"
         >
           <div>
-            <span class="text-sm text-text-primary">Create snapshot before exporting</span>
-            <p class="text-xs text-text-secondary/70 mt-0.5">Save a backup of your current work</p>
+            <span class="text-press-ui text-press-text">Create snapshot before exporting</span>
+            <p class="text-press-eyebrow text-press-muted mt-0.5">
+              Save a backup of your current work
+            </p>
           </div>
           <div class="relative">
             <input type="checkbox" bind:checked={createSnapshot} class="peer sr-only" />
             <div
-              class="w-10 h-6 bg-bg-card rounded-full peer-checked:bg-accent transition-colors"
+              class="w-10 h-6 bg-press-sunken rounded-full peer-checked:bg-press-accent transition-colors"
             ></div>
             <div
-              class="absolute left-1 top-1 w-4 h-4 bg-text-secondary rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-white"
+              class="absolute left-1 top-1 w-4 h-4 bg-press-muted rounded-full transition-all peer-checked:translate-x-4 peer-checked:bg-press-on-accent"
             ></div>
           </div>
         </label>
@@ -1598,20 +1652,20 @@
 
       <!-- Error Message -->
       {#if error}
-        <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-          <p class="text-sm text-red-400">{error}</p>
+        <div class="p-3 bg-press-error-wash border border-press-error rounded-lg">
+          <p class="text-press-ui text-press-error">{error}</p>
         </div>
       {/if}
     </div>
 
     <!-- Footer -->
     <div
-      class="flex items-center justify-end gap-3 px-5 py-4 border-t border-bg-card flex-shrink-0 bg-bg-panel"
+      class="flex items-center justify-end gap-3 px-5 py-4 border-t border-press-border flex-shrink-0 bg-press-surface"
     >
       <button
         type="button"
         onclick={onClose}
-        class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors rounded-lg hover:bg-bg-card"
+        class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors rounded-lg hover:bg-press-sunken"
         disabled={exporting}
       >
         Cancel
@@ -1619,7 +1673,7 @@
       <button
         type="button"
         onclick={handleExport}
-        class="px-5 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-accent/20"
+        class="px-5 py-2 text-press-ui font-medium bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors disabled:cursor-not-allowed flex items-center gap-2"
         disabled={!canExport || exporting}
       >
         {#if exporting}
