@@ -80,6 +80,71 @@ npm run check:all        # everything CI checks (types, format, lint, rust fmt+c
   behavior change.
 - **DOCX export** follows Standard Manuscript Format — don't change those rules casually.
 
+### Commit type and scope feed the release notes
+
+Release notes are generated from commit messages —
+`npm run changelog` runs `conventional-changelog -p conventionalcommits -i
+CHANGELOG.md -s`. The commit message _is_ the release note, so two things are
+worth getting right at commit time because they are tedious to fix afterwards.
+
+**Type decides whether users see it.** In practice this preset renders only
+`feat` (Features) and `fix` (Bug Fixes) sections; `chore`, `docs`, `style`,
+`refactor`, `test`, `ci` and `build` are hidden. So pick the type by asking
+whether a _writer using Kindling_ would care. Work on the toolchain, CI, git
+hooks or the blacksmith orchestrator is `chore` or `ci` even when it fixes
+something — `fix(blacksmith): ...` puts an automation detail in front of end
+users, and the 1.1.0 notes already carry `fix(dev)` and `fix(mock)` entries
+that mean nothing to a novelist.
+
+**Scope should name a product area, not a work item.** Good: `export`,
+`scrivener`, `plottr`, `editor`, `import`, `db`, `ui`. Not a PRD id, work-unit
+id, branch name or ticket number — `feat(wu-01): ...` renders as a headline
+feature scoped to a label no reader can interpret. If a work unit spans one
+product area, use that area; if it spans several, split the commit.
+
+Neither rule is machine-enforced. Commitlint checks the type is in its
+`type-enum` and that the scope is kebab-case — `wu-01` passes both, and scope
+is optional. The CI "Commit Messages" check will not catch a mis-typed `fix` or
+a meaningless scope.
+
+**Two gotchas when actually cutting the notes.** `npm run changelog` emits only
+the _unreleased_ section and takes the version from `package.json`, so while
+`package.json` still matches the latest tag it outputs nothing — bump the
+version first, then generate. And CHANGELOG.md is currently stale: its newest
+entry is `0.2.0-alpha`, so 1.0.0-beta through 1.2.0 were never appended.
+`npm run changelog:all` (`-r 0`) regenerates the whole file from history and
+will overwrite any hand-edited prose in it — check the diff rather than
+trusting it.
+
+## The IPC boundary (Rust ↔ TypeScript)
+
+Rust and TypeScript are maintained independently and **nothing checks their
+agreement at build time**. Currently 123 `#[tauri::command]` functions, 123
+registered, and 65 `invoke()` call sites in the frontend. Three things must line
+up for every command:
+
+1. The function is annotated `#[tauri::command]` (in `src-tauri/src/commands/`).
+2. It is listed in `tauri::generate_handler![...]` in `src-tauri/src/lib.rs`.
+   **A command that exists but isn't registered compiles fine and fails only at
+   runtime** — check the count matches after adding or renaming one.
+3. The frontend `invoke("name", { args })` matches the command name and its
+   argument names exactly.
+
+Two conversions that hide mismatches:
+
+- **Tauri maps Rust `snake_case` parameters to `camelCase` on the JS side.** A
+  mismatch here arrives as a missing or `null` argument, not an error.
+- **A Rust `Err` becomes a rejected promise.** With no `catch` at the call site
+  the failure is silent and the UI simply does nothing. Every `invoke` needs
+  error handling; a missing one is a real defect, not a style nit.
+
+Also: a Tauri plugin or filesystem/shell capability the frontend calls must be
+permitted in `src-tauri/capabilities/default.json`, or it fails at runtime with a
+misleading message.
+
+`npm run dev` runs Vite **without** the Rust backend, so every `invoke` fails
+there. Verify anything touching the boundary with `npm run tauri dev`.
+
 ## Sensitive areas (touch only with explicit intent)
 
 - `src-tauri/src/db/schema.rs` — the SQLite schema. Changes affect existing user files.
