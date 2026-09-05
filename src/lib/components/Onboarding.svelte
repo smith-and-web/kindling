@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { IMPORT_FORMATS, type ImportType } from "../importFormats";
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import {
@@ -35,7 +36,7 @@
   let { onImportComplete, onImportLongform }: Props = $props();
 
   // Guided import wizard state (within import step)
-  type GuidedFormat = "plottr" | "markdown" | "ywriter" | "longform" | "scrivener";
+  type GuidedFormat = Exclude<ImportType, "longformVault">;
   let guidedPreview = $state<ImportPreview | null>(null);
   let guidedPath = $state<string | null>(null);
   let guidedFormat = $state<GuidedFormat | null>(null);
@@ -65,29 +66,18 @@
     }
   }
 
-  const FORMAT_CONFIG: Record<
-    GuidedFormat,
-    { name: string; extensions: string[]; directory?: boolean }
-  > = {
-    plottr: { name: "Plottr", extensions: ["pltr"] },
-    markdown: { name: "Markdown", extensions: ["md", "markdown"] },
-    ywriter: { name: "yWriter 7", extensions: ["yw7"] },
-    longform: { name: "Longform Index", extensions: ["md", "markdown"] },
-    scrivener: { name: "Scrivener 3", extensions: ["scriv"] },
-  };
-
   async function startGuidedImport(format: GuidedFormat) {
     guidedError = null;
     guidedPreview = null;
     guidedPath = null;
     guidedFormat = format;
-    const config = FORMAT_CONFIG[format];
+    const config = IMPORT_FORMATS[format];
     const path =
       format === "scrivener"
         ? await pickScrivenerProjectPath()
         : await open({
             multiple: false,
-            filters: [{ name: config.name, extensions: config.extensions }],
+            ...(config.directory ? {} : { filters: config.filters }),
             directory: config.directory ?? false,
           });
     if (path) {
@@ -134,24 +124,7 @@
 
     ui.startImport();
     try {
-      let project: Project;
-      switch (format) {
-        case "plottr":
-          project = await invoke<Project>("import_plottr", { path });
-          break;
-        case "markdown":
-          project = await invoke<Project>("import_markdown", { path });
-          break;
-        case "ywriter":
-          project = await invoke<Project>("import_ywriter", { path });
-          break;
-        case "longform":
-          project = await invoke<Project>("import_longform", { path });
-          break;
-        case "scrivener":
-          project = await invoke<Project>("import_scrivener", { path });
-          break;
-      }
+      const project = await invoke<Project>(IMPORT_FORMATS[format].command, { path });
       currentProject.setProject(project);
       ui.completeOnboarding();
       ui.setView("editor");
@@ -767,6 +740,7 @@
                     Choose different file
                   </button>
                   <button
+                    data-testid="guided-import-confirm"
                     onclick={confirmGuidedImport}
                     class="px-6 py-2 bg-press-accent hover:bg-press-accent-text text-press-on-accent font-medium rounded-lg transition-colors"
                   >
@@ -817,6 +791,15 @@
                   <Kanban class="w-10 h-10 text-press-accent-text mb-2" />
                   <span class="text-press-text font-medium text-press-ui">Plottr</span>
                   <span class="text-press-muted text-press-eyebrow">.pltr</span>
+                </button>
+
+                <button
+                  onclick={() => startGuidedImport("novelwriter")}
+                  class="flex flex-col items-center p-4 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer border border-transparent hover:border-press-accent"
+                >
+                  <Scroll class="w-10 h-10 text-press-accent-text mb-2" />
+                  <span class="text-press-text font-medium text-press-ui">novelWriter</span>
+                  <span class="text-press-muted text-press-eyebrow">Project folder</span>
                 </button>
 
                 <button

@@ -8,7 +8,14 @@
  */
 
 /** Supported outline import formats */
-export type SourceType = "Plottr" | "Markdown" | "YWriter" | "Scrivener" | "Longform" | "Blank";
+export type SourceType =
+  | "Plottr"
+  | "Markdown"
+  | "YWriter"
+  | "Scrivener"
+  | "Longform"
+  | "NovelWriter"
+  | "Blank";
 
 /** Project type: novel (default) or screenplay */
 export type ProjectType = "novel" | "screenplay";
@@ -214,7 +221,14 @@ export interface ReferenceSuggestion {
 }
 
 /** Supported reference types for the References panel */
-export type ReferenceTypeId = "characters" | "locations" | "items" | "objectives" | "organizations";
+export type ReferenceTypeId =
+  | "characters"
+  | "locations"
+  | "items"
+  | "objectives"
+  | "organizations"
+  | "timelines"
+  | "custom";
 
 /** Supported field types for custom fields */
 export type FieldType = "text" | "number" | "date" | "select" | "multiselect" | "checkbox" | "url";
@@ -226,7 +240,9 @@ export type FieldEntityType =
   | "scene"
   | "item"
   | "objective"
-  | "organization";
+  | "organization"
+  | "timeline"
+  | "custom";
 
 /** Project-level definition for a custom field */
 export interface FieldDefinition {
@@ -310,7 +326,7 @@ export interface SyncAddition {
 export interface SyncChange {
   id: string;
   item_type: "chapter" | "scene" | "beat";
-  field: "title" | "synopsis" | "content";
+  field: "title" | "synopsis" | "content" | "prose";
   item_title: string;
   current_value: string;
   new_value: string;
@@ -334,6 +350,7 @@ export interface ReimportSummary {
   beats_updated: number;
   /** Count of prose blocks that were preserved (not overwritten) */
   prose_preserved: number;
+  prose_updated: number;
 }
 
 // =============================================================================
@@ -574,4 +591,10 @@ export interface StoryTemplate {
   structure: TemplatePart[];
   bundled: boolean;
   created_at?: string | null;
+}
+
+export interface NovelWriterExportOptions {
+  include_beat_comments: boolean;
+  include_notes: boolean;
+  create_snapshot: boolean;
 }

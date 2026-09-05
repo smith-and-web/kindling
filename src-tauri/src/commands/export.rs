@@ -588,192 +588,30 @@ fn transform_text(text: &str) -> String {
 ///
 /// Also applies smart quotes and punctuation normalization.
 fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
-    use quick_xml::events::Event;
-    use quick_xml::Reader;
-
-    let mut paragraphs: Vec<FormattedParagraph> = Vec::new();
-    let mut current_runs: Vec<FormattedRun> = Vec::new();
-    let mut bold_depth: u32 = 0;
-    let mut italic_depth: u32 = 0;
-    let mut underline_depth: u32 = 0;
-    let mut blockquote_depth: u32 = 0;
-    let mut current_para_type = ParagraphType::Normal;
-
-    let mut reader = Reader::from_str(html);
-    reader.config_mut().trim_text(false);
-
-    let mut buf = Vec::new();
-
-    loop {
-        match reader.read_event_into(&mut buf) {
-            Ok(Event::Start(e)) => {
-                let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
-                match tag_name.as_str() {
-                    "strong" | "b" => bold_depth += 1,
-                    "em" | "i" => italic_depth += 1,
-                    "u" => underline_depth += 1,
-                    "blockquote" => {
-                        if !current_runs.is_empty() {
-                            paragraphs.push(FormattedParagraph {
-                                runs: std::mem::take(&mut current_runs),
-                                paragraph_type: current_para_type,
-                            });
-                        }
-                        blockquote_depth += 1;
-                        current_para_type = ParagraphType::Blockquote;
-                    }
-                    "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
-                        if !current_runs.is_empty() {
-                            paragraphs.push(FormattedParagraph {
-                                runs: std::mem::take(&mut current_runs),
-                                paragraph_type: current_para_type,
-                            });
-                        }
-                        let level = tag_name.as_bytes()[1] - b'0';
-                        current_para_type = ParagraphType::Heading(level);
-                    }
-                    "p" => {
-                        if !current_runs.is_empty() {
-                            paragraphs.push(FormattedParagraph {
-                                runs: std::mem::take(&mut current_runs),
-                                paragraph_type: current_para_type,
-                            });
-                        }
-                        current_para_type = if blockquote_depth > 0 {
-                            ParagraphType::Blockquote
-                        } else {
-                            ParagraphType::Normal
-                        };
-                    }
-                    _ => {}
-                }
-            }
-            Ok(Event::End(e)) => {
-                let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
-                match tag_name.as_str() {
-                    "strong" | "b" => bold_depth = bold_depth.saturating_sub(1),
-                    "em" | "i" => italic_depth = italic_depth.saturating_sub(1),
-                    "u" => underline_depth = underline_depth.saturating_sub(1),
-                    "blockquote" => {
-                        if !current_runs.is_empty() {
-                            paragraphs.push(FormattedParagraph {
-                                runs: std::mem::take(&mut current_runs),
-                                paragraph_type: current_para_type,
-                            });
-                        }
-                        blockquote_depth = blockquote_depth.saturating_sub(1);
-                        current_para_type = if blockquote_depth > 0 {
-                            ParagraphType::Blockquote
-                        } else {
-                            ParagraphType::Normal
-                        };
-                    }
-                    "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
-                        if !current_runs.is_empty() {
-                            paragraphs.push(FormattedParagraph {
-                                runs: std::mem::take(&mut current_runs),
-                                paragraph_type: current_para_type,
-                            });
-                        }
-                        current_para_type = if blockquote_depth > 0 {
-                            ParagraphType::Blockquote
-                        } else {
-                            ParagraphType::Normal
-                        };
-                    }
-                    "p" if !current_runs.is_empty() => {
-                        paragraphs.push(FormattedParagraph {
-                            runs: std::mem::take(&mut current_runs),
-                            paragraph_type: current_para_type,
-                        });
-                    }
-                    _ => {}
-                }
-            }
-            Ok(Event::Empty(e)) => {
-                let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
-                if tag_name == "br" {
-                    current_runs.push(FormattedRun {
-                        text: "\n".to_string(),
-                        bold: bold_depth > 0,
-                        italic: italic_depth > 0,
-                        underline: underline_depth > 0,
-                    });
-                }
-            }
-            Ok(Event::Text(e)) => {
-                let text = String::from_utf8_lossy(&e).to_string();
-                if !text.is_empty() {
-                    let transformed = transform_text(&text);
-                    if !transformed.is_empty() {
-                        current_runs.push(FormattedRun {
-                            text: transformed,
-                            bold: bold_depth > 0,
-                            italic: italic_depth > 0,
-                            underline: underline_depth > 0,
-                        });
-                    }
-                }
-            }
-            Ok(Event::GeneralRef(e)) => {
-                let entity = String::from_utf8_lossy(&e);
-                let decoded = match entity.as_ref() {
-                    "amp" => "&",
-                    "lt" => "<",
-                    "gt" => ">",
-                    "quot" => "\"",
-                    "apos" => "'",
-                    "nbsp" => " ",
-                    _ => "",
-                };
-                if !decoded.is_empty() {
-                    let transformed = transform_text(decoded);
-                    current_runs.push(FormattedRun {
-                        text: transformed,
-                        bold: bold_depth > 0,
-                        italic: italic_depth > 0,
-                        underline: underline_depth > 0,
-                    });
-                }
-            }
-            Ok(Event::Eof) => break,
-            Err(_) => {
-                let plain = strip_html(html);
-                let transformed = transform_text(&plain);
-                if !transformed.is_empty() {
-                    return vec![FormattedParagraph {
-                        runs: vec![FormattedRun {
-                            text: transformed,
-                            bold: false,
-                            italic: false,
-                            underline: false,
-                        }],
-                        paragraph_type: ParagraphType::Normal,
-                    }];
-                }
-                return vec![];
-            }
-            _ => {}
-        }
-        buf.clear();
-    }
-
-    // Don't forget any remaining runs
-    if !current_runs.is_empty() {
-        paragraphs.push(FormattedParagraph {
-            runs: current_runs,
-            paragraph_type: current_para_type,
-        });
-    }
-
-    // Filter out empty paragraphs and merge adjacent runs with same formatting
-    paragraphs
+    use crate::parsers::html::{html_paragraphs, ParagraphKind};
+    html_paragraphs(html, transform_text)
         .into_iter()
-        .map(|p| FormattedParagraph {
-            runs: merge_adjacent_runs(p.runs),
-            paragraph_type: p.paragraph_type,
+        .map(|paragraph| {
+            let runs = paragraph
+                .runs
+                .into_iter()
+                .map(|run| FormattedRun {
+                    text: run.text,
+                    bold: run.marks[0],
+                    italic: run.marks[1],
+                    underline: run.marks[3],
+                })
+                .collect();
+            FormattedParagraph {
+                runs: merge_adjacent_runs(runs),
+                paragraph_type: match paragraph.kind {
+                    ParagraphKind::Normal => ParagraphType::Normal,
+                    ParagraphKind::Heading(level) => ParagraphType::Heading(level),
+                    ParagraphKind::Blockquote => ParagraphType::Blockquote,
+                },
+            }
         })
-        .filter(|p| !p.runs.is_empty() && p.runs.iter().any(|r| !r.text.trim().is_empty()))
+        .filter(|p| p.runs.iter().any(|r| !r.text.trim().is_empty()))
         .collect()
 }
 
@@ -1387,6 +1225,7 @@ fn generate_longform_scene_frontmatter(
     scene: &Scene,
     characters: &[String],
     setting: Option<&String>,
+    references: &std::collections::BTreeMap<String, Vec<String>>,
 ) -> Result<String, String> {
     #[derive(Serialize)]
     struct SceneFrontmatter {
@@ -1400,6 +1239,8 @@ fn generate_longform_scene_frontmatter(
         setting: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         synopsis: Option<String>,
+        #[serde(flatten)]
+        references: std::collections::BTreeMap<String, Vec<String>>,
     }
 
     let frontmatter = SceneFrontmatter {
@@ -1409,6 +1250,15 @@ fn generate_longform_scene_frontmatter(
         characters: characters.iter().map(|c| format_wikilink(c)).collect(),
         setting: setting.map(|name| format_wikilink(name)),
         synopsis: scene.synopsis.clone().filter(|s| !s.trim().is_empty()),
+        references: references
+            .iter()
+            .map(|(kind, names)| {
+                (
+                    kind.clone(),
+                    names.iter().map(|name| format_wikilink(name)).collect(),
+                )
+            })
+            .collect(),
     };
 
     let mut yaml = serde_yaml::to_string(&frontmatter).map_err(|e| e.to_string())?;
@@ -1425,8 +1275,10 @@ fn generate_longform_scene_markdown(
     beats: &[Beat],
     characters: &[String],
     setting: Option<&String>,
+    references: &std::collections::BTreeMap<String, Vec<String>>,
 ) -> Result<String, String> {
-    let mut content = generate_longform_scene_frontmatter(project, scene, characters, setting)?;
+    let mut content =
+        generate_longform_scene_frontmatter(project, scene, characters, setting, references)?;
 
     if !scene.title.trim().is_empty() {
         content.push_str(&format!("# {}\n\n", scene.title.trim()));
@@ -1514,10 +1366,14 @@ fn generate_reference_note_markdown(note: ReferenceNoteContent<'_>) -> Result<St
     extra.remove("notes");
     extra.remove("note");
 
+    let previous_appearance = extra.remove("first_appearance");
     let frontmatter = ReferenceFrontmatter {
         note_type: note.note_type.to_string(),
         role: note.role.cloned(),
-        first_appearance: note.first_appearance.map(|scene| format_wikilink(scene)),
+        first_appearance: note
+            .first_appearance
+            .map(|scene| format_wikilink(scene))
+            .or(previous_appearance),
         attributes: extra,
     };
 
@@ -1939,9 +1795,17 @@ pub async fn export_to_longform(
     }
 
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let project = db::queries::get_project(&conn, &project_uuid)
+    export_to_longform_with_connection(&conn, project_uuid, options)
+}
+
+fn export_to_longform_with_connection(
+    conn: &rusqlite::Connection,
+    project_uuid: Uuid,
+    options: LongformExportOptions,
+) -> Result<ExportResult, String> {
+    let project = db::queries::get_project(conn, &project_uuid)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Project not found: {}", project_id))?;
+        .ok_or_else(|| format!("Project not found: {}", project_uuid))?;
 
     let output_base = PathBuf::from(&options.output_path);
     let export_name = options
@@ -1969,13 +1833,13 @@ pub async fn export_to_longform(
     match &options.scope {
         ExportScope::Project => {
             let chapters =
-                db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+                db::queries::get_chapters(conn, &project_uuid).map_err(|e| e.to_string())?;
             for chapter in chapters.iter().filter(|c| !c.archived) {
                 let scenes =
-                    db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
+                    db::queries::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
                 for scene in scenes.into_iter().filter(|s| !s.archived) {
                     let beats =
-                        db::queries::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
+                        db::queries::get_beats(conn, &scene.id).map_err(|e| e.to_string())?;
                     chapter_ids.insert(scene.chapter_id);
                     scenes_to_export.push((scene, beats));
                 }
@@ -1984,7 +1848,7 @@ pub async fn export_to_longform(
         ExportScope::Chapter(chapter_id) => {
             let chapter_uuid = Uuid::parse_str(chapter_id).map_err(|e| e.to_string())?;
             let chapters =
-                db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+                db::queries::get_chapters(conn, &project_uuid).map_err(|e| e.to_string())?;
             let chapter = chapters
                 .iter()
                 .find(|c| c.id == chapter_uuid)
@@ -1994,16 +1858,16 @@ pub async fn export_to_longform(
                 return Err("Cannot export an archived chapter".to_string());
             }
 
-            let scenes = db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
+            let scenes = db::queries::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
             for scene in scenes.into_iter().filter(|s| !s.archived) {
-                let beats = db::queries::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
+                let beats = db::queries::get_beats(conn, &scene.id).map_err(|e| e.to_string())?;
                 chapter_ids.insert(scene.chapter_id);
                 scenes_to_export.push((scene, beats));
             }
         }
         ExportScope::Scene(scene_id) => {
             let scene_uuid = Uuid::parse_str(scene_id).map_err(|e| e.to_string())?;
-            let scene = db::queries::get_scene_by_id(&conn, &scene_uuid)
+            let scene = db::queries::get_scene_by_id(conn, &scene_uuid)
                 .map_err(|e| e.to_string())?
                 .ok_or_else(|| format!("Scene not found: {}", scene_id))?;
 
@@ -2011,17 +1875,16 @@ pub async fn export_to_longform(
                 return Err("Cannot export an archived scene".to_string());
             }
 
-            let beats = db::queries::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
+            let beats = db::queries::get_beats(conn, &scene.id).map_err(|e| e.to_string())?;
             chapter_ids.insert(scene.chapter_id);
             scenes_to_export.push((scene, beats));
         }
     }
 
-    let characters =
-        db::queries::get_characters(&conn, &project_uuid).map_err(|e| e.to_string())?;
-    let locations = db::queries::get_locations(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    let characters = db::queries::get_characters(conn, &project_uuid).map_err(|e| e.to_string())?;
+    let locations = db::queries::get_locations(conn, &project_uuid).map_err(|e| e.to_string())?;
     let reference_items =
-        db::queries::get_all_reference_items(&conn, &project_uuid).map_err(|e| e.to_string())?;
+        db::queries::get_all_reference_items(conn, &project_uuid).map_err(|e| e.to_string())?;
     let mut character_map = HashMap::new();
     for character in characters {
         character_map.insert(character.id, character);
@@ -2035,12 +1898,12 @@ pub async fn export_to_longform(
         reference_item_map.insert(item.id, item);
     }
 
-    let scene_character_refs = db::queries::get_all_scene_character_refs(&conn, &project_uuid)
+    let scene_character_refs = db::queries::get_all_scene_character_refs(conn, &project_uuid)
         .map_err(|e| e.to_string())?;
-    let scene_location_refs = db::queries::get_all_scene_location_refs(&conn, &project_uuid)
-        .map_err(|e| e.to_string())?;
+    let scene_location_refs =
+        db::queries::get_all_scene_location_refs(conn, &project_uuid).map_err(|e| e.to_string())?;
     let scene_reference_item_refs =
-        db::queries::get_all_scene_reference_item_refs(&conn, &project_uuid)
+        db::queries::get_all_scene_reference_item_refs(conn, &project_uuid)
             .map_err(|e| e.to_string())?;
 
     let scene_ids: HashSet<Uuid> = scenes_to_export.iter().map(|(scene, _)| scene.id).collect();
@@ -2090,12 +1953,31 @@ pub async fn export_to_longform(
             .get(&scene.id)
             .and_then(|locations| locations.first())
             .and_then(|id| location_map.get(id).map(|l| l.name.clone()));
+        let mut reference_names = std::collections::BTreeMap::<String, Vec<String>>::new();
+        for id in scene_reference_item_map
+            .get(&scene.id)
+            .into_iter()
+            .flatten()
+        {
+            if let Some(item) = reference_item_map.get(id) {
+                if matches!(
+                    item.reference_type.as_str(),
+                    "items" | "objectives" | "organizations" | "timelines" | "custom"
+                ) {
+                    reference_names
+                        .entry(item.reference_type.clone())
+                        .or_default()
+                        .push(item.name.clone());
+                }
+            }
+        }
         let markdown = generate_longform_scene_markdown(
             &project,
             scene,
             beats,
             &character_names,
             setting.as_ref(),
+            &reference_names,
         )
         .map_err(|e| format!("Failed to generate scene markdown: {}", e))?;
         fs::write(&scene_file, markdown)
@@ -2122,6 +2004,7 @@ pub async fn export_to_longform(
         let mut item_scene_map: HashMap<Uuid, Vec<String>> = HashMap::new();
         let mut objective_scene_map: HashMap<Uuid, Vec<String>> = HashMap::new();
         let mut organization_scene_map: HashMap<Uuid, Vec<String>> = HashMap::new();
+        let mut extra_scene_map: HashMap<Uuid, Vec<String>> = HashMap::new();
         let scene_order: Vec<(Uuid, String)> = scenes_to_export
             .iter()
             .map(|(scene, _)| (scene.id, scene.title.clone()))
@@ -2166,7 +2049,12 @@ pub async fn export_to_longform(
                                     .or_default()
                                     .push(scene_title.clone());
                             }
-                            _ => {}
+                            _ => {
+                                extra_scene_map
+                                    .entry(*reference_item_id)
+                                    .or_default()
+                                    .push(scene_title.clone());
+                            }
                         }
                     }
                 }
@@ -2191,7 +2079,9 @@ pub async fn export_to_longform(
                     "organizations" => {
                         organization_scene_map.entry(*item_id).or_default();
                     }
-                    _ => {}
+                    _ => {
+                        extra_scene_map.entry(*item_id).or_default();
+                    }
                 }
             }
         }
@@ -2367,6 +2257,37 @@ pub async fn export_to_longform(
                         .map_err(|e| format!("Failed to write organization note: {}", e))?;
                     reference_files_created += 1;
                 }
+            }
+        }
+        let mut used_extra_names = HashMap::new();
+        for (item_id, scenes) in extra_scene_map {
+            if let Some(item) = reference_item_map.get(&item_id) {
+                let (folder, note_type) = if item.reference_type == "timelines" {
+                    ("timelines", "timeline")
+                } else {
+                    ("notes", "custom")
+                };
+                let directory = project_folder.join(folder);
+                fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+                let names = used_extra_names.entry(folder).or_insert_with(HashMap::new);
+                let stem = ensure_unique_scene_stem(sanitize_filename(&item.name), names);
+                let markdown = generate_reference_note_markdown(ReferenceNoteContent {
+                    note_type,
+                    name: &item.name,
+                    description: item.description.as_ref(),
+                    notes: item
+                        .attributes
+                        .get("notes")
+                        .or_else(|| item.attributes.get("note")),
+                    role: None,
+                    first_appearance: scenes.first(),
+                    appearances: &scenes,
+                    attributes: &item.attributes,
+                })
+                .map_err(|e| e.to_string())?;
+                fs::write(directory.join(format!("{stem}.md")), markdown)
+                    .map_err(|e| e.to_string())?;
+                reference_files_created += 1;
             }
         }
     }
@@ -4889,6 +4810,161 @@ fn append_to_scrivx(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn longform_exports_timeline_and_custom_notes_for_project_and_scene_scopes() {
+        use crate::models::ReferenceItem;
+        let (conn, project) = crate::parsers::novelwriter::tests::fixture();
+        let scene = db::get_all_project_scenes(&conn, &project.id)
+            .unwrap()
+            .remove(0);
+        for kind in ["timelines", "custom"] {
+            for linked in [true, false] {
+                let mut item = ReferenceItem::new(
+                    project.id,
+                    kind.into(),
+                    format!("{kind}-{linked}"),
+                    Some("Preserved description.\n\nSecond paragraph.\n\n## Era\n\nAfter the subheading.".into()),
+                    None,
+                );
+                item.attributes.insert("Era".into(), "Ancient".into());
+                item.attributes.insert(
+                    "notes".into(),
+                    "Keep these notes.\n\nAnd this paragraph.".into(),
+                );
+                db::insert_reference_item(&conn, &item).unwrap();
+                if linked {
+                    db::add_scene_reference_item_ref(&conn, &scene.id, &item.id).unwrap();
+                }
+            }
+        }
+        for scope in [
+            ExportScope::Project,
+            ExportScope::Scene(scene.id.to_string()),
+        ] {
+            let all = matches!(scope, ExportScope::Project);
+            let temp = tempfile::tempdir().unwrap();
+            let result = export_to_longform_with_connection(
+                &conn,
+                project.id,
+                LongformExportOptions {
+                    scope,
+                    output_path: temp.path().to_string_lossy().into_owned(),
+                    export_name: None,
+                    delete_existing: false,
+                    create_snapshot: false,
+                },
+            )
+            .unwrap();
+            let index = std::path::Path::new(&result.output_path)
+                .join(format!("{}.md", sanitize_filename(&project.name)));
+            let parsed = crate::parsers::parse_longform_index(&index).unwrap();
+            for kind in ["timelines", "custom"] {
+                let notes: Vec<_> = parsed
+                    .reference_items
+                    .iter()
+                    .filter(|item| item.reference_type == kind)
+                    .collect();
+                assert_eq!(notes.len(), if all { 2 } else { 1 });
+                assert!(parsed.project.reference_types.contains(&kind.to_string()));
+                for note in notes {
+                    assert_eq!(
+                        note.description.as_deref(),
+                        Some("Preserved description.\n\nSecond paragraph.\n\n## Era\n\nAfter the subheading.")
+                    );
+                    assert_eq!(note.attributes["Era"], "Ancient");
+                    assert_eq!(
+                        note.attributes["notes"],
+                        "Keep these notes.\n\nAnd this paragraph."
+                    );
+                    assert!(note.source_id.is_some());
+                    let linked = parsed
+                        .scene_reference_item_refs
+                        .iter()
+                        .any(|(_, id)| *id == note.id);
+                    assert_eq!(linked, note.name.ends_with("true"));
+                }
+            }
+            // Persist the imported models and export again: a round trip must
+            // not emit duplicate frontmatter keys or drop notes on the next pass.
+            let imported_conn = rusqlite::Connection::open_in_memory().unwrap();
+            db::initialize_schema(&imported_conn).unwrap();
+            db::insert_project(&imported_conn, &parsed.project).unwrap();
+            for chapter in &parsed.chapters {
+                db::insert_chapter(&imported_conn, chapter).unwrap();
+            }
+            for scene in &parsed.scenes {
+                db::insert_scene(&imported_conn, scene).unwrap();
+            }
+            for beat in &parsed.beats {
+                db::insert_beat(&imported_conn, beat).unwrap();
+            }
+            for item in &parsed.reference_items {
+                db::insert_reference_item(&imported_conn, item).unwrap();
+            }
+            for (scene, item) in &parsed.scene_reference_item_refs {
+                db::add_scene_reference_item_ref(&imported_conn, scene, item).unwrap();
+            }
+            let second = tempfile::tempdir().unwrap();
+            let exported = export_to_longform_with_connection(
+                &imported_conn,
+                parsed.project.id,
+                LongformExportOptions {
+                    scope: ExportScope::Project,
+                    output_path: second.path().to_string_lossy().into_owned(),
+                    export_name: None,
+                    delete_existing: false,
+                    create_snapshot: false,
+                },
+            )
+            .unwrap();
+            let index = std::path::Path::new(&exported.output_path)
+                .join(format!("{}.md", sanitize_filename(&parsed.project.name)));
+            let again = crate::parsers::parse_longform_index(&index).unwrap();
+            for item in parsed
+                .reference_items
+                .iter()
+                .filter(|item| matches!(item.reference_type.as_str(), "timelines" | "custom"))
+            {
+                let other = again
+                    .reference_items
+                    .iter()
+                    .find(|r| r.name == item.name && r.reference_type == item.reference_type)
+                    .unwrap();
+                assert_eq!(other.description, item.description);
+                assert_eq!(other.attributes, item.attributes);
+                assert_eq!(other.source_id, item.source_id);
+                assert_eq!(
+                    again
+                        .scene_reference_item_refs
+                        .iter()
+                        .any(|(_, id)| *id == other.id),
+                    item.name.ends_with("true")
+                );
+            }
+            for (kind, folder) in [("timelines", "timelines"), ("custom", "notes")] {
+                let dir = std::path::Path::new(&result.output_path).join(folder);
+                assert_eq!(
+                    std::fs::read_dir(&dir).unwrap().count(),
+                    if all { 2 } else { 1 }
+                );
+                let text = std::fs::read_to_string(dir.join(format!("{kind}-true.md"))).unwrap();
+                assert!(text.contains("Preserved description"));
+                assert!(text.contains("Ancient"));
+                assert!(text.contains("Arrival"));
+            }
+        }
+    }
+
+    #[test]
+    fn manuscript_html_walker_preserves_imported_delimiters() {
+        let paragraphs =
+            parse_html_to_paragraphs("<p>Tom & Jerry saw 1 < 2.</p><p><b>Still here.</b></p>");
+        assert_eq!(paragraphs.len(), 2);
+        assert_eq!(paragraphs[0].runs[0].text, "Tom & Jerry saw 1 < 2.");
+        assert_eq!(paragraphs[1].runs[0].text, "Still here.");
+        assert!(paragraphs[1].runs[0].bold);
+    }
+
     use super::*;
 
     #[test]
@@ -5897,6 +5973,7 @@ mod tests {
             &[beat],
             &["Sarah".to_string()],
             Some(&"Downtown Cafe".to_string()),
+            &Default::default(),
         )
         .unwrap();
         assert!(markdown.starts_with("---"));
@@ -7303,4 +7380,51 @@ mod tests {
         assert_eq!(escape_xml("normal text"), "normal text");
         assert_eq!(escape_xml("a & b < c"), "a &amp; b &lt; c");
     }
+}
+
+#[tauri::command]
+pub async fn export_to_novelwriter(
+    project_id: String,
+    output_path: String,
+    options: crate::parsers::novelwriter::NovelWriterExportOptions,
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ExportResult, String> {
+    if options.create_snapshot {
+        super::create_snapshot(
+            project_id.clone(),
+            super::CreateSnapshotOptions {
+                name: "Pre-novelWriter-export snapshot".into(),
+                description: Some("Automatic snapshot before novelWriter export".into()),
+                trigger_type: SnapshotTrigger::Export,
+            },
+            app_handle,
+            state.clone(),
+        )
+        .await?;
+    }
+    let id = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let count = crate::parsers::novelwriter::export_novelwriter_project(
+        &conn,
+        &id,
+        std::path::Path::new(&output_path),
+        &options,
+    )?;
+    let chapters = db::get_chapters(&conn, &id).map_err(|e| e.to_string())?;
+    let chapter_ids: std::collections::HashSet<_> = chapters
+        .iter()
+        .filter(|c| !c.archived)
+        .map(|c| c.id)
+        .collect();
+    Ok(ExportResult {
+        output_path,
+        files_created: count + 1,
+        chapters_exported: chapter_ids.len(),
+        scenes_exported: db::get_all_project_scenes(&conn, &id)
+            .map_err(|e| e.to_string())?
+            .iter()
+            .filter(|s| !s.archived && chapter_ids.contains(&s.chapter_id))
+            .count(),
+    })
 }

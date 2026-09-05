@@ -1,5 +1,5 @@
 import { Building2, MapPin, Package, Target, User } from "lucide-svelte";
-import type { ReferenceTypeId } from "./types";
+import type { FieldEntityType, ReferenceTypeId } from "./types";
 
 export interface ReferenceTypeOption {
   id: ReferenceTypeId;
@@ -51,6 +51,22 @@ export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
     bgClass: "bg-press-tag-purple/20",
     isDefault: false,
   },
+  {
+    id: "timelines",
+    label: "Timelines",
+    icon: Target,
+    accentClass: "text-press-tag-blue",
+    bgClass: "bg-press-tag-blue/20",
+    isDefault: false,
+  },
+  {
+    id: "custom",
+    label: "Notes",
+    icon: Package,
+    accentClass: "text-press-tag-green",
+    bgClass: "bg-press-tag-green/20",
+    isDefault: false,
+  },
 ];
 
 export const DEFAULT_REFERENCE_TYPES: ReferenceTypeId[] = REFERENCE_TYPE_OPTIONS.filter(
@@ -75,3 +91,13 @@ export function normalizeReferenceTypes(types?: string[] | null): ReferenceTypeI
 
   return result;
 }
+
+export const REFERENCE_FIELD_TYPES: Record<ReferenceTypeId, FieldEntityType> = {
+  characters: "character",
+  locations: "location",
+  items: "item",
+  objectives: "objective",
+  organizations: "organization",
+  timelines: "timeline",
+  custom: "custom",
+};

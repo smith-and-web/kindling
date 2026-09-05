@@ -23,6 +23,7 @@ pub mod feedback;
 mod fields;
 mod import;
 mod lock;
+mod novelwriter_sync;
 mod sample_project;
 mod screenplay_project;
 mod settings;

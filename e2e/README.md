@@ -146,6 +146,17 @@ For tests to work, add these `data-testid` attributes to components:
 - `reimport-summary` - Summary text content
 - `reimport-spinner` - Loading spinner
 
+### novelWriter export and sync
+- `export-format-novelwriter` - novelWriter format radio
+- `novelwriter-beat-comments` - Include beat comments checkbox
+- `novelwriter-notes` - Include characters, locations and notes checkbox
+- `export-confirm` - Export confirmation button
+- `sync-prose-diff` - Full before/after prose block
+- `sync-change-checkbox` - Individual change selection (`data-change-id` identifies the change)
+- `sync-preview-dialog` - Sync preview dialog
+- `sync-confirm` - Apply selected changes
+- `sync-summary-dialog` - Sync results dialog
+
 ## Debugging
 
 ### View test output

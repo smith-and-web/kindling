@@ -42,62 +42,28 @@
     loading = true;
     error = null;
     try {
-      const [characters, locations, items, objectives, organizations] = await Promise.all([
-        invoke<Character[]>("get_characters", { projectId }).then((rows) =>
-          rows.map((row) => ({
+      const groups = await Promise.all(
+        REFERENCE_TYPE_OPTIONS.map(async ({ id }) => {
+          const command =
+            id === "characters"
+              ? "get_characters"
+              : id === "locations"
+                ? "get_locations"
+                : "get_references";
+          const rows = await invoke<Array<Character | Location | ReferenceItem>>(command, {
+            projectId,
+            ...(command === "get_references" ? { referenceType: id } : {}),
+          });
+          return rows.map((row) => ({
             id: row.id,
             name: row.name,
             description: row.description,
-            reference_type: "characters" as ReferenceTypeId,
-            original_type: "characters" as ReferenceTypeId,
-          }))
-        ),
-        invoke<Location[]>("get_locations", { projectId }).then((rows) =>
-          rows.map((row) => ({
-            id: row.id,
-            name: row.name,
-            description: row.description,
-            reference_type: "locations" as ReferenceTypeId,
-            original_type: "locations" as ReferenceTypeId,
-          }))
-        ),
-        invoke<ReferenceItem[]>("get_references", { projectId, referenceType: "items" }).then(
-          (rows) =>
-            rows.map((row) => ({
-              id: row.id,
-              name: row.name,
-              description: row.description,
-              reference_type: "items" as ReferenceTypeId,
-              original_type: "items" as ReferenceTypeId,
-            }))
-        ),
-        invoke<ReferenceItem[]>("get_references", {
-          projectId,
-          referenceType: "objectives",
-        }).then((rows) =>
-          rows.map((row) => ({
-            id: row.id,
-            name: row.name,
-            description: row.description,
-            reference_type: "objectives" as ReferenceTypeId,
-            original_type: "objectives" as ReferenceTypeId,
-          }))
-        ),
-        invoke<ReferenceItem[]>("get_references", {
-          projectId,
-          referenceType: "organizations",
-        }).then((rows) =>
-          rows.map((row) => ({
-            id: row.id,
-            name: row.name,
-            description: row.description,
-            reference_type: "organizations" as ReferenceTypeId,
-            original_type: "organizations" as ReferenceTypeId,
-          }))
-        ),
-      ]);
-
-      references = [...characters, ...locations, ...items, ...objectives, ...organizations];
+            reference_type: id,
+            original_type: id,
+          }));
+        })
+      );
+      references = groups.flat();
       return references.length === 0;
     } catch (e) {
       console.error("Failed to load reference classifications:", e);

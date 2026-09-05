@@ -97,7 +97,7 @@
   ];
 
   const sceneReferenceOptions = REFERENCE_TYPE_OPTIONS.filter(
-    (option) => option.id === "items" || option.id === "objectives" || option.id === "organizations"
+    (option) => option.id !== "characters" && option.id !== "locations"
   );
 
   let sceneReferenceItems = $state<Record<ReferenceTypeId, ReferenceItem[]>>(
@@ -976,9 +976,7 @@
                   {/each}
                 </div>
               {:else if !sceneReferenceLoading}
-                <div class="text-press-ui text-press-muted">
-                  No linked items, objectives, or organizations.
-                </div>
+                <div class="text-press-ui text-press-muted">No linked reference notes.</div>
               {/if}
             {/if}
           </section>

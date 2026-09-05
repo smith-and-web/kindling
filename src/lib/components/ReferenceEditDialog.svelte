@@ -1,7 +1,8 @@
 <script lang="ts">
+  import { REFERENCE_FIELD_TYPES } from "../referenceTypes";
   import { invoke } from "@tauri-apps/api/core";
   import { Loader2, Plus, Trash2, X } from "lucide-svelte";
-  import type { ReferenceItem, FieldDefinition, FieldValue, FieldEntityType } from "../types";
+  import type { ReferenceItem, FieldDefinition, FieldValue } from "../types";
   import type { ReferenceTypeOption } from "../referenceTypes";
   import FieldRenderer from "./FieldRenderer.svelte";
   import Tooltip from "./Tooltip.svelte";
@@ -27,13 +28,7 @@
 
   type AttributeRow = { id: string; key: string; value: string };
 
-  const entityTypeMap: Record<string, FieldEntityType> = {
-    characters: "character",
-    locations: "location",
-    items: "item",
-    objectives: "objective",
-    organizations: "organization",
-  };
+  const entityTypeMap = REFERENCE_FIELD_TYPES;
 
   let name = $state("");
   let description = $state("");

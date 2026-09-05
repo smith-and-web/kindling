@@ -21,6 +21,7 @@
   let { projectId, syncPreview, onClose, onSyncComplete }: Props = $props();
 
   let syncing = $state(false);
+  let error = $state<string | null>(null);
   let selectedChanges = new SvelteSet<string>();
   let selectedAdditions = new SvelteSet<string>();
 
@@ -73,6 +74,7 @@
 
   async function applySync() {
     syncing = true;
+    error = null;
     try {
       const summary = await invoke<ReimportSummary>("apply_sync", {
         projectId,
@@ -82,6 +84,7 @@
       onSyncComplete(summary);
     } catch (e) {
       console.error("Failed to apply sync:", e);
+      error = String(e);
     } finally {
       syncing = false;
     }
@@ -259,6 +262,8 @@
                 >
                   <input
                     type="checkbox"
+                    data-testid="sync-change-checkbox"
+                    data-change-id={change.id}
                     checked={selectedChanges.has(change.id)}
                     onchange={() => toggleChange(change.id)}
                     class="mt-0.5 w-5 h-5 rounded border-2 border-press-border bg-transparent text-press-accent-text focus:ring-press-focus focus:ring-offset-0 cursor-pointer"
@@ -273,18 +278,35 @@
                       <span class="text-press-text font-medium truncate">{change.item_title}</span>
                       <span class="text-press-muted text-press-eyebrow">({change.field})</span>
                     </div>
-                    <div class="text-press-ui space-y-1 font-mono">
-                      <div class="flex gap-2 text-press-error">
-                        <span class="flex-shrink-0">-</span>
-                        <span class="line-through text-press-disabled-text truncate"
-                          >{change.current_value || "(empty)"}</span
-                        >
+                    {#if change.field === "prose"}
+                      <div class="space-y-3" data-testid="sync-prose-diff">
+                        <p class="text-press-small text-press-muted">
+                          Accepting replaces the prose shown below. Scene replacements without beat
+                          comments keep planning beats and put the incoming text in the first beat.
+                        </p>
+                        <div>
+                          <p class="text-press-small text-press-muted">Current prose</p>
+                          <div class="prose-review">{change.current_value || "(empty)"}</div>
+                        </div>
+                        <div>
+                          <p class="text-press-small text-press-muted">Incoming prose</p>
+                          <div class="prose-review">{change.new_value || "(empty)"}</div>
+                        </div>
                       </div>
-                      <div class="flex gap-2 text-press-success">
-                        <span class="flex-shrink-0">+</span>
-                        <span class="truncate">{change.new_value || "(empty)"}</span>
+                    {:else}
+                      <div class="text-press-ui space-y-1 font-mono">
+                        <div class="flex gap-2 text-press-error">
+                          <span class="flex-shrink-0">-</span>
+                          <span class="line-through text-press-disabled-text truncate"
+                            >{change.current_value || "(empty)"}</span
+                          >
+                        </div>
+                        <div class="flex gap-2 text-press-success">
+                          <span class="flex-shrink-0">+</span>
+                          <span class="truncate">{change.new_value || "(empty)"}</span>
+                        </div>
                       </div>
-                    </div>
+                    {/if}
                   </div>
                 </label>
               {/each}
@@ -293,6 +315,8 @@
         </div>
       </div>
     {/if}
+
+    {#if error}<p role="alert" class="px-8 text-press-error">Sync failed: {error}</p>{/if}
 
     <!-- Footer -->
     <div
@@ -329,3 +353,14 @@
     </div>
   </div>
 </div>
+
+<style>
+  .prose-review {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-family: var(--font-body);
+    font-size: var(--text-body);
+    color: var(--color-text);
+    max-width: var(--measure);
+  }
+</style>

@@ -131,6 +131,7 @@ pub fn run() {
             commands::import_markdown,
             commands::import_longform,
             commands::import_scrivener,
+            commands::import_novelwriter,
             commands::preview_import,
             commands::create_sample_project,
             commands::create_blank_project,
@@ -213,6 +214,7 @@ pub fn run() {
             commands::generate_treatment,
             commands::preview_scrivener_matches,
             commands::export_to_scrivener,
+            commands::export_to_novelwriter,
             // Snapshot commands
             commands::create_snapshot,
             commands::list_snapshots,

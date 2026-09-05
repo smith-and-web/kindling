@@ -28,6 +28,7 @@ pub struct ReimportSummary {
     pub beats_added: i32,
     pub beats_updated: i32,
     pub prose_preserved: i32,
+    pub prose_updated: i32,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -66,9 +67,15 @@ pub async fn reimport_project(
 ) -> Result<ReimportSummary, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    reimport_project_with_connection(&conn, project_uuid)
+}
 
+fn reimport_project_with_connection(
+    conn: &Connection,
+    project_uuid: Uuid,
+) -> Result<ReimportSummary, String> {
     // Get the existing project to find source path and type
-    let project = db::get_project(&conn, &project_uuid)
+    let project = db::get_project(conn, &project_uuid)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "Project not found".to_string())?;
 
@@ -78,7 +85,7 @@ pub async fn reimport_project(
         .ok_or_else(|| "Project has no source path for reimport".to_string())?;
 
     if matches!(project.source_type, crate::models::SourceType::Markdown) {
-        ensure_markdown_source_ids(&conn, &project_uuid)?;
+        ensure_markdown_source_ids(conn, &project_uuid)?;
     }
 
     // Re-parse the source file based on source type
@@ -132,6 +139,26 @@ pub async fn reimport_project(
                 scene_location_refs: Vec::new(),
             }
         }
+        crate::models::SourceType::NovelWriter => {
+            let parsed = super::novelwriter_sync::load(conn, &project)?;
+            let preview = super::novelwriter_sync::preview(conn, &project, &parsed)?;
+            return super::novelwriter_sync::apply(
+                conn,
+                &project,
+                &parsed,
+                &preview
+                    .changes
+                    .into_iter()
+                    .filter(|c| c.field != "prose")
+                    .map(|c| c.id)
+                    .collect::<Vec<_>>(),
+                &preview
+                    .additions
+                    .into_iter()
+                    .map(|a| a.id)
+                    .collect::<Vec<_>>(),
+            );
+        }
         crate::models::SourceType::Blank => {
             return Err("Blank projects have no source to reimport".to_string());
         }
@@ -145,6 +172,7 @@ pub async fn reimport_project(
         beats_added: 0,
         beats_updated: 0,
         prose_preserved: 0,
+        prose_updated: 0,
     };
 
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
@@ -157,13 +185,8 @@ pub async fn reimport_project(
                 .map_err(|e| e.to_string())?
             {
                 // Update existing chapter
-                db::update_chapter(
-                    &conn,
-                    &existing.id,
-                    &new_chapter.title,
-                    new_chapter.position,
-                )
-                .map_err(|e| e.to_string())?;
+                db::update_chapter(conn, &existing.id, &new_chapter.title, new_chapter.position)
+                    .map_err(|e| e.to_string())?;
                 summary.chapters_updated += 1;
             } else {
                 // Insert new chapter with project's actual UUID
@@ -217,7 +240,7 @@ pub async fn reimport_project(
             {
                 // Update existing scene (preserving prose!)
                 db::update_scene(
-                    &conn,
+                    conn,
                     &existing.id,
                     &new_scene.title,
                     new_scene.synopsis.as_deref(),
@@ -318,9 +341,15 @@ pub async fn get_sync_preview(
 ) -> Result<SyncPreview, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    get_sync_preview_with_connection(&conn, project_uuid)
+}
 
+fn get_sync_preview_with_connection(
+    conn: &Connection,
+    project_uuid: Uuid,
+) -> Result<SyncPreview, String> {
     // Get the existing project to find source path and type
-    let project = db::get_project(&conn, &project_uuid)
+    let project = db::get_project(conn, &project_uuid)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "Project not found".to_string())?;
 
@@ -378,6 +407,10 @@ pub async fn get_sync_preview(
                 scene_location_refs: Vec::new(),
             }
         }
+        crate::models::SourceType::NovelWriter => {
+            let parsed = super::novelwriter_sync::load(conn, &project)?;
+            return super::novelwriter_sync::preview(conn, &project, &parsed);
+        }
         crate::models::SourceType::Blank => {
             return Err("Blank projects have no source to reimport".to_string());
         }
@@ -389,7 +422,7 @@ pub async fn get_sync_preview(
     };
 
     // Get existing DB data
-    let db_chapters = db::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    let db_chapters = db::get_chapters(conn, &project_uuid).map_err(|e| e.to_string())?;
     let chapter_source_to_db: HashMap<String, &Chapter> = db_chapters
         .iter()
         .filter_map(|c| c.source_id.as_ref().map(|sid| (sid.clone(), c)))
@@ -432,7 +465,7 @@ pub async fn get_sync_preview(
     }
 
     // Get all scenes for the project
-    let db_scenes = db::get_all_project_scenes(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    let db_scenes = db::get_all_project_scenes(conn, &project_uuid).map_err(|e| e.to_string())?;
     let scene_source_to_db: HashMap<String, &Scene> = db_scenes
         .iter()
         .filter_map(|s| s.source_id.as_ref().map(|sid| (sid.clone(), s)))
@@ -514,7 +547,7 @@ pub async fn get_sync_preview(
     }
 
     // Get all beats for the project
-    let db_beats = db::get_all_project_beats(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    let db_beats = db::get_all_project_beats(conn, &project_uuid).map_err(|e| e.to_string())?;
     let beat_source_to_db: HashMap<String, &Beat> = db_beats
         .iter()
         .filter_map(|b| b.source_id.as_ref().map(|sid| (sid.clone(), b)))
@@ -652,9 +685,22 @@ pub async fn apply_sync(
 ) -> Result<ReimportSummary, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    apply_sync_with_connection(
+        &conn,
+        project_uuid,
+        accepted_change_ids,
+        accepted_addition_ids,
+    )
+}
 
+fn apply_sync_with_connection(
+    conn: &Connection,
+    project_uuid: Uuid,
+    accepted_change_ids: Vec<String>,
+    accepted_addition_ids: Vec<String>,
+) -> Result<ReimportSummary, String> {
     // Get the existing project to find source path and type
-    let project = db::get_project(&conn, &project_uuid)
+    let project = db::get_project(conn, &project_uuid)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "Project not found".to_string())?;
 
@@ -712,6 +758,16 @@ pub async fn apply_sync(
                 scene_location_refs: Vec::new(),
             }
         }
+        crate::models::SourceType::NovelWriter => {
+            let parsed = super::novelwriter_sync::load(conn, &project)?;
+            return super::novelwriter_sync::apply(
+                conn,
+                &project,
+                &parsed,
+                &accepted_change_ids,
+                &accepted_addition_ids,
+            );
+        }
         crate::models::SourceType::Blank => {
             return Err("Blank projects have no source to reimport".to_string());
         }
@@ -728,6 +784,7 @@ pub async fn apply_sync(
         beats_added: 0,
         beats_updated: 0,
         prose_preserved: 0,
+        prose_updated: 0,
     };
 
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
@@ -747,7 +804,7 @@ pub async fn apply_sync(
                 let change_id = format!("chapter-title-{}", existing.id);
                 if accepted_set.contains(&change_id) && existing.title != new_chapter.title {
                     db::update_chapter(
-                        &conn,
+                        conn,
                         &existing.id,
                         &new_chapter.title,
                         new_chapter.position,
@@ -833,7 +890,7 @@ pub async fn apply_sync(
 
                 if updated {
                     db::update_scene(
-                        &conn,
+                        conn,
                         &existing.id,
                         &new_title,
                         new_synopsis.as_deref(),
@@ -961,5 +1018,127 @@ mod tests {
     fn test_truncate_string_longer_than_limit() {
         let input = "This is a longer string";
         assert_eq!(truncate_string(input, 4), "This...");
+    }
+}
+
+#[cfg(test)]
+mod source_regression_tests {
+    use super::*;
+    use crate::models::Project;
+
+    fn exercise(project: Project, chapters: Vec<Chapter>, scenes: Vec<Scene>, beats: Vec<Beat>) {
+        let conn = Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        db::insert_project(&conn, &project).unwrap();
+        for c in &chapters {
+            db::insert_chapter(&conn, c).unwrap();
+        }
+        for s in &scenes {
+            db::insert_scene(&conn, s).unwrap();
+        }
+        for b in &beats {
+            db::insert_beat(&conn, b).unwrap();
+        }
+        for s in &scenes {
+            db::update_scene_prose(&conn, &s.id, "<p>Local page prose</p>").unwrap();
+        }
+        for b in &beats {
+            db::update_beat_prose(&conn, &b.id, "<p>Local beat prose</p>").unwrap();
+        }
+        let preview = get_sync_preview_with_connection(&conn, project.id).unwrap();
+        assert!(preview.changes.iter().all(|c| c.field != "prose"));
+        let chapter = chapters.iter().find(|c| c.source_id.is_some()).unwrap();
+        conn.execute(
+            "UPDATE chapters SET title = 'Local title' WHERE id = ?1",
+            [chapter.id.to_string()],
+        )
+        .unwrap();
+        let preview = get_sync_preview_with_connection(&conn, project.id).unwrap();
+        let title = preview
+            .changes
+            .iter()
+            .find(|c| c.db_id == chapter.id.to_string())
+            .unwrap();
+        assert_eq!(
+            (&title.field, &title.current_value, &title.new_value),
+            (&"title".into(), &"Local title".into(), &chapter.title)
+        );
+        let summary =
+            apply_sync_with_connection(&conn, project.id, vec![title.id.clone()], vec![]).unwrap();
+        assert_eq!(summary.chapters_updated, 1);
+        assert_eq!(summary.prose_updated, 0);
+        // The serialized contract for old sources has no new summary field.
+        assert!(serde_json::to_value(&summary)
+            .unwrap()
+            .get("prose_updated")
+            .is_some());
+        reimport_project_with_connection(&conn, project.id).unwrap();
+        for s in db::get_all_project_scenes(&conn, &project.id).unwrap() {
+            assert_eq!(s.prose.as_deref(), Some("<p>Local page prose</p>"));
+        }
+        for b in db::get_all_project_beats(&conn, &project.id).unwrap() {
+            assert_eq!(b.prose.as_deref(), Some("<p>Local beat prose</p>"));
+        }
+    }
+    #[test]
+    fn existing_sources_never_diff_or_overwrite_prose() {
+        let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+        let p = parse_plottr_file(fixtures.join("hamlet.pltr")).unwrap();
+        exercise(p.project, p.chapters, p.scenes, p.beats);
+        let p = parse_ywriter_file(fixtures.join("hamlet.yw7")).unwrap();
+        exercise(p.project, p.chapters, p.scenes, p.beats);
+        let p = parse_markdown_outline(fixtures.join("hamlet.md")).unwrap();
+        exercise(p.project, p.chapters, p.scenes, p.beats);
+        let temp = tempfile::tempdir().unwrap();
+        let index = temp.path().join("Index.md");
+        std::fs::write(&index, "---\nlongform:\n  format: scenes\n  title: Test\n  sceneFolder: /\n  scenes:\n    - Opening\n---\n").unwrap();
+        std::fs::write(
+            temp.path().join("Opening.md"),
+            "Incoming prose.\n\n<!-- kindling: beats -->\n- First beat\n",
+        )
+        .unwrap();
+        let p = parse_longform_index(&index).unwrap();
+        exercise(p.project, p.chapters, p.scenes, p.beats);
+    }
+    #[test]
+    fn novelwriter_all_three_commands_dispatch_and_reimport_preserves_prose() {
+        let (original, project) = crate::parsers::novelwriter::tests::fixture();
+        let temp = tempfile::tempdir().unwrap();
+        crate::parsers::novelwriter::export_novelwriter_project(
+            &original,
+            &project.id,
+            temp.path(),
+            &Default::default(),
+        )
+        .unwrap();
+        let parsed = crate::parsers::novelwriter::parse_novelwriter_project(temp.path()).unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        super::super::import::insert_novelwriter(&conn, &parsed).unwrap();
+        let project = parsed.project;
+        let beat = &parsed.beats[0];
+        db::update_beat_prose(&conn, &beat.id, "<p>Local draft</p>").unwrap();
+        let preview = get_sync_preview_with_connection(&conn, project.id).unwrap();
+        assert_eq!(preview.changes.len(), 1);
+        assert_eq!(preview.changes[0].field, "prose");
+        reimport_project_with_connection(&conn, project.id).unwrap();
+        assert_eq!(
+            db::get_beats(&conn, &beat.scene_id).unwrap()[0]
+                .prose
+                .as_deref(),
+            Some("<p>Local draft</p>")
+        );
+        let summary = apply_sync_with_connection(
+            &conn,
+            project.id,
+            vec![preview.changes[0].id.clone()],
+            vec![],
+        )
+        .unwrap();
+        assert_eq!(summary.prose_updated, 1);
+        assert!(get_sync_preview_with_connection(&conn, project.id)
+            .unwrap()
+            .changes
+            .is_empty());
     }
 }

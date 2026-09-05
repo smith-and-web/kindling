@@ -8,6 +8,7 @@
   - Sync button for reimporting
 -->
 <script lang="ts">
+  import { supportsSync } from "../importFormats";
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
@@ -1282,7 +1283,7 @@
               <Settings class="w-4 h-4" />
             </button>
           </Tooltip>
-          {#if currentProject.value.source_path}
+          {#if currentProject.value.source_path && supportsSync(currentProject.value.source_type)}
             <Tooltip text="Sync from source" position="bottom">
               <button
                 data-testid="sync-button"

@@ -8,10 +8,11 @@
   - Word target
 -->
 <script lang="ts">
+  import { REFERENCE_FIELD_TYPES, REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
   import { invoke } from "@tauri-apps/api/core";
   import { X, Loader2, BookOpen } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
-  import type { Project, FieldEntityType } from "../types";
+  import type { Project } from "../types";
   import { normalizeReferenceTypes, DEFAULT_REFERENCE_TYPES } from "../referenceTypes";
   import FieldDefinitionManager from "./FieldDefinitionManager.svelte";
   import TagManager from "./TagManager.svelte";
@@ -210,13 +211,7 @@
         {@const enabledTypes = normalizeReferenceTypes(
           currentProject.value.reference_types ?? DEFAULT_REFERENCE_TYPES
         )}
-        {@const entityTypeMap = {
-          characters: { entity: "character" as FieldEntityType, label: "Character" },
-          locations: { entity: "location" as FieldEntityType, label: "Location" },
-          items: { entity: "item" as FieldEntityType, label: "Item" },
-          objectives: { entity: "objective" as FieldEntityType, label: "Objective" },
-          organizations: { entity: "organization" as FieldEntityType, label: "Organization" },
-        }}
+
         <div class="border-t border-press-border pt-4">
           <h3 class="text-press-ui font-medium text-press-text mb-3">Custom Fields</h3>
           <p class="text-press-eyebrow text-press-muted mb-3">
@@ -225,11 +220,11 @@
           </p>
           <div class="space-y-4">
             {#each enabledTypes as refType}
-              {@const mapping = entityTypeMap[refType as keyof typeof entityTypeMap]}
+              {@const mapping = REFERENCE_TYPE_OPTIONS.find((option) => option.id === refType)}
               {#if mapping}
                 <FieldDefinitionManager
                   projectId={currentProject.value.id}
-                  entityType={mapping.entity}
+                  entityType={REFERENCE_FIELD_TYPES[refType]}
                   entityLabel={mapping.label}
                 />
               {/if}

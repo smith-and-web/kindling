@@ -17,13 +17,16 @@ const app = mount(App, {
   target: document.getElementById("app")!,
 });
 
+import { IMPORT_COMMANDS, isImportType, type ImportType } from "./lib/importFormats";
+
 // Expose Tauri invoke and store helpers for E2E testing
 // This allows WebDriver tests to call Tauri commands and update stores directly
 declare global {
   interface Window {
     __KINDLING_TEST__?: {
       invoke: typeof invoke;
-      importProject: (path: string) => Promise<Project>;
+      importCommands: typeof IMPORT_COMMANDS;
+      importProject: (path: string, format?: ImportType) => Promise<Project>;
       disableGuidance: () => void;
     };
   }
@@ -32,13 +35,16 @@ declare global {
 // Helper to import a project and update the frontend state
 // For E2E testing, this also loads chapters directly rather than relying on $effect
 async function importProject(
-  path: string
+  path: string,
+  format: ImportType = "plottr"
 ): Promise<
   Project & { _debug?: { chapterCount: number; storeChapterCount: number; hasProject: boolean } }
 > {
   ui.startImport();
   try {
-    const project = await invoke<Project>("import_plottr", { path });
+    const command = isImportType(format) ? IMPORT_COMMANDS[format] : undefined;
+    if (!command) throw new Error(`Unsupported test import format: ${format}`);
+    const project = await invoke<Project>(command, { path });
     currentProject.setProject(project);
 
     // Load and set chapters directly for E2E testing
@@ -74,6 +80,7 @@ async function importProject(
 // Always expose for E2E testing - the test helper checks for this
 window.__KINDLING_TEST__ = {
   invoke,
+  importCommands: IMPORT_COMMANDS,
   importProject,
   disableGuidance: () => ui.setGuidanceEnabled(false),
 };
