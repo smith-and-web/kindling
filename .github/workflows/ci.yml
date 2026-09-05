@@ -136,12 +136,52 @@ jobs:
       - name: Test
         run: cargo test --all-features
 
+  # Does this PR touch the build plumbing itself?
+  #
+  # The Build job below is expensive (three platforms), so it normally only runs
+  # on pushes to main and on the weekly schedule. That left one blind spot: a
+  # change to the build command or the Tauri config could not be verified before
+  # merging, and a Windows-only quoting bug shipped through exactly that gap.
+  # When a PR edits this workflow or the Tauri config, build it properly.
+  plumbing:
+    name: Detect build-plumbing changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - id: check
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          files=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          echo "changed files:"
+          echo "$files"
+          if echo "$files" | grep -qE '^(\.github/workflows/|src-tauri/tauri\..*\.json|src-tauri/Cargo\.(toml|lock)|package(-lock)?\.json)'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "-> build plumbing touched; the Build job will run"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "-> no build plumbing touched; the Build job will be skipped"
+          fi
+
   # Build check (ensures the full app can build)
-  # Only runs on push to main or scheduled runs, not on PRs
+  # Runs on pushes to main, on the schedule, and on PRs that touch the build
+  # plumbing (see the plumbing job above).
   build:
     name: Build
-    needs: [frontend, rust]
-    if: github.event_name != 'pull_request'
+    needs: [frontend, rust, plumbing]
+    if: |
+      always()
+      && needs.frontend.result == 'success'
+      && needs.rust.result == 'success'
+      && (github.event_name != 'pull_request'
+          || needs.plumbing.outputs.changed == 'true')
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -192,8 +232,13 @@ jobs:
 
       # Build-verification only; updater signing happens in release.yml.
       # Disable updater artifacts so the build doesn't require a signing key.
+      # The updater artifacts are skipped here because signing them needs
+      # TAURI_SIGNING_PRIVATE_KEY, which this job has no business holding — the
+      # release workflow does that. Passed as a config *file* rather than inline
+      # JSON on purpose: the inline form lost its quotes to pwsh on the Windows
+      # runner and failed with "key must be a string".
       - name: Build
-        run: npm run tauri build -- --target ${{ matrix.target }} --config '{"bundle":{"createUpdaterArtifacts":false}}'
+        run: npm run tauri build -- --target ${{ matrix.target }} --config src-tauri/tauri.build-check.conf.json
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
