@@ -11,8 +11,23 @@ function resolveTheme(pref: ThemePreference): "dark" | "light" {
   return pref;
 }
 
+/**
+ * Class applied to <html> for the duration of a theme switch. app.css disables
+ * transitions under it so every surface flips at once instead of each element
+ * animating from its old colour, and the forced style flush below makes WebKit
+ * recompute var()-driven colours on the side panels immediately.
+ */
+const SWITCHING_CLASS = "theme-switching";
+
 function applyTheme(theme: "dark" | "light") {
-  document.documentElement.setAttribute("data-theme", theme);
+  const root = document.documentElement;
+  root.classList?.add(SWITCHING_CLASS);
+  root.setAttribute("data-theme", theme);
+  // Reading a layout property forces a synchronous style recalculation.
+  void root.offsetHeight;
+  const release = () => root.classList?.remove(SWITCHING_CLASS);
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(release);
+  else release();
 }
 
 export function getStoredPreference(): ThemePreference {

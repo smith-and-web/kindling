@@ -261,6 +261,7 @@
       </div>
       <div class="flex items-center gap-3">
         <button
+          data-testid="snapshot-create-button"
           type="button"
           onclick={openCreateDialog}
           disabled={creating}
@@ -275,6 +276,7 @@
             onclick={onClose}
             class="p-1.5 text-press-muted hover:text-press-text hover:bg-press-sunken rounded-lg transition-colors"
             aria-label="Close"
+            data-testid="snapshots-close"
           >
             <X class="w-5 h-5" />
           </button>
@@ -461,6 +463,7 @@
             Cancel
           </button>
           <button
+            data-testid="snapshot-confirm-create"
             type="button"
             onclick={createSnapshot}
             disabled={!newSnapshotName.trim() || creating}

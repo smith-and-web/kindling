@@ -51,6 +51,7 @@
         onclick={onClose}
         class="p-2 text-press-muted hover:text-press-text hover:bg-press-sunken rounded-lg transition-colors"
         aria-label="Close"
+        data-testid="quick-start-close"
       >
         <X class="w-5 h-5" />
       </button>

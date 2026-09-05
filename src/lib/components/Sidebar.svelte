@@ -980,11 +980,20 @@
   function openContextMenu(e: MouseEvent, type: "chapter" | "scene", item: Chapter | Scene) {
     e.preventDefault();
     e.stopPropagation();
+    // Keyboard activation (Enter/Space on the menu button) and synthetic clicks
+    // carry no pointer position, so anchor the menu to the button instead of (0, 0).
+    let x = e.clientX;
+    let y = e.clientY;
+    if (x === 0 && y === 0 && e.currentTarget instanceof globalThis.HTMLElement) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      x = rect.left;
+      y = rect.bottom;
+    }
     contextMenu = {
       type,
       id: item.id,
-      x: e.clientX,
-      y: e.clientY,
+      x,
+      y,
       item,
     };
   }
@@ -1292,6 +1301,7 @@
                 onclick={() => (showMoreMenu = !showMoreMenu)}
                 class="p-1.5 text-press-muted hover:text-press-text hover:bg-press-sunken rounded transition-colors"
                 aria-label="More actions"
+                data-testid="more-actions-button"
               >
                 <MoreVertical class="w-4 h-4" />
               </button>

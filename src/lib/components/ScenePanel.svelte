@@ -687,6 +687,7 @@
               <div class="flex bg-press-sunken rounded-lg p-0.5">
                 <Tooltip text="Beat cards" position="top">
                   <button
+                    data-testid="view-beats"
                     onclick={() => switchEditorMode("beat")}
                     disabled={switchingMode || isLocked}
                     class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-press-ui transition-colors {scene.editor_mode ===
@@ -700,6 +701,7 @@
                 </Tooltip>
                 <Tooltip text="Full page prose" position="top">
                   <button
+                    data-testid="view-page"
                     onclick={() => switchEditorMode("page")}
                     disabled={switchingMode || isLocked}
                     class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-press-ui transition-colors {scene.editor_mode ===

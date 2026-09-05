@@ -122,6 +122,7 @@
     role="dialog"
     aria-modal="true"
     aria-label="Command palette"
+    data-testid="command-palette"
   >
     <!-- Search input -->
     <div class="flex items-center gap-2 border-b border-press-border px-4 py-3">

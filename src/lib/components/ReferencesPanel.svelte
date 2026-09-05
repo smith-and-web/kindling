@@ -868,6 +868,7 @@
             onclick={openCreateDialog}
             class="text-press-muted hover:text-press-text p-1 disabled:cursor-not-allowed"
             aria-label="Add reference"
+            data-testid="add-reference-button"
             disabled={!activeTab}
           >
             <Plus class="w-4 h-4" />
@@ -1078,7 +1079,7 @@
               <!-- Clickable area for expand/collapse -->
               <button
                 onclick={() => toggleExpanded(reference.id)}
-                class="flex-1 flex items-center gap-3 text-left"
+                class="flex-1 min-w-0 flex items-center gap-3 text-left"
               >
                 <!-- Reference icon -->
                 <div

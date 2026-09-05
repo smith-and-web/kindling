@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "./styles/press/tokens.css";
 @import "./styles/press/tailwind.css";
-@import "./styles/press/components.css";
+@import "./styles/press/components.css" layer(components);
 
 /* Press fonts are bundled with the app so typography works fully offline. */
 @font-face {
@@ -73,15 +73,24 @@ body {
   min-height: 100vh;
 }
 
+/* Set by theme.ts for one frame while data-theme changes: every surface flips
+   together instead of each element animating from its previous colour. */
+html.theme-switching,
+html.theme-switching * {
+  transition: none !important;
+}
+
 #app {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-button {
-  font-family: var(--font-ui);
-  font-size: inherit;
+@layer base {
+  button {
+    font-family: var(--font-ui);
+    font-size: inherit;
+  }
 }
 
 button:disabled {

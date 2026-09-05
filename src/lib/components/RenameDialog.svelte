@@ -89,6 +89,7 @@
           onclick={onClose}
           class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
           aria-label="Close"
+          data-testid="rename-close"
         >
           <X class="w-5 h-5" />
         </button>
@@ -125,6 +126,7 @@
         Cancel
       </button>
       <button
+        data-testid="rename-save"
         type="button"
         onclick={handleSave}
         class="px-4 py-2 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors"

@@ -129,6 +129,7 @@
           onclick={onClose}
           class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
           aria-label="Close"
+          data-testid="kindling-settings-close"
         >
           <X class="w-5 h-5" />
         </button>
@@ -166,6 +167,7 @@
                 <input
                   type="radio"
                   name="theme"
+                  data-testid="theme-option-{opt.value}"
                   value={opt.value}
                   checked={ui.theme === opt.value}
                   onchange={() => ui.setTheme(opt.value as "dark" | "light" | "system")}

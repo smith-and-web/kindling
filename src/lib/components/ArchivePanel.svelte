@@ -152,6 +152,7 @@
           onclick={onClose}
           class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
           aria-label="Close"
+          data-testid="archive-close"
         >
           <X class="w-5 h-5" />
         </button>
@@ -197,6 +198,7 @@
                       disabled={restoringId === chapter.id || deletingId === chapter.id}
                       class="flex items-center gap-1 px-2 py-1 text-press-ui text-press-accent-text hover:text-press-accent-text transition-colors"
                       title="Restore"
+                      data-testid="archive-restore"
                     >
                       {#if restoringId === chapter.id}
                         <Loader2 class="w-4 h-4 animate-spin" />
@@ -251,6 +253,7 @@
                       disabled={restoringId === scene.id || deletingId === scene.id}
                       class="flex items-center gap-1 px-2 py-1 text-press-ui text-press-accent-text hover:text-press-accent-text transition-colors"
                       title="Restore"
+                      data-testid="archive-restore"
                     >
                       {#if restoringId === scene.id}
                         <Loader2 class="w-4 h-4 animate-spin" />

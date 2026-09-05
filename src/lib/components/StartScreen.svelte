@@ -130,7 +130,9 @@
   }
 </script>
 
-<div class="flex-1 flex flex-col items-center justify-center p-10 lg:p-14 relative overflow-hidden">
+<div
+  class="flex-1 flex flex-col items-center justify-center p-10 lg:p-14 relative overflow-y-auto overflow-x-hidden"
+>
   <!-- Settings and Help buttons in corner -->
   <div class="absolute top-4 right-4 flex items-center gap-1 z-press-raised">
     {#if onOpenQuickStart}
@@ -149,6 +151,7 @@
         onclick={() => (showSettingsDialog = true)}
         class="p-2 text-press-muted hover:text-press-text hover:bg-press-sunken rounded-lg transition-colors"
         aria-label="Kindling Settings"
+        data-testid="kindling-settings-button"
       >
         <Settings class="w-5 h-5" />
       </button>
@@ -175,6 +178,7 @@
       {#if onNewProject}
         <div class="bg-press-surface rounded-lg p-5 space-y-4">
           <button
+            data-testid="new-project-button"
             onclick={onNewProject}
             class="w-full flex items-center gap-3 p-3 bg-press-accent-wash border-2 border-press-accent rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
           >
