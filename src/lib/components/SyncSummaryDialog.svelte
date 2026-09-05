@@ -20,7 +20,8 @@
       summary.scenes_added > 0 ||
       summary.scenes_updated > 0 ||
       summary.beats_added > 0 ||
-      summary.beats_updated > 0
+      summary.beats_updated > 0 ||
+      summary.prose_updated > 0
   );
 </script>
 
@@ -48,6 +49,9 @@
         {#if summary.beats_added > 0 || summary.beats_updated > 0}
           <p>Beats: {summary.beats_added} added, {summary.beats_updated} updated</p>
         {/if}
+        {#if summary.prose_updated}<p class="text-press-ui text-press-text">
+            {summary.prose_updated} prose item{summary.prose_updated !== 1 ? "s" : ""} updated
+          </p>{/if}
         {#if summary.prose_preserved > 0}
           <p class="text-press-muted italic">
             {summary.prose_preserved} prose item{summary.prose_preserved !== 1 ? "s" : ""} preserved

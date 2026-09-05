@@ -87,6 +87,14 @@ export const COMMAND_DEFS: CommandDef[] = [
     keywords: ["import", "scrivener", "scriv"],
     requiresProject: false,
   },
+  {
+    id: "import_novelwriter",
+    label: "Import novelWriter",
+    shortcut: "",
+    category: "File",
+    keywords: ["import", "novelwriter", "nwx"],
+    requiresProject: false,
+  },
   // Project
   {
     id: "project_settings",

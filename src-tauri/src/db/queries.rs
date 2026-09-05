@@ -1298,6 +1298,8 @@ pub fn get_scene_reference_states_for_reference(
     Ok(states)
 }
 
+// MAX always returns a row; NULL means this scene/category has no saved state.
+// Decode the column as Option<i32> rather than treating absence of rows as None.
 pub fn get_scene_reference_state_max_position(
     conn: &Connection,
     scene_id: &Uuid,
@@ -1308,7 +1310,6 @@ pub fn get_scene_reference_state_max_position(
         params![scene_id.to_string(), reference_type],
         |row| row.get(0),
     )
-    .optional()
 }
 
 pub fn insert_scene_reference_state(conn: &Connection, state: &SceneReferenceState) -> Result<()> {
@@ -2606,6 +2607,69 @@ mod tests {
     // ========================================================================
     // Project Tests
     // ========================================================================
+
+    #[test]
+    fn reference_state_max_position_handles_null_and_scopes() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let scene = create_test_scene(&conn, chapter.id);
+        let other = create_test_scene(&conn, chapter.id);
+        assert_eq!(
+            get_scene_reference_state_max_position(&conn, &scene.id, "timelines").unwrap(),
+            None
+        );
+        for (scene_id, reference_type, position) in [
+            (scene.id, "timelines", 0),
+            (scene.id, "timelines", 3),
+            (scene.id, "custom", 9),
+            (other.id, "timelines", 12),
+        ] {
+            insert_scene_reference_state(
+                &conn,
+                &SceneReferenceState {
+                    scene_id,
+                    reference_type: reference_type.into(),
+                    reference_id: Uuid::new_v4(),
+                    position,
+                    expanded: false,
+                },
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            get_scene_reference_state_max_position(&conn, &scene.id, "timelines").unwrap(),
+            Some(3)
+        );
+        assert_eq!(
+            get_scene_reference_state_max_position(&conn, &scene.id, "custom").unwrap(),
+            Some(9)
+        );
+        assert_eq!(
+            get_scene_reference_state_max_position(&conn, &other.id, "timelines").unwrap(),
+            Some(12)
+        );
+        delete_scene_reference_states_for_type(&conn, &scene.id, "timelines").unwrap();
+        assert_eq!(
+            get_scene_reference_state_max_position(&conn, &scene.id, "timelines").unwrap(),
+            None
+        );
+        insert_scene_reference_state(
+            &conn,
+            &SceneReferenceState {
+                scene_id: scene.id,
+                reference_type: "timelines".into(),
+                reference_id: Uuid::new_v4(),
+                position: 0,
+                expanded: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            get_scene_reference_state_max_position(&conn, &scene.id, "timelines").unwrap(),
+            Some(0)
+        );
+    }
 
     #[test]
     fn test_insert_and_get_project() {

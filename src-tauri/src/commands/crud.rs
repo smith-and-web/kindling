@@ -1405,15 +1405,32 @@ pub async fn reclassify_references(
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
+    reclassify_references_with_connection(&conn, project_uuid, &changes)
+}
+
+fn reclassify_references_with_connection(
+    conn: &rusqlite::Connection,
+    project_uuid: Uuid,
+    changes: &[ReferenceReclassification],
+) -> Result<Project, String> {
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
     let result: Result<Project, String> = (|| {
-        for change in &changes {
+        for change in changes {
             let reference_uuid =
                 Uuid::parse_str(&change.reference_id).map_err(|e| e.to_string())?;
             let target_type = change.new_type.trim().to_lowercase();
-            if target_type.is_empty() {
-                continue;
+            if !matches!(
+                target_type.as_str(),
+                "characters"
+                    | "locations"
+                    | "items"
+                    | "objectives"
+                    | "organizations"
+                    | "timelines"
+                    | "custom"
+            ) {
+                return Err(format!("Unknown reference type: {}", change.new_type));
             }
 
             let current_character =
@@ -1425,7 +1442,7 @@ pub async fn reclassify_references(
 
             let (current_type, scene_states) = if current_character.is_some() {
                 let states = db::get_scene_reference_states_for_reference(
-                    &conn,
+                    conn,
                     "characters",
                     &reference_uuid,
                 )
@@ -1433,7 +1450,7 @@ pub async fn reclassify_references(
                 ("characters".to_string(), states)
             } else if current_location.is_some() {
                 let states = db::get_scene_reference_states_for_reference(
-                    &conn,
+                    conn,
                     "locations",
                     &reference_uuid,
                 )
@@ -1441,7 +1458,7 @@ pub async fn reclassify_references(
                 ("locations".to_string(), states)
             } else if let Some(item) = &current_reference_item {
                 let states = db::get_scene_reference_states_for_reference(
-                    &conn,
+                    conn,
                     &item.reference_type,
                     &reference_uuid,
                 )
@@ -1466,14 +1483,14 @@ pub async fn reclassify_references(
 
             if !scene_states.is_empty() {
                 db::delete_scene_reference_states_for_reference(
-                    &conn,
+                    conn,
                     &current_type,
                     &reference_uuid,
                 )
                 .map_err(|e| e.to_string())?;
                 for state in &scene_states {
                     let max_position = db::get_scene_reference_state_max_position(
-                        &conn,
+                        conn,
                         &state.scene_id,
                         &target_type,
                     )
@@ -1512,7 +1529,7 @@ pub async fn reclassify_references(
                             }
                             db::delete_character(&tx, &character.id).map_err(|e| e.to_string())?;
                         }
-                        "items" | "objectives" | "organizations" => {
+                        "items" | "objectives" | "organizations" | "timelines" | "custom" => {
                             let item = ReferenceItem {
                                 id: character.id,
                                 project_id: character.project_id,
@@ -1554,7 +1571,7 @@ pub async fn reclassify_references(
                             }
                             db::delete_location(&tx, &location.id).map_err(|e| e.to_string())?;
                         }
-                        "items" | "objectives" | "organizations" => {
+                        "items" | "objectives" | "organizations" | "timelines" | "custom" => {
                             let item = ReferenceItem {
                                 id: location.id,
                                 project_id: location.project_id,
@@ -1616,7 +1633,7 @@ pub async fn reclassify_references(
                             db::delete_scene_reference_item_refs_for_item(&tx, &reference_uuid)
                                 .map_err(|e| e.to_string())?;
                         }
-                        "items" | "objectives" | "organizations" => {
+                        "items" | "objectives" | "organizations" | "timelines" | "custom" => {
                             db::update_reference_item_type(&tx, &item.id, &target_type)
                                 .map_err(|e| e.to_string())?;
                         }
@@ -1874,4 +1891,115 @@ pub async fn move_scene_to_chapter(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod reclassification_tests {
+    use super::*;
+    use crate::parsers::novelwriter::tests::fixture;
+
+    #[test]
+    fn reclassification_preserves_links_state_attributes_and_identity() {
+        for target in ["timelines", "custom"] {
+            for original in ["characters", "locations", "items"] {
+                let (conn, project) = fixture();
+                let (id, name) = match original {
+                    "characters" => {
+                        let c = db::get_characters(&conn, &project.id).unwrap().remove(0);
+                        (c.id, c.name)
+                    }
+                    "locations" => {
+                        let l = db::get_locations(&conn, &project.id).unwrap().remove(0);
+                        (l.id, l.name)
+                    }
+                    _ => {
+                        let r = db::get_all_reference_items(&conn, &project.id)
+                            .unwrap()
+                            .remove(0);
+                        (r.id, r.name)
+                    }
+                };
+                let scene = db::get_all_project_scenes(&conn, &project.id)
+                    .unwrap()
+                    .remove(0);
+                db::insert_scene_reference_state(
+                    &conn,
+                    &SceneReferenceState {
+                        scene_id: scene.id,
+                        reference_type: original.into(),
+                        reference_id: id,
+                        position: 0,
+                        expanded: true,
+                    },
+                )
+                .unwrap();
+                let result = reclassify_references_with_connection(
+                    &conn,
+                    project.id,
+                    &[ReferenceReclassification {
+                        reference_id: id.to_string(),
+                        new_type: target.into(),
+                    }],
+                )
+                .unwrap();
+                assert!(result.reference_types.contains(&target.to_string()));
+                let item = db::get_reference_item_by_id(&conn, &id).unwrap().unwrap();
+                assert_eq!(item.name, name);
+                assert!(!item.attributes.is_empty());
+                assert_eq!(item.reference_type, target);
+                assert_eq!(
+                    db::get_scene_ids_for_reference_item(&conn, &id).unwrap(),
+                    vec![scene.id]
+                );
+                let states =
+                    db::get_scene_reference_states_for_reference(&conn, target, &id).unwrap();
+                assert_eq!(states.len(), 1);
+                assert!(states[0].expanded);
+                reclassify_references_with_connection(
+                    &conn,
+                    project.id,
+                    &[ReferenceReclassification {
+                        reference_id: id.to_string(),
+                        new_type: "characters".into(),
+                    }],
+                )
+                .unwrap();
+                assert_eq!(
+                    db::get_scene_ids_for_character(&conn, &id).unwrap(),
+                    vec![scene.id]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_target_rolls_back_the_whole_batch_without_losing_links() {
+        let (conn, project) = fixture();
+        let character = db::get_characters(&conn, &project.id).unwrap().remove(0);
+        let before = db::get_scene_ids_for_character(&conn, &character.id).unwrap();
+        for target in ["", "not-a-type"] {
+            assert!(reclassify_references_with_connection(
+                &conn,
+                project.id,
+                &[
+                    ReferenceReclassification {
+                        reference_id: character.id.to_string(),
+                        new_type: "custom".into()
+                    },
+                    ReferenceReclassification {
+                        reference_id: character.id.to_string(),
+                        new_type: target.into()
+                    },
+                ]
+            )
+            .is_err());
+            assert!(db::get_character_by_id(&conn, &character.id)
+                .unwrap()
+                .is_some());
+            assert_eq!(
+                db::get_scene_ids_for_character(&conn, &character.id).unwrap(),
+                before
+            );
+        }
+    }
 }

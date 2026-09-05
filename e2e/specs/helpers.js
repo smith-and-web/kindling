@@ -95,27 +95,34 @@ export async function waitForEditor() {
  * This bypasses the native file dialog which can't be controlled in E2E tests
  */
 export async function importPlottrFile(filename) {
-  const filePath = resolve(testDataDir, filename);
+  return importProject(resolve(testDataDir, filename), "plottr");
+}
 
+export async function importProject(filePath, format = "plottr") {
+  await waitForAppReady();
   // Use the app's importProject helper which handles:
   // 1. Calling invoke("import_plottr")
   // 2. Updating currentProject store
   // 3. Setting ui view to "editor"
-  const result = await browser.executeAsync(async (path, done) => {
-    try {
-      // The app exposes importProject via __KINDLING_TEST__ for E2E testing
-      if (!window.__KINDLING_TEST__?.importProject) {
-        throw new Error("__KINDLING_TEST__.importProject not available");
+  const result = await browser.executeAsync(
+    async (path, format, done) => {
+      try {
+        // The app exposes importProject via __KINDLING_TEST__ for E2E testing
+        if (!window.__KINDLING_TEST__?.importProject) {
+          throw new Error("__KINDLING_TEST__.importProject not available");
+        }
+        const project = await window.__KINDLING_TEST__.importProject(path, format);
+        done({ success: true, project });
+      } catch (error) {
+        done({ success: false, error: error.message || String(error) });
       }
-      const project = await window.__KINDLING_TEST__.importProject(path);
-      done({ success: true, project });
-    } catch (error) {
-      done({ success: false, error: error.message || String(error) });
-    }
-  }, filePath);
+    },
+    filePath,
+    format
+  );
 
   if (!result.success) {
-    throw new Error(`Failed to import Plottr file: ${result.error}`);
+    throw new Error(`Failed to import project: ${result.error}`);
   }
 
   // Wait for UI to update after import

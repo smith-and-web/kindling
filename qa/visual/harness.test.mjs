@@ -10,9 +10,11 @@ function setup() {
   const dom = new JSDOM("<!doctype html>", { url: "http://localhost", runScripts: "outside-only" });
   const w = dom.window;
   const deleted = [];
+  const calls = [];
   let failDelete = false;
   w.__TAURI_INTERNALS__ = {
     invoke: async (command, args) => {
+      calls.push({ command, args });
       if (command === "get_recent_projects")
         return [
           { id: "existing-backup", source_path: "my-simple-story.pltr.backup" },
@@ -25,20 +27,33 @@ function setup() {
         return;
       }
       return {
-        id: command === "import_plottr" ? "created-fixture" : "created-blank",
+        id:
+          command === "import_plottr"
+            ? "created-fixture"
+            : command.startsWith("import_")
+              ? `created-${command}`
+              : "created-blank",
         name: "QA Blank Project",
       };
     },
   };
   w.__KINDLING_TEST__ = {
+    importCommands: Object.fromEntries(
+      ["plottr", "markdown", "ywriter", "longform", "scrivener", "novelwriter"].map((format) => [
+        format,
+        `import_${format}`,
+      ])
+    ),
     invoke: (...args) => w.__TAURI_INTERNALS__.invoke(...args),
     disableGuidance() {},
-    importProject: (path) => w.__TAURI_INTERNALS__.invoke("import_plottr", { path }),
+    importProject: (path, format = "plottr") =>
+      w.__TAURI_INTERNALS__.invoke(`import_${format}`, { path }),
   };
   w.eval(source);
   return {
     w,
     deleted,
+    calls,
     fail: (value) => {
       failDelete = value;
     },
@@ -108,6 +123,73 @@ test("failed deletes retain ownership for retry; failed creations grant no owner
     assert.equal(w.__qa.last.status, "error");
     assert.equal(w.__TAURI_INTERNALS__.invoke, reject);
     assert.equal(w.sessionStorage.getItem("__qa_created_projects"), "[]");
+  } finally {
+    close();
+  }
+});
+
+for (const format of ["markdown", "ywriter", "longform", "scrivener", "novelwriter"]) {
+  test(`${format} imports are tracked by returned ID and cleaned up after reload`, async () => {
+    const { w, calls, deleted, close } = setup();
+    try {
+      w.__qa.importFixture("/tmp/qa-import", format);
+      await settle();
+      assert.equal(calls[0].command, `import_${format}`);
+      assert.equal(calls[0].args.path, "/tmp/qa-import");
+      assert.equal(w.__qa.fixtureProject().id, `created-import_${format}`);
+      assert.ok(w.document.getElementById("qa-done-fixture-created"));
+      delete w.__qa;
+      w.eval(source);
+      w.__qa.cleanupFixtures();
+      await settle();
+      assert.deepEqual(deleted, [`created-import_${format}`]);
+      assert.equal(w.__qa.fixtureProject(), null);
+    } finally {
+      close();
+    }
+  });
+}
+
+test("unknown formats and failed imports never acquire ownership", async () => {
+  const { w, calls, deleted, close } = setup();
+  try {
+    assert.throws(
+      () => w.__qa.importFixture("/tmp/qa", "delete_project"),
+      /Unsupported QA import format/
+    );
+    assert.equal(calls.length, 0);
+    w.__TAURI_INTERNALS__.invoke = async () => {
+      throw new Error("Missing nwProject.nwx");
+    };
+    w.__qa.importFixture("/tmp/missing", "novelwriter");
+    await settle();
+    assert.equal(w.__qa.last.status, "error");
+    assert.equal(w.__qa.fixtureProject(), null);
+    assert.equal(w.document.getElementById("qa-done-fixture-created"), null);
+    w.__qa.cleanupFixtures();
+    await settle();
+    assert.deepEqual(deleted, []);
+  } finally {
+    close();
+  }
+});
+
+test("invoke completion markers distinguish fresh calls and surface errors", async () => {
+  const { w, close } = setup();
+  try {
+    w.__qa.invoke("get_recent_projects");
+    await settle();
+    assert.equal(w.__qa.last.status, "ok");
+    assert.ok(w.document.getElementById("qa-done-invoke"));
+    w.__TAURI_INTERNALS__.invoke = async () => {
+      throw new Error("export failed");
+    };
+    w.__qa.invoke("export_to_novelwriter");
+    assert.equal(w.document.getElementById("qa-done-invoke"), null);
+    await settle();
+    assert.equal(w.__qa.last.status, "error");
+    assert.match(w.__qa.last.error, /export failed/);
+    assert.ok(w.document.getElementById("qa-done-invoke"));
   } finally {
     close();
   }

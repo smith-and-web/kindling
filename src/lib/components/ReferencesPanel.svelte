@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { REFERENCE_FIELD_TYPES } from "../referenceTypes";
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
@@ -162,13 +163,7 @@
       }
 
       // Load field definitions for each entity type
-      const entityTypeMap: Record<string, string> = {
-        characters: "character",
-        locations: "location",
-        items: "item",
-        objectives: "objective",
-        organizations: "organization",
-      };
+      const entityTypeMap = REFERENCE_FIELD_TYPES;
       const defsMap: Record<string, FieldDefinition[]> = {};
       for (const type of enabledTypes) {
         const entityType = entityTypeMap[type] ?? type;

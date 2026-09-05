@@ -44,6 +44,7 @@
     TreatmentOptions,
     ScrivenerExportMode,
     ScrivenerExportOptions,
+    NovelWriterExportOptions,
   } from "../types";
   import ScrivenerMatchDialog from "./ScrivenerMatchDialog.svelte";
   import Tooltip from "./Tooltip.svelte";
@@ -64,9 +65,9 @@
     onSuccess: (result: ExportResult) => void;
   } = $props();
 
-  let exportFormat = $state<"markdown" | "longform" | "docx" | "epub" | "treatment" | "scrivener">(
-    "docx"
-  );
+  let exportFormat = $state<
+    "markdown" | "longform" | "docx" | "epub" | "treatment" | "scrivener" | "novelwriter"
+  >("docx");
   let includeBeatMarkers = $state(false);
   let includeSynopsis = $state(false);
   let pageBreaksBetweenChapters = $state(true);
@@ -85,6 +86,9 @@
   let treatmentLevel = $state<TreatmentLevel>("five_page");
   let treatmentFormat = $state<TreatmentFormat>("docx");
   let treatmentFilePath = $state("");
+  let novelwriterPath = $state("");
+  let novelwriterBeatComments = $state(true);
+  let novelwriterNotes = $state(true);
   let scrivenerMode = $state<ScrivenerExportMode>("create_new");
   let scrivenerPath = $state("");
   let scrivenerBackup = $state(true);
@@ -211,7 +215,11 @@
   });
 
   const canExport = $derived(
-    (exportFormat === "markdown" && outputPath.length > 0) ||
+    (exportFormat === "novelwriter" &&
+      novelwriterPath.length > 0 &&
+      scope === "project" &&
+      currentProject.value?.project_type !== "screenplay") ||
+      (exportFormat === "markdown" && outputPath.length > 0) ||
       (exportFormat === "longform" && outputPath.length > 0) ||
       (exportFormat === "docx" && docxFilePath.length > 0) ||
       (exportFormat === "epub" &&
@@ -287,6 +295,22 @@
     if (path) {
       treatmentFilePath = path;
       error = null;
+    }
+  }
+
+  async function selectNovelWriterPath() {
+    try {
+      const path = await open({
+        directory: true,
+        multiple: false,
+        title: "Choose an empty novelWriter destination folder",
+      });
+      if (path) {
+        novelwriterPath = path;
+        error = null;
+      }
+    } catch (e) {
+      error = String(e);
     }
   }
 
@@ -400,6 +424,17 @@
 
         result = await invoke<ExportResult>("generate_treatment", {
           projectId: currentProject.value.id,
+          options,
+        });
+      } else if (exportFormat === "novelwriter") {
+        const options: NovelWriterExportOptions = {
+          include_beat_comments: novelwriterBeatComments,
+          include_notes: novelwriterNotes,
+          create_snapshot: createSnapshot,
+        };
+        result = await invoke<ExportResult>("export_to_novelwriter", {
+          projectId: currentProject.value.id,
+          outputPath: novelwriterPath,
           options,
         });
       } else if (exportFormat === "scrivener") {
@@ -531,6 +566,27 @@
       <fieldset>
         <legend class="block text-press-ui font-medium text-press-muted mb-3">Export Format</legend>
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {#if scope === "project" && currentProject.value?.project_type !== "screenplay"}
+            <label
+              class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
+              'novelwriter'
+                ? 'border-press-accent bg-press-accent-wash'
+                : 'border-press-border bg-press-sunken'}"
+            >
+              <input
+                type="radio"
+                name="format"
+                data-testid="export-format-novelwriter"
+                value="novelwriter"
+                bind:group={exportFormat}
+                class="sr-only"
+              />
+              <BookOpen class="w-8 h-8 mb-2 text-press-muted" />
+              <span class="text-press-ui font-medium text-press-text">novelWriter</span>
+              <span class="text-press-eyebrow text-press-muted">Project folder</span>
+            </label>
+          {/if}
+
           <label
             class="relative flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all {exportFormat ===
             'docx'
@@ -1263,6 +1319,65 @@
             </Tooltip>
           </div>
         </div>
+      {:else if exportFormat === "novelwriter"}
+        <div class="space-y-4">
+          <p class="text-press-small text-press-muted">
+            Export a complete project for novelWriter 26.2 or newer. Choose an empty folder.
+          </p>
+          <label class="flex items-center gap-3 text-press-ui text-press-text"
+            ><input
+              type="checkbox"
+              data-testid="novelwriter-beat-comments"
+              bind:checked={novelwriterBeatComments}
+            /> Include beat comments</label
+          >
+          <p class="text-press-small text-press-muted">
+            Turning off beat comments disables beat-level sync. Page-mode prose syncs as a whole
+            scene.
+          </p>
+          <label class="flex items-center gap-3 text-press-ui text-press-text"
+            ><input
+              type="checkbox"
+              data-testid="novelwriter-notes"
+              bind:checked={novelwriterNotes}
+            /> Include characters, locations and notes</label
+          >
+          <label for="novelwriter-destination" class="block text-press-ui text-press-muted"
+            >Destination folder</label
+          >
+          <div class="flex gap-2">
+            <input
+              id="novelwriter-destination"
+              readonly
+              value={novelwriterPath}
+              placeholder="Choose an empty folder"
+              class="flex-1 min-w-0 px-3 py-2 bg-press-sunken border border-press-border rounded-lg text-press-base text-press-text"
+            />
+            <button
+              type="button"
+              onclick={selectNovelWriterPath}
+              aria-label="Choose novelWriter destination folder"
+              class="p-2 border border-press-border rounded-lg"
+              ><FolderOpen class="w-5 h-5" /></button
+            >
+          </div>
+          <details class="text-press-small text-press-muted">
+            <summary>Round-trip limitations</summary>
+            <p>
+              Export omits underline, planning status, scene type, tags, discovery notes, snapshots
+              and custom fields. Scene status is limited to Draft, Revised and Final.
+            </p>
+            <p>
+              Import flattens H4 sections and does not preserve shortcodes, footnotes, alignment,
+              indent codes, importance, ignored text, templates, additional novel roots or POV,
+              focus, mention and story references.
+            </p>
+            <p>
+              Sync covers chapters, scenes, beats and prose. Notes, reference links and project
+              metadata are not synced. Existing source connections are preserved when exporting.
+            </p>
+          </details>
+        </div>
       {:else if exportFormat === "scrivener"}
         <!-- Scrivener Export Options -->
         <fieldset>
@@ -1673,6 +1788,7 @@
       </button>
       <button
         type="button"
+        data-testid="export-confirm"
         onclick={handleExport}
         class="px-5 py-2 text-press-ui font-medium bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors disabled:cursor-not-allowed flex items-center gap-2"
         disabled={!canExport || exporting}

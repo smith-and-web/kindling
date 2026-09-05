@@ -1,3 +1,4 @@
+import { IMPORT_FORMATS, importTypeForCommand } from "../lib/importFormats";
 /**
  * Mock Tauri invoke() for browser-only dev (npm run dev without Tauri).
  * Provides an in-memory backend so Cursor can drive the full UI via browser tools.
@@ -82,18 +83,16 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
   const referenceId = getArg<string>(args, "referenceId", "reference_id");
   const snapshotId = getArg<string>(args, "snapshotId", "snapshot_id");
 
+  const importType = importTypeForCommand(cmd);
+  if (importType) {
+    return {
+      ...projects[0]!,
+      source_type: IMPORT_FORMATS[importType].sourceType,
+      source_path: getArg<string>(args, "path") ?? "/mock/path/story.pltr",
+      modified_at: new Date().toISOString(),
+    } as T;
+  }
   switch (cmd) {
-    // Import - return the seed project
-    case "import_plottr":
-    case "import_ywriter":
-    case "import_markdown":
-    case "import_longform":
-    case "import_scrivener": {
-      const path = getArg<string>(args, "path") ?? "/mock/path/story.pltr";
-      const project = projects[0]!;
-      return { ...project, source_path: path, modified_at: new Date().toISOString() } as T;
-    }
-
     case "preview_import": {
       void getArg<string>(args, "path");
       void getArg<string>(args, "format");
@@ -572,6 +571,7 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         beats_added: 0,
         beats_updated: 0,
         prose_preserved: 0,
+        prose_updated: 0,
       } as T;
     }
 
@@ -589,6 +589,7 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         beats_added: 0,
         beats_updated: 0,
         prose_preserved: 0,
+        prose_updated: 0,
       } as T;
     }
 
@@ -738,9 +739,13 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
     case "preview_scrivener_matches":
       return [] as T;
 
+    case "export_to_novelwriter":
     case "export_to_scrivener": {
       const options = getArg<{ output_path?: string }>(args, "options");
-      const outputPath = options?.output_path ?? "/mock/path/export";
+      const outputPath =
+        getArg<string>(args, "outputPath", "output_path") ??
+        options?.output_path ??
+        "/mock/path/export";
       return {
         output_path: outputPath,
         files_created: 1,

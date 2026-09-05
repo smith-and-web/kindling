@@ -173,10 +173,15 @@
   // ------------------------------------------------------------ async ops
   // Only creation calls explicitly initiated by this harness confer ownership.
   // Persist across the reload scenario; never infer ownership from a filename/name.
+  const importCommands = new Map(Object.entries(window.__KINDLING_TEST__?.importCommands ?? {}));
+  const fixtureCommands = new Set(importCommands.values());
   const ownedKey = "__qa_created_projects";
   const owned = () => JSON.parse(sessionStorage.getItem(ownedKey) || "[]");
   qa.trackCreation = (command, action) => {
-    if (!["import_plottr", "create_blank_project", "create_screenplay_project"].includes(command))
+    if (
+      !fixtureCommands.has(command) &&
+      !["create_blank_project", "create_screenplay_project"].includes(command)
+    )
       throw new Error("Unsupported QA creation command");
     const ipc = window.__TAURI_INTERNALS__;
     if (!ipc?.invoke) throw new Error("Tauri IPC missing; cannot track QA project ownership");
@@ -188,9 +193,10 @@
         if (!project?.id) throw new Error("Creation returned no project ID");
         const projects = owned();
         if (!projects.some((p) => p.id === project.id)) {
-          projects.push({ id: project.id, name: project.name, fixture: cmd === "import_plottr" });
+          projects.push({ id: project.id, name: project.name, fixture: fixtureCommands.has(cmd) });
           sessionStorage.setItem(ownedKey, JSON.stringify(projects));
         }
+        if (fixtureCommands.has(cmd)) qa.done("fixture-created");
         return project;
       });
     };
@@ -203,26 +209,36 @@
   qa.createBlankProject = () =>
     qa.trackCreation("create_blank_project", () => qa.click("new-project-create"));
 
-  /** Import the fixture. Gate on wait_for text "Act 1"; the promise never settles reliably. */
-  qa.importFixture = (absolutePath) => {
+  /** Most recently created fixture, from captured IPC IDs only. Never adopts existing projects. */
+  qa.fixtureProject = () =>
+    owned()
+      .filter((p) => p.fixture)
+      .at(-1) ?? null;
+
+  /** Gate on the imported chapter text; the frontend promise may not settle reliably. */
+  qa.importFixture = (absolutePath, format = "plottr") => {
+    const command = importCommands.get(format);
+    if (!command) throw new Error(`Unsupported QA import format: ${format}`);
     const hook = window.__KINDLING_TEST__;
     if (!hook?.importProject)
       throw new Error("__KINDLING_TEST__.importProject missing (not a dev build?)");
     qa.last = { op: "import", status: "pending" };
     qa.clearMarkers();
     hook.disableGuidance();
-    qa.trackCreation("import_plottr", () => hook.importProject(absolutePath))
+    qa.trackCreation(command, () => hook.importProject(absolutePath, format))
       .then((p) => (qa.last = { op: "import", status: "ok", projectId: p.id }))
       .catch((e) => (qa.last = { op: "import", status: "error", error: String(e) }));
     return "started";
   };
-  /** Any Tauri command; result lands in __qa.last. */
+  /** Any Tauri command; wait for #qa-done-invoke, then check __qa.last.status. */
   qa.invoke = (cmd, args = {}) => {
+    document.getElementById("qa-done-invoke")?.remove();
     qa.last = { op: cmd, status: "pending" };
     window.__KINDLING_TEST__
       .invoke(cmd, args)
       .then((r) => (qa.last = { op: cmd, status: "ok", result: r }))
-      .catch((e) => (qa.last = { op: cmd, status: "error", error: String(e) }));
+      .catch((e) => (qa.last = { op: cmd, status: "error", error: String(e) }))
+      .finally(() => qa.done("invoke"));
     return "started";
   };
   /** Delete only IDs captured from successful QA creation calls. */
@@ -631,7 +647,7 @@
     }
     const measure = [];
     for (const ed of root.querySelectorAll(
-      ".novel-editor-content, .prose, [class*='max-w-measure']"
+      ".novel-editor-content, .prose, .prose-review, [class*='max-w-measure']"
     )) {
       const max = parseFloat(getComputedStyle(ed).maxWidth);
       const w = ed.getBoundingClientRect().width;

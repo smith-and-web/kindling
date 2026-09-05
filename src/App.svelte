@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { IMPORT_FORMATS, importTypeForCommand, isImportType } from "./lib/importFormats";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { exit } from "@tauri-apps/plugin-process";
@@ -84,23 +85,25 @@
     }
   });
 
-  const HAS_REFERENCES: ImportType[] = ["plottr", "ywriter", "longform", "longformVault"];
-
   async function handleImport(type: ImportType) {
     const project = await runImport(type);
     if (!project) return;
     activateImportedProject(project);
-    if (HAS_REFERENCES.includes(type)) {
+    if (IMPORT_FORMATS[type].references) {
       openReferenceClassificationDialog(project);
     }
   }
 
-  const importPlottr = () => handleImport("plottr");
-  const importMarkdown = () => handleImport("markdown");
-  const importYWriter = () => handleImport("ywriter");
   const importLongform = () => handleImport("longform");
   const importLongformVault = () => handleImport("longformVault");
-  const importScrivener = () => handleImport("scrivener");
+
+  function handleImportCommand(command: string): boolean {
+    const type = importTypeForCommand(command);
+    if (!type) return false;
+    if (type === "longform") openLongformImportDialog();
+    else void handleImport(type);
+    return true;
+  }
 
   function openLongformImportDialog() {
     showLongformImportDialog = true;
@@ -123,24 +126,10 @@
     const unlisten = listen<string>("menu-event", (event) => {
       const menuId = event.payload;
 
+      if (handleImportCommand(menuId)) return;
       switch (menuId) {
         case "new_project":
           showNewProjectDialog = true;
-          break;
-        case "import_plottr":
-          importPlottr();
-          break;
-        case "import_ywriter":
-          importYWriter();
-          break;
-        case "import_markdown":
-          importMarkdown();
-          break;
-        case "import_longform":
-          openLongformImportDialog();
-          break;
-        case "import_scrivener":
-          importScrivener();
           break;
         case "export":
           if (currentProject.value) {
@@ -203,27 +192,13 @@
   );
 
   function runCommand(id: string) {
+    if (handleImportCommand(id)) return;
     switch (id) {
       case "export":
         if (currentProject.value) showExportDialog = true;
         break;
       case "close_project":
         closeProject();
-        break;
-      case "import_plottr":
-        importPlottr();
-        break;
-      case "import_markdown":
-        importMarkdown();
-        break;
-      case "import_longform":
-        openLongformImportDialog();
-        break;
-      case "import_ywriter":
-        importYWriter();
-        break;
-      case "import_scrivener":
-        importScrivener();
         break;
       case "project_settings":
         if (currentProject.value) showProjectSettings = true;
@@ -303,7 +278,7 @@
       {recentProjects}
       onImportLongform={openLongformImportDialog}
       onImportComplete={(project, type) => {
-        if (HAS_REFERENCES.includes(type)) {
+        if (IMPORT_FORMATS[type].references) {
           openReferenceClassificationDialog(project);
         }
       }}
@@ -333,7 +308,7 @@
 <Onboarding
   onImportLongform={openLongformImportDialog}
   onImportComplete={(project: Project, type: string) => {
-    if (HAS_REFERENCES.includes(type as ImportType)) {
+    if (isImportType(type) && IMPORT_FORMATS[type].references) {
       openReferenceClassificationDialog(project);
     }
   }}

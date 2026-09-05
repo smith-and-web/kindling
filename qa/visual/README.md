@@ -24,6 +24,7 @@ qa/visual/
   history.mjs          builds results/index.md from every report.md
   baselines/           one reference JPEG per screenshot checkpoint (committed)
   data/                scratch app data dir used by `npm run tauri:qa` (gitignored)
+  fixtures/            small authored import fixtures (currently Longform)
   scenarios/           one file per e2e spec, then the areas e2e never covered
     00-app-launch.md
     01-create-content.md      ... 05-reimport.md   mirror the e2e specs
@@ -34,6 +35,8 @@ qa/visual/
     10-tools.md               export dialog, snapshots, command palette
     11-new-project.md         blank project, no sync button
     12-sync-updates.md        sync picks up a renamed chapter, new scene, new beat
+    13-import-formats.md      Markdown outline, yWriter parts, Longform references
+    14-novelwriter-round-trip.md  export options, selective prose sync, narrow/dark diff
     98-narrow-sweep.md        1100 x 700 overflow check
     99-dark-sweep.md          four dark screens
   results/             per-run output (gitignored)
@@ -46,12 +49,16 @@ qa/visual/
 
 ## Budget
 
-The machine has a mandatory screen lock. Targets for a full run of all
-scenarios plus both sweeps:
+The machine has a mandatory screen lock. Targets for the core run (00–12) plus both sweeps:
 
 | Tool calls | Screenshots | Wall clock  |
 | ---------- | ----------- | ----------- |
 | about 110  | about 40    | 8 to 10 min |
+
+Run the import extension separately: `/visual-qa 13` (3 screenshots, about
+3 minutes) and `/visual-qa 14` (5 screenshots, about 4–5 minutes). Scenario 14
+includes dark and narrow checks of the prose diff, a surface the standard
+sweeps do not show. A request for all scenarios needs multiple run groups.
 
 If a run is going to exceed this, run scenarios in groups (`/visual-qa 06 07 08`)
 and let each run write its own results folder. `history.mjs` merges them.
@@ -76,8 +83,8 @@ Run `npm run test:qa-harness` before using the harness. These regression tests
 exercise cleanup with an in-memory IPC mock, including pre-existing projects
 whose filenames or names match the fixtures, reload, and failed operations.
 
-Ask Claude: `/visual-qa` for everything, or `/visual-qa 03 04` for some. Each
-numbered item is one or two tool calls; do not add `wait_for`, state reads or
+Ask Claude: `/visual-qa` for everything in bounded groups, or `/visual-qa 03 04`
+for some. Each numbered item is one or two tool calls; do not add `wait_for`, state reads or
 renames beyond what is listed.
 
 1. **Preflight, one Bash call.**
@@ -203,9 +210,17 @@ renames beyond what is listed.
 - **Async settle times.** Deletes, duplicates and archive need about a second
   before the sidebar reflects them; use 900 to 1200 ms step delays.
 - **Import promise never settles.** Gate on `wait_for` text `Act 1`.
+  For additional formats use `q.importFixture(path, format)`, where format is
+  `plottr` (default), `markdown`, `ywriter`, `longform`, `scrivener` or
+  `novelwriter`. Wait for the fresh `#qa-done-fixture-created` marker, then the
+  expected chapter text. `q.fixtureProject()` returns the last owned fixture's
+  captured ID, including after reload. It never searches existing projects.
+  `q.invoke(command, args)` signals `#qa-done-invoke` on success **or failure**;
+  check `q.last.status` before continuing. These helpers bypass native file
+  pickers and reference classification; record that coverage boundary.
   `q.cleanupFixtures()` deletes only IDs returned by this harness's fixture
-  imports. `q.createBlankProject()` captures the ID from the scenario 11
-  creation click; `q.cleanupNamed(name)` can delete only those owned IDs.
+  imports, across all supported formats. `q.createBlankProject()` captures the
+  ID from the scenario 11 creation click; `q.cleanupNamed(name)` can delete only those owned IDs.
   Ownership survives page reload in sessionStorage. With no ownership record,
   cleanup deletes nothing. Never adopt existing projects by filename or name.
   Finish cleanup before starting a new run; closing the window loses the
