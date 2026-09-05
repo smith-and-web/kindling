@@ -1,0 +1,648 @@
+/* Kindling — Press components. Load AFTER tokens.css (reads its custom properties). */
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* Visually hidden, still announced. For table captions, glyph labels, and any
+   text that carries meaning a sighted reader gets from position or shape. */
+.sr-only {
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
+html { scroll-behavior:smooth; }
+body {
+  font-family:var(--font-ui);
+  background:var(--color-bg);
+  color:var(--color-text);
+  line-height:var(--leading);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4 { font-family:var(--font-display); font-optical-sizing:auto; font-weight:600; line-height:var(--leading-tight); }
+
+/* ---- Page hero ---- */
+/* Left-aligned by default: every interior hero carries a paragraph-length
+   stand-first, and centring is licensed only for lines of one line or less.
+   Add .ceremonial for a genuinely short, centred dead-end hero. */
+.page-hero { padding:140px 24px 60px; max-width:960px; margin:0 auto; }
+.page-hero.ceremonial { text-align:center; }
+.page-hero h1 { font-size:var(--text-hero); letter-spacing:var(--tracking-tight); margin-bottom:16px; }
+.page-hero-subtext { font-family:var(--font-body); font-size:var(--text-body-lg); color:var(--color-text); line-height:var(--leading-relaxed); margin-bottom:32px; max-width:var(--measure); }
+.page-hero.ceremonial .page-hero-subtext { margin-left:auto; margin-right:auto; }
+
+/* ---- Content sections ---- */
+.content-section { padding:80px 24px; max-width:900px; margin:0 auto; }
+.content-section.alt { background:var(--color-surface-sunken); }
+.content-section h2 { font-size:var(--text-h2); margin-bottom:16px; }
+.content-section h3 { font-size:var(--text-h3); font-weight:500; margin:24px 0 12px; }
+.content-section p { font-family:var(--font-body); font-size:var(--text-body); color:var(--color-text); line-height:var(--leading-relaxed); margin-bottom:16px; }
+.content-section p:last-child { margin-bottom:0; }
+.content-section a { color:var(--color-accent-text); text-decoration:none; }
+.content-section a:hover { text-decoration:underline; }
+
+
+/* ===== Editorial composition =====
+   Press is asymmetric and column-based. The skin (colour, type, components)
+   is only half the system; this layer is the *composition* — the outer frame,
+   the reading measure, and the figure/prose sequences that replace centred
+   card grids. Reserve centring for short ceremonial lines. */
+
+/* Fixed grain layer, pinned behind all content (z-index:-1 keeps it under text,
+   so legibility is untouched). Shows through every paper/transparent section;
+   opaque sunken bands re-assert their own grain via ::before. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--grain-tile);
+  background-size: 160px 160px;
+  opacity: var(--grain-strength);
+}
+
+/* Reusable grain for opaque sunken bands: a ::before layer behind the section's
+   own content. Sections that opt in set position:relative and lift their
+   content above it. */
+.has-grain { position: relative; }
+.has-grain > * { position: relative; z-index: 1; }
+.has-grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--grain-tile);
+  background-size: 160px 160px;
+  opacity: var(--grain-strength);
+}
+/* The shared sunken bands (alt content sections + closing CTAs) get the same
+   grain layer so tactility is consistent across every page. */
+.content-section.alt,
+.cta-section { position: relative; }
+.content-section.alt > *,
+.cta-section > * { position: relative; z-index: 1; }
+.content-section.alt::before,
+.cta-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--grain-tile);
+  background-size: 160px 160px;
+  opacity: var(--grain-strength);
+}
+
+/* Full-bleed sunken bands. The shared .content-section is a 900px centred
+   block, so its *alt* (sunken) variant reads as an inset box rather than a
+   band. Let the alt variant fill the width and re-centre its content with
+   padding — an edge-to-edge band, no per-page markup change. (.cta-section is
+   already full-width in the component layer, so it needs no break-out.)
+   The paper .content-section's text column is 900px minus its 24px side padding
+   = 852px, so match that here (not 900) or the alt text sits 24px left of the
+   paper sections and the margins won't line up. */
+.content-section.alt {
+  max-width: none;
+  padding-left: max(24px, calc((100% - 852px) / 2));
+  padding-right: max(24px, calc((100% - 852px) / 2));
+}
+
+.editorial {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+@media (max-width: 640px) {
+  .editorial { padding: 0 24px; }
+}
+
+/* Reading prose is capped at the measure; headings and figures break out
+   wider. Captions and metadata keep their own muted colour inline. */
+.content-section p,
+.content-section ul,
+.content-section ol {
+  max-width: var(--measure);
+}
+
+/* ===== Editorial composition primitives (shared across pages) =====
+   These turn a section into a set-article layout instead of centered bands:
+   a left-aligned display lead, then an alternating figure/prose sequence
+   separated by hairlines. Home and /features/ both build on these. */
+
+/* A short terracotta rule — used sparingly as the one accent moment in a section. */
+.accent-rule {
+  display: block;
+  width: 48px;
+  height: 3px;
+  background: var(--color-accent);
+  border-radius: 2px;
+  margin-bottom: var(--space-m);
+}
+
+/* Section lead — a left-aligned display heading + Newsreader stand-first. */
+.section-lead {
+  max-width: var(--measure);
+  margin-bottom: var(--space-xl);
+}
+.section-lead h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-h1);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  margin-bottom: var(--space-s);
+}
+.section-standfirst {
+  font-family: var(--font-body);
+  font-size: var(--text-body-lg);
+  color: var(--color-text);
+  line-height: var(--leading-relaxed);
+}
+
+/* Feature sequence — figure beside prose, hairline-separated rows.
+   Each row carries a print-style folio (01 / 02 …) sitting in the gap under
+   its dividing hairline — a quiet typographic ornament that gives the
+   sequence rhythm and a "set article" feel. */
+.feature-seq {
+  counter-reset: folio;
+}
+.feature-seq > .feature-row,
+.feature-seq > .feature-pair {
+  counter-increment: folio;
+  position: relative;
+  padding-top: var(--space-3xl);
+  margin-top: var(--space-3xl);
+  border-top: 1px solid var(--color-border);
+}
+.feature-seq > .feature-row::before,
+.feature-seq > .feature-pair::before {
+  content: counter(folio, decimal-leading-zero);
+  position: absolute;
+  top: var(--space-2xs);
+  left: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-small);
+  font-weight: 600;
+  letter-spacing: var(--tracking-eyebrow);
+  color: var(--color-text-muted);
+}
+.feature-seq > :first-child {
+  border-top: none;
+  margin-top: 0;
+  /* Keep room for the "01" folio, but no dividing hairline above the first row. */
+  padding-top: var(--space-l);
+}
+
+.feature-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2xl);
+  /* Centred, not top-aligned: prose is usually much shorter than the figure
+     beside it, and top-aligning left a large void under the text. */
+  align-items: center;
+}
+.feature-row.reverse .feature-prose { order: -1; }
+
+.feature-figure { margin: 0; }
+.feature-figure img {
+  width: 100%;
+  height: auto;
+  max-height: 440px;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+  /* Mounted-print treatment: a raised-surface mat (the thick border) with a
+     hairline frame and a soft lift, so the screenshot reads as a print on a
+     board rather than an image flush to the page. */
+  border: 10px solid var(--color-surface);
+  border-radius: var(--radius-l);
+  box-shadow: 0 0 0 1px var(--color-border), var(--shadow-md);
+}
+
+/* Not two cells of a grid — one spread, divided by a column rule, so a row
+   without figures still reads as an entry in the sequence. */
+.feature-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: var(--space-l);
+}
+.feature-pair > .feature-prose + .feature-prose {
+  border-left: 1px solid var(--color-border);
+  padding-left: var(--space-l);
+}
+
+.kicker {
+  font-family: var(--font-ui);
+  font-size: var(--text-eyebrow);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-eyebrow);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2xs);
+}
+.feature-prose h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-h3);
+  font-weight: 600;
+  margin-bottom: var(--space-2xs);
+}
+.feature-problem {
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  font-style: italic;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3xs);
+}
+.feature-solution {
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  color: var(--color-text);
+  line-height: var(--leading-relaxed);
+}
+.feature-solution a { color: var(--color-accent-text); text-decoration: none; }
+.feature-solution a:hover { text-decoration: underline; }
+
+/* Hairline list — de-boxed replacement for card grids. */
+.spotlight-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: var(--space-2xl);
+}
+.spotlight-item {
+  padding: var(--space-m) 0;
+  border-top: 1px solid var(--color-border);
+}
+.spotlight-item h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-h3);
+  font-weight: 600;
+  margin-bottom: var(--space-3xs);
+}
+.spotlight-item p {
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  color: var(--color-text);
+  line-height: var(--leading);
+}
+
+@media (max-width: 768px) {
+  .feature-row,
+  .feature-pair,
+  .spotlight-list {
+    grid-template-columns: 1fr;
+    gap: var(--space-l);
+  }
+  .feature-row.reverse .feature-prose { order: 0; }
+  .feature-pair > .feature-prose + .feature-prose {
+    padding-top: var(--space-l);
+    padding-left: 0;
+    border-left: none;
+    border-top: 1px solid var(--color-border);
+  }
+}
+
+/* ---- Callout ---- */
+.callout {
+  background:var(--color-surface);
+  border-left:4px solid var(--color-accent);
+  border-radius:0 var(--radius-m) var(--radius-m) 0;
+  padding:20px 24px; margin:24px 0;
+  font-family:var(--font-body); font-size:var(--text-body); font-style:italic;
+  color:var(--color-text);
+}
+
+/* ---- CTA section ---- */
+.cta-section { padding:80px 24px; background:var(--color-surface-sunken); text-align:center; }
+.cta-section h2 { font-size:var(--text-h2); margin-bottom:12px; }
+.cta-section p { font-family:var(--font-body); font-size:var(--text-body); color:var(--color-text-muted); margin-bottom:24px; }
+
+/* ---- Buttons ---- */
+.download-buttons { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:16px; }
+.download-buttons.single { grid-template-columns:1fr; justify-items:center; }
+.download-btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:14px 20px; font-family:var(--font-ui); font-size:var(--text-ui); font-weight:500;
+  background:var(--color-accent); color:var(--color-on-accent); border:none;
+  border-radius:var(--radius-m); text-decoration:none; cursor:pointer;
+  transition:background-color var(--transition), transform var(--transition-fast); white-space:nowrap;
+}
+.download-btn:hover { background:var(--color-accent-text); }
+.download-btn:active { transform:scale(.98); }
+.download-btn:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.download-btn svg { width:18px; height:18px; flex-shrink:0; }
+.download-btn.secondary { background:var(--color-surface); border:1px solid var(--color-border); color:var(--color-text); }
+.download-btn.secondary:hover { border-color:var(--color-accent); background:var(--color-surface-sunken); }
+
+/* ---- Signup form ---- */
+.signup-container { background:var(--color-surface); border-radius:var(--radius-2xl); padding:24px 28px; border:1px solid var(--color-border); }
+.signup-form { display:flex; gap:12px; }
+.signup-form input[type="email"] {
+  flex:1; padding:14px 16px; font-size:var(--text-base); font-family:var(--font-ui);
+  border:1px solid var(--color-border); border-radius:var(--radius-m);
+  background:var(--color-bg); color:var(--color-text); outline:none; transition:border-color var(--transition),box-shadow var(--transition);
+}
+.signup-form input[type="email"]:focus { border-color:var(--color-accent); box-shadow:var(--focus-ring); }
+.signup-form input[type="email"]::placeholder { color:var(--color-text-muted); }
+.signup-form button {
+  padding:14px 24px; font-size:var(--text-base); font-family:var(--font-ui); font-weight:500;
+  background:var(--color-accent); color:var(--color-on-accent); border:none; border-radius:var(--radius-m);
+  cursor:pointer; transition:background-color var(--transition),transform var(--transition-fast); white-space:nowrap;
+}
+.signup-form button:hover { background:var(--color-accent-text); }
+.signup-form button:active { transform:scale(.98); }
+
+/* ===== Application surfaces =====
+   These are the shared primitives for the desktop app. They intentionally use
+   low-specificity selectors so a component may change layout without replacing
+   Press colour, type, focus, invalid, or disabled semantics. */
+
+::selection {
+  background:var(--color-selection-bg);
+  color:var(--color-selection-text);
+}
+
+html {
+  scrollbar-color:var(--color-scrollbar-thumb) var(--color-scrollbar-track);
+  scrollbar-width:thin;
+}
+::-webkit-scrollbar { width:8px; height:8px; }
+::-webkit-scrollbar-track { background:var(--color-scrollbar-track); }
+::-webkit-scrollbar-thumb {
+  background:var(--color-scrollbar-thumb);
+  border:2px solid var(--color-scrollbar-track);
+  border-radius:var(--radius-pill);
+}
+::-webkit-scrollbar-thumb:hover { background:var(--color-scrollbar-thumb-hover); }
+
+:where(
+  input:not([type]),
+  input[type="text"],
+  input[type="email"],
+  input[type="number"],
+  input[type="search"],
+  input[type="url"],
+  input[type="password"],
+  select,
+  textarea
+) {
+  min-width:0;
+  font-family:var(--font-ui);
+  font-size:var(--text-base);
+  line-height:var(--leading);
+  color:var(--color-control-text);
+  background:var(--color-control-bg);
+  border:1px solid var(--color-control-border);
+  border-radius:var(--radius-m);
+  outline:none;
+  transition:border-color var(--transition),box-shadow var(--transition),background-color var(--transition);
+}
+:where(
+  input:not([type]),
+  input[type="text"],
+  input[type="email"],
+  input[type="number"],
+  input[type="search"],
+  input[type="url"],
+  input[type="password"],
+  textarea
+)::placeholder { color:var(--color-control-placeholder); }
+:where(
+  input:not([type]),
+  input[type="text"],
+  input[type="email"],
+  input[type="number"],
+  input[type="search"],
+  input[type="url"],
+  input[type="password"],
+  select,
+  textarea
+):hover:not(:disabled) { border-color:var(--color-control-border-hover); }
+:where(
+  input:not([type]),
+  input[type="text"],
+  input[type="email"],
+  input[type="number"],
+  input[type="search"],
+  input[type="url"],
+  input[type="password"],
+  select,
+  textarea
+):focus-visible {
+  border-color:var(--color-control-border-focus);
+  box-shadow:var(--focus-ring);
+}
+:where(input,select,textarea)[aria-invalid="true"] {
+  border-color:var(--color-control-invalid);
+}
+:where(input,select,textarea)[aria-invalid="true"]:focus-visible {
+  box-shadow:0 0 0 3px var(--color-error-wash);
+}
+:where(input[type="checkbox"],input[type="radio"]) {
+  accent-color:var(--color-accent);
+}
+:where(input,select,textarea):disabled {
+  color:var(--color-disabled-text);
+  background:var(--color-disabled-bg);
+  border-color:var(--color-disabled-border);
+  cursor:not-allowed;
+  opacity:1;
+}
+
+.app-button {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:var(--space-2xs);
+  min-height:40px;
+  padding:var(--space-2xs) var(--space-s);
+  font-family:var(--font-ui);
+  font-size:var(--text-base);
+  font-weight:500;
+  line-height:var(--leading-tight);
+  color:var(--color-on-accent);
+  background:var(--color-accent);
+  border:1px solid transparent;
+  border-radius:var(--radius-m);
+  cursor:pointer;
+  transition:background-color var(--transition),border-color var(--transition),color var(--transition),transform var(--transition-fast);
+}
+.app-button:hover:not(:disabled) { background:var(--color-accent-text); }
+.app-button:active:not(:disabled) { transform:scale(.98); }
+.app-button:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.app-button.secondary {
+  color:var(--color-text);
+  background:var(--color-surface);
+  border-color:var(--color-border);
+}
+.app-button.secondary:hover:not(:disabled) {
+  background:var(--color-surface-sunken);
+  border-color:var(--color-accent);
+}
+.app-button.danger { background:var(--color-error); }
+.app-button:disabled {
+  color:var(--color-disabled-text);
+  background:var(--color-disabled-bg);
+  border-color:var(--color-disabled-border);
+  cursor:not-allowed;
+  opacity:1;
+}
+
+.app-dialog-scrim {
+  position:fixed;
+  inset:0;
+  z-index:var(--z-modal);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:var(--color-overlay-scrim);
+}
+.app-dialog-surface,
+.app-popover {
+  color:var(--color-text);
+  background:var(--color-surface);
+  border:1px solid var(--color-border);
+  box-shadow:var(--shadow-overlay);
+}
+.app-dialog-surface { border-radius:var(--radius-xl); }
+.app-popover { z-index:var(--z-popover); border-radius:var(--radius-m); }
+
+.app-prose-sheet {
+  position:relative;
+  isolation:isolate;
+  color:var(--color-prose-text);
+  background:var(--color-prose-bg);
+  border-radius:var(--radius-xs);
+  box-shadow:var(--shadow-prose);
+}
+.app-prose-sheet > * { position:relative; z-index:1; }
+.app-prose-sheet::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  background-image:var(--grain-tile);
+  background-size:160px 160px;
+  border-radius:inherit;
+  opacity:var(--grain-strength);
+}
+
+.app-callout {
+  padding:var(--space-s);
+  font-family:var(--font-body);
+  font-size:var(--text-body);
+  font-style:italic;
+  color:var(--color-text);
+  background:var(--color-surface);
+  border-left:4px solid var(--color-accent);
+  border-radius:0 var(--radius-m) var(--radius-m) 0;
+}
+
+/* ---- Social links ---- */
+.social-links { display:flex; gap:16px; }
+.social-link {
+  display:flex; align-items:center; justify-content:center; width:44px; height:44px;
+  background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-l);
+  color:var(--color-text-muted); text-decoration:none;
+  transition:border-color var(--transition),color var(--transition),transform var(--transition-fast);
+}
+.social-link:hover { border-color:var(--color-accent); color:var(--color-text); transform:translateY(-2px); }
+.social-link svg { width:20px; height:20px; }
+
+/* ---- Comparison table ---- */
+.comparison-table-wrap { overflow-x:auto; margin:24px 0; -webkit-overflow-scrolling:touch; }
+.comparison-table { width:100%; min-width:700px; border-collapse:collapse; font-size:var(--text-ui); font-family:var(--font-ui); }
+.comparison-table th, .comparison-table td { padding:12px 16px; text-align:left; border-bottom:1px solid var(--color-border); }
+.comparison-table thead th { font-weight:600; color:var(--color-text); background:var(--color-surface); }
+.comparison-table th[scope="row"] {
+  font-weight:500; color:var(--color-text);
+  position:sticky; left:0; z-index:1; background:var(--color-bg);
+}
+.comparison-table thead th:first-child { position:sticky; left:0; z-index:2; }
+
+/* Horizontal scrolling is invisible on a phone; say so rather than relying on
+   a gradient fade, which the guide bans and a screen reader cannot announce. */
+.table-scroll-hint { display:none; }
+@media (max-width:600px) {
+  .table-scroll-hint {
+    display:block;
+    font-family:var(--font-ui); font-size:var(--text-small);
+    color:var(--color-text-muted); margin-bottom:var(--space-2xs);
+  }
+}
+.comparison-table td { color:var(--color-text-muted); }
+.comparison-table .check { color:var(--color-success); font-weight:600; }
+.comparison-table .cross { color:var(--color-text-muted); }
+
+/* ---- Download cards (large) ---- */
+.download-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin:32px 0; }
+@media (max-width:600px) { .download-cards { grid-template-columns:1fr; } }
+.download-card-large {
+  display:inline-flex; flex-direction:column; align-items:center;
+  background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-xl);
+  padding:16px 24px; text-align:center; text-decoration:none; color:inherit;
+  transition:border-color var(--transition),background-color var(--transition);
+}
+.download-card-large:hover { border-color:var(--color-accent); background:var(--color-surface-sunken); }
+.download-card-large.highlight { border-color:var(--color-accent); background:var(--color-accent-wash); }
+.download-card-large svg { width:32px; height:32px; margin-bottom:12px; color:var(--color-text-muted); }
+.download-card-large.highlight svg { color:var(--color-accent); }
+.download-card-large .label { font-family:var(--font-display); font-weight:600; font-size:var(--text-base); display:block; margin-bottom:4px; }
+.download-card-large .subtext { font-family:var(--font-ui); font-size:var(--text-small); color:var(--color-text-muted); }
+
+/* ---- About-download card + table ---- */
+.about-download-card { background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-xl); padding:24px 28px; margin:32px 0; }
+.about-download-table { width:100%; border-collapse:collapse; font-size:var(--text-ui); font-family:var(--font-ui); }
+.about-download-table td { padding:10px 0; border-bottom:1px solid var(--color-border); color:var(--color-text-muted); }
+.about-download-table td:first-child { font-weight:500; color:var(--color-text); width:140px; }
+.about-download-table tr:last-child td { border-bottom:none; }
+.about-download-statements { margin-top:20px; padding-top:20px; border-top:1px solid var(--color-border); font-size:var(--text-small); color:var(--color-text-muted); line-height:var(--leading-relaxed); }
+.about-download-statements ul { list-style:none; }
+.about-download-statements li { margin-bottom:10px; padding-left:20px; position:relative; }
+.about-download-statements li::before { content:"•"; position:absolute; left:0; color:var(--color-accent); }
+
+/* ---- Flow diagram ---- */
+/* .flow-arrow's 24px is a decorative glyph dimension, not a type-scale step. */
+.flow-diagram { display:flex; flex-direction:column; align-items:center; gap:16px; margin:32px 0; }
+.flow-node { display:flex; flex-direction:column; align-items:center; background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-xl); padding:20px 28px; min-width:200px; }
+.flow-node-center { border-color:var(--color-accent); background:var(--color-accent-wash); }
+.flow-label { font-family:var(--font-display); font-weight:600; font-size:var(--text-base); color:var(--color-text); margin-bottom:4px; }
+.flow-formats { font-family:var(--font-ui); font-size:var(--text-small); color:var(--color-text-muted); }
+.flow-arrow { font-size:24px; color:var(--color-accent); line-height:1; }
+
+/* ---- Steps list ---- */
+.steps-list { list-style:none; }
+.steps-list li { display:flex; gap:16px; margin-bottom:20px; font-family:var(--font-body); font-size:var(--text-base); color:var(--color-text-muted); line-height:var(--leading); }
+.steps-list .step-num { flex-shrink:0; width:32px; height:32px; background:var(--color-accent); color:var(--color-on-accent); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--font-ui); font-weight:600; font-size:var(--text-small); }
+
+/* ---- System requirements ---- */
+.sysreq-list { list-style:none; }
+.sysreq-list li { padding:8px 0 8px 24px; position:relative; font-family:var(--font-ui); font-size:var(--text-ui); color:var(--color-text-muted); }
+.sysreq-list li::before { content:"•"; position:absolute; left:0; color:var(--color-accent); }
+
+/* ---- Navbar ---- */
+.navbar { position:fixed; top:0; left:0; right:0; z-index:var(--z-sticky); background:var(--color-nav-scrim); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border-bottom:1px solid var(--color-border); padding:0 24px; }
+.navbar-container { max-width:1100px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; height:64px; width:100%; }
+.navbar-logo { display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--color-text); flex-shrink:0; }
+.navbar-logo svg { height:26px; width:auto; display:block; }
+.navbar-logo span { font-family:var(--font-display); font-size:var(--text-h3); font-weight:600; }
+.navbar-links { display:flex; align-items:center; gap:8px; }
+.navbar-link { font-family:var(--font-ui); font-size:var(--text-ui); font-weight:500; color:var(--color-text-muted); text-decoration:none; padding:8px 14px; border-radius:var(--radius-s); transition:color var(--transition),background-color var(--transition); }
+.navbar-link:hover { color:var(--color-text); background:var(--color-surface); }
+.navbar-link.active { color:var(--color-text); box-shadow:inset 0 -2px 0 0 var(--color-accent); }
+.navbar-cta { font-family:var(--font-ui); font-size:var(--text-small); font-weight:500; color:var(--color-on-accent); background:var(--color-accent); text-decoration:none; padding:8px 16px; border-radius:var(--radius-s); margin-left:8px; transition:background-color var(--transition); }
+.navbar-cta:hover { background:var(--color-accent-text); }
+
+/* ---- Footer ---- */
+footer.site-footer { padding:40px 24px; text-align:center; border-top:1px solid var(--color-border); }
+footer.site-footer a { color:var(--color-text-muted); text-decoration:none; transition:color var(--transition); }
+footer.site-footer a:hover { color:var(--color-accent-text); }
+.footer-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:40px; max-width:900px; margin:0 auto 32px; text-align:left; }
+.footer-column h4 { font-family:var(--font-ui); font-size:var(--text-eyebrow); font-weight:600; text-transform:uppercase; letter-spacing:var(--tracking-eyebrow); color:var(--color-text-muted); margin-bottom:12px; }
+.footer-column ul { list-style:none; }
+.footer-column li { margin-bottom:8px; }
+.footer-column a { font-size:var(--text-ui); }
+.footer-bottom { padding-top:24px; border-top:1px solid var(--color-border); }
+.footer-bottom p { font-size:var(--text-small); color:var(--color-text-muted); margin-bottom:8px; }
+.footer-tagline { font-family:var(--font-body); font-style:italic; font-size:var(--text-ui); color:var(--color-text-muted); }

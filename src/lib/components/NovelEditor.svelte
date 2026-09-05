@@ -352,7 +352,7 @@
   <!-- Editor -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="novel-pages-container" onkeydown={handleKeydown}>
-    <div class="novel-page">
+    <div class="novel-page app-prose-sheet">
       <div bind:this={editorElement} class="editor-wrapper" data-testid="beat-prose-editor"></div>
     </div>
   </div>
@@ -363,12 +363,12 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: var(--color-bg-panel);
+    background: var(--color-surface);
     overflow: hidden;
   }
 
   .novel-editor.readonly {
-    opacity: 0.7;
+    cursor: default;
   }
 
   /* Toolbar */
@@ -377,8 +377,8 @@
     align-items: center;
     gap: 0.25rem;
     padding: 0.5rem 0.75rem;
-    background: var(--color-bg-card);
-    border-bottom: 1px solid var(--color-bg-primary);
+    background: var(--color-surface-sunken);
+    border-bottom: 1px solid var(--color-border);
     flex-wrap: wrap;
   }
 
@@ -394,28 +394,30 @@
     justify-content: center;
     width: 2rem;
     height: 2rem;
-    border-radius: 0.375rem;
-    color: var(--color-text-secondary);
+    border-radius: var(--radius-s);
+    color: var(--color-text-muted);
     background: transparent;
     border: none;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition:
+      background-color var(--transition),
+      color var(--transition);
   }
 
   .toolbar-btn:hover {
-    background: var(--color-bg-panel);
-    color: var(--color-text-primary);
+    background: var(--color-surface);
+    color: var(--color-text);
   }
 
   .toolbar-btn.active {
     background: var(--color-accent);
-    color: white;
+    color: var(--color-on-accent);
   }
 
   .toolbar-divider {
     width: 1px;
     height: 1.5rem;
-    background: var(--color-bg-panel);
+    background: var(--color-border);
     margin: 0 0.5rem;
   }
 
@@ -427,14 +429,13 @@
     display: flex;
     align-items: center;
     gap: 0.375rem;
-    font-size: 0.75rem;
+    font-size: var(--text-eyebrow);
     padding: 0.25rem 0.5rem;
     margin-right: 0.5rem;
   }
 
   .save-status.saving {
-    color: var(--color-text-secondary);
-    opacity: 0.7;
+    color: var(--color-text-muted);
   }
 
   .save-status.error {
@@ -442,11 +443,11 @@
   }
 
   .word-count {
-    font-size: 0.75rem;
-    color: var(--color-text-secondary);
+    font-size: var(--text-eyebrow);
+    color: var(--color-text-muted);
     padding: 0.25rem 0.5rem;
-    background: var(--color-bg-panel);
-    border-radius: 0.25rem;
+    background: var(--color-surface);
+    border-radius: var(--radius-xs);
   }
 
   /* Pages container - scrollable area */
@@ -455,7 +456,7 @@
     overflow-y: auto;
     overflow-x: hidden;
     padding: 1.5rem;
-    background: var(--color-bg-panel);
+    background: var(--color-surface-sunken);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -463,29 +464,25 @@
 
   /* Novel Page - the paper appearance */
   .novel-page {
-    width: 26rem;
+    width: min(calc(100% - var(--space-l)), calc(var(--measure) + 2 * var(--space-xl)));
     min-height: 40rem;
-    background: var(--color-prose-bg);
-    border-radius: 0.125rem;
-    box-shadow:
-      0 1px 3px var(--color-prose-page-shadow),
-      0 4px 12px var(--color-prose-page-glow),
-      inset 0 0 0 1px rgba(0, 0, 0, 0.05);
-    padding: 2rem 1.5rem;
+    padding: var(--space-xl);
     flex-shrink: 0;
   }
 
   .editor-wrapper {
     width: 100%;
+    max-width: var(--measure);
     min-height: 36rem;
+    margin: 0 auto;
   }
 
   /* TipTap Editor Styles - Novel typography */
   :global(.novel-editor-content) {
     outline: none;
-    font-family: "Lora", Georgia, serif;
-    font-size: 0.8125rem;
-    line-height: 1.6;
+    font-family: var(--font-body);
+    font-size: var(--text-body);
+    line-height: var(--leading-relaxed);
     color: var(--color-prose-text);
     min-height: 36rem;
     tab-size: 4;
@@ -515,18 +512,20 @@
 
   :global(.novel-editor-content blockquote) {
     margin: 1em 0;
-    padding-left: 1em;
-    border-left: 2px solid var(--color-prose-blockquote-border);
+    padding: var(--space-s);
+    background: var(--color-prose-callout-bg);
+    border-left: 4px solid var(--color-prose-blockquote-border);
+    border-radius: 0 var(--radius-m) var(--radius-m) 0;
     font-style: italic;
     color: var(--color-prose-blockquote-text);
   }
 
   :global(.novel-editor-content code) {
-    font-family: "Courier New", Courier, monospace;
+    font-family: var(--font-mono);
     background: var(--color-prose-code-bg);
     padding: 0.125em 0.25em;
-    border-radius: 0.25em;
-    font-size: 0.9em;
+    border-radius: var(--radius-xs);
+    font-size: var(--text-ui);
   }
 
   :global(.novel-editor-content strong) {

@@ -1,115 +1,83 @@
 @import "tailwindcss";
+@import "./styles/press/tokens.css";
+@import "./styles/press/tailwind.css";
+@import "./styles/press/components.css" layer(components);
 
-/* Kindling Brand Color Palette — Dark theme (default) */
-@theme {
-  /* Primary Colors */
-  --color-ember-orange: #e85a1b;
-  --color-spark-gold: #f6a623;
-  --color-flame-red: #c23a0c;
-  --color-flame-orange: #e25227;
-  --color-highlight-orange: #f0912d;
-
-  /* Background Colors */
-  --color-bg-primary: #0f0f0f;
-  --color-bg-panel: #1a1817;
-  --color-bg-card: #2a2725;
-
-  /* Book/Earth Tones */
-  --color-book-dark: #501d0f;
-  --color-book-light: #89492b;
-  --color-book-mid: #5c2e1a;
-
-  /* Text Colors */
-  --color-text-primary: #f5f2ef;
-  --color-text-secondary: #9a9490;
-
-  /* UI Colors - mapped for Tailwind compatibility */
-  --color-accent: #e85a1b;
-  --color-beat-header: #2a2725;
-  --color-beat-expanded: #1a1817;
-  --color-focus-highlight: rgba(232, 90, 27, 0.15);
-
-  /* Utility Colors */
-  --color-success: #2d9c6b;
-  --color-warning: #d9a012;
-
-  /* Prose surface (editor "paper") */
-  --color-prose-bg: #faf9f7;
-  --color-prose-text: #1a1a1a;
-  --color-prose-placeholder: #9ca3af;
-  --color-prose-blockquote-border: #d1d5db;
-  --color-prose-blockquote-text: #4b5563;
-  --color-prose-code-bg: #f3f4f6;
-  --color-prose-page-shadow: rgba(0, 0, 0, 0.2);
-  --color-prose-page-glow: rgba(0, 0, 0, 0.15);
-
-  /* Semantic status */
-  --color-error: #ef4444;
+/* Press fonts are bundled with the app so typography works fully offline. */
+@font-face {
+  font-family: "Fraunces";
+  src: url("/fonts/Fraunces-Variable-latin.woff2") format("woff2");
+  font-weight: 300 600;
+  font-style: normal;
+  font-display: swap;
+  font-optical-sizing: auto;
 }
 
-/* Light theme overrides */
-[data-theme="light"] {
-  --color-bg-primary: #faf8f5;
-  --color-bg-panel: #f0ece6;
-  --color-bg-card: #e5e0d8;
-
-  --color-text-primary: #2a2420;
-  --color-text-secondary: #6a6560;
-
-  --color-accent: #d04a10;
-  --color-ember-orange: #d04a10;
-  --color-spark-gold: #c08000;
-  --color-flame-red: #b03008;
-  --color-flame-orange: #cc4520;
-  --color-highlight-orange: #d07a20;
-
-  --color-beat-header: #e5e0d8;
-  --color-beat-expanded: #f0ece6;
-  --color-focus-highlight: rgba(208, 74, 16, 0.12);
-
-  --color-success: #1d7a50;
-  --color-warning: #b08000;
-
-  --color-prose-bg: #ffffff;
-  --color-prose-text: #2a2420;
-  --color-prose-placeholder: #9a9490;
-  --color-prose-blockquote-border: #c8c3bb;
-  --color-prose-blockquote-text: #6a6560;
-  --color-prose-code-bg: #eae5dd;
-  --color-prose-page-shadow: rgba(0, 0, 0, 0.08);
-  --color-prose-page-glow: rgba(0, 0, 0, 0.04);
-
-  --color-error: #dc2626;
+@font-face {
+  font-family: "Newsreader";
+  src: url("/fonts/Newsreader-Variable-latin.woff2") format("woff2");
+  font-weight: 300 600;
+  font-style: normal;
+  font-display: swap;
+  font-optical-sizing: auto;
 }
 
-/* Base styles */
-:root {
-  font-family: "Inter", system-ui, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 1.6;
+@font-face {
+  font-family: "Newsreader";
+  src: url("/fonts/Newsreader-Variable-Italic-latin.woff2") format("woff2");
+  font-weight: 300 600;
+  font-style: italic;
+  font-display: swap;
+  font-optical-sizing: auto;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-Regular-latin.woff2") format("woff2");
   font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 
-  color: var(--color-text-primary);
-  background-color: var(--color-bg-primary);
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-Medium-latin.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
 
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-SemiBold-latin.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  line-height: var(--leading);
+  font-weight: 400;
+  color: var(--color-text);
+  background: var(--color-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Typography Classes */
-.font-heading {
-  font-family: "Space Grotesk", system-ui, sans-serif;
-}
-
-.font-prose {
-  font-family: "Lora", Georgia, serif;
-}
-
 body {
   margin: 0;
   min-height: 100vh;
+}
+
+/* Set by theme.ts for one frame while data-theme changes: every surface flips
+   together instead of each element animating from its previous colour. */
+html.theme-switching,
+html.theme-switching * {
+  transition: none !important;
 }
 
 #app {
@@ -118,31 +86,32 @@ body {
   flex-direction: column;
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+@layer base {
+  button {
+    font-family: var(--font-ui);
+    font-size: inherit;
+  }
 }
 
-::-webkit-scrollbar-track {
-  background: var(--color-bg-panel);
+button:disabled {
+  color: var(--color-disabled-text) !important;
+  background-color: var(--color-disabled-bg) !important;
+  border-color: var(--color-disabled-border) !important;
+  cursor: not-allowed;
+  opacity: 1 !important;
 }
 
-::-webkit-scrollbar-thumb {
-  background: var(--color-bg-card);
-  border-radius: 4px;
+:where(button, [role="button"]):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-beat-header);
+.font-heading {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
 }
 
-/* Selection styling */
-::selection {
-  background: var(--color-accent);
-  color: white;
-}
-
-[data-theme="light"] ::selection {
-  color: #ffffff;
+.font-prose {
+  font-family: var(--font-body);
+  font-optical-sizing: auto;
 }

@@ -99,41 +99,44 @@
 {#if currentArea && config}
   <!-- Backdrop: subtle dim, modal-style -->
   <div
-    class="fixed inset-0 z-[100] bg-black/25 backdrop-blur-[2px]"
+    class="fixed inset-0 z-press-guidance-backdrop bg-press-overlay backdrop-blur-[2px]"
     role="presentation"
     aria-hidden="true"
   ></div>
 
   <!-- Tooltip card: modal-style, floats above -->
   <div
-    class="fixed z-[101] {positionClasses} w-[min(22rem,90vw)] max-w-md"
+    class="fixed z-press-guidance {positionClasses} w-[min(22rem,90vw)] max-w-md"
     role="dialog"
     aria-modal="true"
     aria-labelledby="guidance-title"
     aria-describedby="guidance-message"
   >
     <div
-      class="guidance-card rounded-xl border border-bg-card bg-bg-panel p-4 text-sm text-text-primary shadow-[0_8px_32px_rgba(0,0,0,0.4),0_2px_8px_rgba(0,0,0,0.2)]"
+      class="guidance-card rounded-xl border border-press-border bg-press-surface p-4 text-press-ui text-press-text shadow-press-overlay"
     >
       <div class="flex gap-3 mb-3">
         <div
-          class="shrink-0 w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center"
+          class="shrink-0 w-8 h-8 rounded-lg bg-press-accent-wash flex items-center justify-center"
           aria-hidden="true"
         >
-          <Info class="w-4 h-4 text-accent" />
+          <Info class="w-4 h-4 text-press-accent-text" />
         </div>
         <div>
-          <h3 id="guidance-title" class="font-medium text-text-primary mb-0.5">Tip</h3>
-          <p id="guidance-message" class="text-text-secondary text-sm leading-relaxed">
+          <h3 id="guidance-title" class="font-medium text-press-text mb-0.5">Tip</h3>
+          <p
+            id="guidance-message"
+            class="font-prose text-press-text text-press-body leading-relaxed"
+          >
             {config.message}
           </p>
         </div>
       </div>
-      <div class="flex items-center justify-between gap-3 pt-2 border-t border-bg-card">
+      <div class="flex items-center justify-between gap-3 pt-2 border-t border-press-border">
         <button
           type="button"
           onclick={disableTips}
-          class="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors"
+          class="flex items-center gap-1.5 text-press-eyebrow text-press-muted hover:text-press-text transition-colors"
           title="Don't show tips again"
         >
           <EyeOff class="w-3.5 h-3.5" />
@@ -142,7 +145,7 @@
         <button
           type="button"
           onclick={dismiss}
-          class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors"
+          class="flex items-center gap-1.5 px-3 py-1.5 text-press-eyebrow font-medium bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors"
         >
           <Check class="w-3.5 h-3.5" />
           Got it

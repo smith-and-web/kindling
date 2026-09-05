@@ -587,14 +587,14 @@
             {:else}
               <h1
                 data-testid="scene-title"
-                class="text-3xl font-heading font-semibold text-text-primary"
+                class="text-press-h1 font-heading font-semibold text-press-text"
               >
                 {scene.title}
               </h1>
             {/if}
             {#if isLocked}
               <span
-                class="flex items-center gap-1 px-2 py-1 bg-amber-500/10 text-amber-500 rounded-lg text-sm"
+                class="flex items-center gap-1 px-2 py-1 bg-press-warning-wash text-press-warning rounded-lg text-press-ui"
               >
                 <Lock class="w-4 h-4" />
                 Locked
@@ -602,24 +602,24 @@
             {/if}
           </div>
           {#if currentProject.currentChapter}
-            <p class="text-text-secondary text-sm mt-1">
+            <p class="text-press-muted text-press-ui mt-1">
               {currentProject.currentChapter.title}
             </p>
           {/if}
           {#if isScreenplay && scenePageEstimate !== null}
-            <span class="text-xs text-text-secondary mt-1">
+            <span class="text-press-eyebrow text-press-muted mt-1">
               ~{scenePageEstimate.toFixed(1)} pg
             </span>
           {/if}
           <div class="mt-4 flex flex-wrap gap-4">
             <div class="flex flex-col gap-1">
-              <label for="scene-type" class="text-xs text-text-secondary">Scene type</label>
+              <label for="scene-type" class="text-press-eyebrow text-press-muted">Scene type</label>
               <div class="relative">
                 <select
                   id="scene-type"
                   value={scene.scene_type ?? "normal"}
                   onchange={(event) => handleSceneTypeChange(event, scene)}
-                  class="appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer disabled:opacity-60"
+                  class="appearance-none bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus cursor-pointer"
                   disabled={isLocked || metadataSaving}
                 >
                   {#each sceneTypeOptions as option (option.value)}
@@ -627,18 +627,18 @@
                   {/each}
                 </select>
                 <ChevronDown
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-press-muted pointer-events-none"
                 />
               </div>
             </div>
             <div class="flex flex-col gap-1">
-              <label for="scene-status" class="text-xs text-text-secondary">Status</label>
+              <label for="scene-status" class="text-press-eyebrow text-press-muted">Status</label>
               <div class="relative">
                 <select
                   id="scene-status"
                   value={scene.scene_status ?? "draft"}
                   onchange={(event) => handleSceneStatusChange(event, scene)}
-                  class="appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer disabled:opacity-60"
+                  class="appearance-none bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus cursor-pointer"
                   disabled={isLocked || metadataSaving}
                 >
                   {#each sceneStatusOptions as option (option.value)}
@@ -646,7 +646,7 @@
                   {/each}
                 </select>
                 <ChevronDown
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-press-muted pointer-events-none"
                 />
               </div>
             </div>
@@ -657,10 +657,10 @@
               >
                 <label
                   for="planning-status"
-                  class="text-xs text-text-secondary cursor-help flex items-center gap-1"
+                  class="text-press-eyebrow text-press-muted cursor-help flex items-center gap-1"
                 >
                   Planning
-                  <Info class="w-3 h-3 text-text-secondary/50" />
+                  <Info class="w-3 h-3 text-press-muted" />
                 </label>
               </Tooltip>
               <div class="relative">
@@ -668,7 +668,7 @@
                   id="planning-status"
                   value={scene.planning_status ?? "fixed"}
                   onchange={(event) => handleScenePlanningStatusChange(event, scene)}
-                  class="appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer disabled:opacity-60"
+                  class="appearance-none bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus cursor-pointer"
                   disabled={isLocked || metadataSaving}
                 >
                   {#each planningStatusOptions as option (option.value)}
@@ -676,23 +676,24 @@
                   {/each}
                 </select>
                 <ChevronDown
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-press-muted pointer-events-none"
                 />
               </div>
             </div>
           </div>
           {#if (scene.planning_status ?? "fixed") === "fixed"}
             <div class="flex flex-col gap-1">
-              <span class="text-xs text-text-secondary">View</span>
-              <div class="flex bg-bg-card rounded-lg p-0.5">
+              <span class="text-press-eyebrow text-press-muted">View</span>
+              <div class="flex bg-press-sunken rounded-lg p-0.5">
                 <Tooltip text="Beat cards" position="top">
                   <button
+                    data-testid="view-beats"
                     onclick={() => switchEditorMode("beat")}
                     disabled={switchingMode || isLocked}
-                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors {scene.editor_mode ===
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-press-ui transition-colors {scene.editor_mode ===
                     'beat'
-                      ? 'bg-accent text-white'
-                      : 'text-text-secondary hover:text-text-primary'}"
+                      ? 'bg-press-accent text-press-on-accent'
+                      : 'text-press-muted hover:text-press-text'}"
                   >
                     <LayoutGrid class="w-3.5 h-3.5" />
                     Beats
@@ -700,12 +701,13 @@
                 </Tooltip>
                 <Tooltip text="Full page prose" position="top">
                   <button
+                    data-testid="view-page"
                     onclick={() => switchEditorMode("page")}
                     disabled={switchingMode || isLocked}
-                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors {scene.editor_mode ===
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-press-ui transition-colors {scene.editor_mode ===
                     'page'
-                      ? 'bg-accent text-white'
-                      : 'text-text-secondary hover:text-text-primary'}"
+                      ? 'bg-press-accent text-press-on-accent'
+                      : 'text-press-muted hover:text-press-text'}"
                   >
                     <AlignLeft class="w-3.5 h-3.5" />
                     Page
@@ -715,14 +717,14 @@
             </div>
           {/if}
           {#if metadataError}
-            <p class="text-xs text-red-400 mt-2">{metadataError}</p>
+            <p class="text-press-eyebrow text-press-error mt-2">{metadataError}</p>
           {/if}
         </header>
 
         <!-- Scene tags -->
         {#if currentProject.value}
           <div class="mb-4 flex items-center gap-2">
-            <span class="text-xs text-text-secondary shrink-0">Tags</span>
+            <span class="text-press-eyebrow text-press-muted shrink-0">Tags</span>
             <TagSelector
               projectId={currentProject.value.id}
               entityType="scene"
@@ -736,44 +738,44 @@
 
         <!-- Planning status guidance (first-time, shown once on any scene) -->
         {#if !ui.hasSeenTooltip("planningStatus")}
-          <div class="mb-6 px-4 py-3 bg-accent/5 border border-accent/15 rounded-lg">
+          <div class="mb-6 px-4 py-3 bg-press-accent-wash border border-press-accent rounded-lg">
             <div class="flex items-start gap-2.5">
-              <Lightbulb class="w-4 h-4 text-accent shrink-0 mt-0.5" />
+              <Lightbulb class="w-4 h-4 text-press-accent-text shrink-0 mt-0.5" />
               <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-sm font-medium text-text-primary">Rolling outline</p>
+                  <p class="text-press-ui font-medium text-press-text">Rolling outline</p>
                   <button
                     onclick={() => ui.markTooltipSeen("planningStatus")}
-                    class="p-0.5 text-text-secondary hover:text-text-primary rounded transition-colors shrink-0"
+                    class="p-0.5 text-press-muted hover:text-press-text rounded transition-colors shrink-0"
                     aria-label="Dismiss"
                   >
                     <X class="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <p class="text-xs text-text-secondary leading-relaxed mt-1 mb-2.5">
-                  The <strong class="text-text-primary">Planning</strong> dropdown above controls how
-                  much structure this scene has. Use it to work through your story gradually:
+                <p class="text-press-eyebrow text-press-muted leading-relaxed mt-1 mb-2.5">
+                  The <strong class="text-press-text">Planning</strong> dropdown above controls how much
+                  structure this scene has. Use it to work through your story gradually:
                 </p>
                 <div class="grid grid-cols-3 gap-3">
-                  <div class="text-xs">
-                    <span class="font-medium text-text-secondary/60 flex items-center gap-1"
+                  <div class="text-press-eyebrow">
+                    <span class="font-medium text-press-muted flex items-center gap-1"
                       ><CircleDashed class="w-3 h-3" /> Undefined</span
                     >
-                    <p class="text-text-secondary/70 mt-0.5">
+                    <p class="text-press-muted mt-0.5">
                       A placeholder — you know it exists but haven't planned it.
                     </p>
                   </div>
-                  <div class="text-xs">
-                    <span class="font-medium text-amber-500/70 flex items-center gap-1"
+                  <div class="text-press-eyebrow">
+                    <span class="font-medium text-press-warning flex items-center gap-1"
                       ><CircleDot class="w-3 h-3" /> Flexible</span
                     >
-                    <p class="text-text-secondary/70 mt-0.5">
+                    <p class="text-press-muted mt-0.5">
                       You have the gist — a synopsis and rough direction.
                     </p>
                   </div>
-                  <div class="text-xs">
-                    <span class="font-medium text-text-primary flex items-center gap-1">Fixed</span>
-                    <p class="text-text-secondary/70 mt-0.5">
+                  <div class="text-press-eyebrow">
+                    <span class="font-medium text-press-text flex items-center gap-1">Fixed</span>
+                    <p class="text-press-muted mt-0.5">
                       Full structure with beats, references, and notes.
                     </p>
                   </div>
@@ -785,19 +787,21 @@
 
         <!-- Undefined: Placeholder view -->
         {#if (scene.planning_status ?? "fixed") === "undefined"}
-          <div class="mb-8 p-6 bg-bg-panel rounded-lg border border-dashed border-bg-card">
+          <div
+            class="mb-8 p-6 bg-press-surface rounded-lg border border-dashed border-press-border"
+          >
             <div class="flex items-start gap-3">
               <div
-                class="w-8 h-8 rounded-full bg-text-secondary/10 flex items-center justify-center shrink-0 mt-0.5"
+                class="w-8 h-8 rounded-full bg-press-border flex items-center justify-center shrink-0 mt-0.5"
               >
-                <CircleDashed class="w-4 h-4 text-text-secondary/60" />
+                <CircleDashed class="w-4 h-4 text-press-muted" />
               </div>
               <div>
-                <h3 class="text-sm font-medium text-text-primary mb-1">Undefined scene</h3>
-                <p class="text-text-secondary text-sm mb-1">
+                <h3 class="text-press-ui font-medium text-press-text mb-1">Undefined scene</h3>
+                <p class="text-press-muted text-press-ui mb-1">
                   This is a placeholder — you know it exists but haven't planned it yet.
                 </p>
-                <p class="text-text-secondary/70 text-xs mb-3">
+                <p class="text-press-muted text-press-eyebrow mb-3">
                   Add a synopsis above to capture the gist, then promote it when you're ready to
                   flesh it out.
                 </p>
@@ -805,13 +809,13 @@
                   <div class="flex items-center gap-2">
                     <button
                       onclick={() => setScenePlanningStatus(scene, "flexible")}
-                      class="px-3 py-1.5 rounded-md bg-accent/10 text-accent text-sm font-medium hover:bg-accent/20 transition-colors"
+                      class="px-3 py-1.5 rounded-md bg-press-accent-wash text-press-accent-text text-press-ui font-medium hover:text-press-text transition-colors"
                     >
                       Switch to Flexible
                     </button>
                     <button
                       onclick={() => setScenePlanningStatus(scene, "fixed")}
-                      class="px-3 py-1.5 rounded-md text-text-secondary text-sm hover:text-text-primary hover:bg-bg-card transition-colors"
+                      class="px-3 py-1.5 rounded-md text-press-muted text-press-ui hover:text-press-text hover:bg-press-sunken transition-colors"
                     >
                       Go straight to Fixed
                     </button>
@@ -822,26 +826,28 @@
           </div>
         {:else if (scene.planning_status ?? "fixed") === "flexible"}
           <!-- Flexible: Synopsis + prompt to add beats -->
-          <div class="mb-8 p-6 bg-bg-panel rounded-lg border border-dashed border-bg-card">
+          <div
+            class="mb-8 p-6 bg-press-surface rounded-lg border border-dashed border-press-border"
+          >
             <div class="flex items-start gap-3">
               <div
-                class="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5"
+                class="w-8 h-8 rounded-full bg-press-warning-wash flex items-center justify-center shrink-0 mt-0.5"
               >
-                <CircleDot class="w-4 h-4 text-amber-500/70" />
+                <CircleDot class="w-4 h-4 text-press-warning" />
               </div>
               <div>
-                <h3 class="text-sm font-medium text-text-primary mb-1">Flexible scene</h3>
-                <p class="text-text-secondary text-sm mb-1">
+                <h3 class="text-press-ui font-medium text-press-text mb-1">Flexible scene</h3>
+                <p class="text-press-muted text-press-ui mb-1">
                   You have an idea for this scene but haven't locked down the structure.
                 </p>
-                <p class="text-text-secondary/70 text-xs mb-3">
+                <p class="text-press-muted text-press-eyebrow mb-3">
                   Use the synopsis to capture your intent. When you're ready to break it into beats,
                   switch to Fixed.
                 </p>
                 {#if !isLocked}
                   <button
                     onclick={() => setScenePlanningStatus(scene, "fixed")}
-                    class="px-3 py-1.5 rounded-md bg-accent/10 text-accent text-sm font-medium hover:bg-accent/20 transition-colors"
+                    class="px-3 py-1.5 rounded-md bg-press-accent-wash text-press-accent-text text-press-ui font-medium hover:text-press-text transition-colors"
                   >
                     Define beats
                   </button>
@@ -853,12 +859,12 @@
 
         <!-- Locked Banner -->
         {#if isLocked}
-          <div class="mb-8 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-            <div class="flex items-center gap-2 text-amber-500">
+          <div class="mb-8 px-4 py-3 bg-press-warning-wash border border-press-warning rounded-lg">
+            <div class="flex items-center gap-2 text-press-warning">
               <Lock class="w-4 h-4" />
               <span class="font-medium">This scene is locked</span>
             </div>
-            <p class="text-text-secondary text-sm mt-1">
+            <p class="text-press-muted text-press-ui mt-1">
               {#if currentProject.currentChapter?.locked}
                 The parent chapter is locked. Unlock the chapter to edit this scene.
               {:else}
@@ -871,14 +877,14 @@
         <!-- Synopsis (shown for all planning statuses) -->
         <section class="mb-8">
           <div class="flex items-center justify-between mb-2">
-            <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">
+            <h2 class="text-press-ui font-semibold text-press-text uppercase tracking-wide">
               Synopsis
             </h2>
             {#if scene.synopsis && !editingSynopsis && !isLocked}
               <Tooltip text="Edit synopsis" position="left">
                 <button
                   onclick={startEditingSynopsis}
-                  class="text-text-secondary hover:text-text-primary transition-colors p-1"
+                  class="text-press-muted hover:text-press-text transition-colors p-1"
                   aria-label="Edit synopsis"
                 >
                   <Pencil class="w-3.5 h-3.5" />
@@ -889,43 +895,41 @@
           {#if editingSynopsis && !isLocked}
             <div class="relative">
               <textarea
-                class="w-full min-h-[100px] bg-bg-card rounded-lg p-4 text-text-primary font-prose italic leading-relaxed resize-y border border-accent focus:outline-none"
+                class="w-full min-h-[100px] bg-press-sunken rounded-lg p-4 text-press-text font-prose italic leading-relaxed resize-y border border-press-accent focus:outline-none"
                 placeholder="Write a brief synopsis for this scene..."
                 bind:value={synopsisText}
                 oninput={(e) => handleSynopsisInput(e.currentTarget.value)}
               ></textarea>
               {#if synopsisSaving}
-                <div
-                  class="absolute bottom-3 right-3 flex items-center gap-1.5 text-text-secondary/50"
-                >
+                <div class="absolute bottom-3 right-3 flex items-center gap-1.5 text-press-muted">
                   <Loader2 class="w-3.5 h-3.5 animate-spin" />
-                  <span class="text-xs">Saving...</span>
+                  <span class="text-press-eyebrow">Saving...</span>
                 </div>
               {/if}
             </div>
-            <p class="text-text-secondary text-xs mt-2">
+            <p class="text-press-muted text-press-eyebrow mt-2">
               Press Escape to close. Changes are saved automatically.
             </p>
           {:else if scene.synopsis}
-            <div class="bg-bg-panel rounded-lg p-4 border-l-2 border-accent">
-              <p class="text-text-primary font-prose italic">
+            <div class="bg-press-surface rounded-lg p-4 border-l-2 border-press-accent">
+              <p class="text-press-text font-prose italic">
                 {scene.synopsis}
               </p>
             </div>
           {:else if !isLocked}
             <button
               onclick={startEditingSynopsis}
-              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-bg-card text-text-secondary hover:text-text-primary hover:border-accent transition-colors"
+              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-press-border text-press-muted hover:text-press-text hover:border-press-accent transition-colors"
             >
               <Plus class="w-4 h-4" />
-              <span class="text-sm">Add Synopsis</span>
+              <span class="text-press-ui">Add Synopsis</span>
             </button>
           {:else}
             <div
-              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-bg-card text-text-secondary/50"
+              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-press-border text-press-muted"
             >
               <Lock class="w-4 h-4" />
-              <span class="text-sm">Scene is locked</span>
+              <span class="text-press-ui">Scene is locked</span>
             </div>
           {/if}
         </section>
@@ -934,15 +938,15 @@
         {#if (scene.planning_status ?? "fixed") === "fixed"}
           <section class="mb-8">
             <div class="flex items-center justify-between mb-2">
-              <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">
+              <h2 class="text-press-ui font-semibold text-press-text uppercase tracking-wide">
                 References
               </h2>
               {#if sceneReferenceLoading}
-                <span class="text-xs text-text-secondary">Loading…</span>
+                <span class="text-press-eyebrow text-press-muted">Loading…</span>
               {/if}
             </div>
             {#if sceneReferenceError}
-              <p class="text-xs text-red-400">{sceneReferenceError}</p>
+              <p class="text-press-eyebrow text-press-error">{sceneReferenceError}</p>
             {:else}
               {@const hasSceneReferences = sceneReferenceOptions.some(
                 (option) => (sceneReferenceItems[option.id]?.length ?? 0) > 0
@@ -954,14 +958,14 @@
                     {#if items.length > 0}
                       {@const Icon = option.icon}
                       <div>
-                        <div class="flex items-center gap-2 text-xs text-text-secondary">
+                        <div class="flex items-center gap-2 text-press-eyebrow text-press-muted">
                           <Icon class={`w-3.5 h-3.5 ${option.accentClass}`} />
                           <span class="font-medium">{option.label}</span>
                         </div>
                         <div class="mt-2 flex flex-wrap gap-2">
                           {#each items as item (item.id)}
                             <span
-                              class="px-2 py-1 rounded-md bg-bg-panel text-text-primary text-xs"
+                              class="px-2 py-1 rounded-md bg-press-surface text-press-text text-press-eyebrow"
                             >
                               {item.name}
                             </span>
@@ -972,7 +976,7 @@
                   {/each}
                 </div>
               {:else if !sceneReferenceLoading}
-                <div class="text-sm text-text-secondary">
+                <div class="text-press-ui text-press-muted">
                   No linked items, objectives, or organizations.
                 </div>
               {/if}
@@ -989,43 +993,43 @@
               class="flex items-center justify-between w-full mb-2 text-left group"
             >
               <h2
-                class="text-sm font-semibold text-text-primary uppercase tracking-wide group-hover:text-text-primary transition-colors"
+                class="text-press-ui font-semibold text-press-text uppercase tracking-wide group-hover:text-press-text transition-colors"
               >
                 Discovery Notes
               </h2>
-              <span class="text-xs text-text-secondary">
+              <span class="text-press-eyebrow text-press-muted">
                 {discoveryNotesVisible ? "Hide" : "Show"} (⌘D)
               </span>
             </button>
             {#if discoveryNotesVisible}
               {#if discoveryNotesLoading}
-                <p class="text-sm text-text-secondary">Loading…</p>
+                <p class="text-press-ui text-press-muted">Loading…</p>
               {:else}
                 <div class="space-y-3">
                   {#if !addingDiscoveryNote && !isLocked}
                     <button
                       type="button"
                       onclick={startAddingDiscoveryNote}
-                      class="flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors text-sm"
+                      class="flex items-center gap-1 text-press-muted hover:text-press-text transition-colors text-press-ui"
                     >
                       <Plus class="w-3.5 h-3.5" />
                       <span>Add note</span>
                     </button>
                   {/if}
                   {#if addingDiscoveryNote}
-                    <div class="flex flex-col gap-2 p-3 rounded-lg bg-bg-panel">
+                    <div class="flex flex-col gap-2 p-3 rounded-lg bg-press-surface">
                       <textarea
                         bind:value={newDiscoveryNoteContent}
                         placeholder="What did you discover?"
                         rows="2"
-                        class="w-full px-3 py-2 rounded-md bg-bg-base text-text-primary text-sm placeholder:text-text-secondary/50 resize-none focus:outline-none focus:ring-2 focus:ring-accent"
+                        class="w-full px-3 py-2 rounded-md bg-press-sunken text-press-text text-press-ui placeholder:text-press-muted resize-none focus:outline-none focus:ring-2 focus:ring-press-focus"
                       ></textarea>
                       <div class="flex gap-2">
                         <button
                           type="button"
                           onclick={createDiscoveryNote}
                           disabled={!newDiscoveryNoteContent.trim() || creatingDiscoveryNote}
-                          class="px-3 py-1.5 rounded-md bg-accent text-white text-sm font-medium disabled:opacity-50"
+                          class="px-3 py-1.5 rounded-md bg-press-accent text-press-on-accent text-press-ui font-medium"
                         >
                           {creatingDiscoveryNote ? "Adding…" : "Add"}
                         </button>
@@ -1035,7 +1039,7 @@
                             addingDiscoveryNote = false;
                             newDiscoveryNoteContent = "";
                           }}
-                          class="px-3 py-1.5 rounded-md bg-bg-card text-text-secondary text-sm hover:text-text-primary"
+                          class="px-3 py-1.5 rounded-md bg-press-sunken text-press-muted text-press-ui hover:text-press-text"
                         >
                           Cancel
                         </button>
@@ -1044,19 +1048,19 @@
                   {/if}
                   {#each discoveryNotes as note}
                     {@const isEditing = editingDiscoveryNoteId === note.id}
-                    <div class="p-3 rounded-lg bg-bg-panel">
+                    <div class="p-3 rounded-lg bg-press-surface">
                       {#if isEditing}
                         <textarea
                           bind:value={editingDiscoveryNoteContent}
                           rows="2"
-                          class="w-full px-3 py-2 rounded-md bg-bg-base text-text-primary text-sm resize-none focus:outline-none focus:ring-2 focus:ring-accent mb-2"
+                          class="w-full px-3 py-2 rounded-md bg-press-sunken text-press-text text-press-ui resize-none focus:outline-none focus:ring-2 focus:ring-press-focus mb-2"
                         ></textarea>
                         <div class="flex gap-2">
                           <button
                             type="button"
                             onclick={() =>
                               updateDiscoveryNote(note.id, editingDiscoveryNoteContent)}
-                            class="px-3 py-1.5 rounded-md bg-accent text-white text-sm font-medium"
+                            class="px-3 py-1.5 rounded-md bg-press-accent text-press-on-accent text-press-ui font-medium"
                           >
                             Save
                           </button>
@@ -1066,18 +1070,22 @@
                               editingDiscoveryNoteId = null;
                               editingDiscoveryNoteContent = "";
                             }}
-                            class="px-3 py-1.5 rounded-md bg-bg-card text-text-secondary text-sm hover:text-text-primary"
+                            class="px-3 py-1.5 rounded-md bg-press-sunken text-press-muted text-press-ui hover:text-press-text"
                           >
                             Cancel
                           </button>
                         </div>
                       {:else}
-                        <p class="text-sm text-text-primary whitespace-pre-wrap">{note.content}</p>
+                        <p
+                          class="font-prose text-press-body text-press-text whitespace-pre-wrap max-w-press-measure"
+                        >
+                          {note.content}
+                        </p>
                         {#if note.tags && note.tags.length > 0}
                           <div class="flex flex-wrap gap-1 mt-2">
                             {#each note.tags as tag}
                               <span
-                                class="px-1.5 py-0.5 rounded bg-bg-base text-xs text-text-secondary"
+                                class="px-1.5 py-0.5 rounded bg-press-sunken text-press-eyebrow text-press-muted"
                               >
                                 {tag}
                               </span>
@@ -1091,14 +1099,14 @@
                               editingDiscoveryNoteId = note.id;
                               editingDiscoveryNoteContent = note.content;
                             }}
-                            class="text-xs text-text-secondary hover:text-text-primary"
+                            class="text-press-eyebrow text-press-muted hover:text-press-text"
                           >
                             Edit
                           </button>
                           <button
                             type="button"
                             onclick={() => deleteDiscoveryNote(note.id)}
-                            class="text-xs text-text-secondary hover:text-red-400"
+                            class="text-press-eyebrow text-press-muted hover:text-press-error"
                           >
                             Delete
                           </button>
@@ -1106,7 +1114,7 @@
                             type="button"
                             onclick={() => promoteNoteToBeat(note)}
                             disabled={promotingNoteId === note.id}
-                            class="text-xs text-text-secondary hover:text-accent disabled:opacity-50"
+                            class="text-press-eyebrow text-press-muted hover:text-press-accent-text"
                           >
                             {promotingNoteId === note.id ? "Promoting…" : "Promote to beat"}
                           </button>
@@ -1115,7 +1123,7 @@
                     </div>
                   {/each}
                   {#if discoveryNotes.length === 0 && !addingDiscoveryNote}
-                    <p class="text-sm text-text-secondary">No discovery notes yet.</p>
+                    <p class="text-press-ui text-press-muted">No discovery notes yet.</p>
                   {/if}
                 </div>
               {/if}
@@ -1142,11 +1150,11 @@
         <!-- Scene Prose fallback (Fixed + Beat mode only, if exists and no beats) -->
         {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode !== "page" && scene.prose && currentProject.beats.length === 0}
           <section class="mt-8">
-            <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">
+            <h2 class="text-press-ui font-semibold text-press-text uppercase tracking-wide mb-4">
               Content
             </h2>
-            <div class="bg-bg-panel rounded-lg p-6">
-              <p class="text-text-primary font-prose leading-relaxed whitespace-pre-wrap">
+            <div class="bg-press-surface rounded-lg p-6">
+              <p class="text-press-text font-prose leading-relaxed whitespace-pre-wrap">
                 {scene.prose}
               </p>
             </div>
@@ -1158,11 +1166,11 @@
     <!-- Empty State -->
     <div
       data-testid="empty-state"
-      class="flex-1 flex flex-col items-center justify-center text-text-secondary"
+      class="flex-1 flex flex-col items-center justify-center text-press-muted"
     >
       <FileText class="w-16 h-16 mb-4 opacity-50" strokeWidth={1.5} />
-      <p class="text-lg">Select a scene to start writing</p>
-      <p class="text-sm mt-1">Choose a scene from the sidebar to view its content</p>
+      <p class="text-press-body-lg">Select a scene to start writing</p>
+      <p class="text-press-ui mt-1">Choose a scene from the sidebar to view its content</p>
     </div>
   {/if}
 </div>

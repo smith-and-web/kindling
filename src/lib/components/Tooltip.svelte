@@ -46,7 +46,7 @@
 
   {#if visible && text}
     <div
-      class="tooltip absolute z-50 px-3 py-1.5 text-xs font-medium whitespace-nowrap rounded-lg shadow-lg pointer-events-none bg-bg-card text-text-primary"
+      class="tooltip absolute z-press-popover px-3 py-1.5 text-press-eyebrow font-medium whitespace-nowrap rounded-lg shadow-press-overlay pointer-events-none bg-press-sunken text-press-text"
       class:tooltip-top={position === "top"}
       class:tooltip-bottom={position === "bottom"}
       class:tooltip-left={position === "left"}

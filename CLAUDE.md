@@ -33,7 +33,8 @@ src/                      Svelte 5 + TS frontend
   lib/components/         UI components (*.svelte, co-located *.test.ts)
   lib/stores/            Runed stores (*.svelte.ts)
   lib/utils/             Helpers (theme, import, ...)
-  app.css                Tailwind + Kindling brand tokens (@theme block)
+  app.css                Tailwind + Press imports, fonts, and app-wide styles
+  styles/press/           Generated read-only mirror + Tailwind token bridge
 src-tauri/src/           Rust backend
   commands/              Tauri IPC commands (import, export, crud, sync, ...)
   parsers/               Import parsers: plottr, ywriter, scrivener, longform, markdown
@@ -54,6 +55,9 @@ npm test -- --coverage   # frontend tests with coverage gate
 npm run check            # svelte-check (types)
 npm run lint             # eslint src/
 npm run format:check     # prettier check
+npm run sync:design-system   # sync Press from the sibling brand-assets repo
+npm run check:design-system  # fail if a synced file or generated bridge drifted
+# Add -- --with-app-icons when the canonical app-icon master changes.
 
 cd src-tauri && cargo test --all-features                                  # Rust tests
 cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings   # Rust lint
@@ -61,6 +65,21 @@ cd src-tauri && cargo fmt --all -- --check                                 # Rus
 
 npm run check:all        # everything CI checks (types, format, lint, rust fmt+clippy)
 ```
+
+## Press design system
+
+`../brand-assets/design-system/` is the canonical source for the app's colours,
+typography, spacing, states, elevation, and component foundations. Read
+`DESIGN_GUIDE.md` before changing UI. Never define a token locally or hand-edit
+anything under `src/styles/press/`; change Press upstream, regenerate
+`tokens.json`, then run `npm run sync:design-system` here. Light is the default
+theme and dark remains a supported app theme.
+
+Use token-backed utilities from the generated Tailwind bridge. Never free-hand a
+hex, font family, font size, z-index, or reduced text opacity in app UI. Reading
+prose uses Newsreader, operational UI uses Inter, headings use Fraunces, and prose
+is capped by `--measure`. Verify shared-style changes through computed styles in
+both themes because component-scoped Svelte CSS can win the cascade.
 
 ## Conventions
 
@@ -148,7 +167,8 @@ there. Verify anything touching the boundary with `npm run tauri dev`.
 ## Sensitive areas (touch only with explicit intent)
 
 - `src-tauri/src/db/schema.rs` — the SQLite schema. Changes affect existing user files.
-- `src/app.css` — Kindling brand tokens (Ember/Flame orange palette, theme variables).
+- `../brand-assets/design-system/` — canonical Press tokens and component styles.
+  Synced files in this repo are generated mirrors and must not be hand-edited.
 - `Cargo.lock` / `package-lock.json` — don't add or bump dependencies unsupervised.
 
 ## Automation: blacksmith

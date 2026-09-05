@@ -293,7 +293,7 @@
 
 <UpdateBanner />
 
-<main class="flex h-screen w-screen overflow-hidden bg-bg-primary">
+<main class="flex h-screen w-screen overflow-hidden bg-press-bg">
   {#if currentProject.value}
     <Sidebar />
     <ScenePanel />

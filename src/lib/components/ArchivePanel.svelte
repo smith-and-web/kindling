@@ -128,7 +128,7 @@
 
 <!-- Backdrop -->
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -138,20 +138,21 @@
 >
   <!-- Panel -->
   <div
-    class="bg-bg-panel rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col overflow-hidden"
+    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col overflow-hidden"
   >
     <!-- Header -->
-    <div class="flex items-center justify-between px-6 py-4 border-b border-bg-card">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-press-border">
       <div class="flex items-center gap-3">
-        <Archive class="w-5 h-5 text-accent" />
-        <h2 id="archive-panel-title" class="text-xl font-medium text-text-primary">Archive</h2>
+        <Archive class="w-5 h-5 text-press-accent-text" />
+        <h2 id="archive-panel-title" class="text-press-h3 font-medium text-press-text">Archive</h2>
       </div>
       <Tooltip text="Close" position="left">
         <button
           type="button"
           onclick={onClose}
-          class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
+          class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
           aria-label="Close"
+          data-testid="archive-close"
         >
           <X class="w-5 h-5" />
         </button>
@@ -162,17 +163,17 @@
     <div class="flex-1 overflow-y-auto p-6">
       {#if loading}
         <div class="flex items-center justify-center py-12">
-          <Loader2 class="w-8 h-8 animate-spin text-accent" />
+          <Loader2 class="w-8 h-8 animate-spin text-press-accent-text" />
         </div>
       {:else if error}
         <div class="text-center py-12">
-          <p class="text-red-400">{error}</p>
+          <p class="text-press-error">{error}</p>
         </div>
       {:else if archivedChapters.length === 0 && archivedScenes.length === 0}
         <div class="text-center py-12">
-          <Archive class="w-12 h-12 mx-auto text-text-secondary/50 mb-4" />
-          <p class="text-text-secondary">No archived items</p>
-          <p class="text-text-secondary/70 text-sm mt-1">
+          <Archive class="w-12 h-12 mx-auto text-press-muted mb-4" />
+          <p class="text-press-muted">No archived items</p>
+          <p class="text-press-muted text-press-ui mt-1">
             Archived chapters and scenes will appear here
           </p>
         </div>
@@ -180,23 +181,24 @@
         <!-- Archived Chapters -->
         {#if archivedChapters.length > 0}
           <section class="mb-8">
-            <h3 class="text-sm font-medium text-text-secondary uppercase tracking-wide mb-4">
+            <h3 class="text-press-ui font-medium text-press-muted uppercase tracking-wide mb-4">
               Archived Chapters ({archivedChapters.length})
             </h3>
             <div class="space-y-2">
               {#each archivedChapters as chapter (chapter.id)}
-                <div class="flex items-center justify-between bg-bg-card rounded-lg px-4 py-3">
+                <div class="flex items-center justify-between bg-press-sunken rounded-lg px-4 py-3">
                   <div class="flex items-center gap-3">
-                    <Book class="w-4 h-4 text-text-secondary" />
-                    <span class="text-text-primary">{chapter.title}</span>
+                    <Book class="w-4 h-4 text-press-muted" />
+                    <span class="text-press-text">{chapter.title}</span>
                   </div>
                   <div class="flex items-center gap-2">
                     <button
                       type="button"
                       onclick={() => restoreChapter(chapter)}
                       disabled={restoringId === chapter.id || deletingId === chapter.id}
-                      class="flex items-center gap-1 px-2 py-1 text-sm text-accent hover:text-accent/80 transition-colors disabled:opacity-50"
+                      class="flex items-center gap-1 px-2 py-1 text-press-ui text-press-accent-text hover:text-press-accent-text transition-colors"
                       title="Restore"
+                      data-testid="archive-restore"
                     >
                       {#if restoringId === chapter.id}
                         <Loader2 class="w-4 h-4 animate-spin" />
@@ -209,7 +211,7 @@
                       type="button"
                       onclick={() => permanentDeleteChapter(chapter)}
                       disabled={restoringId === chapter.id || deletingId === chapter.id}
-                      class="flex items-center gap-1 px-2 py-1 text-sm text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+                      class="flex items-center gap-1 px-2 py-1 text-press-ui text-press-error hover:text-press-error transition-colors"
                       title="Delete permanently"
                     >
                       {#if deletingId === chapter.id}
@@ -229,17 +231,17 @@
         <!-- Archived Scenes -->
         {#if archivedScenes.length > 0}
           <section>
-            <h3 class="text-sm font-medium text-text-secondary uppercase tracking-wide mb-4">
+            <h3 class="text-press-ui font-medium text-press-muted uppercase tracking-wide mb-4">
               Archived Scenes ({archivedScenes.length})
             </h3>
             <div class="space-y-2">
               {#each archivedScenes as scene (scene.id)}
-                <div class="flex items-center justify-between bg-bg-card rounded-lg px-4 py-3">
+                <div class="flex items-center justify-between bg-press-sunken rounded-lg px-4 py-3">
                   <div class="flex items-center gap-3 min-w-0">
-                    <FileText class="w-4 h-4 text-text-secondary flex-shrink-0" />
+                    <FileText class="w-4 h-4 text-press-muted flex-shrink-0" />
                     <div class="min-w-0">
-                      <p class="text-text-primary truncate">{scene.title}</p>
-                      <p class="text-text-secondary/70 text-xs truncate">
+                      <p class="text-press-text truncate">{scene.title}</p>
+                      <p class="text-press-muted text-press-eyebrow truncate">
                         in {getParentChapterTitle(scene)}
                       </p>
                     </div>
@@ -249,8 +251,9 @@
                       type="button"
                       onclick={() => restoreScene(scene)}
                       disabled={restoringId === scene.id || deletingId === scene.id}
-                      class="flex items-center gap-1 px-2 py-1 text-sm text-accent hover:text-accent/80 transition-colors disabled:opacity-50"
+                      class="flex items-center gap-1 px-2 py-1 text-press-ui text-press-accent-text hover:text-press-accent-text transition-colors"
                       title="Restore"
+                      data-testid="archive-restore"
                     >
                       {#if restoringId === scene.id}
                         <Loader2 class="w-4 h-4 animate-spin" />
@@ -263,7 +266,7 @@
                       type="button"
                       onclick={() => permanentDeleteScene(scene)}
                       disabled={restoringId === scene.id || deletingId === scene.id}
-                      class="flex items-center gap-1 px-2 py-1 text-sm text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+                      class="flex items-center gap-1 px-2 py-1 text-press-ui text-press-error hover:text-press-error transition-colors"
                       title="Delete permanently"
                     >
                       {#if deletingId === scene.id}

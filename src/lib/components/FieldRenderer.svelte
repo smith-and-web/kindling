@@ -78,13 +78,13 @@
   }
 
   const inputClass =
-    "w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent";
+    "w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 text-press-ui focus:outline-none focus:border-press-accent";
 </script>
 
 <div>
-  <label class="block text-sm text-text-secondary mb-1">
+  <label class="block text-press-ui text-press-muted mb-1">
     {definition.name}
-    {#if definition.required}<span class="text-red-400">*</span>{/if}
+    {#if definition.required}<span class="text-press-error">*</span>{/if}
   </label>
 
   {#if definition.field_type === "text"}
@@ -128,7 +128,7 @@
           href={value}
           target="_blank"
           rel="noopener noreferrer"
-          class="text-accent hover:text-accent/80 p-2"
+          class="text-press-accent-text hover:text-press-accent-text p-2"
           aria-label="Open URL"
         >
           <ExternalLink class="w-4 h-4" />
@@ -145,7 +145,9 @@
   {:else if definition.field_type === "multiselect"}
     <div class="flex flex-wrap gap-2">
       {#each selectOptions as option}
-        <label class="inline-flex items-center gap-1.5 text-sm text-text-primary cursor-pointer">
+        <label
+          class="inline-flex items-center gap-1.5 text-press-ui text-press-text cursor-pointer"
+        >
           <input
             type="checkbox"
             class="accent-accent"
@@ -158,7 +160,7 @@
       {/each}
     </div>
   {:else if definition.field_type === "checkbox"}
-    <label class="inline-flex items-center gap-2 text-sm text-text-primary cursor-pointer">
+    <label class="inline-flex items-center gap-2 text-press-ui text-press-text cursor-pointer">
       <input
         type="checkbox"
         class="accent-accent"

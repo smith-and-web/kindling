@@ -66,6 +66,56 @@ describe("currentProject store", () => {
     expect(currentProject.value).toEqual(mockProject);
   });
 
+  it("should clear selection and child data when switching to a different project", () => {
+    const base = {
+      name: "P",
+      source_type: "Plottr" as const,
+      source_path: "/a.pltr",
+      created_at: new Date().toISOString(),
+      modified_at: new Date().toISOString(),
+      author_pen_name: null,
+      genre: null,
+      description: null,
+      word_target: null,
+      reference_types: ["characters", "locations"] as ReferenceTypeId[],
+      project_type: "novel" as ProjectType,
+      target_page_count: null,
+    };
+    const chapter: Chapter = {
+      id: "c1",
+      project_id: "p1",
+      title: "Ch",
+      order_index: 0,
+      ...defaultChapterMeta,
+    } as unknown as Chapter;
+    const scene: Scene = {
+      id: "s1",
+      chapter_id: "c1",
+      title: "Sc",
+      order_index: 0,
+    } as unknown as Scene;
+
+    currentProject.setProject({ ...base, id: "p1" });
+    currentProject.setChapters([chapter]);
+    currentProject.setCurrentChapter(chapter);
+    currentProject.setScenes([scene]);
+    currentProject.setCurrentScene(scene);
+
+    // Same project id: selection survives (rename / settings update path)
+    currentProject.setProject({ ...base, id: "p1", name: "Renamed" });
+    expect(currentProject.currentScene).toEqual(scene);
+    expect(currentProject.chapters).toEqual([chapter]);
+
+    // Different project id: everything from the old project is cleared
+    currentProject.setProject({ ...base, id: "p2" });
+    expect(currentProject.value?.id).toBe("p2");
+    expect(currentProject.chapters).toEqual([]);
+    expect(currentProject.currentChapter).toBeNull();
+    expect(currentProject.currentScene).toBeNull();
+    expect(currentProject.scenes).toEqual([]);
+    expect(currentProject.beats).toEqual([]);
+  });
+
   it("should clear all state when setting project to null", () => {
     // Set up some state
     currentProject.setChapters([

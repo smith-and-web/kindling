@@ -169,7 +169,7 @@
 
 <!-- Backdrop -->
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -178,10 +178,12 @@
   tabindex="-1"
 >
   <!-- Dialog -->
-  <div class="bg-bg-panel rounded-lg shadow-xl w-full max-w-xl mx-4 overflow-hidden">
+  <div
+    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-xl mx-4 overflow-hidden"
+  >
     <!-- Header -->
-    <div class="flex items-center justify-between px-4 py-3 border-b border-bg-card">
-      <h2 id="reference-dialog-title" class="text-lg font-medium text-text-primary">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-press-border">
+      <h2 id="reference-dialog-title" class="text-press-body-lg font-medium text-press-text">
         {reference ? "Edit" : "Add"}
         {referenceType.label}
       </h2>
@@ -189,8 +191,9 @@
         <button
           type="button"
           onclick={onClose}
-          class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
+          class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
           aria-label="Close"
+          data-testid="reference-close"
         >
           <X class="w-5 h-5" />
         </button>
@@ -200,39 +203,39 @@
     <!-- Content -->
     <div class="p-4 space-y-4">
       <div>
-        <label for="reference-name" class="block text-sm text-text-secondary mb-1">Name</label>
+        <label for="reference-name" class="block text-press-ui text-press-muted mb-1">Name</label>
         <input
           id="reference-name"
           bind:this={nameInput}
           bind:value={name}
           type="text"
-          class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
+          class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
           placeholder="Enter name..."
           disabled={saving}
         />
       </div>
 
       <div>
-        <label for="reference-description" class="block text-sm text-text-secondary mb-1">
+        <label for="reference-description" class="block text-press-ui text-press-muted mb-1">
           Description
         </label>
         <textarea
           id="reference-description"
           rows="4"
           bind:value={description}
-          class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent resize-none"
+          class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent resize-none"
           placeholder="Optional description"
           disabled={saving}
         ></textarea>
       </div>
 
       <div>
-        <label for="reference-notes" class="block text-sm text-text-secondary mb-1">Notes</label>
+        <label for="reference-notes" class="block text-press-ui text-press-muted mb-1">Notes</label>
         <textarea
           id="reference-notes"
           rows="3"
           bind:value={notes}
-          class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent resize-none"
+          class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent resize-none"
           placeholder="Optional notes"
           disabled={saving}
         ></textarea>
@@ -240,7 +243,7 @@
 
       {#if !fieldsLoading && visibleFieldDefs.length > 0}
         <div class="space-y-3">
-          <span class="block text-sm text-text-secondary">Custom Fields</span>
+          <span class="block text-press-ui text-press-muted">Custom Fields</span>
           {#each visibleFieldDefs as def (def.id)}
             <FieldRenderer
               definition={def}
@@ -254,11 +257,11 @@
 
       <div class="space-y-2">
         <div class="flex items-center justify-between">
-          <span class="text-sm text-text-secondary">Additional Attributes</span>
+          <span class="text-press-ui text-press-muted">Additional Attributes</span>
           <button
             type="button"
             onclick={addAttributeRow}
-            class="text-text-secondary hover:text-text-primary text-xs flex items-center gap-1"
+            class="text-press-muted hover:text-press-text text-press-eyebrow flex items-center gap-1"
             disabled={saving}
           >
             <Plus class="w-3 h-3" />
@@ -266,7 +269,7 @@
           </button>
         </div>
         {#if attributeRows.length === 0}
-          <p class="text-xs text-text-secondary">No attributes yet.</p>
+          <p class="text-press-eyebrow text-press-muted">No attributes yet.</p>
         {:else}
           <div class="space-y-2">
             {#each attributeRows as row (row.id)}
@@ -275,20 +278,20 @@
                   type="text"
                   bind:value={row.key}
                   placeholder="Key"
-                  class="flex-1 bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                  class="flex-1 bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 text-press-ui focus:outline-none focus:border-press-accent"
                   disabled={saving}
                 />
                 <input
                   type="text"
                   bind:value={row.value}
                   placeholder="Value"
-                  class="flex-1 bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                  class="flex-1 bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 text-press-ui focus:outline-none focus:border-press-accent"
                   disabled={saving}
                 />
                 <button
                   type="button"
                   onclick={() => removeAttributeRow(row.id)}
-                  class="text-text-secondary hover:text-red-400 p-1"
+                  class="text-press-muted hover:text-press-error p-1"
                   aria-label="Remove attribute"
                   disabled={saving}
                 >
@@ -301,24 +304,25 @@
       </div>
 
       {#if error}
-        <p class="text-sm text-red-400">{error}</p>
+        <p class="text-press-ui text-press-error">{error}</p>
       {/if}
     </div>
 
     <!-- Footer -->
-    <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-bg-card">
+    <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-press-border">
       <button
         type="button"
         onclick={onClose}
-        class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+        class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors"
         disabled={saving}
       >
         Cancel
       </button>
       <button
+        data-testid="reference-save"
         type="button"
         onclick={handleSave}
-        class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/80 transition-colors disabled:opacity-50 flex items-center gap-2"
+        class="px-4 py-2 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors flex items-center gap-2"
         disabled={saving || !name.trim()}
       >
         {#if saving}

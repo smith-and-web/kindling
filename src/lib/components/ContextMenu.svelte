@@ -129,27 +129,27 @@
 <div
   bind:this={menuRef}
   data-testid="context-menu"
-  class="fixed z-50 min-w-[160px] bg-bg-panel border border-bg-card rounded-lg shadow-lg py-1 overflow-hidden"
+  class="fixed z-press-popover min-w-[160px] bg-press-surface border border-press-border rounded-lg shadow-press-overlay py-1 overflow-hidden"
   style="left: {adjustedX}px; top: {adjustedY}px;"
   role="menu"
   tabindex="-1"
 >
   {#each items as item, index (index)}
     {#if item.divider}
-      <div data-divider class="h-px bg-bg-card my-1"></div>
+      <div data-divider class="h-px bg-press-sunken my-1"></div>
     {:else}
       <button
         type="button"
         role="menuitem"
         data-testid="context-menu-item"
         data-label={item.label}
-        class="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors cursor-default"
-        class:text-text-primary={!item.disabled && !item.danger}
-        class:text-red-400={item.danger && !item.disabled}
-        class:text-text-secondary={item.disabled}
-        class:opacity-50={item.disabled}
+        class="w-full flex items-center gap-2 px-3 py-2 text-press-ui text-left transition-colors cursor-default"
+        class:text-press-text={!item.disabled && !item.danger}
+        class:text-press-error={item.danger && !item.disabled}
+        class:text-press-muted={item.disabled}
+        class:text-press-disabled-text={item.disabled}
         class:cursor-not-allowed={item.disabled}
-        class:hover:bg-bg-card={!item.disabled}
+        class:hover:bg-press-sunken={!item.disabled}
         disabled={item.disabled && !item.children}
         onmouseenter={() => onItemMouseEnter(index, item)}
         onclick={() => handleItemClick(item)}
@@ -160,7 +160,7 @@
         {/if}
         <span class="flex-1">{item.label}</span>
         {#if item.children}
-          <ChevronRight class="w-3.5 h-3.5 text-text-secondary" />
+          <ChevronRight class="w-3.5 h-3.5 text-press-muted" />
         {/if}
       </button>
 
@@ -168,7 +168,7 @@
         {@const pos = getSubmenuPosition(index)}
         <div
           bind:this={submenuRef}
-          class="fixed z-[60] min-w-[160px] bg-bg-panel border border-bg-card rounded-lg shadow-lg py-1 overflow-hidden"
+          class="fixed z-press-popover min-w-[160px] bg-press-surface border border-press-border rounded-lg shadow-press-overlay py-1 overflow-hidden"
           style="left: {pos.left}; top: {pos.top};"
           role="menu"
           tabindex="-1"
@@ -177,18 +177,18 @@
         >
           {#each item.children as child, ci (ci)}
             {#if child.divider}
-              <div class="h-px bg-bg-card my-1"></div>
+              <div class="h-px bg-press-sunken my-1"></div>
             {:else}
               <button
                 type="button"
                 role="menuitem"
-                class="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors"
-                class:text-text-primary={!child.disabled && !child.danger}
-                class:text-red-400={child.danger && !child.disabled}
-                class:text-text-secondary={child.disabled}
-                class:opacity-50={child.disabled}
+                class="w-full flex items-center gap-2 px-3 py-2 text-press-ui text-left transition-colors"
+                class:text-press-text={!child.disabled && !child.danger}
+                class:text-press-error={child.danger && !child.disabled}
+                class:text-press-muted={child.disabled}
+                class:text-press-disabled-text={child.disabled}
                 class:cursor-not-allowed={child.disabled}
-                class:hover:bg-bg-card={!child.disabled}
+                class:hover:bg-press-sunken={!child.disabled}
                 disabled={child.disabled}
                 onclick={() => handleSubmenuItemClick(child)}
               >

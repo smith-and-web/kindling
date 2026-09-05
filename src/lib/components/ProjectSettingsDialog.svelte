@@ -89,7 +89,7 @@
 
 <!-- Backdrop -->
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
   onclick={handleBackdropClick}
   onkeydown={(e) => e.key === "Enter" && handleBackdropClick}
   role="dialog"
@@ -99,13 +99,13 @@
 >
   <!-- Dialog -->
   <div
-    class="bg-bg-panel rounded-lg shadow-xl w-full max-w-lg mx-4 overflow-hidden max-h-[85vh] flex flex-col"
+    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-lg mx-4 overflow-hidden max-h-[85vh] flex flex-col"
   >
     <!-- Header -->
-    <div class="flex items-center justify-between px-4 py-3 border-b border-bg-card">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-press-border">
       <div class="flex items-center gap-2">
-        <BookOpen class="w-5 h-5 text-accent" />
-        <h2 id="settings-dialog-title" class="text-lg font-medium text-text-primary">
+        <BookOpen class="w-5 h-5 text-press-accent-text" />
+        <h2 id="settings-dialog-title" class="text-press-body-lg font-medium text-press-text">
           Project Settings
         </h2>
       </div>
@@ -113,8 +113,9 @@
         <button
           type="button"
           onclick={onClose}
-          class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
+          class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
           aria-label="Close"
+          data-testid="project-settings-close"
         >
           <X class="w-5 h-5" />
         </button>
@@ -123,16 +124,16 @@
 
     <!-- Content -->
     <div class="p-4 space-y-4 overflow-y-auto flex-1">
-      <p class="text-sm text-text-secondary">
-        These settings are specific to <strong class="text-text-primary"
+      <p class="text-press-ui text-press-muted">
+        These settings are specific to <strong class="text-press-text"
           >{currentProject.value?.name}</strong
         >.
       </p>
 
       <!-- Pen Name -->
       <div>
-        <label for="author-pen-name" class="block text-sm text-text-secondary mb-1">
-          Pen Name <span class="text-text-secondary/60">(optional)</span>
+        <label for="author-pen-name" class="block text-press-ui text-press-muted mb-1">
+          Pen Name <span class="text-press-muted">(optional)</span>
         </label>
         <input
           id="author-pen-name"
@@ -140,17 +141,17 @@
           bind:value={authorPenName}
           placeholder="Leave blank to use your author name"
           disabled={saving}
-          class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent disabled:opacity-50"
+          class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
         />
-        <p class="text-xs text-text-secondary mt-1">
+        <p class="text-press-eyebrow text-press-muted mt-1">
           If provided, this will be used as the byline on title pages instead of your author name.
         </p>
       </div>
 
       <!-- Genre -->
       <div>
-        <label for="genre" class="block text-sm text-text-secondary mb-1">
-          Genre <span class="text-text-secondary/60">(optional)</span>
+        <label for="genre" class="block text-press-ui text-press-muted mb-1">
+          Genre <span class="text-press-muted">(optional)</span>
         </label>
         <input
           id="genre"
@@ -158,17 +159,17 @@
           bind:value={genre}
           placeholder="e.g., Literary Fiction, Science Fiction, Mystery"
           disabled={saving}
-          class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent disabled:opacity-50"
+          class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
         />
-        <p class="text-xs text-text-secondary mt-1">
+        <p class="text-press-eyebrow text-press-muted mt-1">
           Genre will be displayed on manuscript title pages.
         </p>
       </div>
 
       <!-- Description -->
       <div>
-        <label for="project-description" class="block text-sm text-text-secondary mb-1">
-          Project Description <span class="text-text-secondary/60">(optional)</span>
+        <label for="project-description" class="block text-press-ui text-press-muted mb-1">
+          Project Description <span class="text-press-muted">(optional)</span>
         </label>
         <textarea
           id="project-description"
@@ -176,14 +177,14 @@
           bind:value={description}
           placeholder="Short summary or notes about this project"
           disabled={saving}
-          class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent disabled:opacity-50 resize-none"
+          class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent resize-none"
         ></textarea>
       </div>
 
       <!-- Word Target -->
       <div>
-        <label for="word-target" class="block text-sm text-text-secondary mb-1">
-          Word Target <span class="text-text-secondary/60">(optional)</span>
+        <label for="word-target" class="block text-press-ui text-press-muted mb-1">
+          Word Target <span class="text-press-muted">(optional)</span>
         </label>
         <input
           id="word-target"
@@ -193,13 +194,13 @@
           bind:value={wordTarget}
           placeholder="e.g., 80000"
           disabled={saving}
-          class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent disabled:opacity-50"
+          class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
         />
       </div>
 
       <!-- Tags -->
       {#if currentProject.value}
-        <div class="border-t border-bg-card pt-4">
+        <div class="border-t border-press-border pt-4">
           <TagManager projectId={currentProject.value.id} />
         </div>
       {/if}
@@ -216,9 +217,9 @@
           objectives: { entity: "objective" as FieldEntityType, label: "Objective" },
           organizations: { entity: "organization" as FieldEntityType, label: "Organization" },
         }}
-        <div class="border-t border-bg-card pt-4">
-          <h3 class="text-sm font-medium text-text-primary mb-3">Custom Fields</h3>
-          <p class="text-xs text-text-secondary mb-3">
+        <div class="border-t border-press-border pt-4">
+          <h3 class="text-press-ui font-medium text-press-text mb-3">Custom Fields</h3>
+          <p class="text-press-eyebrow text-press-muted mb-3">
             Define typed fields for your reference entities. These replace free-form key/value
             attributes with structured inputs.
           </p>
@@ -239,16 +240,16 @@
 
       <!-- Error Message -->
       {#if error}
-        <p class="text-sm text-red-400">{error}</p>
+        <p class="text-press-ui text-press-error">{error}</p>
       {/if}
     </div>
 
     <!-- Footer -->
-    <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-bg-card">
+    <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-press-border">
       <button
         type="button"
         onclick={onClose}
-        class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+        class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors"
         disabled={saving}
       >
         Cancel
@@ -256,7 +257,7 @@
       <button
         type="button"
         onclick={handleSave}
-        class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/80 transition-colors disabled:opacity-50 flex items-center gap-2"
+        class="px-4 py-2 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors flex items-center gap-2"
         disabled={saving}
       >
         {#if saving}

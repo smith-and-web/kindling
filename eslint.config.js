@@ -57,7 +57,15 @@ export default ts.config(
     },
   },
   {
-    ignores: ["dist/", "node_modules/", "src-tauri/", ".svelte-kit/", "build/"],
+    ignores: [
+      "dist/",
+      "node_modules/",
+      "src-tauri/",
+      ".svelte-kit/",
+      "build/",
+      // One-way mirrors are linted in their canonical brand-assets repository.
+      "src/styles/press/",
+    ],
   },
   {
     rules: {

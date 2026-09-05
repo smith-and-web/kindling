@@ -92,13 +92,13 @@
   }
 
   const inputClass =
-    "w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent";
+    "w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent";
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -106,17 +106,20 @@
   aria-labelledby="new-project-dialog-title"
   tabindex="-1"
 >
-  <div class="bg-bg-panel rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
-    <div class="flex items-center justify-between px-4 py-3 border-b border-bg-card">
-      <h2 id="new-project-dialog-title" class="text-lg font-medium text-text-primary">
+  <div
+    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-md mx-4 overflow-hidden"
+  >
+    <div class="flex items-center justify-between px-4 py-3 border-b border-press-border">
+      <h2 id="new-project-dialog-title" class="text-press-body-lg font-medium text-press-text">
         New Project
       </h2>
       <Tooltip text="Close" position="left">
         <button
           type="button"
           onclick={onClose}
-          class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
+          class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
           aria-label="Close"
+          data-testid="new-project-close"
         >
           <X class="w-5 h-5" />
         </button>
@@ -125,35 +128,35 @@
 
     <div class="p-4 space-y-4">
       <div>
-        <label class="block text-sm font-medium text-text-secondary mb-2">Project type</label>
+        <label class="block text-press-ui font-medium text-press-muted mb-2">Project type</label>
         <div class="flex gap-2">
           <button
             type="button"
             onclick={() => (projectType = "novel")}
             class="flex-1 flex items-center gap-2 p-3 rounded-lg border-2 transition-colors {projectType ===
             'novel'
-              ? 'border-accent bg-accent/10'
-              : 'border-bg-card hover:border-accent/50'}"
+              ? 'border-press-accent bg-press-accent-wash'
+              : 'border-press-border hover:border-press-accent'}"
           >
-            <BookOpen class="w-5 h-5 text-accent" />
-            <span class="text-text-primary font-medium">Novel</span>
+            <BookOpen class="w-5 h-5 text-press-accent-text" />
+            <span class="text-press-text font-medium">Novel</span>
           </button>
           <button
             type="button"
             onclick={() => (projectType = "screenplay")}
             class="flex-1 flex items-center gap-2 p-3 rounded-lg border-2 transition-colors {projectType ===
             'screenplay'
-              ? 'border-accent bg-accent/10'
-              : 'border-bg-card hover:border-accent/50'}"
+              ? 'border-press-accent bg-press-accent-wash'
+              : 'border-press-border hover:border-press-accent'}"
           >
-            <Film class="w-5 h-5 text-accent" />
-            <span class="text-text-primary font-medium">Screenplay</span>
+            <Film class="w-5 h-5 text-press-accent-text" />
+            <span class="text-press-text font-medium">Screenplay</span>
           </button>
         </div>
       </div>
 
       <div>
-        <label for="new-project-name" class="block text-sm font-medium text-text-secondary mb-2">
+        <label for="new-project-name" class="block text-press-ui font-medium text-press-muted mb-2">
           Name
         </label>
         <input
@@ -169,7 +172,7 @@
 
       {#if projectType === "screenplay"}
         <div>
-          <label for="target-length" class="block text-sm font-medium text-text-secondary mb-2">
+          <label for="target-length" class="block text-press-ui font-medium text-press-muted mb-2">
             Target length
           </label>
           <select id="target-length" bind:value={targetLength} class={inputClass} disabled={saving}>
@@ -181,17 +184,21 @@
       {/if}
 
       <div>
-        <label class="block text-sm font-medium text-text-secondary mb-2">Structure template</label>
+        <label class="block text-press-ui font-medium text-press-muted mb-2"
+          >Structure template</label
+        >
         {#if selectedTemplate}
           <div
-            class="flex items-center gap-2 px-3 py-2 bg-accent/10 border border-accent/30 rounded-lg"
+            class="flex items-center gap-2 px-3 py-2 bg-press-accent-wash border border-press-accent rounded-lg"
           >
-            <Layout class="w-4 h-4 text-accent shrink-0" />
-            <span class="text-sm text-text-primary flex-1 truncate">{selectedTemplate.name}</span>
+            <Layout class="w-4 h-4 text-press-accent-text shrink-0" />
+            <span class="text-press-ui text-press-text flex-1 truncate"
+              >{selectedTemplate.name}</span
+            >
             <button
               type="button"
               onclick={() => (selectedTemplate = null)}
-              class="text-text-secondary hover:text-text-primary p-0.5"
+              class="text-press-muted hover:text-press-text p-0.5"
               aria-label="Remove template"
             >
               <X class="w-3.5 h-3.5" />
@@ -201,7 +208,7 @@
           <button
             type="button"
             onclick={() => (showTemplateBrowser = true)}
-            class="w-full text-left px-3 py-2 text-sm text-text-secondary bg-bg-card border border-bg-card rounded-lg hover:border-accent/50 transition-colors"
+            class="w-full text-left px-3 py-2 text-press-ui text-press-muted bg-press-sunken border border-press-border rounded-lg hover:border-press-accent transition-colors"
             disabled={saving}
           >
             Browse templates...
@@ -210,23 +217,24 @@
       </div>
 
       {#if error}
-        <p class="text-sm text-red-400">{error}</p>
+        <p class="text-press-ui text-press-error">{error}</p>
       {/if}
     </div>
 
-    <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-bg-card">
+    <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-press-border">
       <button
         type="button"
         onclick={onClose}
-        class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+        class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors"
         disabled={saving}
       >
         Cancel
       </button>
       <button
+        data-testid="new-project-create"
         type="button"
         onclick={handleCreate}
-        class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/80 transition-colors disabled:opacity-50 flex items-center gap-2"
+        class="px-4 py-2 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors flex items-center gap-2"
         disabled={saving || !name.trim()}
       >
         {#if saving}

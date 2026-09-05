@@ -4,3 +4,5 @@ src-tauri/target/
 .svelte-kit/
 build/
 package-lock.json
+# One-way mirrors owned by ../brand-assets/design-system.
+src/styles/press/

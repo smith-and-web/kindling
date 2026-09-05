@@ -71,7 +71,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -80,18 +80,19 @@
   tabindex="-1"
 >
   <div
-    class="bg-bg-panel rounded-lg shadow-xl w-full max-w-2xl mx-4 overflow-hidden max-h-[80vh] flex flex-col"
+    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-2xl mx-4 overflow-hidden max-h-[80vh] flex flex-col"
   >
-    <div class="flex items-center justify-between px-4 py-3 border-b border-bg-card shrink-0">
-      <h2 id="template-browser-title" class="text-lg font-medium text-text-primary">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-press-border shrink-0">
+      <h2 id="template-browser-title" class="text-press-body-lg font-medium text-press-text">
         Story Structure Templates
       </h2>
       <Tooltip text="Close" position="left">
         <button
           type="button"
           onclick={onClose}
-          class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
+          class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
           aria-label="Close"
+          data-testid="template-close"
         >
           <X class="w-5 h-5" />
         </button>
@@ -101,17 +102,17 @@
     <div class="flex-1 overflow-y-auto p-4">
       {#if loading}
         <div class="flex items-center justify-center py-12">
-          <Loader2 class="w-6 h-6 animate-spin text-text-secondary" />
+          <Loader2 class="w-6 h-6 animate-spin text-press-muted" />
         </div>
       {:else if filteredTemplates.length === 0}
-        <p class="text-text-secondary text-center py-8">No templates available.</p>
+        <p class="text-press-muted text-center py-8">No templates available.</p>
       {:else}
         <div class="space-y-2">
           {#each filteredTemplates as template}
             <div
               class="rounded-lg border-2 transition-colors {selectedId === template.id
-                ? 'border-accent bg-accent/5'
-                : 'border-bg-card hover:border-accent/30'}"
+                ? 'border-press-accent bg-press-accent-wash'
+                : 'border-press-border hover:border-press-accent'}"
             >
               <button
                 type="button"
@@ -124,8 +125,8 @@
                 <div class="flex items-start gap-3">
                   <div
                     class="shrink-0 mt-0.5 p-1.5 rounded-lg {template.bundled
-                      ? 'bg-accent/10 text-accent'
-                      : 'bg-bg-card text-text-secondary'}"
+                      ? 'bg-press-accent-wash text-press-accent-text'
+                      : 'bg-press-sunken text-press-muted'}"
                   >
                     {#if template.bundled}
                       <Layout class="w-4 h-4" />
@@ -135,19 +136,21 @@
                   </div>
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2">
-                      <span class="font-medium text-text-primary">{template.name}</span>
-                      <span class="text-xs text-text-secondary">{totalBeats(template)} beats</span>
+                      <span class="font-medium text-press-text">{template.name}</span>
+                      <span class="text-press-eyebrow text-press-muted"
+                        >{totalBeats(template)} beats</span
+                      >
                       {#if template.source}
-                        <span class="text-xs text-text-secondary">· {template.source}</span>
+                        <span class="text-press-eyebrow text-press-muted">· {template.source}</span>
                       {/if}
                     </div>
                     {#if template.description}
-                      <p class="text-sm text-text-secondary mt-1 line-clamp-2">
+                      <p class="text-press-ui text-press-muted mt-1 line-clamp-2">
                         {template.description}
                       </p>
                     {/if}
                   </div>
-                  <div class="shrink-0 mt-1 text-text-secondary">
+                  <div class="shrink-0 mt-1 text-press-muted">
                     {#if expandedId === template.id}
                       <ChevronDown class="w-4 h-4" />
                     {:else}
@@ -159,15 +162,17 @@
 
               {#if expandedId === template.id}
                 <div class="px-4 pb-3 ml-10">
-                  <div class="border-l-2 border-bg-card pl-3 space-y-1">
+                  <div class="border-l-2 border-press-border pl-3 space-y-1">
                     {#each template.structure as part}
                       <div>
-                        <p class="text-xs font-medium text-accent">{part.title}</p>
+                        <p class="text-press-eyebrow font-medium text-press-accent-text">
+                          {part.title}
+                        </p>
                         {#each part.children as chapter}
-                          <div class="ml-3 text-xs text-text-secondary py-0.5">
+                          <div class="ml-3 text-press-eyebrow text-press-muted py-0.5">
                             {chapter.title}
                             {#if chapter.synopsis}
-                              <span class="text-text-secondary/60"> — {chapter.synopsis}</span>
+                              <span class="text-press-muted"> — {chapter.synopsis}</span>
                             {/if}
                           </div>
                         {/each}
@@ -182,15 +187,15 @@
       {/if}
     </div>
 
-    <div class="flex items-center justify-between px-4 py-3 border-t border-bg-card shrink-0">
-      <p class="text-xs text-text-secondary">
+    <div class="flex items-center justify-between px-4 py-3 border-t border-press-border shrink-0">
+      <p class="text-press-eyebrow text-press-muted">
         {filteredTemplates.length} template{filteredTemplates.length !== 1 ? "s" : ""} available
       </p>
       <div class="flex items-center gap-2">
         <button
           type="button"
           onclick={onClose}
-          class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+          class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors"
         >
           Cancel
         </button>
@@ -198,7 +203,7 @@
           type="button"
           onclick={handleSelect}
           disabled={!selectedTemplate}
-          class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/80 transition-colors disabled:opacity-50"
+          class="px-4 py-2 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors"
         >
           Use Template
         </button>

@@ -47,6 +47,26 @@ fn webkit_dmabuf_workaround(
     }
 }
 
+/// Picks the directory that holds the SQLite database and snapshots.
+///
+/// In debug builds a non-empty `KINDLING_DATA_DIR` overrides the platform
+/// default so automated QA can run against a scratch database. Release builds
+/// ignore the variable entirely, so a stray environment value can never
+/// redirect a real user's data.
+fn resolve_data_dir(
+    is_debug: bool,
+    override_value: Option<&str>,
+    default_dir: std::path::PathBuf,
+) -> std::path::PathBuf {
+    match override_value {
+        Some(dir) if is_debug && !dir.trim().is_empty() => {
+            eprintln!("[kindling] KINDLING_DATA_DIR override active: {dir}");
+            std::path::PathBuf::from(dir)
+        }
+        _ => default_dir,
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Apply the WebKitGTK DMABUF renderer workaround on Linux to prevent a white
@@ -80,11 +100,17 @@ pub fn run() {
 
     builder
         .setup(|app| {
-            // Get the app data directory
-            let app_data_dir = app
+            // Get the app data directory. Debug builds honour KINDLING_DATA_DIR so
+            // QA runs can use a scratch database instead of the user's real one.
+            let default_dir = app
                 .path()
                 .app_data_dir()
                 .expect("Failed to get app data directory");
+            let app_data_dir = resolve_data_dir(
+                cfg!(debug_assertions),
+                std::env::var("KINDLING_DATA_DIR").ok().as_deref(),
+                default_dir,
+            );
 
             // Initialize application state with database
             let state =
@@ -273,5 +299,37 @@ mod tests {
     #[test]
     fn non_linux_present_returns_none() {
         assert_eq!(webkit_dmabuf_workaround(false, Some("1")), None);
+    }
+}
+
+#[cfg(test)]
+mod resolve_data_dir_tests {
+    use super::resolve_data_dir;
+    use std::path::PathBuf;
+
+    fn default() -> PathBuf {
+        PathBuf::from("/default/app-data")
+    }
+
+    #[test]
+    fn debug_build_honours_override() {
+        assert_eq!(
+            resolve_data_dir(true, Some("/tmp/qa-data"), default()),
+            PathBuf::from("/tmp/qa-data")
+        );
+    }
+
+    #[test]
+    fn release_build_ignores_override() {
+        assert_eq!(
+            resolve_data_dir(false, Some("/tmp/qa-data"), default()),
+            default()
+        );
+    }
+
+    #[test]
+    fn empty_or_missing_override_uses_default() {
+        assert_eq!(resolve_data_dir(true, Some("   "), default()), default());
+        assert_eq!(resolve_data_dir(true, None, default()), default());
     }
 }

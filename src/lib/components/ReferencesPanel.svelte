@@ -107,8 +107,8 @@
         : []
   );
   let ActiveIcon = $derived(activeTypeOption?.icon ?? null);
-  let iconBgClass = $derived(activeTypeOption?.bgClass ?? "bg-accent/20");
-  let iconTextClass = $derived(activeTypeOption?.accentClass ?? "text-accent");
+  let iconBgClass = $derived(activeTypeOption?.bgClass ?? "bg-press-accent-wash");
+  let iconTextClass = $derived(activeTypeOption?.accentClass ?? "text-press-accent-text");
 
   async function loadReferences() {
     const requestId = ++loadReferencesRequestId;
@@ -825,7 +825,7 @@
 </script>
 
 <aside
-  class="bg-bg-panel border-l border-bg-card flex flex-col h-full relative"
+  class="bg-press-surface border-l border-press-border flex flex-col h-full relative"
   class:w-0={ui.referencesPanelCollapsed}
   class:overflow-hidden={ui.referencesPanelCollapsed}
   class:opacity-0={ui.referencesPanelCollapsed}
@@ -840,7 +840,7 @@
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
-      class="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-accent/50 active:bg-accent transition-colors z-10 focus:outline-none focus:bg-accent"
+      class="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-press-accent-text active:bg-press-accent transition-colors z-press-raised focus:outline-none focus:bg-press-accent"
       onmousedown={startResize}
       onkeydown={onResizeKeydown}
       role="separator"
@@ -853,9 +853,9 @@
     ></div>
   {/if}
   <!-- Header with tabs -->
-  <div class="border-b border-bg-card">
+  <div class="border-b border-press-border">
     <div class="flex items-center justify-between px-4 py-2">
-      <h2 class="text-sm font-heading font-medium text-text-primary">References</h2>
+      <h2 class="text-press-ui font-heading font-medium text-press-text">References</h2>
       <div class="flex items-center gap-1">
         <!-- Add Reference button -->
         <Tooltip
@@ -866,8 +866,9 @@
         >
           <button
             onclick={openCreateDialog}
-            class="text-text-secondary hover:text-text-primary p-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="text-press-muted hover:text-press-text p-1 disabled:cursor-not-allowed"
             aria-label="Add reference"
+            data-testid="add-reference-button"
             disabled={!activeTab}
           >
             <Plus class="w-4 h-4" />
@@ -877,7 +878,7 @@
         <Tooltip text="Reference types" position="bottom">
           <button
             onclick={openReferenceTypeSettings}
-            class="text-text-secondary hover:text-text-primary p-1"
+            class="text-press-muted hover:text-press-text p-1"
             aria-label="Reference types settings"
           >
             <Settings class="w-4 h-4" />
@@ -887,7 +888,7 @@
         <Tooltip text="Collapse all" position="bottom">
           <button
             onclick={collapseAll}
-            class="text-text-secondary hover:text-text-primary p-1"
+            class="text-press-muted hover:text-press-text p-1"
             aria-label="Collapse all"
           >
             <ListChevronsDownUp class="w-4 h-4" />
@@ -897,7 +898,7 @@
         <Tooltip text="Sort A-Z" position="bottom">
           <button
             onclick={sortAlphabetically}
-            class="text-text-secondary hover:text-text-primary p-1"
+            class="text-press-muted hover:text-press-text p-1"
             aria-label="Sort alphabetically"
           >
             <ArrowDownAZ class="w-4 h-4" />
@@ -907,7 +908,7 @@
         <Tooltip text="Collapse panel" position="bottom">
           <button
             onclick={toggleReferencesPanel}
-            class="text-text-secondary hover:text-text-primary p-1"
+            class="text-press-muted hover:text-press-text p-1"
             aria-label="Collapse references panel"
           >
             <ChevronsRight class="w-4 h-4" />
@@ -917,15 +918,15 @@
     </div>
 
     <!-- Tabs -->
-    <div class="flex border-t border-bg-card overflow-x-auto">
+    <div class="flex border-t border-press-border overflow-x-auto">
       {#each referenceTypeOptions as typeOption (typeOption.id)}
         <button
           onclick={() => (activeTab = typeOption.id)}
-          class="flex-1 px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap"
-          class:text-accent={activeTab === typeOption.id}
+          class="flex-1 px-4 py-2 text-press-ui font-medium transition-colors whitespace-nowrap"
+          class:text-press-accent-text={activeTab === typeOption.id}
           class:border-b-2={activeTab === typeOption.id}
-          class:border-accent={activeTab === typeOption.id}
-          class:text-text-secondary={activeTab !== typeOption.id}
+          class:border-press-accent={activeTab === typeOption.id}
+          class:text-press-muted={activeTab !== typeOption.id}
         >
           {typeOption.label} ({getReferenceCount(typeOption.id)})
         </button>
@@ -935,21 +936,21 @@
 
   <!-- Suggested References -->
   {#if currentProject.currentScene && (suggestions.length > 0 || suggestionsLoading)}
-    <div class="border-t border-bg-card">
+    <div class="border-t border-press-border">
       <button
         onclick={() => (suggestionsOpen = !suggestionsOpen)}
-        class="flex items-center gap-1.5 w-full px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+        class="flex items-center gap-1.5 w-full px-3 py-1.5 text-press-eyebrow font-medium text-press-muted hover:text-press-text transition-colors cursor-pointer"
       >
         {#if suggestionsOpen}
           <ChevronDown class="w-3 h-3" />
         {:else}
           <ChevronRight class="w-3 h-3" />
         {/if}
-        <Zap class="w-3 h-3 text-amber-400" />
+        <Zap class="w-3 h-3 text-press-warning" />
         Suggested
         {#if suggestions.length > 0}
           <span
-            class="ml-auto bg-amber-500/20 text-amber-400 text-[10px] px-1.5 py-0.5 rounded-full"
+            class="ml-auto bg-press-warning-wash text-press-warning text-press-eyebrow px-1.5 py-0.5 rounded-full"
           >
             {suggestions.length}
           </span>
@@ -958,19 +959,19 @@
       {#if suggestionsOpen}
         <div class="px-2 pb-2 space-y-1">
           {#if suggestionsLoading}
-            <p class="text-xs text-text-secondary px-1 py-2">Detecting...</p>
+            <p class="text-press-eyebrow text-press-muted px-1 py-2">Detecting...</p>
           {:else}
             {#if suggestions.length > 1}
               <div class="flex items-center justify-end gap-2 px-1 pb-1">
                 <button
                   onclick={linkAllSuggestions}
-                  class="text-[10px] text-accent hover:text-accent/80 transition-colors"
+                  class="text-press-eyebrow text-press-accent-text hover:text-press-accent-text transition-colors"
                 >
                   Link All
                 </button>
                 <button
                   onclick={dismissAllSuggestions}
-                  class="text-[10px] text-text-secondary hover:text-text-primary transition-colors"
+                  class="text-press-eyebrow text-press-muted hover:text-press-text transition-colors"
                 >
                   Dismiss All
                 </button>
@@ -993,32 +994,34 @@
   <div class="flex-1 overflow-y-auto p-2">
     {#if loading}
       <div class="flex items-center justify-center p-4">
-        <span class="text-text-secondary text-sm">Loading...</span>
+        <span class="text-press-muted text-press-ui">Loading...</span>
       </div>
     {:else if !activeTab}
       <div class="flex items-center justify-center p-4">
-        <span class="text-text-secondary text-sm">
+        <span class="text-press-muted text-press-ui">
           No reference types enabled. Use the settings cog to enable them.
         </span>
       </div>
     {:else if activeItems.length === 0}
       <div class="flex items-center justify-center p-4">
-        <span class="text-text-secondary text-sm">
+        <span class="text-press-muted text-press-ui">
           No {activeTypeOption?.label.toLowerCase() ?? "references"}
         </span>
       </div>
     {:else}
       {#if currentProject.currentScene}
-        <div class="flex items-center justify-between px-1 pb-2 text-xs text-text-secondary">
+        <div
+          class="flex items-center justify-between px-1 pb-2 text-press-eyebrow text-press-muted"
+        >
           <span class="uppercase tracking-wide">Linked to this scene</span>
           {#if sceneReferenceLoading}
             <span>Loading…</span>
           {/if}
         </div>
         {#if sceneReferenceError}
-          <div class="px-1 pb-2 text-xs text-red-400">{sceneReferenceError}</div>
+          <div class="px-1 pb-2 text-press-eyebrow text-press-error">{sceneReferenceError}</div>
         {:else if linkedItems.length === 0 && !sceneReferenceLoading}
-          <div class="px-1 pb-2 text-xs text-text-secondary">
+          <div class="px-1 pb-2 text-press-eyebrow text-press-muted">
             No references linked to this scene yet.
           </div>
         {/if}
@@ -1032,23 +1035,23 @@
           {@const canDrag = !currentProject.currentScene || isLinked}
           {#if currentProject.currentScene && linkedItems.length > 0 && index === linkedItems.length}
             <div
-              class="border-t border-bg-card pt-3 mt-3 text-xs text-text-secondary uppercase tracking-wide"
+              class="border-t border-press-border pt-3 mt-3 text-press-eyebrow text-press-muted uppercase tracking-wide"
             >
               All references
             </div>
           {/if}
           <div
-            class="bg-bg-card rounded-lg overflow-hidden"
+            class="bg-press-sunken rounded-lg overflow-hidden"
             class:ring-2={dragOverId === reference.id}
-            class:ring-accent={dragOverId === reference.id}
+            class:ring-press-focus={dragOverId === reference.id}
             style:opacity={draggedId === reference.id ? 0.5 : 1}
             data-drag-item={reference.id}
             role="listitem"
           >
-            <div class="w-full flex items-center gap-3 p-3 hover:bg-beat-header transition-colors">
+            <div class="w-full flex items-center gap-3 p-3 hover:bg-press-sunken transition-colors">
               <!-- Drag handle -->
               <div
-                class="text-text-secondary/50 cursor-grab active:cursor-grabbing shrink-0 hover:text-text-secondary"
+                class="text-press-muted cursor-grab active:cursor-grabbing shrink-0 hover:text-press-muted"
                 class:opacity-40={!canDrag}
                 onmousedown={(e) => onDragHandleMouseDown(e, reference.id, canDrag)}
                 role="button"
@@ -1061,10 +1064,10 @@
                 <Tooltip text={isLinked ? "Unlink from scene" : "Link to scene"} position="bottom">
                   <button
                     onclick={() => toggleSceneLink(reference)}
-                    class={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-xs transition-colors ${
+                    class={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-press-eyebrow transition-colors ${
                       isLinked
-                        ? "border-accent/60 text-accent hover:border-accent"
-                        : "border-bg-card text-text-secondary hover:text-text-primary hover:border-accent/40"
+                        ? "border-press-accent text-press-accent-text hover:border-press-accent"
+                        : "border-press-border text-press-muted hover:text-press-text hover:border-press-accent"
                     }`}
                     aria-label={isLinked ? "Unlink from scene" : "Link to scene"}
                   >
@@ -1076,7 +1079,7 @@
               <!-- Clickable area for expand/collapse -->
               <button
                 onclick={() => toggleExpanded(reference.id)}
-                class="flex-1 flex items-center gap-3 text-left"
+                class="flex-1 min-w-0 flex items-center gap-3 text-left"
               >
                 <!-- Reference icon -->
                 <div
@@ -1087,15 +1090,15 @@
                   {/if}
                 </div>
                 <div class="flex-1 min-w-0">
-                  <p class="text-text-primary font-medium text-sm truncate">{reference.name}</p>
+                  <p class="text-press-text font-medium text-press-ui truncate">{reference.name}</p>
                   {#if reference.description}
-                    <p class="text-text-secondary text-xs truncate">
+                    <p class="text-press-muted text-press-eyebrow truncate">
                       {stripHtml(reference.description)}
                     </p>
                   {/if}
                 </div>
                 <ChevronDown
-                  class="w-4 h-4 text-text-secondary transition-transform shrink-0 {isExpanded
+                  class="w-4 h-4 text-press-muted transition-transform shrink-0 {isExpanded
                     ? 'rotate-180'
                     : ''}"
                 />
@@ -1110,10 +1113,10 @@
               {@const hasFieldValues = refFieldDefs.some(
                 (d) => refFieldValues[d.id] != null && refFieldValues[d.id] !== ""
               )}
-              <div class="px-3 pb-3 border-t border-bg-panel">
+              <div class="px-3 pb-3 border-t border-press-border">
                 {#if reference.description}
                   <div
-                    class="text-text-primary text-sm mt-3 leading-relaxed max-w-none wrap-break-word [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
+                    class="font-prose text-press-text text-press-body mt-3 leading-relaxed max-w-press-measure wrap-break-word [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
                   >
                     <!-- eslint-disable-next-line svelte/no-at-html-tags -->
                     {@html reference.description}
@@ -1121,7 +1124,9 @@
                 {/if}
 
                 {#if notes}
-                  <p class="text-text-primary text-sm mt-3 leading-relaxed wrap-break-word">
+                  <p
+                    class="font-prose text-press-text text-press-body mt-3 leading-relaxed max-w-press-measure wrap-break-word"
+                  >
                     {notes}
                   </p>
                 {/if}
@@ -1131,9 +1136,9 @@
                     {#each refFieldDefs as def (def.id)}
                       {@const fv = refFieldValues[def.id]}
                       {#if fv != null && fv !== ""}
-                        <div class="flex gap-2 text-xs">
-                          <span class="text-text-secondary font-medium shrink-0">{def.name}:</span>
-                          <span class="text-text-primary wrap-break-word">
+                        <div class="flex gap-2 text-press-eyebrow">
+                          <span class="text-press-muted font-medium shrink-0">{def.name}:</span>
+                          <span class="text-press-text wrap-break-word">
                             {#if def.field_type === "checkbox"}
                               {fv === "true" ? "Yes" : "No"}
                             {:else if def.field_type === "multiselect"}
@@ -1149,7 +1154,7 @@
                                 href={fv}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                class="text-accent hover:underline">{fv}</a
+                                class="text-press-accent-text hover:underline">{fv}</a
                               >
                             {:else}
                               {fv}
@@ -1164,9 +1169,9 @@
                 {#if attributes.length > 0}
                   <div class="mt-3 space-y-1.5">
                     {#each attributes as [key, value] (key)}
-                      <div class="flex gap-2 text-xs">
-                        <span class="text-text-secondary font-medium shrink-0">{key}:</span>
-                        <span class="text-text-primary wrap-break-word">{value}</span>
+                      <div class="flex gap-2 text-press-eyebrow">
+                        <span class="text-press-muted font-medium shrink-0">{key}:</span>
+                        <span class="text-press-text wrap-break-word">{value}</span>
                       </div>
                     {/each}
                   </div>
@@ -1174,7 +1179,9 @@
 
                 {#if currentProject.value}
                   <div class="mt-3">
-                    <span class="text-xs text-text-secondary font-medium block mb-1">Tags</span>
+                    <span class="text-press-eyebrow text-press-muted font-medium block mb-1"
+                      >Tags</span
+                    >
                     <TagSelector
                       projectId={currentProject.value.id}
                       entityType={activeTypeOption
@@ -1193,14 +1200,14 @@
                 {/if}
 
                 {#if !reference.description && !notes && attributes.length === 0 && !hasFieldValues}
-                  <p class="text-text-secondary text-sm mt-3 italic">No additional details</p>
+                  <p class="text-press-muted text-press-ui mt-3 italic">No additional details</p>
                 {/if}
 
                 <div class="flex items-center gap-2 mt-4">
                   <Tooltip text="Edit" position="bottom">
                     <button
                       onclick={() => openEditDialog(reference)}
-                      class="text-text-secondary hover:text-text-primary p-1"
+                      class="text-press-muted hover:text-press-text p-1"
                       aria-label="Edit reference"
                     >
                       <Pencil class="w-4 h-4" />
@@ -1209,7 +1216,7 @@
                   <Tooltip text="Delete" position="bottom">
                     <button
                       onclick={() => (deleteTarget = reference)}
-                      class="text-text-secondary hover:text-red-400 p-1"
+                      class="text-press-muted hover:text-press-error p-1"
                       aria-label="Delete reference"
                     >
                       <Trash2 class="w-4 h-4" />
@@ -1230,7 +1237,7 @@
   <Tooltip text="Expand references" position="left">
     <button
       onclick={toggleReferencesPanel}
-      class="fixed right-0 top-1/2 -translate-y-1/2 bg-bg-panel p-2 rounded-l-lg text-text-secondary hover:text-text-primary z-10"
+      class="fixed right-0 top-1/2 -translate-y-1/2 bg-press-surface p-2 rounded-l-lg text-press-muted hover:text-press-text z-press-raised"
       aria-label="Expand references panel"
     >
       <ChevronsLeft class="w-5 h-5" />
@@ -1260,22 +1267,24 @@
 
 {#if showReferenceTypeSettings}
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+    class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
     role="dialog"
     aria-modal="true"
     aria-labelledby="reference-types-title"
     tabindex="-1"
   >
-    <div class="bg-bg-panel rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
-      <div class="flex items-center justify-between px-4 py-3 border-b border-bg-card">
-        <h2 id="reference-types-title" class="text-lg font-medium text-text-primary">
+    <div
+      class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-md mx-4 overflow-hidden"
+    >
+      <div class="flex items-center justify-between px-4 py-3 border-b border-press-border">
+        <h2 id="reference-types-title" class="text-press-body-lg font-medium text-press-text">
           Reference Types
         </h2>
         <Tooltip text="Close" position="left">
           <button
             type="button"
             onclick={closeReferenceTypeSettings}
-            class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
+            class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
             aria-label="Close"
           >
             <ChevronsRight class="w-4 h-4" />
@@ -1283,12 +1292,12 @@
         </Tooltip>
       </div>
       <div class="p-4 space-y-3">
-        <p class="text-sm text-text-secondary">
+        <p class="text-press-ui text-press-muted">
           Choose which reference types appear in this project’s References panel.
         </p>
         <div class="space-y-2">
           {#each REFERENCE_TYPE_OPTIONS as option (option.id)}
-            <label class="flex items-center gap-2 text-sm text-text-primary">
+            <label class="flex items-center gap-2 text-press-ui text-press-text">
               <input
                 type="checkbox"
                 class="accent-accent"
@@ -1301,14 +1310,14 @@
           {/each}
         </div>
         {#if referenceTypeError}
-          <p class="text-sm text-red-400">{referenceTypeError}</p>
+          <p class="text-press-ui text-press-error">{referenceTypeError}</p>
         {/if}
       </div>
-      <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-bg-card">
+      <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-press-border">
         <button
           type="button"
           onclick={closeReferenceTypeSettings}
-          class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+          class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors"
           disabled={referenceTypeSaving}
         >
           Cancel
@@ -1316,7 +1325,7 @@
         <button
           type="button"
           onclick={saveReferenceTypeSettings}
-          class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/80 transition-colors disabled:opacity-50"
+          class="px-4 py-2 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors"
           disabled={referenceTypeSaving}
         >
           {referenceTypeSaving ? "Saving..." : "Save"}

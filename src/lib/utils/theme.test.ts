@@ -17,9 +17,20 @@ const localStorageMock = {
 vi.stubGlobal("localStorage", localStorageMock);
 
 const setAttributeSpy = vi.fn();
+const classAddSpy = vi.fn();
+const classRemoveSpy = vi.fn();
 vi.stubGlobal("document", {
-  documentElement: { setAttribute: setAttributeSpy },
+  documentElement: {
+    setAttribute: setAttributeSpy,
+    classList: { add: classAddSpy, remove: classRemoveSpy },
+    offsetHeight: 0,
+  },
 });
+const rafSpy = vi.fn((cb: FrameRequestCallback) => {
+  cb(0);
+  return 1;
+});
+vi.stubGlobal("requestAnimationFrame", rafSpy);
 
 let matchMediaMatches = false;
 const addListenerSpy = vi.fn();
@@ -47,8 +58,8 @@ describe("theme utility", () => {
   });
 
   describe("getStoredPreference", () => {
-    it("returns 'dark' when nothing stored", () => {
-      expect(getStoredPreference()).toBe("dark");
+    it("returns 'light' when nothing stored", () => {
+      expect(getStoredPreference()).toBe("light");
     });
 
     it("returns 'light' when stored", () => {
@@ -61,9 +72,9 @@ describe("theme utility", () => {
       expect(getStoredPreference()).toBe("system");
     });
 
-    it("returns 'dark' for invalid stored value", () => {
+    it("returns 'light' for invalid stored value", () => {
       store["kindling:theme"] = "invalid";
-      expect(getStoredPreference()).toBe("dark");
+      expect(getStoredPreference()).toBe("light");
     });
   });
 
@@ -72,6 +83,17 @@ describe("theme utility", () => {
       setThemePreference("dark");
       expect(localStorageMock.setItem).toHaveBeenCalledWith("kindling:theme", "dark");
       expect(setAttributeSpy).toHaveBeenCalledWith("data-theme", "dark");
+    });
+
+    it("suppresses transitions while switching and releases on the next frame", () => {
+      setThemePreference("dark");
+      expect(classAddSpy).toHaveBeenCalledWith("theme-switching");
+      expect(rafSpy).toHaveBeenCalled();
+      expect(classRemoveSpy).toHaveBeenCalledWith("theme-switching");
+      // The class is added before the attribute flips so the flip itself is not animated
+      expect(classAddSpy.mock.invocationCallOrder[0]).toBeLessThan(
+        setAttributeSpy.mock.invocationCallOrder[0]
+      );
     });
 
     it("persists and applies light theme", () => {
@@ -120,9 +142,9 @@ describe("theme utility", () => {
       expect(setAttributeSpy).toHaveBeenCalledWith("data-theme", "light");
     });
 
-    it("defaults to dark when nothing stored", () => {
+    it("defaults to light when nothing stored", () => {
       initTheme();
-      expect(setAttributeSpy).toHaveBeenCalledWith("data-theme", "dark");
+      expect(setAttributeSpy).toHaveBeenCalledWith("data-theme", "light");
     });
 
     it("sets up system listener when preference is system", () => {
