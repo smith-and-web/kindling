@@ -1,0 +1,199 @@
+{
+  "_comment": "Demo seed for documentation and website screenshots. Edit this file, then run `npm run seed:demo`. Every id is derived deterministically from the `key` fields, so re-seeding reproduces the same database byte for byte. See qa/demo/README.md.",
+
+  "project": {
+    "key": "the-letter",
+    "name": "The Letter",
+    "sourceType": "blank",
+    "projectType": "novel",
+    "authorPenName": "E. M. Hale",
+    "genre": "Gothic Mystery",
+    "description": "A lighthouse keeper's daughter learns that the man who raised her is not her father, and that the tower he tends was built to hide something.",
+    "wordTarget": 90000,
+    "referenceTypes": ["characters", "locations", "items"]
+  },
+
+  "characters": [
+    {
+      "key": "eleanor",
+      "name": "Eleanor Blackwood",
+      "description": "Eighteen, raised at Kestrel Point since she was two. Reads the sea better than she reads people. Carries a pocket knife her father gave her and has just learned he is not her father.",
+      "attributes": {
+        "Age": "18",
+        "Role": "Protagonist",
+        "Wants": "The truth about her parents",
+        "Fears": "That knowing it will cost her the only home she has"
+      }
+    },
+    {
+      "key": "silas",
+      "name": "Silas Blackwood",
+      "description": "Keeper of Kestrel Point for sixteen years. Precise, kind, and entirely unwilling to answer a direct question. Whatever he is protecting, he has protected it longer than Eleanor has been alive.",
+      "attributes": {
+        "Role": "The man who calls himself her father",
+        "Wants": "For Eleanor to stop asking",
+        "Secret": "He was posted to the light, not appointed to it"
+      }
+    },
+    {
+      "key": "thomas",
+      "name": "Thomas Ward",
+      "description": "The relief keeper from Wrackham, two years older than Eleanor and a poor liar. He knows part of it. He does not know he knows.",
+      "attributes": {
+        "Role": "Ally",
+        "Wants": "To be trusted with something that matters"
+      }
+    },
+    {
+      "key": "margaret",
+      "name": "Margaret Wren",
+      "description": "M.W. Signed the letter. Nobody in Wrackham will say the name aloud, and the parish register has had a page cut out of it.",
+      "attributes": {
+        "Role": "The true guardian",
+        "Status": "Missing sixteen years"
+      }
+    }
+  ],
+
+  "locations": [
+    {
+      "key": "lighthouse",
+      "name": "Kestrel Point Lighthouse",
+      "description": "Ninety-one feet of grey stone on a headland that the Admiralty chart still marks as unsurveyed. Eighty-eight steps to the lamp room. The seventh one is loose.",
+      "attributes": { "Built": "1798", "Notable": "The stair count does not match the plans" }
+    },
+    {
+      "key": "cliff",
+      "name": "The Cliff Path",
+      "description": "A quarter mile of chalk and gorse between the light and the town, with a forty-foot drop on the seaward side and no rail.",
+      "attributes": { "Weather": "Never still" }
+    },
+    {
+      "key": "harbour",
+      "name": "Wrackham Harbour",
+      "description": "Six fishing boats, one chandlery, one church with a damaged register. Everyone here remembers Margaret Wren and no one will say so.",
+      "attributes": { "Population": "310" }
+    }
+  ],
+
+  "referenceItems": [
+    {
+      "key": "sealed-letter",
+      "type": "items",
+      "name": "The Sealed Letter",
+      "description": "Cream laid paper, elegant hand, no postmark. Left inside Eleanor's copy of Bowditch. Signed M.W.",
+      "attributes": { "Found": "Chapter 1", "Condition": "Crumpled from rereading" }
+    },
+    {
+      "key": "seventh-step-key",
+      "type": "items",
+      "name": "The Key Beneath the Seventh Step",
+      "description": "Iron, four inches, too large for any door in the lighthouse. It does not fit the lamp room, the oil store, or the keeper's quarters.",
+      "attributes": { "Found": "Chapter 1", "Opens": "Unknown" }
+    }
+  ],
+
+  "chapters": [
+    {
+      "key": "ch1",
+      "title": "The Letter",
+      "synopsis": "Eleanor reads the letter, confronts Thomas, and finds the key.",
+      "scenes": [
+        {
+          "key": "on-the-cliff",
+          "title": "On the Cliff",
+          "synopsis": "Eleanor discovers a mysterious letter revealing her father may not be who he claims.",
+          "sceneStatus": "draft",
+          "characters": ["eleanor", "thomas"],
+          "locations": ["cliff"],
+          "items": ["sealed-letter"],
+          "beats": [
+            {
+              "content": "Eleanor reads the mysterious letter on the cliff",
+              "prose": "<p>The lighthouse keeper's daughter stood at the edge of the cliff, her <em>heart pounding</em> against her ribs like a caged bird desperate for freedom. The wind whipped her dark hair across her face, carrying with it the salt-spray of a restless sea.</p><p><strong>Eleanor Blackwood</strong> had always known this day would come. The letter in her pocket—crumpled now from being read a dozen times—confirmed what she'd long suspected: <em>her father was not who he claimed to be.</em></p><p>She pulled the paper out once more, squinting at the elegant handwriting in the fading light:</p><blockquote><p>My dearest Eleanor,</p><p>If you are reading this, I have failed in my duty to protect you. The lighthouse holds secrets older than the stone it stands upon. Find the key beneath the seventh step. Trust no one—especially not the man who calls himself your father.</p><p>Your true guardian,</p><p>M.W.</p></blockquote><p>\"What secrets?\" she whispered to the churning waves below. <em>What could possibly be worth all this deception?</em></p>"
+            },
+            {
+              "content": "Thomas arrives and Eleanor confronts him",
+              "prose": "<p>The door to the lighthouse creaked open behind her. Eleanor spun around, her hand instinctively reaching for the pocket knife she always carried—a gift from the man she'd called \"Papa\" for eighteen years.</p><p>It was only Thomas, the relief keeper, with his coat buttoned wrong and his hair full of weather. He stopped when he saw her face.</p><p>\"You've found it, then,\" he said.</p><p>Not <em>what's wrong</em>. Not <em>Eleanor, you're white as the lamp glass</em>. He had gone straight to <em>found it</em>, and in the two seconds it took him to understand what he had said, she watched him try to take it back.</p><p>\"Found what, Thomas?\"</p><p>He looked at the sea. Everyone in Wrackham looked at the sea when they wanted to stop talking.</p>"
+            },
+            {
+              "content": "She counts the stairs on the way up and the number is wrong"
+            }
+          ]
+        },
+        {
+          "key": "seventh-step",
+          "title": "The Seventh Step",
+          "synopsis": "The step lifts out. What is underneath it does not fit any lock in the building.",
+          "sceneStatus": "draft",
+          "characters": ["eleanor"],
+          "locations": ["lighthouse"],
+          "items": ["seventh-step-key"],
+          "beats": [
+            {
+              "content": "The seventh step lifts out cleanly, as though it has been lifted often",
+              "prose": "<p>It came up without protest. That was the part that frightened her—not the hollow beneath, not the oilcloth bundle, but the clean grey line where the stone had been lifted and set back, lifted and set back, for longer than she had been alive.</p><p>Someone had been coming here. Someone had been coming here the whole time.</p>"
+            },
+            { "content": "The key fits nothing: not the lamp room, not the oil store, not the quarters" },
+            { "content": "Silas calls up the stairwell and she puts the stone back before answering" }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "ch2",
+      "title": "What the Stone Remembers",
+      "synopsis": "Wrackham closes ranks. Eleanor learns the name M.W. and what it costs to say it.",
+      "scenes": [
+        {
+          "key": "low-tide",
+          "title": "Low Tide",
+          "synopsis": "At low water the foundation course is exposed, and the stones are older than 1798.",
+          "sceneStatus": "revised",
+          "characters": ["eleanor", "thomas"],
+          "locations": ["harbour"],
+          "beats": [
+            {
+              "content": "The foundation stones predate the tower by two centuries",
+              "prose": "<p>The tide went out further than it had all year, and the light stood on something that was not its own foundation.</p><p>Eleanor crouched in the wrack and put her palm flat against the lowest course. Dressed stone, mortared, and weathered into softness—nothing like the hard Portland above it. Whoever built the lighthouse in 1798 had not started from nothing. They had started from whatever this was, and then they had built ninety-one feet of grey stone on top of it.</p>"
+            },
+            { "content": "Thomas admits he has seen Silas on the shore at night, counting" }
+          ]
+        },
+        {
+          "key": "the-register",
+          "title": "The Damaged Register",
+          "synopsis": "A page has been cut from the parish register. The verger remembers who cut it.",
+          "sceneStatus": "outline",
+          "characters": ["eleanor", "margaret"],
+          "locations": ["harbour"],
+          "beats": [
+            { "content": "The register is missing the page covering the spring Eleanor arrived" },
+            { "content": "The cut is clean and recent — a razor, not sixteen years of handling" },
+            { "content": "The verger gives her the name Margaret Wren and asks her not to come back" }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "ch3",
+      "title": "The Keeper's Ledger",
+      "synopsis": "Outline only. Silas's logbooks record a second, unexplained set of counts.",
+      "scenes": [
+        {
+          "key": "the-ledger",
+          "title": "The Ledger",
+          "synopsis": "Sixteen years of keeper's logs, and in every one a column of numbers that has nothing to do with the light.",
+          "sceneStatus": "outline",
+          "characters": ["eleanor", "silas"],
+          "locations": ["lighthouse"],
+          "beats": [
+            { "content": "Every log has a second column Silas has never explained" },
+            { "content": "The numbers are step counts, and they change" },
+            { "content": "Eleanor realises the tower is being measured, not tended" }
+          ]
+        }
+      ]
+    }
+  ]
+}
