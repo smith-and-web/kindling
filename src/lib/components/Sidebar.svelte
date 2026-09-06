@@ -10,7 +10,7 @@
 <script lang="ts">
   import { supportsSync } from "../importFormats";
   import { invoke } from "@tauri-apps/api/core";
-  import { onMount, untrack } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import {
     ChevronDown,
@@ -41,6 +41,7 @@
     Filter,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
+  import { session } from "../stores/session.svelte";
   import { ui } from "../stores/ui.svelte";
   import type {
     Beat,
@@ -442,16 +443,17 @@
     }
   }
 
-  async function loadChapters() {
+  async function loadChapters(resume = false) {
     if (!currentProject.value) return;
     const projectId = currentProject.value.id;
     const requestId = ++chaptersRequestId;
 
     loading = true;
     try {
-      const chapters = await invoke<Chapter[]>("get_chapters", {
-        projectId,
-      });
+      const [chapters, saved] = await Promise.all([
+        invoke<Chapter[]>("get_chapters", { projectId }),
+        resume ? session.load(projectId) : Promise.resolve(null),
+      ]);
       if (requestId !== chaptersRequestId || currentProject.value?.id !== projectId) return;
 
       currentProject.setChapters(chapters);
@@ -464,12 +466,45 @@
         }
       }
 
-      // Auto-expand first non-Part chapter if any exist
-      const firstChapter = chapters.find((c) => !c.is_part);
+      const savedChapter = chapters.find((c) => c.id === saved?.current_chapter_id && !c.is_part);
+      if (saved && !savedChapter) session.open(projectId);
+      const firstChapter = savedChapter ?? chapters.find((c) => !c.is_part);
       if (firstChapter) {
         expandedChapters.clear();
         expandedChapters.add(firstChapter.id);
-        await loadScenes(firstChapter);
+        await loadScenes(firstChapter, !savedChapter);
+        if (requestId !== chaptersRequestId || currentProject.value?.id !== projectId) return;
+        if (savedChapter && saved && session.matches(projectId, saved.current_scene_id!)) {
+          const scene = currentProject.scenes.find((s) => s.id === saved?.current_scene_id);
+          if (scene) {
+            await selectScene(scene);
+            if (requestId !== chaptersRequestId || currentProject.currentScene?.id !== scene.id)
+              return;
+            // ScenePanel clears the old expanded beat when the selection changes.
+            await tick();
+            if (
+              requestId !== chaptersRequestId ||
+              currentProject.value?.id !== projectId ||
+              currentProject.currentScene?.id !== scene.id
+            )
+              return;
+            ui.setExpandedBeat(
+              scene.editor_mode !== "page" &&
+                currentProject.beats.some((b) => b.id === saved?.current_beat_id)
+                ? saved!.current_beat_id
+                : null
+            );
+            session.restoreViewport(projectId, scene.id, saved.scroll_position ?? 0);
+          } else {
+            session.open(projectId);
+            if (
+              currentProject.scenes.length === 1 &&
+              currentProject.value?.project_type === "screenplay"
+            ) {
+              await selectScene(currentProject.scenes[0]);
+            }
+          }
+        }
       }
       if (currentProject.value?.project_type === "screenplay") {
         loadPageCountEstimate();
@@ -504,7 +539,7 @@
     }
   }
 
-  async function loadScenes(chapter: Chapter) {
+  async function loadScenes(chapter: Chapter, autoSelect = true) {
     const requestId = ++scenesRequestId;
     const chapterId = chapter.id;
     currentProject.setCurrentChapter(chapter);
@@ -514,7 +549,11 @@
       });
       if (requestId !== scenesRequestId || currentProject.currentChapter?.id !== chapterId) return;
       currentProject.setScenes(scenes);
-      if (scenes.length === 1 && currentProject.value?.project_type === "screenplay") {
+      if (
+        scenes.length === 1 &&
+        currentProject.value?.project_type === "screenplay" &&
+        autoSelect
+      ) {
         selectScene(scenes[0]);
       }
     } catch (e) {
@@ -953,7 +992,12 @@
   onMount(() => {
     const handler = () => handleSyncClick();
     window.addEventListener("kindling:sync", handler);
-    return () => window.removeEventListener("kindling:sync", handler);
+    return () => {
+      chaptersRequestId++;
+      scenesRequestId++;
+      beatsRequestId++;
+      window.removeEventListener("kindling:sync", handler);
+    };
   });
 
   async function handleSyncComplete(summary: ReimportSummary) {
@@ -1222,7 +1266,7 @@
     const importing = isImporting;
 
     if (project && !importing && !chaptersLoaded) {
-      loadChapters();
+      loadChapters(true);
       loadSavedFilters();
     }
   });

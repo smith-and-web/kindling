@@ -312,8 +312,11 @@ export interface ReferenceReclassification {
 export interface SessionState {
   project_id: string;
   current_scene_id: string | null;
+  current_chapter_id: string | null;
+  current_beat_id: string | null;
   cursor_position: number | null;
   scroll_position: number | null;
+  editor_scroll_position: number | null;
   last_opened_at: string | null;
 }
 

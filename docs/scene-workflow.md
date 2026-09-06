@@ -17,6 +17,10 @@ When you open a scene, the Scene panel shows its beats, synopsis, and metadata c
 
 ![Screenshot: Beat editor with prose](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/beat-with-prose.png)
 
+## Returning to a Project
+
+Reopening a project restores the last scene you viewed, the expanded beat, your prose cursor, and your scroll position. This works in both beat and page mode, including after restarting Kindling. Each project remembers its own position. If the saved scene was deleted or archived, the project opens with the usual chapter selection.
+
 ## Synopsis Editing
 
 Use the synopsis field to capture a short summary for the scene. Synopses can be edited inline and are saved automatically.

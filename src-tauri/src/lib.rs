@@ -140,6 +140,8 @@ pub fn run() {
             commands::create_screenplay_project,
             commands::get_page_count_estimate,
             commands::get_project,
+            commands::get_session_state,
+            commands::save_session_state,
             commands::get_recent_projects,
             commands::get_all_projects,
             commands::update_project_settings,

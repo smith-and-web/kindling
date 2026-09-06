@@ -4,6 +4,7 @@
   import StarterKit from "@tiptap/starter-kit";
   import Underline from "@tiptap/extension-underline";
   import TextAlign from "@tiptap/extension-text-align";
+  import { trackEditorPosition } from "../utils/editorPosition";
   import {
     Bold,
     Italic,
@@ -27,6 +28,9 @@
     onUpdate?: (html: string) => void;
     /** Called when editor is ready; pass to parent for split-at-cursor support */
     onEditorReady?: (editor: Editor) => void;
+    projectId?: string;
+    sceneId?: string;
+    beatId?: string | null;
   }
 
   let {
@@ -36,14 +40,28 @@
     saveStatus = "idle",
     onUpdate,
     onEditorReady,
+    projectId,
+    sceneId,
+    beatId = null,
   }: Props = $props();
 
   let editorElement: HTMLElement;
+  let scrollElement: HTMLDivElement;
   let editor: Editor | null = $state(null);
   let isInitialized = false;
   let isSettingContent = false;
   let lastExternalContent = "";
   let lastEmittedContent = "";
+
+  $effect(() => {
+    const instance = editor;
+    const project = projectId;
+    const scene = sceneId;
+    const beat = beatId;
+    if (instance && project && scene) {
+      return untrack(() => trackEditorPosition(instance, scrollElement, project, scene, beat));
+    }
+  });
 
   // Word count
   let wordCount = $state(0);
@@ -351,7 +369,7 @@
 
   <!-- Editor -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="novel-pages-container" onkeydown={handleKeydown}>
+  <div bind:this={scrollElement} class="novel-pages-container" onkeydown={handleKeydown}>
     <div class="novel-page app-prose-sheet">
       <div bind:this={editorElement} class="editor-wrapper" data-testid="beat-prose-editor"></div>
     </div>

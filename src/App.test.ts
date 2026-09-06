@@ -3,6 +3,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/sv
 import { tick } from "svelte";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { exit } from "@tauri-apps/plugin-process";
+import { session } from "./lib/stores/session.svelte";
 import { runImport } from "./lib/utils/import";
 import { currentProject } from "./lib/stores/project.svelte";
 import { mockProject, mockScenes } from "./dev/mock-data";
@@ -45,6 +48,8 @@ beforeEach(() => {
     cmd === "get_search_documents" ? [doc] : []
   );
   vi.mocked(listen).mockClear();
+  vi.mocked(exit).mockClear();
+  vi.mocked(getCurrentWindow().onCloseRequested).mockClear();
   currentProject.setProject(mockProject);
   currentProject.setCurrentScene({ ...mockScenes[0], planning_status: "undefined" });
   HTMLDialogElement.prototype.showModal = function () {
@@ -61,6 +66,61 @@ async function menu(payload: string) {
   callback({ event: "menu-event", id: 1, payload });
   await tick();
 }
+
+it("waits for pending position saves before quitting from the menu", async () => {
+  let finish!: () => void;
+  vi.spyOn(session, "flush").mockReturnValue(
+    new Promise<void>((resolve) => {
+      finish = resolve;
+    })
+  );
+  render(App);
+  await menu("quit");
+  expect(exit).not.toHaveBeenCalled();
+  finish();
+  await waitFor(() => expect(exit).toHaveBeenCalledWith(0));
+});
+
+it("waits for pending position saves in the native close handler", async () => {
+  render(App);
+  let finish!: () => void;
+  vi.spyOn(session, "flush").mockReturnValue(
+    new Promise<void>((resolve) => {
+      finish = resolve;
+    })
+  );
+  const handler = vi.mocked(getCurrentWindow().onCloseRequested).mock.calls[0][0];
+  let closed = false;
+  const closing = Promise.resolve(handler({} as never)).then(() => {
+    closed = true;
+  });
+  await tick();
+  expect(closed).toBe(false);
+  finish();
+  await closing;
+  expect(closed).toBe(true);
+});
+
+it.each(["menu", "native"])(
+  "still closes through %s when a position flush rejects",
+  async (path) => {
+    render(App);
+    await tick();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(session, "flush").mockRejectedValue(new Error("disk full"));
+    if (path === "menu") {
+      await menu("quit");
+      await waitFor(() => expect(exit).toHaveBeenCalledWith(0));
+    } else {
+      const handler = vi.mocked(getCurrentWindow().onCloseRequested).mock.calls[0][0];
+      await expect(handler({} as never)).resolves.toBeUndefined();
+    }
+    expect(error).toHaveBeenCalledWith(
+      "Failed to save writing position before closing:",
+      expect.any(Error)
+    );
+  }
+);
 async function find() {
   await menu("find");
   await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Find")));

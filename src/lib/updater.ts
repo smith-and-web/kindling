@@ -6,6 +6,7 @@
 import { writable } from "svelte/store";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { session } from "./stores/session.svelte";
 
 export interface UpdateState {
   /** Update is downloaded and ready to install */
@@ -41,6 +42,12 @@ export async function checkForUpdate(): Promise<void> {
 
 export async function installAndRelaunch(state: UpdateState): Promise<void> {
   if (!state.update) return;
+  try {
+    // On Windows install can exit the process before its promise resolves.
+    await session.flush();
+  } catch (e) {
+    console.error("Failed to save writing position before updating:", e);
+  }
   try {
     await state.update.install();
     await relaunch();

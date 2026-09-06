@@ -7,12 +7,16 @@
     saveStatus = "idle",
     wordCount = 0,
     onUpdate,
+    projectId,
+    sceneId,
   }: {
     content: string;
     readonly?: boolean;
     saveStatus?: "idle" | "saving" | "error";
     wordCount?: number;
     onUpdate: (html: string) => void;
+    projectId?: string;
+    sceneId?: string;
   } = $props();
 </script>
 
@@ -23,6 +27,8 @@
   </div>
   <div class="bg-press-surface rounded-lg overflow-hidden" style="min-height: 50rem;">
     <NovelEditor
+      {projectId}
+      {sceneId}
       {content}
       placeholder={readonly ? "Scene is locked" : "Write your scene prose here..."}
       {readonly}

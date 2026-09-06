@@ -686,6 +686,9 @@
             >
               <NovelEditor
                 bind:this={novelEditorRef}
+                projectId={currentProject.value?.id}
+                sceneId={beat.scene_id}
+                beatId={beat.id}
                 content={beat.prose || ""}
                 placeholder={isLocked ? "Scene is locked" : "Write your prose for this beat..."}
                 readonly={isLocked || changingBeats}
