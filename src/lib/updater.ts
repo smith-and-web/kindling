@@ -43,8 +43,9 @@ export async function checkForUpdate(): Promise<void> {
 export async function installAndRelaunch(state: UpdateState): Promise<void> {
   if (!state.update) return;
   try {
-    await state.update.install();
+    // On Windows install can exit the process before its promise resolves.
     await session.flush();
+    await state.update.install();
     await relaunch();
   } catch (e) {
     console.error("Failed to install update:", e);

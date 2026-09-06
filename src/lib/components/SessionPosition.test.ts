@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/svelte";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import type { Editor } from "@tiptap/core";
 import { invoke } from "@tauri-apps/api/core";
 import { tick } from "svelte";
@@ -100,7 +100,6 @@ it.each(["beat", "page"] as const)(
     currentProject.setProject(mockProject);
     render(Sidebar);
     render(ScenePanel);
-    await waitFor(() => expect(session.restoring).toBe(false));
     await waitFor(() => expect(document.querySelector(".tiptap")).not.toBeNull());
     await waitFor(() => expect(activeEditor().state.selection.head).toBe(14));
     expect(currentProject.currentChapter?.id).toBe(chapter.id);
@@ -187,4 +186,117 @@ it("ignores editor callbacks belonging to a previous project", async () => {
     current_scene_id: "other-scene",
     cursor_position: null,
   });
+});
+
+it.each(["deleted-beat", "shorter-page"])(
+  "preserves saved offsets after delayed, clamped scroll events (%s)",
+  async (scenario) => {
+    mode = scenario === "shorter-page" ? "page" : "beat";
+    const snapshot = {
+      ...saved,
+      current_beat_id: null,
+      cursor_position: null,
+      scroll_position: 1800,
+      editor_scroll_position: 800,
+    };
+    disk.set(mockProject.id, snapshot);
+    const backend = vi.mocked(invoke).getMockImplementation()!;
+    vi.mocked(invoke).mockImplementation((cmd, args) =>
+      cmd === "get_beats" ? Promise.resolve([]) : backend(cmd, args)
+    );
+
+    const positions = new WeakMap<HTMLElement, number>();
+    // Model browser layout clamping and delivery of scroll after the assignment frame.
+    Object.defineProperty(HTMLElement.prototype, "scrollTop", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return positions.get(this) ?? 0;
+      },
+      set(this: HTMLElement, value: number) {
+        const maximum = this.matches(".novel-pages-container") ? 120 : 200;
+        positions.set(this, Math.min(value, maximum));
+        setTimeout(() => this.dispatchEvent(new Event("scroll")), 16);
+      },
+    });
+    try {
+      currentProject.setProject(mockProject);
+      render(Sidebar);
+      render(ScenePanel);
+      await waitFor(() => expect(session.viewport?.position).toBe(1800));
+      const outer = document.querySelector('[data-testid="scene-panel"] > div') as HTMLElement;
+      await waitFor(() => expect(outer.scrollTop).toBe(200));
+      if (mode === "page") {
+        const inner = document.querySelector(".novel-pages-container") as HTMLElement;
+        await waitFor(() => expect(inner.scrollTop).toBe(120));
+        activeEditor().view.focus();
+      } else {
+        expect(document.querySelector(".novel-pages-container")).toBeNull();
+      }
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      await session.flush();
+      expect(disk.get(mockProject.id)).toEqual(snapshot);
+      expect(
+        vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === "save_session_state")
+      ).toHaveLength(0);
+
+      outer.scrollTop = 100;
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      await session.flush();
+      expect(disk.get(mockProject.id)?.scroll_position).toBe(100);
+      expect(disk.get(mockProject.id)?.editor_scroll_position).toBe(800);
+    } finally {
+      cleanup();
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollTop");
+    }
+  }
+);
+
+it("keeps scroll saving and screenplay auto-selection working when sync supersedes restoration", async () => {
+  mode = "page";
+  disk.set(mockProject.id, { ...saved, current_beat_id: null });
+  let finishOriginal!: () => void;
+  let sceneRequests = 0;
+  const backend = vi.mocked(invoke).getMockImplementation()!;
+  vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+    if (cmd === "get_chapters") return [chapter];
+    if (cmd === "get_page_count_estimate") return { pages: 1, words: 200, target: "100" };
+    if (cmd === "get_scenes" && ++sceneRequests === 1) {
+      await new Promise<void>((resolve) => {
+        finishOriginal = resolve;
+      });
+    }
+    if (cmd === "get_sync_preview")
+      return {
+        additions: [{ id: "new-beat", item_type: "beat", title: "New beat", parent_title: null }],
+        changes: [],
+      };
+    if (cmd === "apply_sync")
+      return {
+        chapters_added: 0,
+        chapters_updated: 0,
+        scenes_added: 0,
+        scenes_updated: 0,
+        beats_added: 1,
+        beats_updated: 0,
+        prose_preserved: 1,
+        prose_updated: 0,
+      };
+    return backend(cmd, args);
+  });
+  currentProject.setProject({ ...mockProject, project_type: "screenplay" });
+  render(Sidebar);
+  render(ScenePanel);
+  await waitFor(() => expect(finishOriginal).toBeTypeOf("function"));
+  window.dispatchEvent(new Event("kindling:sync"));
+  await fireEvent.click(await screen.findByTestId("sync-confirm"));
+  await waitFor(() => expect(currentProject.currentScene?.id).toBe(scene.id));
+  finishOriginal();
+  await tick();
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  expect(session.viewport).toBeNull();
+  const outer = document.querySelector('[data-testid="scene-panel"] > div') as HTMLElement;
+  outer.scrollTop = 110;
+  await fireEvent.scroll(outer);
+  await session.flush();
+  expect(disk.get(mockProject.id)?.scroll_position).toBe(110);
 });

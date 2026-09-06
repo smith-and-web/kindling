@@ -16,7 +16,8 @@
   } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import ConfirmDialog from "./ConfirmDialog.svelte";
-  import { onDestroy, onMount, tick, untrack } from "svelte";
+  import { onDestroy, onMount, untrack } from "svelte";
+  import { trackScrollPosition } from "../utils/scrollPosition";
   import { session } from "../stores/session.svelte";
   import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
   import { currentProject } from "../stores/project.svelte";
@@ -68,7 +69,36 @@
   );
 
   let beatViewRef: ReturnType<typeof BeatView> | undefined = $state();
-  let scrollContainerRef: HTMLDivElement | undefined = $state();
+  let scrollTracker = $state.raw<ReturnType<typeof trackScrollPosition> | null>(null);
+
+  function trackSceneScroll(
+    node: HTMLElement,
+    identifiers: { projectId: string; sceneId: string }
+  ) {
+    let ids = identifiers;
+    function create() {
+      const { projectId, sceneId } = ids;
+      const tracker = trackScrollPosition(node, (position) => {
+        session.update(projectId, sceneId, { scroll_position: position });
+      });
+      tracker.set(0);
+      scrollTracker = tracker;
+      return tracker;
+    }
+    let tracker = create();
+    return {
+      update(next: typeof identifiers) {
+        if (next.projectId === ids.projectId && next.sceneId === ids.sceneId) return;
+        tracker.destroy();
+        ids = next;
+        tracker = create();
+      },
+      destroy() {
+        tracker.destroy();
+        if (scrollTracker === tracker) scrollTracker = null;
+      },
+    };
+  }
   let synopsisSaveTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Synopsis editing state
@@ -308,50 +338,32 @@
   }
 
   let lastSceneId: string | null = null;
-  // Wait for scene data and the expanded beat before restoring the outer viewport.
+  let completedViewport: typeof session.viewport = null;
+  // A cancelled navigation publishes no request. This effect owns only the viewport it applies.
   $effect(() => {
-    const projectId = currentProject.value?.id;
-    const sceneId = currentProject.currentScene?.id;
-    const scroller = scrollContainerRef;
+    const request = session.viewport;
+    const tracker = scrollTracker;
     if (
-      !session.restoring ||
-      !session.ready ||
-      !scroller ||
-      !projectId ||
-      !sceneId ||
+      !request ||
+      !tracker ||
+      request === completedViewport ||
+      request.projectId !== currentProject.value?.id ||
+      request.sceneId !== currentProject.currentScene?.id ||
       discoveryNotesLoading ||
       sceneReferenceLoading
     )
       return;
-    let cancelled = false;
-    let frame = 0;
-    const position = untrack(() => session.value?.scroll_position ?? 0);
-    void Promise.all([tick(), document.fonts?.ready]).then(() => {
-      if (cancelled) return;
-      frame = requestAnimationFrame(() => {
-        if (!session.matches(projectId, sceneId)) return;
-        scroller.scrollTop = position;
-        session.restoring = false;
-      });
-    });
-    return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(frame);
-    };
+    return untrack(() =>
+      tracker.restore(request.position, () => {
+        completedViewport = request;
+      })
+    );
   });
-
-  function rememberScroll(projectId: string, sceneId: string, event: Event) {
-    if (session.restoring) return;
-    session.update(projectId, sceneId, {
-      scroll_position: (event.currentTarget as HTMLElement).scrollTop,
-    });
-  }
 
   $effect(() => {
     const sceneId = currentProject.currentScene?.id ?? null;
     if (lastSceneId && sceneId !== lastSceneId) {
       beatViewRef?.flushOnSceneChange();
-      if (scrollContainerRef) scrollContainerRef.scrollTop = 0;
     }
     lastSceneId = sceneId;
   });
@@ -703,11 +715,7 @@
   {#if currentProject.currentScene && currentProject.value}
     {@const scene = currentProject.currentScene}
     {@const projectId = currentProject.value.id}
-    <div
-      bind:this={scrollContainerRef}
-      class="flex-1 overflow-y-auto"
-      onscroll={(event) => rememberScroll(projectId, scene.id, event)}
-    >
+    <div use:trackSceneScroll={{ projectId, sceneId: scene.id }} class="flex-1 overflow-y-auto">
       <div class="max-w-3xl mx-auto p-8">
         <!-- Scene Title -->
         <header class="mb-8">

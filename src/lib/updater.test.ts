@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { get } from "svelte/store";
+import { session } from "./stores/session.svelte";
 
 vi.mock("@tauri-apps/plugin-updater", () => ({
   check: vi.fn(),
@@ -18,6 +19,7 @@ const checkMock = vi.mocked(check);
 const relaunchMock = vi.mocked(relaunch);
 
 describe("updater", () => {
+  afterEach(() => vi.restoreAllMocks());
   beforeEach(() => {
     vi.clearAllMocks();
     updateState.set(null);
@@ -106,6 +108,50 @@ describe("updater", () => {
   });
 
   describe("installAndRelaunch", () => {
+    it("waits for the position flush before entering an installer that may exit the process", async () => {
+      let finishFlush!: () => void;
+      vi.spyOn(session, "flush").mockReturnValue(
+        new Promise<void>((resolve) => {
+          finishFlush = resolve;
+        })
+      );
+      let finishInstall!: () => void;
+      const install = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            finishInstall = resolve;
+          })
+      );
+      const installing = installAndRelaunch({
+        ready: true,
+        version: "1.2.0",
+        body: null,
+        update: { install } as never,
+      });
+      expect(install).not.toHaveBeenCalled();
+      finishFlush();
+      await vi.waitFor(() => expect(install).toHaveBeenCalledOnce());
+      expect(relaunchMock).not.toHaveBeenCalled();
+      finishInstall();
+      await installing;
+    });
+
+    it("flushes even if installation fails", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const flushed = vi.spyOn(session, "flush").mockResolvedValue(undefined);
+      const install = vi.fn(async () => {
+        expect(flushed).toHaveBeenCalledOnce();
+        throw new Error("install failed");
+      });
+      await installAndRelaunch({
+        ready: true,
+        version: "1.2.0",
+        body: null,
+        update: { install } as never,
+      });
+      expect(install).toHaveBeenCalledOnce();
+      expect(relaunchMock).not.toHaveBeenCalled();
+    });
     it("installs and relaunches", async () => {
       const mockUpdate = {
         install: vi.fn().mockResolvedValue(undefined),

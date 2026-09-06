@@ -472,9 +472,9 @@
       if (firstChapter) {
         expandedChapters.clear();
         expandedChapters.add(firstChapter.id);
-        await loadScenes(firstChapter);
+        await loadScenes(firstChapter, !savedChapter);
         if (requestId !== chaptersRequestId || currentProject.value?.id !== projectId) return;
-        if (savedChapter && session.restoring) {
+        if (savedChapter && saved && session.matches(projectId, saved.current_scene_id!)) {
           const scene = currentProject.scenes.find((s) => s.id === saved?.current_scene_id);
           if (scene) {
             await selectScene(scene);
@@ -483,6 +483,7 @@
             // ScenePanel clears the old expanded beat when the selection changes.
             await tick();
             if (
+              requestId !== chaptersRequestId ||
               currentProject.value?.id !== projectId ||
               currentProject.currentScene?.id !== scene.id
             )
@@ -493,7 +494,7 @@
                 ? saved!.current_beat_id
                 : null
             );
-            session.ready = true;
+            session.restoreViewport(projectId, scene.id, saved.scroll_position ?? 0);
           } else {
             session.open(projectId);
             if (
@@ -538,7 +539,7 @@
     }
   }
 
-  async function loadScenes(chapter: Chapter) {
+  async function loadScenes(chapter: Chapter, autoSelect = true) {
     const requestId = ++scenesRequestId;
     const chapterId = chapter.id;
     currentProject.setCurrentChapter(chapter);
@@ -551,7 +552,7 @@
       if (
         scenes.length === 1 &&
         currentProject.value?.project_type === "screenplay" &&
-        !session.restoring
+        autoSelect
       ) {
         selectScene(scenes[0]);
       }

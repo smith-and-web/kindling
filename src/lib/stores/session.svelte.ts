@@ -3,31 +3,30 @@ import type { Scene, SessionState } from "../types";
 
 class SessionStore {
   value = $state<SessionState | null>(null);
-  restoring = $state(false);
-  ready = $state(false);
+  viewport = $state.raw<{ projectId: string; sceneId: string; position: number } | null>(null);
   private projectId: string | null = null;
   private generation = 0;
   private pending = new Map<string, SessionState>();
   private writing: Promise<void> | null = null;
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   open(projectId: string | null) {
+    void this.flush().catch((error) => console.error("Failed to save writing position:", error));
     this.generation++;
     this.projectId = projectId;
     this.value = null;
-    this.restoring = false;
-    this.ready = false;
+    this.viewport = null;
   }
 
   async load(projectId: string) {
     const generation = this.generation;
     // Reopening immediately after closing must read the most recent queued save.
-    await this.flush();
     try {
+      await this.flush();
       const saved = await invoke<SessionState | null>("get_session_state", { projectId });
       if (generation !== this.generation || projectId !== this.projectId || this.value) return null;
       if (!saved?.current_scene_id) return null;
       this.value = saved;
-      this.restoring = true;
       return saved;
     } catch (error) {
       console.error("Failed to restore writing position:", error);
@@ -37,8 +36,7 @@ class SessionStore {
 
   selectScene(scene: Scene) {
     if (!this.projectId || this.value?.current_scene_id === scene.id) return;
-    this.restoring = false;
-    this.ready = false;
+    this.viewport = null;
     this.value = {
       project_id: this.projectId,
       current_chapter_id: scene.chapter_id,
@@ -56,6 +54,12 @@ class SessionStore {
     return this.value?.project_id === projectId && this.value.current_scene_id === sceneId;
   }
 
+  // Only a navigation request that finished loading its scene and beats publishes a viewport.
+  // This is an immutable request, not a flag that can disable future position saving.
+  restoreViewport(projectId: string, sceneId: string, position: number) {
+    if (this.matches(projectId, sceneId)) this.viewport = { projectId, sceneId, position };
+  }
+
   update(
     projectId: string,
     sceneId: string,
@@ -67,6 +71,12 @@ class SessionStore {
     >
   ) {
     if (!this.matches(projectId, sceneId)) return;
+    if (
+      Object.entries(changes).every(
+        ([key, value]) => this.value![key as keyof SessionState] === value
+      )
+    )
+      return;
     this.value = { ...this.value!, ...changes };
     this.persist();
   }
@@ -75,17 +85,25 @@ class SessionStore {
     if (!this.value) return;
     // Snapshot the identifiers now. Old component cleanup must never write into a new project.
     this.pending.set(this.value.project_id, { ...this.value });
-    void this.flush();
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => {
+      void this.flush().catch((error) => console.error("Failed to save writing position:", error));
+    }, 500);
   }
 
   async flush(): Promise<void> {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = null;
     while (this.writing || this.pending.size) {
       if (this.writing) {
         await this.writing;
       } else {
         this.writing = this.drain();
-        await this.writing;
-        this.writing = null;
+        try {
+          await this.writing;
+        } finally {
+          this.writing = null;
+        }
       }
       // Every caller also waits for updates queued while an earlier write was finishing.
     }
@@ -97,7 +115,9 @@ class SessionStore {
       try {
         await invoke("save_session_state", { session });
       } catch (error) {
-        console.error("Failed to save writing position:", error);
+        // Keep the newest snapshot available for a later retry, without retrying in a loop.
+        if (!this.pending.has(projectId)) this.pending.set(projectId, session);
+        throw error;
       }
     }
   }

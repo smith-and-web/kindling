@@ -100,6 +100,27 @@ it("waits for pending position saves in the native close handler", async () => {
   await closing;
   expect(closed).toBe(true);
 });
+
+it.each(["menu", "native"])(
+  "still closes through %s when a position flush rejects",
+  async (path) => {
+    render(App);
+    await tick();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(session, "flush").mockRejectedValue(new Error("disk full"));
+    if (path === "menu") {
+      await menu("quit");
+      await waitFor(() => expect(exit).toHaveBeenCalledWith(0));
+    } else {
+      const handler = vi.mocked(getCurrentWindow().onCloseRequested).mock.calls[0][0];
+      await expect(handler({} as never)).resolves.toBeUndefined();
+    }
+    expect(error).toHaveBeenCalledWith(
+      "Failed to save writing position before closing:",
+      expect.any(Error)
+    );
+  }
+);
 async function find() {
   await menu("find");
   await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Find")));

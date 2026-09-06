@@ -157,14 +157,26 @@
     currentProject.setProject(null);
   }
 
+  async function flushBeforeClose() {
+    try {
+      await session.flush();
+    } catch (error) {
+      console.error("Failed to save writing position before closing:", error);
+    }
+  }
+
   async function quit() {
-    await session.flush();
-    await exit(0);
+    await flushBeforeClose();
+    try {
+      await exit(0);
+    } catch (error) {
+      console.error("Failed to quit:", error);
+    }
   }
 
   onMount(() => {
     // Tauri awaits this handler before destroying the window.
-    const unlisten = getCurrentWindow().onCloseRequested(() => session.flush());
+    const unlisten = getCurrentWindow().onCloseRequested(flushBeforeClose);
     return () => {
       void unlisten.then((stop) => stop());
     };

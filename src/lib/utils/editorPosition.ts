@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import { session } from "../stores/session.svelte";
+import { trackScrollPosition } from "./scrollPosition";
 
 /** Bind an editor to the identifiers captured when it mounted, including its own scroll area. */
 export function trackEditorPosition(
@@ -9,9 +10,7 @@ export function trackEditorPosition(
   sceneId: string,
   beatId: string | null
 ) {
-  let restoring = true;
   let disposed = false;
-  let frame = 0;
   const saved = session.matches(projectId, sceneId) ? session.value : null;
   const sameBeat = saved?.current_beat_id === beatId;
 
@@ -29,43 +28,40 @@ export function trackEditorPosition(
       Math.max(1, Math.min(cursor, editor.state.doc.content.size - 1))
     );
     editor.view.focus();
-  } else if (sameBeat && beatId && session.restoring) {
+  } else if (sameBeat && beatId) {
     editor.commands.setTextSelection(1);
     editor.view.focus();
   }
 
-  // Apply after layout/fonts; focusing must not scroll away from the saved viewport.
-  void Promise.resolve(document.fonts?.ready).then(() => {
-    if (disposed) return;
-    frame = requestAnimationFrame(() => {
-      scroller.scrollTop = sameBeat ? (saved?.editor_scroll_position ?? 0) : 0;
-      restoring = false;
-    });
-  });
-
-  const save = () => {
-    if (restoring || disposed || editor.isDestroyed) return;
+  const scroll = trackScrollPosition(scroller, (position) => {
     session.update(projectId, sceneId, {
       current_beat_id: beatId,
-      cursor_position: editor.state.selection.head,
-      editor_scroll_position: scroller.scrollTop,
+      editor_scroll_position: position,
     });
-  };
+  });
+  scroll.restore(sameBeat ? (saved?.editor_scroll_position ?? 0) : 0);
+
+  let previousCursor = editor.state.selection.head;
   const saveSelection = () => {
-    if (editor.isFocused) save();
+    if (disposed || editor.isDestroyed || !editor.isFocused) return;
+    const cursor = editor.state.selection.head;
+    if (cursor === previousCursor) return;
+    previousCursor = cursor;
+    session.update(projectId, sceneId, {
+      current_beat_id: beatId,
+      cursor_position: cursor,
+    });
   };
   editor.on("selectionUpdate", saveSelection);
   editor.on("focus", saveSelection);
   // Edits can move the selection without a separate selectionUpdate event.
   editor.on("update", saveSelection);
-  scroller.addEventListener("scroll", save);
 
   return () => {
     disposed = true;
-    cancelAnimationFrame(frame);
+    scroll.destroy();
     editor.off("selectionUpdate", saveSelection);
     editor.off("focus", saveSelection);
     editor.off("update", saveSelection);
-    scroller.removeEventListener("scroll", save);
   };
 }
