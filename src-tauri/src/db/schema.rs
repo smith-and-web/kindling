@@ -260,6 +260,29 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
 
 /// Apply schema migrations for existing databases
 fn apply_migrations(conn: &Connection) -> Result<()> {
+    let session_columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(session_state)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<_>>()?;
+    if !session_columns
+        .iter()
+        .any(|column| column == "current_beat_id")
+    {
+        conn.execute(
+            "ALTER TABLE session_state ADD COLUMN current_beat_id TEXT",
+            [],
+        )?;
+    }
+    if !session_columns
+        .iter()
+        .any(|column| column == "editor_scroll_position")
+    {
+        conn.execute(
+            "ALTER TABLE session_state ADD COLUMN editor_scroll_position REAL",
+            [],
+        )?;
+    }
+
     // Migration: Add source_id column to chapters if missing
     let columns: Vec<String> = conn
         .prepare("PRAGMA table_info(chapters)")?

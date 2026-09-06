@@ -7,6 +7,11 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
+vi.mock("@tauri-apps/api/window", () => {
+  const onCloseRequested = vi.fn().mockResolvedValue(() => {});
+  return { getCurrentWindow: () => ({ onCloseRequested }) };
+});
+
 // Mock @tauri-apps/plugin-dialog
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: vi.fn(),

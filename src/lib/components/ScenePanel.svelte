@@ -16,7 +16,8 @@
   } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import ConfirmDialog from "./ConfirmDialog.svelte";
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy, onMount, tick, untrack } from "svelte";
+  import { session } from "../stores/session.svelte";
   import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
@@ -307,6 +308,45 @@
   }
 
   let lastSceneId: string | null = null;
+  // Wait for scene data and the expanded beat before restoring the outer viewport.
+  $effect(() => {
+    const projectId = currentProject.value?.id;
+    const sceneId = currentProject.currentScene?.id;
+    const scroller = scrollContainerRef;
+    if (
+      !session.restoring ||
+      !session.ready ||
+      !scroller ||
+      !projectId ||
+      !sceneId ||
+      discoveryNotesLoading ||
+      sceneReferenceLoading
+    )
+      return;
+    let cancelled = false;
+    let frame = 0;
+    const position = untrack(() => session.value?.scroll_position ?? 0);
+    void Promise.all([tick(), document.fonts?.ready]).then(() => {
+      if (cancelled) return;
+      frame = requestAnimationFrame(() => {
+        if (!session.matches(projectId, sceneId)) return;
+        scroller.scrollTop = position;
+        session.restoring = false;
+      });
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
+  });
+
+  function rememberScroll(projectId: string, sceneId: string, event: Event) {
+    if (session.restoring) return;
+    session.update(projectId, sceneId, {
+      scroll_position: (event.currentTarget as HTMLElement).scrollTop,
+    });
+  }
+
   $effect(() => {
     const sceneId = currentProject.currentScene?.id ?? null;
     if (lastSceneId && sceneId !== lastSceneId) {
@@ -660,9 +700,14 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div data-testid="scene-panel" class="flex-1 flex flex-col h-full overflow-hidden">
-  {#if currentProject.currentScene}
+  {#if currentProject.currentScene && currentProject.value}
     {@const scene = currentProject.currentScene}
-    <div bind:this={scrollContainerRef} class="flex-1 overflow-y-auto">
+    {@const projectId = currentProject.value.id}
+    <div
+      bind:this={scrollContainerRef}
+      class="flex-1 overflow-y-auto"
+      onscroll={(event) => rememberScroll(projectId, scene.id, event)}
+    >
       <div class="max-w-3xl mx-auto p-8">
         <!-- Scene Title -->
         <header class="mb-8">
@@ -1224,6 +1269,8 @@
         {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode === "page"}
           {#key pageEditorVersion}
             <PageView
+              projectId={currentProject.value?.id}
+              sceneId={scene.id}
               content={pageProseContent}
               readonly={isLocked || switchingMode}
               saveStatus={pageProseSaveStatus}

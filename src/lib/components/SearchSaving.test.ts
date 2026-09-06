@@ -568,11 +568,21 @@ it.each([
     });
     if (inFlight) await vi.advanceTimersByTimeAsync(500);
     await beatMutationMenu(action);
-    expect(vi.mocked(invoke).mock.calls.map(([cmd]) => cmd)).toEqual(["save_beat_prose"]);
+    expect(
+      vi
+        .mocked(invoke)
+        .mock.calls.map(([cmd]) => cmd)
+        .filter((cmd) => cmd !== "save_session_state")
+    ).toEqual(["save_beat_prose"]);
     expect(editor().isEditable).toBe(false);
     finish();
     await vi.advanceTimersByTimeAsync(0);
-    expect(vi.mocked(invoke).mock.calls.map(([cmd]) => cmd)).toEqual([
+    expect(
+      vi
+        .mocked(invoke)
+        .mock.calls.map(([cmd]) => cmd)
+        .filter((cmd) => cmd !== "save_session_state")
+    ).toEqual([
       "save_beat_prose",
       ...(inFlight ? ["save_beat_prose"] : []),
       action === "split" ? "split_beat" : "merge_beats",
@@ -597,7 +607,12 @@ it.each(["split", "merge"] as const)("aborts %s if the prose save fails", async 
   vi.mocked(invoke).mockRejectedValue("Cannot edit beats in a locked scene");
   await beatMutationMenu(action);
   await vi.advanceTimersByTimeAsync(0);
-  expect(vi.mocked(invoke).mock.calls.map(([cmd]) => cmd)).toEqual(["save_beat_prose"]);
+  expect(
+    vi
+      .mocked(invoke)
+      .mock.calls.map(([cmd]) => cmd)
+      .filter((cmd) => cmd !== "save_session_state")
+  ).toEqual(["save_beat_prose"]);
   expect(ui.toast?.message).toContain("Save the affected beats");
   expect(editor().isEditable).toBe(true);
   await proseSaves.discard(proseSaves.draftsForRecovery(mockProject.id));

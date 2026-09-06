@@ -2,6 +2,7 @@
   import { IMPORT_FORMATS, importTypeForCommand, isImportType } from "./lib/importFormats";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
   import { exit } from "@tauri-apps/plugin-process";
   import { onMount, tick } from "svelte";
   import { runImport, type ImportType } from "./lib/utils/import";
@@ -28,6 +29,7 @@
   import NewProjectDialog from "./lib/components/NewProjectDialog.svelte";
   import { COMMAND_DEFS } from "./lib/commands";
   import { currentProject } from "./lib/stores/project.svelte";
+  import { session } from "./lib/stores/session.svelte";
   import { ui } from "./lib/stores/ui.svelte";
   import type { ProseDocument } from "./lib/utils/proseSearch";
   import type { Project, ExportResult, Chapter, Scene, Beat } from "./lib/types";
@@ -155,6 +157,19 @@
     currentProject.setProject(null);
   }
 
+  async function quit() {
+    await session.flush();
+    await exit(0);
+  }
+
+  onMount(() => {
+    // Tauri awaits this handler before destroying the window.
+    const unlisten = getCurrentWindow().onCloseRequested(() => session.flush());
+    return () => {
+      void unlisten.then((stop) => stop());
+    };
+  });
+
   // Check for updates on launch (delayed so it doesn't block startup)
   onMount(() => {
     const t = setTimeout(() => {
@@ -215,7 +230,7 @@
           showFeedbackDialog = true;
           break;
         case "quit":
-          exit(0);
+          void quit();
           break;
       }
     });
@@ -289,7 +304,7 @@
         showAboutDialog = true;
         break;
       case "quit":
-        exit(0);
+        void quit();
         break;
     }
   }

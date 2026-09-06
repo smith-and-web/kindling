@@ -6,6 +6,7 @@
 import { writable } from "svelte/store";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { session } from "./stores/session.svelte";
 
 export interface UpdateState {
   /** Update is downloaded and ready to install */
@@ -43,6 +44,7 @@ export async function installAndRelaunch(state: UpdateState): Promise<void> {
   if (!state.update) return;
   try {
     await state.update.install();
+    await session.flush();
     await relaunch();
   } catch (e) {
     console.error("Failed to install update:", e);

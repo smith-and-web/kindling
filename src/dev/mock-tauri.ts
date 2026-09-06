@@ -22,6 +22,7 @@ import type {
   EntityTag,
   SavedFilter,
   StoryTemplate,
+  SessionState,
 } from "../lib/types";
 
 import {
@@ -51,6 +52,7 @@ let fieldValues: FieldValue[] = [];
 let tags: Tag[] = [];
 let entityTags: EntityTag[] = [];
 let savedFilters: SavedFilter[] = [];
+const sessions = new Map<string, SessionState>();
 
 let idCounter = 100;
 
@@ -94,6 +96,19 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
     } as T;
   }
   switch (cmd) {
+    case "get_session_state": {
+      const saved = sessions.get(projectId!);
+      const scene = scenes.find((s) => s.id === saved?.current_scene_id && !s.archived);
+      const chapter = chapters.find(
+        (c) => c.id === scene?.chapter_id && !c.archived && c.project_id === projectId
+      );
+      return (saved && scene && chapter ? { ...saved, current_chapter_id: chapter.id } : null) as T;
+    }
+    case "save_session_state": {
+      const saved = args.session as SessionState;
+      sessions.set(saved.project_id, { ...saved });
+      return undefined as T;
+    }
     case "get_search_documents": {
       const documents: ProseDocument[] = [];
       for (const chapter of chapters
