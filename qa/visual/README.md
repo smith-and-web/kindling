@@ -1,5 +1,10 @@
 # Kindling visual QA suite
 
+> For documentation and website screenshots use `qa/demo/` instead. It seeds a
+> rich, reproducible project into its own data dir. Do not put demo content in
+> `qa/visual/data`: a QA run imports its fixture on top of it, and
+> `q.cleanupFixtures()` only deletes ids the harness itself imported.
+
 A screenshot-verified mirror of the WebDriverIO end-to-end suite in `e2e/`,
 extended to the rest of the app and driven through the `kindling-mcp` tools
 from Claude Code. It exists because the WebDriver suite cannot run on macOS

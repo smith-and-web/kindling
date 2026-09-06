@@ -30,6 +30,7 @@ export default ts.config(
         HTMLInputElement: "readonly",
         HTMLTextAreaElement: "readonly",
         HTMLDivElement: "readonly",
+        HTMLDialogElement: "readonly",
         MouseEvent: "readonly",
         CustomEvent: "readonly",
         HTMLSelectElement: "readonly",

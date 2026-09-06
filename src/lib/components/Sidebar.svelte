@@ -10,7 +10,7 @@
 <script lang="ts">
   import { supportsSync } from "../importFormats";
   import { invoke } from "@tauri-apps/api/core";
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import {
     ChevronDown,
@@ -86,6 +86,19 @@
   let scenesRequestId = 0;
   let beatsRequestId = 0;
   let expandedChapters = new SvelteSet<string>();
+  // Navigation outside the sidebar (for example search results) must reveal its chapter.
+  $effect(() => {
+    const chapterId = currentProject.currentChapter?.id;
+    untrack(() => {
+      if (chapterId) {
+        expandedChapters.add(chapterId);
+        const group = partGroups.find((group) =>
+          group.chapters.some((chapter) => chapter.id === chapterId)
+        );
+        if (group?.part) expandedParts.add(group.part.id);
+      }
+    });
+  });
   let expandedParts = new SvelteSet<string>();
 
   // Group chapters under their preceding Parts

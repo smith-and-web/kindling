@@ -3,12 +3,13 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { exit } from "@tauri-apps/plugin-process";
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { runImport, type ImportType } from "./lib/utils/import";
   import AboutDialog from "./lib/components/AboutDialog.svelte";
   import FeedbackDialog from "./lib/components/FeedbackDialog.svelte";
   import Onboarding from "./lib/components/Onboarding.svelte";
   import ReferencesPanel from "./lib/components/ReferencesPanel.svelte";
+  import FindReplaceDialog from "./lib/components/FindReplaceDialog.svelte";
   import ScenePanel from "./lib/components/ScenePanel.svelte";
   import Sidebar from "./lib/components/Sidebar.svelte";
   import StartScreen from "./lib/components/StartScreen.svelte";
@@ -28,7 +29,47 @@
   import { COMMAND_DEFS } from "./lib/commands";
   import { currentProject } from "./lib/stores/project.svelte";
   import { ui } from "./lib/stores/ui.svelte";
-  import type { Project, ExportResult } from "./lib/types";
+  import type { ProseDocument } from "./lib/utils/proseSearch";
+  import type { Project, ExportResult, Chapter, Scene, Beat } from "./lib/types";
+
+  let scenePanel: ReturnType<typeof ScenePanel> | undefined = $state();
+  let searchDialog: ReturnType<typeof FindReplaceDialog> | undefined = $state();
+  let search = $state<{ projectId: string; scope: "scene" | "project"; replace: boolean } | null>(
+    null
+  );
+
+  // Native New/Import commands can change projects while a modal is open.
+  $effect(() => {
+    if (search && search.projectId !== currentProject.value?.id) search = null;
+  });
+
+  function openSearch(scope: "scene" | "project", replace = false) {
+    const projectId = currentProject.value?.id;
+    if (!projectId) return;
+    if (search?.projectId === projectId) searchDialog?.configure(scope, replace);
+    search = { projectId, scope, replace };
+  }
+
+  async function openSearchScene(doc: ProseDocument) {
+    if (!currentProject.value) return;
+    const projectId = currentProject.value.id;
+    const chapters = await invoke<Chapter[]>("get_chapters", {
+      projectId: currentProject.value.id,
+    });
+    const chapter = chapters.find((chapter) => chapter.id === doc.chapter_id);
+    const scenes = await invoke<Scene[]>("get_scenes", { chapterId: doc.chapter_id });
+    const scene = scenes.find((scene) => scene.id === doc.scene_id);
+    if (!chapter || !scene) throw new Error("This scene is no longer available.");
+    const beats = await invoke<Beat[]>("get_beats", { sceneId: scene.id });
+    if (currentProject.value?.id !== projectId) return;
+    currentProject.setChapters(chapters);
+    currentProject.setCurrentChapter(chapter);
+    currentProject.setScenes(scenes);
+    currentProject.setCurrentScene(scene);
+    await tick();
+    currentProject.setBeats(beats);
+    if (doc.beat_title !== null) ui.setExpandedBeat(doc.id);
+  }
 
   let recentProjects = $state<Project[]>([]);
 
@@ -110,6 +151,7 @@
   }
 
   function closeProject() {
+    search = null;
     currentProject.setProject(null);
   }
 
@@ -127,6 +169,10 @@
       const menuId = event.payload;
 
       if (handleImportCommand(menuId)) return;
+      if (["find", "find_replace", "find_project"].includes(menuId)) {
+        runCommand(menuId);
+        return;
+      }
       switch (menuId) {
         case "new_project":
           showNewProjectDialog = true;
@@ -194,6 +240,15 @@
   function runCommand(id: string) {
     if (handleImportCommand(id)) return;
     switch (id) {
+      case "find":
+        openSearch("scene");
+        break;
+      case "find_replace":
+        openSearch("scene", true);
+        break;
+      case "find_project":
+        openSearch("project", true);
+        break;
       case "export":
         if (currentProject.value) showExportDialog = true;
         break;
@@ -241,6 +296,12 @@
 
   // Global keyboard shortcuts
   function handleKeydown(event: KeyboardEvent) {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+      if (!currentProject.value) return;
+      event.preventDefault();
+      openSearch(event.shiftKey ? "project" : "scene", event.altKey || event.shiftKey);
+      return;
+    }
     // Cmd/Ctrl+K: Open command palette
     if ((event.metaKey || event.ctrlKey) && event.key === "k") {
       event.preventDefault();
@@ -266,12 +327,33 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
+{#if search && search.projectId === currentProject.value?.id}
+  {#key search.projectId}
+    <FindReplaceDialog
+      bind:this={searchDialog}
+      projectId={search.projectId}
+      sceneId={currentProject.currentScene?.id ?? null}
+      initialScope={search.scope}
+      showReplace={search.replace}
+      prepare={async () => {
+        await scenePanel?.prepareForSearch();
+      }}
+      onDiscardDrafts={async (drafts) => {
+        await scenePanel?.discardFailedSaves(drafts);
+      }}
+      onApplied={(changes) => scenePanel?.applySearchChanges(changes)}
+      onOpenScene={openSearchScene}
+      onClose={() => (search = null)}
+    />
+  {/key}
+{/if}
+
 <UpdateBanner />
 
 <main class="flex h-screen w-screen overflow-hidden bg-press-bg">
   {#if currentProject.value}
     <Sidebar />
-    <ScenePanel />
+    <ScenePanel bind:this={scenePanel} />
     <ReferencesPanel />
   {:else}
     <StartScreen
