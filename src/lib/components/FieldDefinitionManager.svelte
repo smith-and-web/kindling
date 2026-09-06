@@ -67,7 +67,10 @@
 
   function openEditForm(def: FieldDefinition) {
     editMode = "edit";
-    editingDef = { ...def };
+    editingDef = {
+      ...def,
+      field_type: def.field_type === "multi_select" ? "multiselect" : def.field_type,
+    };
   }
 
   function cancelEdit() {

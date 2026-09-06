@@ -822,6 +822,7 @@
 <aside
   class="bg-press-surface border-l border-press-border flex flex-col h-full relative"
   class:w-0={ui.referencesPanelCollapsed}
+  class:min-w-0={ui.referencesPanelCollapsed}
   class:overflow-hidden={ui.referencesPanelCollapsed}
   class:opacity-0={ui.referencesPanelCollapsed}
   class:border-l-0={ui.referencesPanelCollapsed}
@@ -1024,7 +1025,6 @@
       <div class="space-y-2">
         {#each activeItems as reference, index (reference.id)}
           {@const isExpanded = expandedIds.has(reference.id)}
-          {@const attributes = formatAttributes(reference.attributes)}
           {@const notes = getNotes(reference.attributes)}
           {@const isLinked = currentProject.currentScene ? linkedIds.has(reference.id) : false}
           {@const canDrag = !currentProject.currentScene || isLinked}
@@ -1108,6 +1108,17 @@
               {@const hasFieldValues = refFieldDefs.some(
                 (d) => refFieldValues[d.id] != null && refFieldValues[d.id] !== ""
               )}
+              {@const attributes = formatAttributes(reference.attributes)
+                .filter(
+                  ([key]) =>
+                    !refFieldDefs.some(
+                      (def) =>
+                        def.name.trim().toLowerCase() === key.trim().toLowerCase() &&
+                        refFieldValues[def.id] != null &&
+                        refFieldValues[def.id] !== ""
+                    )
+                )
+                .sort(([a], [b]) => a.localeCompare(b))}
               <div class="px-3 pb-3 border-t border-press-border">
                 {#if reference.description}
                   <div
@@ -1136,7 +1147,7 @@
                           <span class="text-press-text wrap-break-word">
                             {#if def.field_type === "checkbox"}
                               {fv === "true" ? "Yes" : "No"}
-                            {:else if def.field_type === "multiselect"}
+                            {:else if def.field_type === "multiselect" || def.field_type === "multi_select"}
                               {(() => {
                                 try {
                                   return (JSON.parse(fv) as string[]).join(", ");

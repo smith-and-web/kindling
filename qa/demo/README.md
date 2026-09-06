@@ -1,23 +1,58 @@
-# Demo seed — documentation and website screenshots
+# Demo fixtures — documentation and website screenshots
 
-A committed, reproducible project used for every screenshot in `docs/assets/` and
-on the website. Deliberately separate from `qa/visual/`, which has the opposite
-requirements.
+The user-facing **Sample Project** creates **The Letter** from the committed
+fixture in `src-tauri/src/commands/sample_project.rs`: three chapters, nine scenes,
+typed reference fields, hierarchical tags and an active-protagonist filter.
+This is the preferred source for new documentation and website screenshots.
 
-|                    | `qa/visual/` (QA baseline)                    | `qa/demo/` (this)                        |
-| ------------------ | --------------------------------------------- | ---------------------------------------- |
-| Content            | minimal, boring, deterministic                | rich enough to photograph                |
-| Source             | `test-data/simple-story.pltr`, imported       | `seed.json`, applied to the database     |
-| Lifecycle          | imported at run start, deleted at run end     | persists until reseeded                  |
-| Data dir           | `qa/visual/data`                              | `qa/demo/data`                           |
-| Cost of changing it | invalidates the baselines in `qa/visual/baselines/` | free                               |
+## Create the current fixtures
 
-Keep them apart. A QA run imports its fixture on top of whatever is already
-there, so demo content in the QA data dir would put a second project in every
-sidebar baseline, and `q.cleanupFixtures()` would not remove it — cleanup only
-deletes ids the harness itself imported.
+Start the debug app with an empty scratch data directory:
 
-## Use it
+```bash
+KINDLING_DATA_DIR="$(mktemp -d /tmp/kindling-demo.XXXXXX)" npm run tauri dev
+```
+
+Click **Sample Project**. For screenplay and sync screenshots, also run this in
+the app's developer console (or through the local MCP `execute_js` command):
+
+```js
+await window.__KINDLING_TEST__.invoke("create_demo_fixture");
+```
+
+The command adds **The Letter — Screenplay** and **The Letter — Source Outline**.
+Return to **All Projects** to open them. It is compiled and registered only in
+debug builds. Every invocation creates new projects with independent IDs; use an
+empty data directory for a clean screenshot run.
+
+The outline project initially has an empty sync preview. Its `source_path` points
+to a `demo-outline-<uuid>.md` file beside the active database. Append a scene to
+that file and click **Sync** to photograph the diff:
+
+```markdown
+## Beneath the Tower
+
+- Eleanor turns the key
+```
+
+From the sibling `kindling-splash` repository, capture without installing images:
+
+```bash
+npm run shots -- --keep
+```
+
+Keep screenshot data separate from `qa/visual/data`, whose minimal imported
+fixtures drive the visual regression baselines. Theme, onboarding and panel widths
+are local preferences; the fixture commands do not set them. Create a real
+snapshot in the app if a screenshot needs one.
+
+## Older SQL seed
+
+`seed.json` and `seed.mjs` remain available to reproduce the older screenshot
+content. They do not contain the current typed fields, tags or nine-scene spine.
+The instructions below apply to that older seed only.
+
+### Use the older seed
 
 ```bash
 npm run tauri:demo
@@ -38,7 +73,7 @@ edited copy.
 Two flags: `--print` writes the SQL to stdout instead of applying it, and
 `--db <path>` targets a database somewhere else.
 
-## Editing the content
+### Editing the older content
 
 Edit `seed.json` and reseed. Every id is a UUIDv5 derived from the `key` fields, so
 the same manifest always produces the same database — a copy-edit shows up as a
@@ -58,7 +93,7 @@ Run the tests after editing:
 npm run test:demo-seed
 ```
 
-## What the seed deliberately does not cover
+### What the older seed does not cover
 
 - **Snapshots.** A `snapshots` row points at a real archive on disk with a real
   `file_size`. Faking the row would give a demo where restore fails, which is worse
@@ -71,7 +106,7 @@ npm run test:demo-seed
   `localStorage`, not the database. Set them in the app; the seed will not touch
   them.
 
-## Why the script writes SQL directly
+### Why the older script writes SQL directly
 
 It bypasses the Tauri commands, which is a real trade-off: nothing stops the
 manifest from encoding a state the app itself could not produce. Two things hold

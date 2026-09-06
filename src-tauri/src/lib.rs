@@ -134,6 +134,8 @@ pub fn run() {
             commands::import_novelwriter,
             commands::preview_import,
             commands::create_sample_project,
+            #[cfg(debug_assertions)]
+            commands::create_demo_fixture,
             commands::create_blank_project,
             commands::create_screenplay_project,
             commands::get_page_count_estimate,

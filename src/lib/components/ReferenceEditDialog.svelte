@@ -252,7 +252,7 @@
 
       <div class="space-y-2">
         <div class="flex items-center justify-between">
-          <span class="text-press-ui text-press-muted">Additional Attributes</span>
+          <span class="text-press-ui text-press-muted">Legacy Attributes</span>
           <button
             type="button"
             onclick={addAttributeRow}
