@@ -5,10 +5,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { exit } from "@tauri-apps/plugin-process";
+import { synopsisSaves } from "./lib/stores/synopsisSaves.svelte";
 import { session } from "./lib/stores/session.svelte";
 import { runImport } from "./lib/utils/import";
 import { currentProject } from "./lib/stores/project.svelte";
-import { mockProject, mockScenes } from "./dev/mock-data";
+import { mockProject, mockScenes, mockChapters } from "./dev/mock-data";
 import App from "./App.svelte";
 
 vi.hoisted(() => {
@@ -56,9 +57,12 @@ beforeEach(() => {
     this.setAttribute("open", "");
   };
 });
-afterEach(() => {
+afterEach(async () => {
   cleanup();
+  vi.mocked(invoke).mockResolvedValue([]);
+  await synopsisSaves.flush();
   currentProject.setProject(null);
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 async function menu(payload: string) {
@@ -66,6 +70,93 @@ async function menu(payload: string) {
   callback({ event: "menu-event", id: 1, payload });
   await tick();
 }
+
+it.each(["menu", "native"])("flushes a debounced synopsis before %s quit", async (path) => {
+  vi.useFakeTimers();
+  currentProject.setChapters(mockChapters);
+  render(App);
+  await vi.advanceTimersByTimeAsync(0);
+  await fireEvent.click(screen.getByRole("button", { name: "Edit synopsis" }));
+  await fireEvent.input(screen.getByPlaceholderText("Write a brief synopsis for this scene..."), {
+    target: { value: "Last words before quitting" },
+  });
+  let finish!: () => void;
+  vi.mocked(invoke).mockImplementation(async (cmd) => {
+    if (cmd === "save_scene_synopsis")
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+    return [];
+  });
+  const preventDefault = vi.fn();
+  let closed = false;
+  let closing: Promise<unknown> | undefined;
+  if (path === "menu") await menu("quit");
+  else {
+    const handler = vi.mocked(getCurrentWindow().onCloseRequested).mock.calls[0][0];
+    closing = Promise.resolve(handler({ preventDefault } as never)).then(() => {
+      closed = true;
+    });
+  }
+  await vi.advanceTimersByTimeAsync(0);
+  try {
+    expect(invoke).toHaveBeenCalledWith("save_scene_synopsis", {
+      sceneId: mockScenes[0].id,
+      synopsis: "Last words before quitting",
+    });
+    expect(exit).not.toHaveBeenCalled();
+    expect(closed).toBe(false);
+    expect(screen.getByRole("main", { hidden: true }).inert).toBe(true);
+  } finally {
+    finish?.();
+  }
+  await vi.advanceTimersByTimeAsync(0);
+  await closing;
+  if (path === "menu") expect(exit).toHaveBeenCalledWith(0);
+  else expect(closed).toBe(true);
+  expect(preventDefault).not.toHaveBeenCalled();
+  expect(screen.getByRole("main").inert).toBe(false);
+});
+
+it.each(["menu", "native"])(
+  "blocks %s quit on a failed synopsis save and allows retry",
+  async (path) => {
+    vi.useFakeTimers();
+    currentProject.setChapters(mockChapters);
+    render(App);
+    await vi.advanceTimersByTimeAsync(0);
+    await fireEvent.click(screen.getByRole("button", { name: "Edit synopsis" }));
+    await fireEvent.input(screen.getByPlaceholderText("Write a brief synopsis for this scene..."), {
+      target: { value: "Do not lose this synopsis" },
+    });
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === "save_scene_synopsis") throw "disk full";
+      return [];
+    });
+    const preventDefault = vi.fn();
+    const handler = vi.mocked(getCurrentWindow().onCloseRequested).mock.calls[0][0];
+    if (path === "menu") await menu("quit");
+    else await handler({ preventDefault } as never);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(exit).not.toHaveBeenCalled();
+    expect(screen.getByRole("main").inert).toBe(false);
+    if (path === "native") expect(preventDefault).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Retry all synopsis saves" })).toBeTruthy();
+    vi.mocked(invoke).mockResolvedValue([]);
+    await fireEvent.click(screen.getByRole("button", { name: "Retry all synopsis saves" }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(screen.queryByRole("button", { name: "Retry all synopsis saves" })).toBeNull();
+    if (path === "menu") {
+      await menu("quit");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(exit).toHaveBeenCalledWith(0);
+    } else {
+      preventDefault.mockClear();
+      await handler({ preventDefault } as never);
+      expect(preventDefault).not.toHaveBeenCalled();
+    }
+  }
+);
 
 it("waits for pending position saves before quitting from the menu", async () => {
   let finish!: () => void;

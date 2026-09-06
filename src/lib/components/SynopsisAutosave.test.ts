@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import { tick } from "svelte";
-import type { Editor } from "@tiptap/core";
 import { invoke } from "@tauri-apps/api/core";
 import ScenePanel from "./ScenePanel.svelte";
 import { currentProject } from "../stores/project.svelte";
+import { synopsisSaves } from "../stores/synopsisSaves.svelte";
 import { ui } from "../stores/ui.svelte";
 import { mockProject, mockScenes, mockChapters } from "../../dev/mock-data";
 
@@ -34,6 +34,8 @@ beforeEach(() => {
 
 afterEach(async () => {
   cleanup();
+  vi.mocked(invoke).mockResolvedValue([]);
+  await synopsisSaves.flush();
   await vi.advanceTimersByTimeAsync(2000);
   currentProject.setProject(null);
   ui.setExpandedBeat(null);
@@ -49,7 +51,7 @@ async function editSynopsis(text = "Updated synopsis") {
   return textarea;
 }
 
-// Discord report, Quizzical, July 13–14, 2026: autosave interrupts synopsis/beat editing.
+// Discord report, Quizzical, July 13–14, 2026: autosave closes synopsis editing.
 it("keeps the synopsis open and focused through repeated autosaves", async () => {
   render(ScenePanel);
   const textarea = await editSynopsis();
@@ -175,47 +177,54 @@ it("keeps synopsis editing usable after a save failure", async () => {
   expect(screen.queryByText("Saving...")).toBeNull();
 });
 
-it.each([false, true])(
-  "preserves the beat cursor when autosave finishes (newer edit: %s)",
-  async (newerEdit) => {
-    const beat = {
-      id: "beat",
-      scene_id: scene.id,
-      content: "Greeting",
-      prose: "<p>First paragraph</p><p>Last paragraph</p>",
-      position: 0,
-    };
-    currentProject.setBeats([beat]);
-    const { component } = render(ScenePanel);
-    await tick();
-    ui.setExpandedBeat(beat.id);
+it.each(["database is locked", "disk full", "Cannot edit a locked scene"])(
+  "retains a failed synopsis and offers an explicit retry after %s",
+  async (failure) => {
+    render(ScenePanel);
     await vi.advanceTimersByTimeAsync(0);
-    const element = document.querySelector(".tiptap") as HTMLElement & { editor: Editor };
-    const editor = element.editor;
-    editor.view.focus();
-    editor.commands.setTextSelection(4);
-    editor.commands.insertContent("X");
-    let finish!: () => void;
     vi.mocked(invoke).mockImplementation(async (cmd) => {
-      if (cmd === "save_beat_prose" && !finish)
-        await new Promise<void>((resolve) => {
-          finish = resolve;
-        });
+      if (cmd === "save_scene_synopsis") throw failure;
       return [];
     });
-    await vi.advanceTimersByTimeAsync(500);
-    if (newerEdit) editor.commands.insertContent("Y");
-    const expectedText = editor.getHTML();
-    const expectedCursor = editor.state.selection.head;
-    finish();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(editor.state.selection.head).toBe(expectedCursor);
-    expect(editor.getHTML()).toBe(expectedText);
-    expect(document.activeElement).toBe(element);
-    await component.prepareForSearch();
+    const textarea = await editSynopsis("Recover this draft");
     await vi.advanceTimersByTimeAsync(1000);
-    expect(editor.state.selection.head).toBe(expectedCursor);
-    expect(editor.getHTML()).toBe(expectedText);
-    expect(currentProject.beats[0].prose).toBe(expectedText);
+    expect(screen.getByRole("alert").textContent).toContain("not saved");
+    expect(screen.getByRole("alert").textContent).toContain(failure);
+    expect(document.activeElement).toBe(textarea);
+    expect(currentProject.currentScene?.synopsis).toBe(scene.synopsis);
+    vi.mocked(invoke).mockResolvedValue([]);
+    await fireEvent.click(screen.getByRole("button", { name: "Retry synopsis save" }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(currentProject.currentScene?.synopsis).toBe("Recover this draft");
+    expect(screen.getByPlaceholderText(placeholder)).toBe(textarea);
   }
 );
+
+it("recovers a failed synopsis after leaving the project and remounting the scene panel", async () => {
+  const view = render(ScenePanel);
+  await vi.advanceTimersByTimeAsync(0);
+  vi.mocked(invoke).mockImplementation(async (cmd) => {
+    if (cmd === "save_scene_synopsis") throw "disk full";
+    return [];
+  });
+  await editSynopsis("Still recoverable");
+  await vi.advanceTimersByTimeAsync(1000);
+  view.unmount();
+  currentProject.setProject(null);
+  await vi.advanceTimersByTimeAsync(0);
+  currentProject.setProject(mockProject);
+  currentProject.setCurrentChapter(mockChapters[0]);
+  currentProject.setScenes([scene]);
+  currentProject.setCurrentScene(scene);
+  render(ScenePanel);
+  await vi.advanceTimersByTimeAsync(0);
+  await fireEvent.click(screen.getByRole("button", { name: "Edit synopsis" }));
+  expect((screen.getByPlaceholderText(placeholder) as HTMLTextAreaElement).value).toBe(
+    "Still recoverable"
+  );
+  vi.mocked(invoke).mockResolvedValue([]);
+  await fireEvent.click(screen.getByRole("button", { name: "Retry synopsis save" }));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(currentProject.currentScene?.synopsis).toBe("Still recoverable");
+});

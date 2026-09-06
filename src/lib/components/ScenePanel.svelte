@@ -19,6 +19,7 @@
   import { onDestroy, onMount, untrack } from "svelte";
   import { trackScrollPosition } from "../utils/scrollPosition";
   import { session } from "../stores/session.svelte";
+  import { synopsisSaves } from "../stores/synopsisSaves.svelte";
   import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
@@ -99,15 +100,16 @@
       },
     };
   }
-  let synopsisSaveTimeout: ReturnType<typeof setTimeout> | null = null;
-  type SynopsisDraft = { projectId: string; sceneId: string; synopsis: string | null };
-  let pendingSynopsis: SynopsisDraft | null = null;
-  let synopsisSaveQueue: Promise<void> = Promise.resolve();
 
   // Synopsis editing state
   let editingSynopsis = $state(false);
   let synopsisText = $state("");
-  let synopsisSaving = $state(false);
+  const synopsisSave = $derived(
+    synopsisSaves.getState(currentProject.value?.id, currentProject.currentScene?.id)
+  );
+  const synopsis = $derived(
+    synopsisSave.draft ? synopsisSave.draft.synopsis : currentProject.currentScene?.synopsis
+  );
   let metadataSaving = $state(false);
   let metadataError = $state<string | null>(null);
   let sceneTagIds = $state<string[]>([]);
@@ -308,38 +310,14 @@
 
   // Synopsis functions
   function startEditingSynopsis() {
-    synopsisText = currentProject.currentScene?.synopsis || "";
+    synopsisText = synopsis || "";
     editingSynopsis = true;
   }
 
-  function isCurrentSynopsis(draft: SynopsisDraft) {
-    return (
-      currentProject.value?.id === draft.projectId &&
-      currentProject.currentScene?.id === draft.sceneId
-    );
-  }
-
-  async function saveSynopsis(draft: SynopsisDraft) {
-    if (isCurrentSynopsis(draft)) synopsisSaving = true;
-    try {
-      await invoke("save_scene_synopsis", {
-        sceneId: draft.sceneId,
-        synopsis: draft.synopsis,
-      });
-    } catch (e) {
-      console.error("Failed to save synopsis:", e);
-    } finally {
-      if (isCurrentSynopsis(draft)) synopsisSaving = false;
-    }
-  }
-
   function flushSynopsisSave() {
-    if (synopsisSaveTimeout) clearTimeout(synopsisSaveTimeout);
-    synopsisSaveTimeout = null;
-    const draft = pendingSynopsis;
-    pendingSynopsis = null;
-    // Serialize writes so a slow save cannot overwrite a newer draft on disk.
-    if (draft) synopsisSaveQueue = synopsisSaveQueue.then(() => saveSynopsis(draft));
+    if (synopsisProjectId && synopsisSceneId) {
+      void synopsisSaves.flush(synopsisProjectId, synopsisSceneId).catch(() => {});
+    }
   }
 
   function handleSynopsisInput(value: string) {
@@ -347,14 +325,7 @@
     const sceneId = currentProject.currentScene?.id;
     const projectId = currentProject.value?.id;
     if (!sceneId || !projectId) return;
-    pendingSynopsis = { projectId, sceneId, synopsis: value.trim() || null };
-    // Keep the working copy current when closing/reopening before a save completes.
-    currentProject.updateSceneSynopsis(sceneId, pendingSynopsis.synopsis);
-    // Debounce auto-save
-    if (synopsisSaveTimeout) {
-      clearTimeout(synopsisSaveTimeout);
-    }
-    synopsisSaveTimeout = setTimeout(flushSynopsisSave, 1000);
+    synopsisSaves.stage({ projectId, sceneId, synopsis: value.trim() || null });
   }
 
   let synopsisProjectId: string | undefined;
@@ -364,14 +335,13 @@
     const projectId = currentProject.value?.id;
     const sceneId = currentProject.currentScene?.id;
     if (projectId === synopsisProjectId && sceneId === synopsisSceneId) return;
-    synopsisProjectId = projectId;
-    synopsisSceneId = sceneId;
     untrack(() => {
       flushSynopsisSave();
       editingSynopsis = false;
-      synopsisSaving = false;
       synopsisText = "";
     });
+    synopsisProjectId = projectId;
+    synopsisSceneId = sceneId;
   });
 
   let lastSceneId: string | null = null;
@@ -1062,7 +1032,7 @@
             <h2 class="text-press-ui font-semibold text-press-text uppercase tracking-wide">
               Synopsis
             </h2>
-            {#if scene.synopsis && !editingSynopsis && !isLocked}
+            {#if synopsis && !editingSynopsis && !isLocked}
               <Tooltip text="Edit synopsis" position="left">
                 <button
                   onclick={startEditingSynopsis}
@@ -1082,7 +1052,7 @@
                 bind:value={synopsisText}
                 oninput={(e) => handleSynopsisInput(e.currentTarget.value)}
               ></textarea>
-              {#if synopsisSaving}
+              {#if synopsisSave.saving}
                 <div class="absolute bottom-3 right-3 flex items-center gap-1.5 text-press-muted">
                   <Loader2 class="w-3.5 h-3.5 animate-spin" />
                   <span class="text-press-eyebrow">Saving...</span>
@@ -1092,10 +1062,10 @@
             <p class="text-press-muted text-press-eyebrow mt-2">
               Press Escape to close. Changes are saved automatically.
             </p>
-          {:else if scene.synopsis}
+          {:else if synopsis}
             <div class="bg-press-surface rounded-lg p-4 border-l-2 border-press-accent">
               <p class="text-press-text font-prose italic">
-                {scene.synopsis}
+                {synopsis}
               </p>
             </div>
           {:else if !isLocked}
@@ -1113,6 +1083,19 @@
               <Lock class="w-4 h-4" />
               <span class="text-press-ui">Scene is locked</span>
             </div>
+          {/if}
+          {#if synopsisSave.error}
+            <div role="alert" class="mt-2 text-press-ui text-press-error">
+              <p>Synopsis not saved: {synopsisSave.error}. Your draft is kept for retry.</p>
+              <button
+                onclick={flushSynopsisSave}
+                disabled={synopsisSave.saving}
+                class="underline mt-1 disabled:opacity-50"
+                aria-label="Retry synopsis save">Retry saving</button
+              >
+            </div>
+          {:else if synopsisSave.draft && !synopsisSave.saving}
+            <p role="status" class="mt-2 text-press-eyebrow text-press-muted">Unsaved changes</p>
           {/if}
         </section>
 

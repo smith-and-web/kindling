@@ -30,6 +30,7 @@
   import { COMMAND_DEFS } from "./lib/commands";
   import { currentProject } from "./lib/stores/project.svelte";
   import { session } from "./lib/stores/session.svelte";
+  import { synopsisSaves } from "./lib/stores/synopsisSaves.svelte";
   import { ui } from "./lib/stores/ui.svelte";
   import type { ProseDocument } from "./lib/utils/proseSearch";
   import type { Project, ExportResult, Chapter, Scene, Beat } from "./lib/types";
@@ -157,16 +158,38 @@
     currentProject.setProject(null);
   }
 
-  async function flushBeforeClose() {
+  let closePending = $state(false);
+  let closeRequest: Promise<boolean> | null = null;
+
+  function flushBeforeClose() {
+    if (closeRequest) return closeRequest;
+    closePending = true;
+    closeRequest = saveBeforeClose().finally(() => {
+      closePending = false;
+      closeRequest = null;
+    });
+    return closeRequest;
+  }
+
+  async function saveBeforeClose() {
+    try {
+      await synopsisSaves.flush();
+    } catch (error) {
+      ui.showError(
+        `Kindling stayed open because your synopsis could not be saved. ${String(error)}`
+      );
+      return false;
+    }
     try {
       await session.flush();
     } catch (error) {
       console.error("Failed to save writing position before closing:", error);
     }
+    return true;
   }
 
   async function quit() {
-    await flushBeforeClose();
+    if (!(await flushBeforeClose())) return;
     try {
       await exit(0);
     } catch (error) {
@@ -176,11 +199,25 @@
 
   onMount(() => {
     // Tauri awaits this handler before destroying the window.
-    const unlisten = getCurrentWindow().onCloseRequested(flushBeforeClose);
+    const unlisten = getCurrentWindow().onCloseRequested(async (event) => {
+      if (!(await flushBeforeClose())) event.preventDefault();
+    });
     return () => {
       void unlisten.then((stop) => stop());
     };
   });
+
+  let retryingSynopses = $state(false);
+  async function retrySynopses() {
+    retryingSynopses = true;
+    try {
+      await synopsisSaves.flush();
+    } catch {
+      // The banner and per-scene errors remain visible until saving succeeds.
+    } finally {
+      retryingSynopses = false;
+    }
+  }
 
   // Check for updates on launch (delayed so it doesn't block startup)
   onMount(() => {
@@ -377,7 +414,29 @@
 
 <UpdateBanner />
 
-<main class="flex h-screen w-screen overflow-hidden bg-press-bg">
+{#if synopsisSaves.failedCount}
+  <div
+    role="alert"
+    class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-press-surface border border-press-error p-4 shadow-lg text-press-ui"
+  >
+    <p class="text-press-error">
+      Your synopsis changes have not been saved. Retry saving before closing Kindling.
+    </p>
+    <button
+      onclick={retrySynopses}
+      disabled={retryingSynopses}
+      aria-label="Retry all synopsis saves"
+      class="mt-2 underline text-press-text disabled:opacity-50"
+      >{retryingSynopses ? "Saving..." : "Retry saving"}</button
+    >
+  </div>
+{/if}
+
+<main
+  inert={closePending}
+  aria-busy={closePending}
+  class="flex h-screen w-screen overflow-hidden bg-press-bg"
+>
   {#if currentProject.value}
     <Sidebar />
     <ScenePanel bind:this={scenePanel} />
