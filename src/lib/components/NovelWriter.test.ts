@@ -6,6 +6,7 @@ import ExportDialog from "./ExportDialog.svelte";
 import SyncDialog from "./SyncDialog.svelte";
 import Sidebar from "./Sidebar.svelte";
 import Onboarding from "./Onboarding.svelte";
+import StartScreen from "./StartScreen.svelte";
 import { currentProject } from "../stores/project.svelte";
 import { ui } from "../stores/ui.svelte";
 import { runImport } from "../utils/import";
@@ -308,5 +309,24 @@ describe("timeline and custom references", () => {
     render(ScenePanel);
     await screen.findByText("Linked timelines");
     expect(screen.getByText("Linked custom")).toBeTruthy();
+  });
+});
+
+describe("novelWriter home screen import", () => {
+  it("picks a project folder, opens the import and notifies reference classification", async () => {
+    currentProject.setProject(null);
+    ui.setView("start");
+    vi.mocked(open).mockResolvedValue("/source");
+    vi.mocked(invoke).mockResolvedValue(project);
+    const onImportComplete = vi.fn();
+    render(StartScreen, { recentProjects: [], onImportComplete });
+
+    await fireEvent.click(screen.getByRole("button", { name: "novelWriter Project folder" }));
+
+    await waitFor(() => expect(onImportComplete).toHaveBeenCalledWith(project, "novelwriter"));
+    expect(open).toHaveBeenCalledWith({ multiple: false, directory: true });
+    expect(invoke).toHaveBeenCalledWith("import_novelwriter", { path: "/source" });
+    expect(currentProject.value?.id).toBe(project.id);
+    expect(ui.currentView).toBe("editor");
   });
 });
