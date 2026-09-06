@@ -56,6 +56,7 @@
   const importYWriter = () => handleImport("ywriter");
   const importLongform = () => handleImport("longform");
   const importScrivener = () => handleImport("scrivener");
+  const importNovelWriter = () => handleImport("novelwriter");
 
   function handleLongformImport() {
     const handler = onImportLongform ?? importLongform;
@@ -201,7 +202,7 @@
         </div>
       {/if}
 
-      <!-- Import Options (2x2 compact) -->
+      <!-- Import Options (two-column grid) -->
       <div data-testid="import-section" class="bg-press-surface rounded-lg p-4">
         <h2 class="text-press-base font-heading font-medium text-press-text mb-3">
           Import an Outline
@@ -246,6 +247,14 @@
             <Scroll class="w-8 h-8 text-press-accent-text mb-1" />
             <span class="text-press-text text-press-ui font-medium">Scrivener</span>
             <span class="text-press-muted text-press-eyebrow">.scriv</span>
+          </button>
+          <button
+            onclick={importNovelWriter}
+            class="flex flex-col items-center p-4 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
+          >
+            <Scroll class="w-8 h-8 text-press-accent-text mb-1" />
+            <span class="text-press-text text-press-ui font-medium">novelWriter</span>
+            <span class="text-press-muted text-press-eyebrow">Project folder</span>
           </button>
         </div>
       </div>
