@@ -17,6 +17,8 @@
 mod archive;
 mod blank_project;
 mod crud;
+#[cfg(debug_assertions)]
+mod demo_fixture;
 mod detect;
 mod export;
 pub mod feedback;
@@ -38,6 +40,8 @@ mod templates;
 pub use archive::*;
 pub use blank_project::*;
 pub use crud::*;
+#[cfg(debug_assertions)]
+pub use demo_fixture::*;
 pub use detect::*;
 pub use export::*;
 pub use feedback::*;

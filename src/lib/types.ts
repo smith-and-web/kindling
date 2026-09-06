@@ -231,7 +231,15 @@ export type ReferenceTypeId =
   | "custom";
 
 /** Supported field types for custom fields */
-export type FieldType = "text" | "number" | "date" | "select" | "multiselect" | "checkbox" | "url";
+export type FieldType =
+  | "text"
+  | "number"
+  | "date"
+  | "select"
+  | "multiselect"
+  | "multi_select"
+  | "checkbox"
+  | "url";
 
 /** Entity types that support custom fields */
 export type FieldEntityType =

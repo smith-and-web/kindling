@@ -233,7 +233,7 @@
                 <div class="relative">
                   <div class="flex items-center gap-2 p-2 rounded bg-press-surface">
                     <ChevronDown class="w-4 h-4 text-press-muted" />
-                    <span class="text-press-text font-medium">Chapter 1: The Beginning</span>
+                    <span class="text-press-text font-medium">The Letter</span>
                   </div>
                   <!-- Label -->
                   <div
