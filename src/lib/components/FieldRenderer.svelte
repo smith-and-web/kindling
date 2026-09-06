@@ -142,7 +142,7 @@
         <option value={option}>{option}</option>
       {/each}
     </select>
-  {:else if definition.field_type === "multiselect"}
+  {:else if definition.field_type === "multiselect" || definition.field_type === "multi_select"}
     <div class="flex flex-wrap gap-2">
       {#each selectOptions as option}
         <label

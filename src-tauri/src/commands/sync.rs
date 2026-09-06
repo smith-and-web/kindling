@@ -344,7 +344,7 @@ pub async fn get_sync_preview(
     get_sync_preview_with_connection(&conn, project_uuid)
 }
 
-fn get_sync_preview_with_connection(
+pub(super) fn get_sync_preview_with_connection(
     conn: &Connection,
     project_uuid: Uuid,
 ) -> Result<SyncPreview, String> {
