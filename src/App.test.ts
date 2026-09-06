@@ -4,6 +4,7 @@ import { tick } from "svelte";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { updateState } from "./lib/updater";
 import { exit } from "@tauri-apps/plugin-process";
 import { synopsisSaves } from "./lib/stores/synopsisSaves.svelte";
 import { session } from "./lib/stores/session.svelte";
@@ -50,6 +51,7 @@ beforeEach(() => {
   );
   vi.mocked(listen).mockClear();
   vi.mocked(exit).mockClear();
+  updateState.set(null);
   vi.mocked(getCurrentWindow().onCloseRequested).mockClear();
   currentProject.setProject(mockProject);
   currentProject.setCurrentScene({ ...mockScenes[0], planning_status: "undefined" });
@@ -59,6 +61,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   cleanup();
+  updateState.set(null);
   vi.mocked(invoke).mockResolvedValue([]);
   await synopsisSaves.flush();
   currentProject.setProject(null);
@@ -422,4 +425,115 @@ it("requires fresh discard confirmation if synopsis drafts change while the quit
   await fireEvent.click(screen.getByRole("button", { name: "Quit and discard" }));
   await vi.advanceTimersByTimeAsync(0);
   expect(exit).toHaveBeenCalledWith(0);
+});
+
+it.each([false, true])(
+  "flushes writing position before quit-and-discard (position save fails: %s)",
+  async (fails) => {
+    vi.useFakeTimers();
+    currentProject.setChapters(mockChapters);
+    render(App);
+    await vi.advanceTimersByTimeAsync(0);
+    synopsisSaves.stage({
+      projectId: mockProject.id,
+      sceneId: mockScenes[0].id,
+      synopsis: "Locked draft",
+    });
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === "save_scene_synopsis") throw "Cannot edit a locked scene";
+      return [];
+    });
+    await menu("quit");
+    await vi.advanceTimersByTimeAsync(0);
+    let finish!: () => void;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const flush = vi.spyOn(session, "flush").mockImplementation(async () => {
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      if (fails) throw new Error("disk full");
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Quit and discard" }));
+    await vi.advanceTimersByTimeAsync(0);
+    try {
+      expect(flush).toHaveBeenCalledOnce();
+      expect(exit).not.toHaveBeenCalled();
+    } finally {
+      finish?.();
+    }
+    await vi.advanceTimersByTimeAsync(0);
+    expect(exit).toHaveBeenCalledWith(0);
+    if (fails)
+      expect(error).toHaveBeenCalledWith(
+        "Failed to save writing position before closing:",
+        expect.any(Error)
+      );
+  }
+);
+
+it("disables update restart while a quit-discard decision is pending", async () => {
+  vi.useFakeTimers();
+  currentProject.setChapters(mockChapters);
+  const install = vi.fn().mockResolvedValue(undefined);
+  updateState.set({ ready: true, version: "1.2.1", body: null, update: { install } as never });
+  render(App);
+  await vi.advanceTimersByTimeAsync(0);
+  synopsisSaves.stage({
+    projectId: mockProject.id,
+    sceneId: mockScenes[0].id,
+    synopsis: "Unsaved draft",
+  });
+  vi.mocked(invoke).mockImplementation(async (cmd) => {
+    if (cmd === "save_scene_synopsis") throw "disk full";
+    return [];
+  });
+  await menu("quit");
+  await vi.advanceTimersByTimeAsync(0);
+  const restart = screen.getByRole("button", { name: "Restart" }) as HTMLButtonElement;
+  expect(restart.disabled).toBe(true);
+  expect(screen.queryByText("Your synopsis changes have not been saved.")).toBeNull();
+  await fireEvent.click(restart);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(install).not.toHaveBeenCalled();
+  await fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+  expect(restart.disabled).toBe(false);
+  expect(screen.getByText("Your synopsis changes have not been saved.")).toBeTruthy();
+  await fireEvent.click(restart);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(install).not.toHaveBeenCalled();
+  expect(screen.getByText(/Could not restart to update/)).toBeTruthy();
+});
+
+it("prevents editing and duplicate restart or quit while an update is saving", async () => {
+  vi.useFakeTimers();
+  currentProject.setChapters(mockChapters);
+  const install = vi.fn().mockResolvedValue(undefined);
+  updateState.set({ ready: true, version: "1.2.1", body: null, update: { install } as never });
+  render(App);
+  await vi.advanceTimersByTimeAsync(0);
+  let finish!: () => void;
+  vi.spyOn(session, "flush").mockImplementation(async () => {
+    await new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+  });
+  const restart = screen.getByRole("button", { name: "Restart" }) as HTMLButtonElement;
+  await fireEvent.click(restart);
+  await vi.advanceTimersByTimeAsync(0);
+  try {
+    expect(restart.disabled).toBe(true);
+    expect(screen.getByRole("main", { hidden: true }).inert).toBe(true);
+    await fireEvent.click(restart);
+    await menu("quit");
+    const preventDefault = vi.fn();
+    const handler = vi.mocked(getCurrentWindow().onCloseRequested).mock.calls[0][0];
+    await handler({ preventDefault } as never);
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(exit).not.toHaveBeenCalled();
+  } finally {
+    finish?.();
+  }
+  await vi.advanceTimersByTimeAsync(0);
+  expect(install).toHaveBeenCalledOnce();
+  expect(screen.getByRole("main").inert).toBe(false);
 });

@@ -1,6 +1,12 @@
 <script lang="ts">
   import { updateState, installAndRelaunch, dismissUpdate, type UpdateState } from "../updater";
   import { X } from "lucide-svelte";
+  import { ui } from "../stores/ui.svelte";
+
+  let {
+    disabled = false,
+    restarting = $bindable(false),
+  }: { disabled?: boolean; restarting?: boolean } = $props();
 
   let state = $state<UpdateState | null>(null);
 
@@ -10,6 +16,20 @@
     });
     return unsub;
   });
+
+  async function restart() {
+    if (!state || disabled || restarting) return;
+    restarting = true;
+    try {
+      await installAndRelaunch(state);
+    } catch (error) {
+      ui.showError(
+        `Could not restart to update: ${String(error)}. Retry saving your synopsis first.`
+      );
+    } finally {
+      restarting = false;
+    }
+  }
 </script>
 
 {#if state}
@@ -21,14 +41,16 @@
     </span>
     <div class="flex items-center gap-2">
       <button
-        onclick={() => state && installAndRelaunch(state)}
-        class="rounded px-3 py-1 font-medium border border-press-on-accent hover:bg-press-accent-text transition-colors"
+        onclick={restart}
+        disabled={disabled || restarting}
+        class="rounded px-3 py-1 font-medium border border-press-on-accent hover:bg-press-accent-text transition-colors disabled:bg-press-disabled-bg disabled:text-press-disabled-text disabled:border-press-disabled-border"
       >
         Restart
       </button>
       <button
         onclick={dismissUpdate}
-        class="p-1 rounded hover:bg-press-accent-text transition-colors"
+        disabled={disabled || restarting}
+        class="p-1 rounded hover:bg-press-accent-text transition-colors disabled:bg-press-disabled-bg disabled:text-press-disabled-text"
         aria-label="Dismiss"
       >
         <X class="w-4 h-4" />

@@ -160,11 +160,12 @@
   }
 
   let closePending = $state(false);
+  let updatePending = $state(false);
   let closeRequest: Promise<boolean> | null = null;
   let discardQuitDrafts = $state.raw<SynopsisDraft[] | null>(null);
 
   function flushBeforeClose() {
-    if (discardQuitDrafts) return Promise.resolve(false);
+    if (discardQuitDrafts || updatePending) return Promise.resolve(false);
     if (closeRequest) return closeRequest;
     closePending = true;
     closeRequest = saveBeforeClose().finally(() => {
@@ -181,12 +182,16 @@
       discardQuitDrafts = synopsisSaves.snapshot();
       return false;
     }
+    await flushPositionBeforeClose();
+    return true;
+  }
+
+  async function flushPositionBeforeClose() {
     try {
       await session.flush();
     } catch (error) {
       console.error("Failed to save writing position before closing:", error);
     }
-    return true;
   }
 
   async function quit() {
@@ -204,6 +209,7 @@
     closePending = true;
     try {
       await synopsisSaves.discardAll(approved);
+      await flushPositionBeforeClose();
       discardQuitDrafts = null;
       await exit(0);
     } catch (error) {
@@ -429,7 +435,10 @@
   {/key}
 {/if}
 
-<UpdateBanner />
+<UpdateBanner
+  disabled={closePending || discardQuitDrafts !== null}
+  bind:restarting={updatePending}
+/>
 
 {#if discardQuitDrafts}
   <ConfirmDialog
@@ -444,10 +453,10 @@
   />
 {/if}
 
-{#if synopsisSaves.failedCount}
+{#if synopsisSaves.failedCount && !discardQuitDrafts}
   <div
     role="alert"
-    class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-press-surface border border-press-error p-4 shadow-lg text-press-ui"
+    class="fixed bottom-4 left-1/2 -translate-x-1/2 z-press-toast rounded-lg bg-press-surface border border-press-error p-4 shadow-lg text-press-ui"
   >
     <p class="text-press-error">Your synopsis changes have not been saved.</p>
     <button
@@ -461,8 +470,8 @@
 {/if}
 
 <main
-  inert={closePending || discardQuitDrafts !== null}
-  aria-busy={closePending}
+  inert={closePending || updatePending || discardQuitDrafts !== null}
+  aria-busy={closePending || updatePending}
   class="flex h-screen w-screen overflow-hidden bg-press-bg"
 >
   {#if currentProject.value}

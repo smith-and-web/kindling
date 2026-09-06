@@ -99,6 +99,8 @@ export class SynopsisSaveQueue {
             const message = error instanceof Error ? error.message : String(error);
             // save_scene_synopsis's lock lookup returns this exact SQLite error for
             // a deleted scene (or parent chapter). There is no longer a target to save.
+            // This depends on rusqlite's display text; use a typed IPC error when
+            // next changing the Rust command's error contract.
             if (message === "Query returned no rows") this.retire(key);
             else this.errors.set(key, message);
           }
