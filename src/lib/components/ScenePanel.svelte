@@ -100,6 +100,9 @@
     };
   }
   let synopsisSaveTimeout: ReturnType<typeof setTimeout> | null = null;
+  type SynopsisDraft = { projectId: string; sceneId: string; synopsis: string | null };
+  let pendingSynopsis: SynopsisDraft | null = null;
+  let synopsisSaveQueue: Promise<void> = Promise.resolve();
 
   // Synopsis editing state
   let editingSynopsis = $state(false);
@@ -289,6 +292,7 @@
       }
       beatViewRef?.handleEscape();
       if (editingSynopsis) {
+        flushSynopsisSave();
         editingSynopsis = false;
       }
       if (addingDiscoveryNote) {
@@ -308,34 +312,67 @@
     editingSynopsis = true;
   }
 
-  async function saveSynopsis() {
-    if (!currentProject.currentScene) return;
-    synopsisSaving = true;
+  function isCurrentSynopsis(draft: SynopsisDraft) {
+    return (
+      currentProject.value?.id === draft.projectId &&
+      currentProject.currentScene?.id === draft.sceneId
+    );
+  }
+
+  async function saveSynopsis(draft: SynopsisDraft) {
+    if (isCurrentSynopsis(draft)) synopsisSaving = true;
     try {
-      const synopsis = synopsisText.trim() || null;
       await invoke("save_scene_synopsis", {
-        sceneId: currentProject.currentScene.id,
-        synopsis,
+        sceneId: draft.sceneId,
+        synopsis: draft.synopsis,
       });
-      currentProject.updateSceneSynopsis(currentProject.currentScene.id, synopsis);
-      editingSynopsis = false;
     } catch (e) {
       console.error("Failed to save synopsis:", e);
     } finally {
-      synopsisSaving = false;
+      if (isCurrentSynopsis(draft)) synopsisSaving = false;
     }
+  }
+
+  function flushSynopsisSave() {
+    if (synopsisSaveTimeout) clearTimeout(synopsisSaveTimeout);
+    synopsisSaveTimeout = null;
+    const draft = pendingSynopsis;
+    pendingSynopsis = null;
+    // Serialize writes so a slow save cannot overwrite a newer draft on disk.
+    if (draft) synopsisSaveQueue = synopsisSaveQueue.then(() => saveSynopsis(draft));
   }
 
   function handleSynopsisInput(value: string) {
     synopsisText = value;
+    const sceneId = currentProject.currentScene?.id;
+    const projectId = currentProject.value?.id;
+    if (!sceneId || !projectId) return;
+    pendingSynopsis = { projectId, sceneId, synopsis: value.trim() || null };
+    // Keep the working copy current when closing/reopening before a save completes.
+    currentProject.updateSceneSynopsis(sceneId, pendingSynopsis.synopsis);
     // Debounce auto-save
     if (synopsisSaveTimeout) {
       clearTimeout(synopsisSaveTimeout);
     }
-    synopsisSaveTimeout = setTimeout(() => {
-      saveSynopsis();
-    }, 1000);
+    synopsisSaveTimeout = setTimeout(flushSynopsisSave, 1000);
   }
+
+  let synopsisProjectId: string | undefined;
+  let synopsisSceneId: string | undefined;
+  $effect(() => {
+    // Only navigation should close the editor; autosave updates the same scene object.
+    const projectId = currentProject.value?.id;
+    const sceneId = currentProject.currentScene?.id;
+    if (projectId === synopsisProjectId && sceneId === synopsisSceneId) return;
+    synopsisProjectId = projectId;
+    synopsisSceneId = sceneId;
+    untrack(() => {
+      flushSynopsisSave();
+      editingSynopsis = false;
+      synopsisSaving = false;
+      synopsisText = "";
+    });
+  });
 
   let lastSceneId: string | null = null;
   let completedViewport: typeof session.viewport = null;
@@ -701,6 +738,7 @@
   });
 
   onDestroy(() => {
+    flushSynopsisSave();
     beatViewRef?.flushOnSceneChange();
     if (pageProseSaveTimeout) {
       clearTimeout(pageProseSaveTimeout);
