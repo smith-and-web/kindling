@@ -125,6 +125,19 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .item(&quit)
         .build()?;
 
+    let find = MenuItemBuilder::new("Find in Scene…")
+        .id("find")
+        .accelerator("CmdOrCtrl+F")
+        .build(app)?;
+    let find_replace = MenuItemBuilder::new("Find and Replace…")
+        .id("find_replace")
+        .accelerator("CmdOrCtrl+Alt+F")
+        .build(app)?;
+    let find_project = MenuItemBuilder::new("Find and Replace in Project…")
+        .id("find_project")
+        .accelerator("CmdOrCtrl+Shift+F")
+        .build(app)?;
+
     // Build Edit submenu with standard items
     let edit_submenu = SubmenuBuilder::new(app, "Edit")
         .undo()
@@ -134,6 +147,8 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .copy()
         .paste()
         .select_all()
+        .separator()
+        .items(&[&find, &find_replace, &find_project])
         .build()?;
 
     // Build Window submenu with standard items

@@ -159,6 +159,8 @@ pub fn run() {
             commands::save_scene_reference_state,
             commands::reclassify_references,
             commands::save_beat_prose,
+            commands::get_search_documents,
+            commands::replace_prose_batch,
             commands::delete_beat,
             commands::reorder_beats,
             commands::split_beat,

@@ -11,6 +11,7 @@
     Pencil,
   } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { proseSaves, type ProseSave } from "../utils/proseSaves";
   import { tick } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
   import type { Beat } from "../types";
@@ -55,13 +56,14 @@
   let beatContextMenu: { beat: Beat; x: number; y: number } | null = $state(null);
   let deleteBeatDialog: Beat | null = $state(null);
   let deletingBeat = $state(false);
+  let changingBeats = $state(false);
   let editingBeatId: string | null = $state(null);
   let editingBeatContent = $state("");
 
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   let pendingSaveBeatId: string | null = null;
   let pendingProseUpdates = new SvelteMap<string, string>();
-  let draftProse = new SvelteMap<string, string>();
+  let draftProse = new SvelteMap<string, ProseSave>();
 
   function syncPendingProse(beatId: string) {
     const pendingProse = pendingProseUpdates.get(beatId);
@@ -73,7 +75,7 @@
 
   function flushPendingSave(beatId?: string) {
     const targetBeatId = beatId ?? pendingSaveBeatId;
-    if (!targetBeatId) return;
+    if (!targetBeatId) return saveQueue;
     if (saveTimeout && pendingSaveBeatId === targetBeatId) {
       clearTimeout(saveTimeout);
       saveTimeout = null;
@@ -81,8 +83,9 @@
     }
     const draft = draftProse.get(targetBeatId);
     if (draft !== undefined) {
-      saveBeatProse(targetBeatId, draft);
+      return saveBeatProse(draft);
     }
+    return saveQueue;
   }
 
   export function flushOnSceneChange() {
@@ -93,6 +96,32 @@
     pendingProseUpdates.clear();
     draftProse.clear();
     ui.setExpandedBeat(null);
+  }
+
+  export function discardFailedDrafts(drafts: ProseSave[]) {
+    let discardedLocalDraft = false;
+    for (const draft of drafts) {
+      const local = draftProse.get(draft.id);
+      if (
+        draft.kind !== "beat" ||
+        local?.prose !== draft.prose ||
+        local.projectId !== draft.projectId
+      )
+        continue;
+      discardedLocalDraft = true;
+      draftProse.delete(draft.id);
+      pendingProseUpdates.delete(draft.id);
+      if (pendingSaveBeatId === draft.id) {
+        if (saveTimeout) clearTimeout(saveTimeout);
+        saveTimeout = null;
+        pendingSaveBeatId = null;
+      }
+      // Remount only the editor whose draft was discarded, preserving unrelated editors.
+      if (currentProject.value?.id === draft.projectId && ui.expandedBeatId === draft.id) {
+        ui.setExpandedBeat(null);
+      }
+    }
+    if (discardedLocalDraft) localSaveStatus = "idle";
   }
 
   export function handleEscape() {
@@ -109,29 +138,75 @@
     return false;
   }
 
-  async function saveBeatProse(beatId: string, prose: string) {
-    localSaveStatus = "saving";
+  let saveQueue: Promise<void> = Promise.resolve();
+
+  function saveBeatProse(draft: ProseSave) {
+    const writing = proseSaves.save(draft);
+    saveQueue = persistBeatProse(draft, writing);
+    return saveQueue;
+  }
+
+  export async function flushForSearch() {
+    const projectId = currentProject.value?.id ?? "";
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = null;
+    pendingSaveBeatId = null;
+    await saveQueue;
+    for (const draft of [...draftProse.values()]) {
+      await saveBeatProse(draft);
+    }
+    await proseSaves.flush(projectId, (save) => {
+      if (currentProject.value?.id !== save.projectId) return;
+      if (save.kind === "beat") {
+        const latestDraft = draftProse.get(save.id);
+        if (!latestDraft || latestDraft.prose === save.prose) {
+          currentProject.updateBeatProse(save.id, save.prose);
+          draftProse.delete(save.id);
+          pendingProseUpdates.delete(save.id);
+        }
+      } else currentProject.updateScene(save.id, { prose: save.prose });
+    });
+  }
+
+  async function persistBeatProse(draft: ProseSave, writing: Promise<void>) {
+    const { id: beatId, prose, projectId } = draft;
+    if (currentProject.value?.id === projectId) localSaveStatus = "saving";
     try {
-      await invoke("save_beat_prose", { beatId, prose });
+      await writing;
+      if (currentProject.value?.id !== projectId) {
+        if (draftProse.get(beatId) === draft) draftProse.delete(beatId);
+        pendingProseUpdates.delete(beatId);
+        return;
+      }
       if (!beats.some((beat) => beat.id === beatId)) {
         draftProse.delete(beatId);
         localSaveStatus = "idle";
         return;
       }
-      currentProject.updateBeatProse(beatId, prose);
+      const latestDraft = draftProse.get(beatId)?.prose;
+      if (latestDraft === undefined || latestDraft === prose) {
+        currentProject.updateBeatProse(beatId, prose);
+      }
       pendingProseUpdates.delete(beatId);
-      draftProse.delete(beatId);
+      if (draftProse.get(beatId)?.prose === prose) draftProse.delete(beatId);
       setTimeout(() => {
         localSaveStatus = "idle";
       }, 1000);
     } catch (e) {
       console.error("Failed to save beat prose:", e);
-      localSaveStatus = "error";
+      if (currentProject.value?.id === projectId) localSaveStatus = "error";
     }
   }
 
   function handleProseInput(beatId: string, value: string) {
-    draftProse.set(beatId, value);
+    // Capture ownership for this edit, not for the lifetime of the component.
+    // A debounce can finish after an in-place project switch.
+    draftProse.set(beatId, {
+      projectId: currentProject.value?.id ?? "",
+      kind: "beat",
+      id: beatId,
+      prose: value,
+    });
     if (saveTimeout) clearTimeout(saveTimeout);
     pendingSaveBeatId = beatId;
     saveTimeout = setTimeout(() => {
@@ -139,7 +214,7 @@
       pendingSaveBeatId = null;
       const draft = draftProse.get(beatId);
       if (draft !== undefined) {
-        saveBeatProse(beatId, draft);
+        saveBeatProse(draft);
       }
     }, 500);
   }
@@ -302,11 +377,21 @@
   }
 
   async function executeSplitBeat(beat: Beat) {
+    if (changingBeats || isLocked) return;
     const paraIndex = novelEditorRef?.getSplitBeforeParagraph();
     if (paraIndex == null || paraIndex < 1) return;
-    if (!currentProject.currentScene) return;
+    const sceneId = currentProject.currentScene?.id;
+    const projectId = currentProject.value?.id;
+    if (!sceneId || !projectId) return;
+    changingBeats = true;
     try {
-      flushPendingSave(beat.id);
+      await prepareBeatMutation([beat.id], projectId);
+      if (
+        currentProject.value?.id !== projectId ||
+        currentProject.currentScene?.id !== sceneId ||
+        isLocked
+      )
+        return;
       syncPendingProse(beat.id);
       const newBeat = await invoke<Beat>("split_beat", {
         beatId: beat.id,
@@ -314,20 +399,35 @@
         splitBeforeParagraph: paraIndex,
       });
       const freshBeats = await invoke<Beat[]>("get_beats", {
-        sceneId: currentProject.currentScene.id,
+        sceneId,
       });
+      if (currentProject.value?.id !== projectId || currentProject.currentScene?.id !== sceneId)
+        return;
       currentProject.setBeats(freshBeats);
       ui.setExpandedBeat(newBeat.id);
     } catch (e) {
       console.error("Failed to split beat:", e);
+      ui.showError(`Failed to split beat: ${String(e)}`);
+    } finally {
+      changingBeats = false;
     }
   }
 
   async function executeMergeBeats(first: Beat, second: Beat) {
-    if (!currentProject.currentScene) return;
+    if (changingBeats || isLocked) return;
+    const sceneId = currentProject.currentScene?.id;
+    const projectId = currentProject.value?.id;
+    if (!sceneId || !projectId) return;
+    changingBeats = true;
     try {
+      await prepareBeatMutation([first.id, second.id], projectId);
+      if (
+        currentProject.value?.id !== projectId ||
+        currentProject.currentScene?.id !== sceneId ||
+        isLocked
+      )
+        return;
       if (ui.expandedBeatId === first.id || ui.expandedBeatId === second.id) {
-        flushPendingSave(ui.expandedBeatId);
         syncPendingProse(ui.expandedBeatId);
       }
       await invoke("merge_beats", {
@@ -335,12 +435,27 @@
         secondBeatId: second.id,
       });
       const freshBeats = await invoke<Beat[]>("get_beats", {
-        sceneId: currentProject.currentScene.id,
+        sceneId,
       });
+      if (currentProject.value?.id !== projectId || currentProject.currentScene?.id !== sceneId)
+        return;
       currentProject.setBeats(freshBeats);
       ui.setExpandedBeat(first.id);
     } catch (e) {
       console.error("Failed to merge beats:", e);
+      ui.showError(`Failed to merge beats: ${String(e)}`);
+    } finally {
+      changingBeats = false;
+    }
+  }
+
+  async function prepareBeatMutation(ids: string[], projectId: string) {
+    for (const id of ids) await flushPendingSave(id);
+    // A caught/terminal save failure must also prevent transforming stale database prose.
+    if (proseSaves.draftsForRecovery(projectId).some((draft) => ids.includes(draft.id))) {
+      throw new Error(
+        "Save the affected beats or recover their unsaved drafts in Find and Replace first."
+      );
     }
   }
 
@@ -541,7 +656,7 @@
                 </p>
                 {#if beat.prose || draftProse.get(beat.id)}
                   <span class="text-press-eyebrow text-press-muted shrink-0" title="Word count">
-                    {getBeatWordCount(draftProse.get(beat.id) ?? beat.prose)}w
+                    {getBeatWordCount(draftProse.get(beat.id)?.prose ?? beat.prose)}w
                   </span>
                 {/if}
               </button>
@@ -573,7 +688,7 @@
                 bind:this={novelEditorRef}
                 content={beat.prose || ""}
                 placeholder={isLocked ? "Scene is locked" : "Write your prose for this beat..."}
-                readonly={isLocked}
+                readonly={isLocked || changingBeats}
                 saveStatus={localSaveStatus}
                 onUpdate={handleEditorUpdate(beat.id)}
               />

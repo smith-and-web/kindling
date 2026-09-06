@@ -32,6 +32,8 @@
     SceneType,
     Tag,
   } from "../types";
+  import { proseSaves, type ProseSave } from "../utils/proseSaves";
+  import type { ProseReplacement } from "../utils/proseSearch";
   import BeatView from "./BeatView.svelte";
   import PageView from "./PageView.svelte";
   import SluglineInput from "./SluglineInput.svelte";
@@ -437,23 +439,34 @@
   // Page View state
   let switchingMode = $state(false);
   let pageProseContent = $state("");
+  let pageEditorVersion = $state(0);
   let pageProseSaveTimeout: ReturnType<typeof setTimeout> | null = null;
   let pageProseSaveStatus = $state<"idle" | "saving" | "error">("idle");
   let showSwitchToBeatConfirm = $state(false);
 
   // Sync page prose content when scene changes
   let lastPageViewSceneId: string | null = null;
+  let pageProseProjectId = "";
   $effect(() => {
     const scene = currentProject.currentScene;
+    if ((scene?.id ?? null) === lastPageViewSceneId) return;
+    if (pageProseSaveTimeout) {
+      clearTimeout(pageProseSaveTimeout);
+      savePageProse();
+    }
+    pageProseSaveStatus = "idle";
+    lastPageViewSceneId = scene?.id ?? null;
+    pageProseProjectId = currentProject.value?.id ?? "";
     if (!scene || scene.editor_mode !== "page") return;
-    if (scene.id === lastPageViewSceneId) return;
-    lastPageViewSceneId = scene.id;
-    pageProseContent = scene.prose ?? "";
+    const unsaved = proseSaves
+      .draftsForRecovery(pageProseProjectId)
+      .find((draft) => draft.kind === "page" && draft.id === scene.id);
+    pageProseContent = unsaved?.prose ?? scene.prose ?? "";
   });
 
   async function switchEditorMode(targetMode: EditorMode) {
     const scene = currentProject.currentScene;
-    if (!scene || switchingMode) return;
+    if (!scene || switchingMode || isLocked) return;
 
     if (targetMode === "beat" && scene.editor_mode === "page") {
       showSwitchToBeatConfirm = true;
@@ -465,28 +478,19 @@
 
   async function doSwitchMode(targetMode: EditorMode) {
     const scene = currentProject.currentScene;
-    if (!scene || switchingMode) return;
+    if (!scene || switchingMode || isLocked) return;
 
     switchingMode = true;
     try {
-      // Flush unsaved beat prose before leaving beat mode
-      if (scene.editor_mode === "beat") {
-        beatViewRef?.flushOnSceneChange();
-      }
-
-      if (scene.editor_mode === "page" && pageProseSaveTimeout) {
-        clearTimeout(pageProseSaveTimeout);
-        pageProseSaveTimeout = null;
-        await invoke("save_scene_page_prose", {
-          sceneId: scene.id,
-          prose: pageProseContent,
-        });
-      }
+      await prepareForSearch();
+      if (currentProject.currentScene?.id !== scene.id || isLocked) return;
+      beatViewRef?.flushOnSceneChange();
 
       const updated = await invoke<Scene>("switch_scene_editor_mode", {
         sceneId: scene.id,
         mode: targetMode,
       });
+      if (currentProject.currentScene?.id !== scene.id) return;
       currentProject.refreshCurrentScene(updated);
 
       if (targetMode === "page") {
@@ -496,11 +500,12 @@
         const freshBeats = await invoke<Beat[]>("get_beats", {
           sceneId: scene.id,
         });
+        if (currentProject.currentScene?.id !== scene.id) return;
         currentProject.setBeats(freshBeats);
       }
     } catch (e) {
       console.error("Failed to switch editor mode:", e);
-      ui.showError("Failed to switch editor mode");
+      ui.showError(`Failed to switch editor mode: ${String(e)}`);
     } finally {
       switchingMode = false;
     }
@@ -508,24 +513,110 @@
 
   function handlePageProseUpdate(html: string) {
     pageProseContent = html;
+    // The store is the working copy used when navigating back, even while a save is in flight.
+    // Failed writes remain recoverable in proseSaves; an older acknowledgement must not replace this text.
+    if (currentProject.currentScene?.id === lastPageViewSceneId && lastPageViewSceneId) {
+      currentProject.updateScene(lastPageViewSceneId, { prose: html });
+    }
     if (pageProseSaveTimeout) clearTimeout(pageProseSaveTimeout);
     pageProseSaveStatus = "idle";
     pageProseSaveTimeout = setTimeout(() => savePageProse(), 500);
   }
 
-  async function savePageProse() {
+  let pageSaveQueue: Promise<void> = Promise.resolve();
+
+  function savePageProse() {
+    const sceneId = lastPageViewSceneId;
+    const prose = pageProseContent;
+    pageProseSaveTimeout = null;
+    if (!sceneId) return pageSaveQueue;
+    const writing = proseSaves.save({
+      projectId: pageProseProjectId,
+      kind: "page",
+      id: sceneId,
+      prose,
+    });
+    pageSaveQueue = persistPageProse(sceneId, prose, pageProseProjectId, writing);
+    return pageSaveQueue;
+  }
+
+  export async function prepareForSearch() {
+    await beatViewRef?.flushForSearch();
+    if (pageProseSaveTimeout) {
+      clearTimeout(pageProseSaveTimeout);
+      pageProseSaveTimeout = null;
+      await savePageProse();
+    }
+    await pageSaveQueue;
+    await proseSaves.flush(currentProject.value?.id ?? "", (save) => {
+      if (currentProject.value?.id !== save.projectId) return;
+      if (save.kind === "beat") currentProject.updateBeatProse(save.id, save.prose);
+      else {
+        currentProject.updateScene(save.id, { prose: save.prose });
+        if (currentProject.currentScene?.id === save.id) pageProseContent = save.prose;
+      }
+    });
+    pageProseSaveStatus = "idle";
+  }
+
+  export async function discardFailedSaves(drafts: ProseSave[]) {
+    const projectId = currentProject.value?.id;
     const scene = currentProject.currentScene;
-    if (!scene) return;
+    const draftView = beatViewRef;
+    // Reload before discarding: a read failure must leave the recoverable draft intact.
+    const scenes = scene
+      ? await invoke<Scene[]>("get_scenes", { chapterId: scene.chapter_id })
+      : [];
+    const freshScene = scenes.find((s) => s.id === scene?.id);
+    const beats = freshScene ? await invoke<Beat[]>("get_beats", { sceneId: freshScene.id }) : [];
+    if (currentProject.value?.id !== projectId || currentProject.currentScene?.id !== scene?.id) {
+      throw new Error("The selected project or scene changed. Reopen Find and Replace.");
+    }
+    await proseSaves.discard(drafts, () => draftView?.discardFailedDrafts(drafts));
+    if (currentProject.value?.id !== projectId || currentProject.currentScene?.id !== scene?.id)
+      return;
+    if (scene) {
+      currentProject.setScenes(scenes);
+      currentProject.setBeats(beats);
+      currentProject.setCurrentScene(freshScene ?? null);
+      if (drafts.some((draft) => draft.kind === "page" && draft.id === scene.id)) {
+        if (pageProseSaveTimeout) clearTimeout(pageProseSaveTimeout);
+        pageProseSaveTimeout = null;
+        pageProseContent = freshScene?.prose ?? "";
+        pageEditorVersion += 1;
+      }
+    }
+    pageProseSaveStatus = "idle";
+  }
+
+  export function applySearchChanges(changes: Pick<ProseReplacement, "id" | "prose">[]) {
+    for (const change of changes) {
+      currentProject.updateBeatProse(change.id, change.prose);
+      currentProject.updateScene(change.id, { prose: change.prose });
+      if (currentProject.currentScene?.id === change.id) pageProseContent = change.prose;
+    }
+  }
+
+  async function persistPageProse(
+    sceneId: string,
+    prose: string,
+    projectId: string,
+    writing: Promise<void>
+  ) {
     pageProseSaveStatus = "saving";
     try {
-      await invoke("save_scene_page_prose", {
-        sceneId: scene.id,
-        prose: pageProseContent,
-      });
-      pageProseSaveStatus = "idle";
+      await writing;
+      const newerQueued = proseSaves
+        .draftsForRecovery(projectId)
+        .some((draft) => draft.id === sceneId && draft.prose !== prose);
+      const newerEditor = currentProject.currentScene?.id === sceneId && pageProseContent !== prose;
+      if (currentProject.value?.id === projectId && !newerQueued && !newerEditor) {
+        currentProject.updateScene(sceneId, { prose });
+      }
+      if (currentProject.currentScene?.id === sceneId) pageProseSaveStatus = "idle";
     } catch (e) {
       console.error("Failed to save page prose:", e);
-      pageProseSaveStatus = "error";
+      if (currentProject.currentScene?.id === sceneId) pageProseSaveStatus = "error";
     }
   }
 
@@ -1131,18 +1222,24 @@
 
         <!-- Page View (Fixed + Page mode) -->
         {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode === "page"}
-          <PageView
-            content={pageProseContent}
-            readonly={isLocked}
-            saveStatus={pageProseSaveStatus}
-            wordCount={getPageWordCount()}
-            onUpdate={handlePageProseUpdate}
-          />
+          {#key pageEditorVersion}
+            <PageView
+              content={pageProseContent}
+              readonly={isLocked || switchingMode}
+              saveStatus={pageProseSaveStatus}
+              wordCount={getPageWordCount()}
+              onUpdate={handlePageProseUpdate}
+            />
+          {/key}
         {/if}
 
         <!-- Beats (Fixed + Beat mode only) -->
         {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode !== "page"}
-          <BeatView bind:this={beatViewRef} beats={currentProject.beats} {isLocked} />
+          <BeatView
+            bind:this={beatViewRef}
+            beats={currentProject.beats}
+            isLocked={isLocked || switchingMode}
+          />
         {/if}
 
         <!-- Scene Prose fallback (Fixed + Beat mode only, if exists and no beats) -->

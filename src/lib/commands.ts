@@ -22,6 +22,30 @@ export interface CommandDef {
 }
 
 export const COMMAND_DEFS: CommandDef[] = [
+  {
+    id: "find",
+    label: "Find in scene",
+    shortcut: "⌘F",
+    category: "Edit",
+    keywords: ["search", "prose"],
+    requiresProject: true,
+  },
+  {
+    id: "find_replace",
+    label: "Find and replace",
+    shortcut: "⌘⌥F",
+    category: "Edit",
+    keywords: ["search", "replace", "prose"],
+    requiresProject: true,
+  },
+  {
+    id: "find_project",
+    label: "Find and replace in project",
+    shortcut: "⌘⇧F",
+    category: "Edit",
+    keywords: ["search", "replace", "all"],
+    requiresProject: true,
+  },
   // File
   {
     id: "export",

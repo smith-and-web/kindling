@@ -152,6 +152,36 @@ cd src-tauri && cargo test
 npm run check:all
 ```
 
+## Find and replace prose
+
+Use **Edit → Find in Scene** (`Cmd/Ctrl+F`) or **Find and Replace in Project**
+(`Cmd/Ctrl+Shift+F`). The command palette also offers Find and
+Replace. Choose the current scene or entire project, optionally match case or
+whole words, and use Previous/Next (or Enter/Shift+Enter in Find) to review matches.
+**Open scene** takes you to the matching scene and expands its beat when applicable.
+
+Enable **Replace** to replace the current match or confirm **Replace all**. An empty
+replacement deletes the matched text. **Undo replacement** reverses changes while
+the dialog remains open. Formatting outside the matched text is preserved; inserted
+text inherits the formatting at the start of the match. Replacing one match advances
+past the inserted text and stops at the end; use Next or Previous to wrap around.
+
+Search covers active scene/beat prose in Fixed scenes, including locked scenes.
+Flexible, Undefined and archived scenes, outline prompts, synopses, and reference
+notes are excluded. Replacements skip locked scenes and chapters, and documents
+with unsaved drafts. Pending prose edits are saved before searching; transient
+save failures stop loading and can be retried with **Retry loading**.
+
+Drafts rejected because their target was deleted or locked, or because of an
+unrecognized error, leave the automatic retry queue, so they do not block search
+or mode switching in other scenes. You
+can review and copy these retained drafts in Find and Replace, choose **Retry
+saving drafts** after unlocking, or explicitly confirm **Discard unsaved drafts**
+to reload the saved prose. These drafts remain in memory for the current app
+session, including after closing and reopening a project; they are not a backup
+across app restarts. Switching between page and beat views waits for pending
+prose writes and stops if a retryable save still fails.
+
 ## Contributing
 
 Contributions are welcome! Please read the [Contributing Guide](CONTRIBUTING.md) before submitting a PR.

@@ -1,3 +1,4 @@
+import type { ProseDocument, ProseReplacement } from "../lib/utils/proseSearch";
 import { IMPORT_FORMATS, importTypeForCommand } from "../lib/importFormats";
 /**
  * Mock Tauri invoke() for browser-only dev (npm run dev without Tauri).
@@ -93,6 +94,67 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
     } as T;
   }
   switch (cmd) {
+    case "get_search_documents": {
+      const documents: ProseDocument[] = [];
+      for (const chapter of chapters
+        .filter((c) => c.project_id === projectId && !c.archived)
+        .sort((a, b) => a.position - b.position)) {
+        for (const scene of scenes
+          .filter(
+            (s) => s.chapter_id === chapter.id && !s.archived && s.planning_status === "fixed"
+          )
+          .sort((a, b) => a.position - b.position)) {
+          const base: ProseDocument = {
+            id: scene.id,
+            scene_id: scene.id,
+            chapter_id: chapter.id,
+            chapter_title: chapter.title,
+            scene_title: scene.title,
+            beat_title: null,
+            prose: scene.prose ?? "",
+            locked: chapter.locked || scene.locked,
+          };
+          const sceneBeats = beats
+            .filter((b) => b.scene_id === scene.id)
+            .sort((a, b) => a.position - b.position);
+          if (scene.editor_mode === "page" || !sceneBeats.length) documents.push(base);
+          else
+            for (const beat of sceneBeats)
+              documents.push({
+                ...base,
+                id: beat.id,
+                beat_title: beat.content,
+                prose: beat.prose ?? "",
+              });
+        }
+      }
+      return documents as T;
+    }
+
+    case "replace_prose_batch": {
+      const changes = getArg<ProseReplacement[]>(args, "changes") ?? [];
+      const documents = await invoke<ProseDocument[]>("get_search_documents", { projectId });
+      const seen = new Set<string>();
+      // Validate the whole batch before mutating, matching the real transaction.
+      for (const change of changes) {
+        const doc = documents.find((d) => d.id === change.id);
+        if (!doc)
+          throw new Error("Prose is no longer available. Close and reopen Find and Replace.");
+        if (seen.has(change.id) || doc.prose !== change.expected_prose)
+          throw new Error("Prose changed since searching. Close and reopen Find and Replace.");
+        if (doc.locked) throw new Error("Cannot replace prose in a locked scene or chapter.");
+        seen.add(change.id);
+      }
+      for (const change of changes) {
+        const doc = documents.find((d) => d.id === change.id)!;
+        if (doc.beat_title !== null) beats.find((b) => b.id === change.id)!.prose = change.prose;
+        else scenes.find((s) => s.id === change.id)!.prose = change.prose;
+      }
+      const project = projects.find((p) => p.id === projectId);
+      if (changes.length && project) project.modified_at = new Date().toISOString();
+      return undefined as T;
+    }
+
     case "preview_import": {
       void getArg<string>(args, "path");
       void getArg<string>(args, "format");
