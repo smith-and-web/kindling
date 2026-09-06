@@ -45,6 +45,10 @@ export async function installAndRelaunch(state: UpdateState): Promise<void> {
   try {
     // On Windows install can exit the process before its promise resolves.
     await session.flush();
+  } catch (e) {
+    console.error("Failed to save writing position before updating:", e);
+  }
+  try {
     await state.update.install();
     await relaunch();
   } catch (e) {

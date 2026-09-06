@@ -108,6 +108,42 @@ describe("updater", () => {
   });
 
   describe("installAndRelaunch", () => {
+    it.each([false, true])(
+      "continues update installation after a failed position flush (installer fails: %s)",
+      async (installFails) => {
+        const saveError = new Error("Database is locked");
+        const installError = new Error("Installer failed");
+        const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const flush = vi.spyOn(session, "flush").mockRejectedValue(saveError);
+        const install = vi.fn(async () => {
+          expect(flush).toHaveBeenCalledOnce();
+          expect(errorSpy).toHaveBeenCalledWith(
+            "Failed to save writing position before updating:",
+            saveError
+          );
+          if (installFails) throw installError;
+        });
+
+        await expect(
+          installAndRelaunch({
+            ready: true,
+            version: "1.2.0",
+            body: null,
+            update: { install } as never,
+          })
+        ).resolves.toBeUndefined();
+
+        expect(install).toHaveBeenCalledOnce();
+        if (installFails) {
+          expect(errorSpy).toHaveBeenCalledWith("Failed to install update:", installError);
+          expect(relaunchMock).not.toHaveBeenCalled();
+        } else {
+          expect(errorSpy).toHaveBeenCalledTimes(1);
+          expect(relaunchMock).toHaveBeenCalledOnce();
+        }
+      }
+    );
+
     it("waits for the position flush before entering an installer that may exit the process", async () => {
       let finishFlush!: () => void;
       vi.spyOn(session, "flush").mockReturnValue(
