@@ -4,7 +4,7 @@ import { currentProject } from "./project.svelte";
 
 export type SynopsisDraft = { projectId: string; sceneId: string; synopsis: string | null };
 
-/** Drafts outlive scene panels. Only successful writes retire them. */
+/** Drafts outlive scene panels until saved, explicitly discarded, or their scene is deleted. */
 export class SynopsisSaveQueue {
   private drafts = new SvelteMap<string, SynopsisDraft>();
   private errors = new SvelteMap<string, string>();
@@ -32,7 +32,6 @@ export class SynopsisSaveQueue {
   stage(draft: SynopsisDraft) {
     const key = this.key(draft.projectId, draft.sceneId);
     this.drafts.set(key, draft);
-    this.errors.delete(key);
     this.clearTimer(key);
     this.timers.set(
       key,
@@ -47,6 +46,29 @@ export class SynopsisSaveQueue {
     const timer = this.timers.get(key);
     if (timer) clearTimeout(timer);
     this.timers.delete(key);
+  }
+
+  snapshot(): SynopsisDraft[] {
+    return [...this.drafts.values()];
+  }
+
+  /** Discard only the work the user approved, after outstanding writes have settled. */
+  discardAll(expected: SynopsisDraft[]): Promise<void> {
+    const discarding = this.queue.then(() => {
+      const approved = new SvelteSet(expected);
+      if ([...this.drafts.values()].some((draft) => !approved.has(draft))) {
+        throw new Error("Synopsis drafts changed. Review the latest changes before discarding.");
+      }
+      for (const key of this.drafts.keys()) this.retire(key);
+    });
+    this.queue = discarding.catch(() => {});
+    return discarding;
+  }
+
+  private retire(key: string) {
+    this.clearTimer(key);
+    this.drafts.delete(key);
+    this.errors.delete(key);
   }
 
   /** Drain the latest edits, including edits made during a write; retry failures once per call. */
@@ -70,12 +92,15 @@ export class SynopsisSaveQueue {
             currentProject.updateSceneSynopsis(draft.sceneId, draft.synopsis);
           }
           if (this.drafts.get(key) === draft) {
-            this.drafts.delete(key);
-            this.errors.delete(key);
+            this.retire(key);
           }
         } catch (error) {
           if (this.drafts.get(key) === draft) {
-            this.errors.set(key, error instanceof Error ? error.message : String(error));
+            const message = error instanceof Error ? error.message : String(error);
+            // save_scene_synopsis's lock lookup returns this exact SQLite error for
+            // a deleted scene (or parent chapter). There is no longer a target to save.
+            if (message === "Query returned no rows") this.retire(key);
+            else this.errors.set(key, message);
           }
         } finally {
           this.saving.delete(key);

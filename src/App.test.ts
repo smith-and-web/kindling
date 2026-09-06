@@ -139,8 +139,15 @@ it.each(["menu", "native"])(
     else await handler({ preventDefault } as never);
     await vi.advanceTimersByTimeAsync(0);
     expect(exit).not.toHaveBeenCalled();
-    expect(screen.getByRole("main").inert).toBe(false);
     if (path === "native") expect(preventDefault).toHaveBeenCalledOnce();
+    expect(
+      screen.getByRole("dialog", { name: "Quit without saving synopsis changes?" })
+    ).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByRole("main").inert).toBe(false);
+    expect(synopsisSaves.getState(mockProject.id, mockScenes[0].id).draft?.synopsis).toBe(
+      "Do not lose this synopsis"
+    );
     expect(screen.getByRole("button", { name: "Retry all synopsis saves" })).toBeTruthy();
     vi.mocked(invoke).mockResolvedValue([]);
     await fireEvent.click(screen.getByRole("button", { name: "Retry all synopsis saves" }));
@@ -291,4 +298,128 @@ it("ignores an old project's search response after switching projects during loa
     expect(invoke).toHaveBeenCalledWith("get_search_documents", { projectId: "another" })
   );
   expect((screen.getByLabelText("Find") as HTMLInputElement).value).toBe("");
+});
+
+it.each([
+  ["menu", "Cannot edit a locked scene"],
+  ["native", "Cannot edit a locked scene"],
+  ["menu", "disk full"],
+  ["native", "disk full"],
+])("allows explicit quit-and-discard via %s after %s", async (path, failure) => {
+  vi.useFakeTimers();
+  currentProject.setChapters(mockChapters);
+  render(App);
+  await vi.advanceTimersByTimeAsync(0);
+  synopsisSaves.stage({
+    projectId: mockProject.id,
+    sceneId: mockScenes[0].id,
+    synopsis: "Unsavable draft",
+  });
+  vi.mocked(invoke).mockImplementation(async (cmd) => {
+    if (cmd === "save_scene_synopsis") throw failure;
+    return [];
+  });
+  const preventDefault = vi.fn();
+  if (path === "menu") await menu("quit");
+  else {
+    const handler = vi.mocked(getCurrentWindow().onCloseRequested).mock.calls[0][0];
+    await handler({ preventDefault } as never);
+    expect(preventDefault).toHaveBeenCalledOnce();
+  }
+  await vi.advanceTimersByTimeAsync(0);
+  expect(exit).not.toHaveBeenCalled();
+  expect(synopsisSaves.failedCount).toBe(1);
+  await fireEvent.click(screen.getByRole("button", { name: "Quit and discard" }));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(exit).toHaveBeenCalledWith(0);
+  expect(synopsisSaves.getState(mockProject.id, mockScenes[0].id).draft).toBeUndefined();
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(
+    vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === "save_scene_synopsis")
+  ).toHaveLength(1);
+});
+
+it.each(["menu", "native"])(
+  "does not block %s quit after a scene is deleted during synopsis debounce",
+  async (path) => {
+    vi.useFakeTimers();
+    currentProject.setChapters(mockChapters);
+    render(App);
+    await vi.advanceTimersByTimeAsync(0);
+    await fireEvent.click(screen.getByRole("button", { name: "Edit synopsis" }));
+    await fireEvent.input(screen.getByPlaceholderText("Write a brief synopsis for this scene..."), {
+      target: { value: "Deleted with its scene" },
+    });
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === "save_scene_synopsis") throw "Query returned no rows";
+      return [];
+    });
+    await invoke("delete_scene", { sceneId: mockScenes[0].id });
+    currentProject.setCurrentScene(null);
+    await tick();
+    const preventDefault = vi.fn();
+    if (path === "menu") await menu("quit");
+    else {
+      const handler = vi.mocked(getCurrentWindow().onCloseRequested).mock.calls[0][0];
+      await handler({ preventDefault } as never);
+    }
+    await vi.advanceTimersByTimeAsync(0);
+    if (path === "menu") expect(exit).toHaveBeenCalledWith(0);
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(synopsisSaves.failedCount).toBe(0);
+  }
+);
+
+it("keeps both synopsis error warnings visible while typing continues", async () => {
+  vi.useFakeTimers();
+  currentProject.setChapters(mockChapters);
+  render(App);
+  await vi.advanceTimersByTimeAsync(0);
+  await fireEvent.click(screen.getByRole("button", { name: "Edit synopsis" }));
+  const textarea = screen.getByPlaceholderText("Write a brief synopsis for this scene...");
+  await fireEvent.input(textarea, { target: { value: "Unsaved" } });
+  vi.mocked(invoke).mockImplementation(async (cmd) => {
+    if (cmd === "save_scene_synopsis") throw "disk full";
+    return [];
+  });
+  await vi.advanceTimersByTimeAsync(1000);
+  for (const value of ["Unsaved changes", "Unsaved changes continue"]) {
+    await fireEvent.input(textarea, { target: { value } });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(screen.getByText(/Synopsis not saved: disk full/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Retry all synopsis saves" })).toBeTruthy();
+  }
+});
+
+it("requires fresh discard confirmation if synopsis drafts change while the quit dialog is open", async () => {
+  vi.useFakeTimers();
+  currentProject.setChapters(mockChapters);
+  render(App);
+  await vi.advanceTimersByTimeAsync(0);
+  const draft = {
+    projectId: mockProject.id,
+    sceneId: mockScenes[0].id,
+    synopsis: "Original draft",
+  };
+  synopsisSaves.stage(draft);
+  vi.mocked(invoke).mockImplementation(async (cmd) => {
+    if (cmd === "save_scene_synopsis") throw "disk full";
+    return [];
+  });
+  await menu("quit");
+  await vi.advanceTimersByTimeAsync(0);
+  synopsisSaves.stage({ ...draft, synopsis: "New changes after the dialog opened" });
+  await fireEvent.click(screen.getByRole("button", { name: "Quit and discard" }));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(exit).not.toHaveBeenCalled();
+  expect(synopsisSaves.getState(draft.projectId, draft.sceneId).draft?.synopsis).toBe(
+    "New changes after the dialog opened"
+  );
+  expect(screen.getByRole("main").inert).toBe(false);
+  await menu("quit");
+  await vi.advanceTimersByTimeAsync(0);
+  await fireEvent.click(screen.getByRole("button", { name: "Quit and discard" }));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(exit).toHaveBeenCalledWith(0);
 });

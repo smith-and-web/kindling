@@ -19,6 +19,7 @@
   import ExportDialog from "./lib/components/ExportDialog.svelte";
   import ExportSuccessDialog from "./lib/components/ExportSuccessDialog.svelte";
   import ErrorToast from "./lib/components/ErrorToast.svelte";
+  import ConfirmDialog from "./lib/components/ConfirmDialog.svelte";
   import ImportLongformDialog from "./lib/components/ImportLongformDialog.svelte";
   import ReferenceClassificationDialog from "./lib/components/ReferenceClassificationDialog.svelte";
   import QuickStartDialog from "./lib/components/QuickStartDialog.svelte";
@@ -30,7 +31,7 @@
   import { COMMAND_DEFS } from "./lib/commands";
   import { currentProject } from "./lib/stores/project.svelte";
   import { session } from "./lib/stores/session.svelte";
-  import { synopsisSaves } from "./lib/stores/synopsisSaves.svelte";
+  import { synopsisSaves, type SynopsisDraft } from "./lib/stores/synopsisSaves.svelte";
   import { ui } from "./lib/stores/ui.svelte";
   import type { ProseDocument } from "./lib/utils/proseSearch";
   import type { Project, ExportResult, Chapter, Scene, Beat } from "./lib/types";
@@ -160,8 +161,10 @@
 
   let closePending = $state(false);
   let closeRequest: Promise<boolean> | null = null;
+  let discardQuitDrafts = $state.raw<SynopsisDraft[] | null>(null);
 
   function flushBeforeClose() {
+    if (discardQuitDrafts) return Promise.resolve(false);
     if (closeRequest) return closeRequest;
     closePending = true;
     closeRequest = saveBeforeClose().finally(() => {
@@ -174,10 +177,8 @@
   async function saveBeforeClose() {
     try {
       await synopsisSaves.flush();
-    } catch (error) {
-      ui.showError(
-        `Kindling stayed open because your synopsis could not be saved. ${String(error)}`
-      );
+    } catch {
+      discardQuitDrafts = synopsisSaves.snapshot();
       return false;
     }
     try {
@@ -194,6 +195,22 @@
       await exit(0);
     } catch (error) {
       console.error("Failed to quit:", error);
+    }
+  }
+
+  async function quitAndDiscard() {
+    const approved = discardQuitDrafts;
+    if (!approved || closePending) return;
+    closePending = true;
+    try {
+      await synopsisSaves.discardAll(approved);
+      discardQuitDrafts = null;
+      await exit(0);
+    } catch (error) {
+      discardQuitDrafts = null;
+      ui.showError(`Could not quit: ${String(error)}`);
+    } finally {
+      closePending = false;
     }
   }
 
@@ -414,17 +431,28 @@
 
 <UpdateBanner />
 
+{#if discardQuitDrafts}
+  <ConfirmDialog
+    title="Quit without saving synopsis changes?"
+    message="Some synopsis changes could not be saved. Quit and discard these unsaved synopsis changes, or keep editing to retry saving."
+    confirmLabel="Quit and discard"
+    cancelLabel="Keep editing"
+    onConfirm={quitAndDiscard}
+    onCancel={() => {
+      if (!closePending) discardQuitDrafts = null;
+    }}
+  />
+{/if}
+
 {#if synopsisSaves.failedCount}
   <div
     role="alert"
     class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-press-surface border border-press-error p-4 shadow-lg text-press-ui"
   >
-    <p class="text-press-error">
-      Your synopsis changes have not been saved. Retry saving before closing Kindling.
-    </p>
+    <p class="text-press-error">Your synopsis changes have not been saved.</p>
     <button
       onclick={retrySynopses}
-      disabled={retryingSynopses}
+      disabled={retryingSynopses || discardQuitDrafts !== null}
       aria-label="Retry all synopsis saves"
       class="mt-2 underline text-press-text disabled:opacity-50"
       >{retryingSynopses ? "Saving..." : "Retry saving"}</button
@@ -433,7 +461,7 @@
 {/if}
 
 <main
-  inert={closePending}
+  inert={closePending || discardQuitDrafts !== null}
   aria-busy={closePending}
   class="flex h-screen w-screen overflow-hidden bg-press-bg"
 >
