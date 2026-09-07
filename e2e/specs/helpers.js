@@ -445,7 +445,22 @@ export async function clickContextMenuItem(label) {
  * Perform drag-drop using mouse events (not WebDriver's dragAndDrop)
  * This works with custom mouse-event-based drag implementations
  */
-export async function dragWithMouseEvents(fromElement, toElement) {
+export async function dragWithMouseEvents(fromElement, toElement, whileDragging) {
+  const attribute = (await fromElement.getAttribute("data-drag-chapter"))
+    ? "data-drag-chapter"
+    : "data-drag-scene";
+  const sourceId = await fromElement.getAttribute(attribute);
+  const targetId = await toElement.getAttribute(attribute);
+  const itemIds = () =>
+    browser.execute(
+      (attr) => [...document.querySelectorAll(`[${attr}]`)].map((el) => el.getAttribute(attr)),
+      attribute
+    );
+  const before = await itemIds();
+  const expected = [...before];
+  expected.splice(before.indexOf(sourceId), 1);
+  expected.splice(before.indexOf(targetId), 0, sourceId);
+
   // Get the drag handle from the element
   const handle = await fromElement.$('[data-testid="drag-handle"]');
 
@@ -462,23 +477,32 @@ export async function dragWithMouseEvents(fromElement, toElement) {
   const toY = Math.floor(toLocation.y + toSize.height / 2);
 
   // Perform the drag using Actions API
-  await browser.performActions([
+  try {
+    await browser.performActions([
+      {
+        type: "pointer",
+        id: "mouse",
+        parameters: { pointerType: "mouse" },
+        actions: [
+          { type: "pointerMove", duration: 0, x: fromX, y: fromY },
+          { type: "pointerDown", button: 0 },
+          { type: "pause", duration: 100 },
+          { type: "pointerMove", duration: 200, x: toX, y: toY },
+          { type: "pause", duration: 100 },
+        ],
+      },
+    ]);
+    if (whileDragging) await whileDragging();
+  } finally {
+    // Releasing the held button completes the drop, even if an assertion fails.
+    await browser.releaseActions();
+  }
+  // The UI updates after the database write; a fixed delay races that response on CI.
+  await browser.waitUntil(
+    async () => JSON.stringify(await itemIds()) === JSON.stringify(expected),
     {
-      type: "pointer",
-      id: "mouse",
-      parameters: { pointerType: "mouse" },
-      actions: [
-        { type: "pointerMove", duration: 0, x: fromX, y: fromY },
-        { type: "pointerDown", button: 0 },
-        { type: "pause", duration: 100 },
-        { type: "pointerMove", duration: 200, x: toX, y: toY },
-        { type: "pause", duration: 100 },
-        { type: "pointerUp", button: 0 },
-      ],
-    },
-  ]);
-
-  // Clean up actions
-  await browser.releaseActions();
-  await browser.pause(300); // Wait for UI to update
+      timeout: 5000,
+      timeoutMsg: "Dragged items did not reach the expected order",
+    }
+  );
 }

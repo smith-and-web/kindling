@@ -47,7 +47,7 @@ const doc = {
   prose: "<p>Alice Alice</p>",
   locked: false,
 };
-beforeEach(() => {
+beforeEach(async () => {
   vi.mocked(invoke).mockReset();
   vi.mocked(invoke).mockImplementation(async (cmd) =>
     cmd === "get_search_documents" ? [doc] : []
@@ -59,6 +59,8 @@ beforeEach(() => {
   vi.mocked(getCurrentWindow().onCloseRequested).mockClear();
   currentProject.setProject(mockProject);
   currentProject.setCurrentScene({ ...mockScenes[0], planning_status: "undefined" });
+  // Drain the real debounce timer before individual tests install fake timers or flush spies.
+  await session.flush();
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute("open", "");
   };
@@ -71,9 +73,10 @@ afterEach(async () => {
   await proseSaves.flush(mockProject.id);
   await proseSaves.discard(proseSaves.draftsForRecovery(mockProject.id));
   ui.setExpandedBeat(null);
-  currentProject.setProject(null);
-  vi.useRealTimers();
   vi.restoreAllMocks();
+  currentProject.setProject(null);
+  await session.flush();
+  vi.useRealTimers();
 });
 async function menu(payload: string) {
   const callback = vi.mocked(listen).mock.calls.find(([event]) => event === "menu-event")![1];
