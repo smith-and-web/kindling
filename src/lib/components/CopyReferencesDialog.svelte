@@ -335,16 +335,17 @@
           {#if !loading && preview.enabled_types.length}<p class="text-press-small">
               Enable categories: {preview.enabled_types.map(categoryName).join(", ")}
             </p>{/if}
-          {#if !loading}
-            <p role="status" class="text-press-ui">
-              {preview.copied} to copy · {preview.skipped} possible duplicates skipped
-            </p>
-          {/if}
           {#if !loading && preview.skipped}<p class="text-press-small text-press-muted">
               Matches use category and name, not content. Renamed references may be copied again.
             </p>{/if}
         {/if}
-        {#if loading}<p role="status">Updating preview…</p>{/if}
+        <p role="status" class="text-press-ui">
+          {#if loading}
+            Updating preview…
+          {:else if preview}
+            {preview.copied} to copy · {preview.skipped} possible duplicates skipped
+          {/if}
+        </p>
       {/if}
       {#if error}<p role="alert" class="text-press-error text-press-ui">{error}</p>{/if}
     </div>

@@ -197,8 +197,12 @@
         !event.metaKey &&
         !event.ctrlKey &&
         event.key !== "Escape"
-      )
+      ) {
+        // Keep native button activation, but never deliver these keys to sibling
+        // dialogs' window listeners (including their bare Enter shortcuts).
+        event.stopImmediatePropagation();
         return;
+      }
       event.preventDefault();
       event.stopImmediatePropagation();
       if (event.key === "Escape" && !closePending && !updatePending) discardQuitDrafts = null;
@@ -299,6 +303,7 @@
 
   let retryingSynopses = $state(false);
   async function retrySynopses() {
+    if (interactionBlocked || retryingSynopses) return;
     retryingSynopses = true;
     try {
       await synopsisSaves.flush();
@@ -483,6 +488,14 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
+{#snippet errorToast()}
+  {#if ui.toast}
+    {#key ui.toast.id}
+      <ErrorToast message={ui.toast.message} onDismiss={() => ui.clearToast()} />
+    {/key}
+  {/if}
+{/snippet}
+
 <div inert={interactionBlocked} hidden={interactionBlocked}>
   {#if search && search.projectId === currentProject.value?.id}
     {#key search.projectId}
@@ -541,6 +554,7 @@
         if (!closePending) discardQuitDrafts = null;
       }}
     />
+    {@render errorToast()}
   </dialog>
 {/if}
 
@@ -552,7 +566,7 @@
     <p class="text-press-error">Your synopsis changes have not been saved.</p>
     <button
       onclick={retrySynopses}
-      disabled={retryingSynopses || discardQuitDrafts !== null}
+      disabled={retryingSynopses || interactionBlocked}
       aria-label="Retry all synopsis saves"
       class="mt-2 underline text-press-text disabled:opacity-50"
       >{retryingSynopses ? "Saving..." : "Retry saving"}</button
@@ -584,10 +598,8 @@
   {/if}
 </main>
 
-{#if ui.toast}
-  {#key ui.toast.id}
-    <ErrorToast message={ui.toast.message} onDismiss={() => ui.clearToast()} />
-  {/key}
+{#if !discardQuitDrafts}
+  {@render errorToast()}
 {/if}
 
 <div inert={interactionBlocked} hidden={interactionBlocked}>
