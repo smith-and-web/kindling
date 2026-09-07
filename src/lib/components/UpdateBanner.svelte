@@ -6,7 +6,8 @@
   let {
     disabled = false,
     restarting = $bindable(false),
-  }: { disabled?: boolean; restarting?: boolean } = $props();
+    prepare,
+  }: { disabled?: boolean; restarting?: boolean; prepare?: () => Promise<void> } = $props();
 
   let state = $state<UpdateState | null>(null);
 
@@ -21,11 +22,10 @@
     if (!state || disabled || restarting) return;
     restarting = true;
     try {
+      await prepare?.();
       await installAndRelaunch(state);
     } catch (error) {
-      ui.showError(
-        `Could not restart to update: ${String(error)}. Retry saving your synopsis first.`
-      );
+      ui.showError(`Could not restart to update: ${String(error)}`);
     } finally {
       restarting = false;
     }

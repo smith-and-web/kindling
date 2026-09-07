@@ -32,6 +32,7 @@
   import { currentProject } from "./lib/stores/project.svelte";
   import { session } from "./lib/stores/session.svelte";
   import { synopsisSaves, type SynopsisDraft } from "./lib/stores/synopsisSaves.svelte";
+  import { proseSaves, type ProseSave } from "./lib/utils/proseSaves";
   import { ui } from "./lib/stores/ui.svelte";
   import type { ProseDocument } from "./lib/utils/proseSearch";
   import type { Project, ExportResult, Chapter, Scene, Beat } from "./lib/types";
@@ -163,6 +164,7 @@
   let updatePending = $state(false);
   let closeRequest: Promise<boolean> | null = null;
   let discardQuitDrafts = $state.raw<SynopsisDraft[] | null>(null);
+  let discardQuitProse = $state.raw<ProseSave[]>([]);
 
   function flushBeforeClose() {
     if (discardQuitDrafts || updatePending) return Promise.resolve(false);
@@ -175,10 +177,31 @@
     return closeRequest;
   }
 
+  async function flushProseBeforeExit() {
+    // This existing editor hook submits debounced page and beat edits to proseSaves.
+    await scenePanel?.prepareForSearch();
+    await proseSaves.flush();
+    if (proseSaves.draftsForRecovery().length) {
+      throw new Error(
+        "Prose changes could not be saved. Review the unsaved drafts in Find and Replace."
+      );
+    }
+  }
+
   async function saveBeforeClose() {
+    let failed = false;
+    try {
+      await flushProseBeforeExit();
+    } catch {
+      failed = true;
+    }
     try {
       await synopsisSaves.flush();
     } catch {
+      failed = true;
+    }
+    if (failed) {
+      discardQuitProse = proseSaves.draftsForRecovery();
       discardQuitDrafts = synopsisSaves.snapshot();
       return false;
     }
@@ -208,6 +231,9 @@
     if (!approved || closePending) return;
     closePending = true;
     try {
+      await proseSaves.discard(discardQuitProse, () =>
+        scenePanel?.discardProseDraftsForClose(discardQuitProse)
+      );
       await synopsisSaves.discardAll(approved);
       await flushPositionBeforeClose();
       discardQuitDrafts = null;
@@ -438,12 +464,17 @@
 <UpdateBanner
   disabled={closePending || discardQuitDrafts !== null}
   bind:restarting={updatePending}
+  prepare={flushProseBeforeExit}
 />
 
 {#if discardQuitDrafts}
   <ConfirmDialog
-    title="Quit without saving synopsis changes?"
-    message="Some synopsis changes could not be saved. Quit and discard these unsaved synopsis changes, or keep editing to retry saving."
+    title={discardQuitProse.length
+      ? "Quit without saving writing changes?"
+      : "Quit without saving synopsis changes?"}
+    message={discardQuitProse.length
+      ? "Some prose or synopsis changes could not be saved. Quit and discard these unsaved writing changes, or keep editing to retry saving."
+      : "Some synopsis changes could not be saved. Quit and discard these unsaved synopsis changes, or keep editing to retry saving."}
     confirmLabel="Quit and discard"
     cancelLabel="Keep editing"
     onConfirm={quitAndDiscard}

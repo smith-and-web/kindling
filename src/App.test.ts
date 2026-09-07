@@ -5,7 +5,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { updateState } from "./lib/updater";
-import { exit } from "@tauri-apps/plugin-process";
+import type { Editor } from "@tiptap/core";
+import { ui } from "./lib/stores/ui.svelte";
+import { proseSaves } from "./lib/utils/proseSaves";
+import { exit, relaunch } from "@tauri-apps/plugin-process";
 import { synopsisSaves } from "./lib/stores/synopsisSaves.svelte";
 import { session } from "./lib/stores/session.svelte";
 import { runImport } from "./lib/utils/import";
@@ -51,6 +54,7 @@ beforeEach(() => {
   );
   vi.mocked(listen).mockClear();
   vi.mocked(exit).mockClear();
+  vi.mocked(relaunch).mockReset();
   updateState.set(null);
   vi.mocked(getCurrentWindow().onCloseRequested).mockClear();
   currentProject.setProject(mockProject);
@@ -64,6 +68,9 @@ afterEach(async () => {
   updateState.set(null);
   vi.mocked(invoke).mockResolvedValue([]);
   await synopsisSaves.flush();
+  await proseSaves.flush(mockProject.id);
+  await proseSaves.discard(proseSaves.draftsForRecovery(mockProject.id));
+  ui.setExpandedBeat(null);
   currentProject.setProject(null);
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -536,4 +543,144 @@ it("prevents editing and duplicate restart or quit while an update is saving", a
   await vi.advanceTimersByTimeAsync(0);
   expect(install).toHaveBeenCalledOnce();
   expect(screen.getByRole("main").inert).toBe(false);
+});
+
+async function editProse(mode: "beat" | "page") {
+  vi.useFakeTimers();
+  currentProject.setChapters(mockChapters);
+  currentProject.setCurrentChapter(mockChapters[0]);
+  currentProject.setCurrentScene({
+    ...mockScenes[0],
+    planning_status: "fixed",
+    editor_mode: mode,
+    prose: "<p>Saved page</p>",
+  });
+  currentProject.setBeats([
+    {
+      id: "exit-beat",
+      scene_id: mockScenes[0].id,
+      content: "Beat",
+      prose: "<p>Saved beat</p>",
+      position: 0,
+    },
+  ]);
+  render(App);
+  await tick();
+  if (mode === "beat") ui.setExpandedBeat("exit-beat");
+  await vi.advanceTimersByTimeAsync(0);
+  const editor = (document.querySelector(".tiptap") as HTMLElement & { editor: Editor }).editor;
+  editor.commands.setContent("<p>Final words before exit</p>");
+}
+
+it.each([
+  ["beat", "menu"],
+  ["page", "menu"],
+  ["beat", "native"],
+  ["page", "native"],
+  ["beat", "update"],
+  ["page", "update"],
+] as const)("flushes debounced prose in %s mode before %s exit", async (mode, path) => {
+  const install = vi.fn().mockResolvedValue(undefined);
+  if (path === "update")
+    updateState.set({ ready: true, version: "1.2.1", body: null, update: { install } as never });
+  await editProse(mode);
+  let finish!: () => void;
+  vi.mocked(invoke).mockImplementation(async (cmd) => {
+    if (cmd === "save_beat_prose" || cmd === "save_scene_page_prose")
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+    return [];
+  });
+  let closing: Promise<unknown> | undefined;
+  let closed = false;
+  const preventDefault = vi.fn();
+  if (path === "menu") await menu("quit");
+  else if (path === "update")
+    await fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+  else {
+    const handler = vi.mocked(getCurrentWindow().onCloseRequested).mock.calls[0][0];
+    closing = Promise.resolve(handler({ preventDefault } as never)).then(() => {
+      closed = true;
+    });
+  }
+  await vi.advanceTimersByTimeAsync(0);
+  try {
+    expect(invoke).toHaveBeenCalledWith(
+      mode === "beat" ? "save_beat_prose" : "save_scene_page_prose",
+      {
+        [mode === "beat" ? "beatId" : "sceneId"]: mode === "beat" ? "exit-beat" : mockScenes[0].id,
+        prose: "<p>Final words before exit</p>",
+      }
+    );
+    expect(exit).not.toHaveBeenCalled();
+    expect(install).not.toHaveBeenCalled();
+    expect(closed).toBe(false);
+  } finally {
+    finish?.();
+  }
+  await vi.advanceTimersByTimeAsync(0);
+  await closing;
+  if (path === "menu") expect(exit).toHaveBeenCalledWith(0);
+  if (path === "update") expect(install).toHaveBeenCalledOnce();
+  if (path === "native") expect(closed).toBe(true);
+  expect(preventDefault).not.toHaveBeenCalled();
+});
+
+it.each([
+  ["beat", "disk full"],
+  ["page", "disk full"],
+  ["beat", "Cannot edit beats in a locked scene"],
+  ["page", "Cannot edit a locked scene"],
+] as const)("allows explicit discard when %s prose cannot save: %s", async (mode, error) => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  await editProse(mode);
+  vi.mocked(invoke).mockImplementation(async (cmd) => {
+    if (cmd === "save_beat_prose" || cmd === "save_scene_page_prose") throw error;
+    return [];
+  });
+  await menu("quit");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(exit).not.toHaveBeenCalled();
+  expect(screen.getByRole("dialog", { name: "Quit without saving writing changes?" })).toBeTruthy();
+  expect(proseSaves.draftsForRecovery(mockProject.id)[0].prose).toBe(
+    "<p>Final words before exit</p>"
+  );
+  await fireEvent.click(screen.getByRole("button", { name: "Quit and discard" }));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(exit).toHaveBeenCalledWith(0);
+  expect(proseSaves.draftsForRecovery(mockProject.id)).toEqual([]);
+  const calls = vi.mocked(invoke).mock.calls.length;
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(
+    vi
+      .mocked(invoke)
+      .mock.calls.slice(calls)
+      .some(([cmd]) => cmd === "save_beat_prose" || cmd === "save_scene_page_prose")
+  ).toBe(false);
+});
+
+it.each(["install", "relaunch"])("shows an actionable update error when %s fails", async (step) => {
+  vi.useFakeTimers();
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  currentProject.setChapters(mockChapters);
+  const install = vi.fn().mockResolvedValue(undefined);
+  if (step === "install") install.mockRejectedValue(new Error("Installer failed"));
+  else vi.mocked(relaunch).mockRejectedValue(new Error("Relaunch failed"));
+  updateState.set({ ready: true, version: "1.2.1", body: null, update: { install } as never });
+  render(App);
+  await vi.advanceTimersByTimeAsync(0);
+  await fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(
+    screen.getByText(
+      new RegExp(
+        `Could not restart to update.*${step === "install" ? "Installer" : "Relaunch"} failed`
+      )
+    )
+  ).toBeTruthy();
+  expect(screen.queryByText(/Retry saving your synopsis first/)).toBeNull();
+  expect((screen.getByRole("button", { name: "Restart" }) as HTMLButtonElement).disabled).toBe(
+    false
+  );
 });

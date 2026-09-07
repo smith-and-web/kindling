@@ -190,14 +190,14 @@ describe("updater", () => {
           if (installFails) throw installError;
         });
 
-        await expect(
-          installAndRelaunch({
-            ready: true,
-            version: "1.2.0",
-            body: null,
-            update: { install } as never,
-          })
-        ).resolves.toBeUndefined();
+        const installing = installAndRelaunch({
+          ready: true,
+          version: "1.2.0",
+          body: null,
+          update: { install } as never,
+        });
+        if (installFails) await expect(installing).rejects.toBe(installError);
+        else await expect(installing).resolves.toBeUndefined();
 
         expect(install).toHaveBeenCalledOnce();
         if (installFails) {
@@ -245,12 +245,14 @@ describe("updater", () => {
         expect(flushed).toHaveBeenCalledOnce();
         throw new Error("install failed");
       });
-      await installAndRelaunch({
-        ready: true,
-        version: "1.2.0",
-        body: null,
-        update: { install } as never,
-      });
+      await expect(
+        installAndRelaunch({
+          ready: true,
+          version: "1.2.0",
+          body: null,
+          update: { install } as never,
+        })
+      ).rejects.toThrow("install failed");
       expect(install).toHaveBeenCalledOnce();
       expect(relaunchMock).not.toHaveBeenCalled();
     });
@@ -284,7 +286,7 @@ describe("updater", () => {
       expect(relaunchMock).not.toHaveBeenCalled();
     });
 
-    it("handles install failure gracefully", async () => {
+    it("propagates install failure to the banner", async () => {
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const mockUpdate = {
         install: vi.fn().mockRejectedValue(new Error("Install failed")),
@@ -296,7 +298,7 @@ describe("updater", () => {
         update: mockUpdate as never,
       };
 
-      await installAndRelaunch(state);
+      await expect(installAndRelaunch(state)).rejects.toThrow("Install failed");
 
       expect(errorSpy).toHaveBeenCalledWith("Failed to install update:", expect.any(Error));
       errorSpy.mockRestore();

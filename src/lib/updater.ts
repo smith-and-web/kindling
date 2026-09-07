@@ -57,6 +57,7 @@ export async function installAndRelaunch(state: UpdateState): Promise<void> {
     await relaunch();
   } catch (e) {
     console.error("Failed to install update:", e);
+    throw e;
   }
 }
 

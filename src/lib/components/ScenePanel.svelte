@@ -618,6 +618,23 @@
     pageProseSaveStatus = "idle";
   }
 
+  // Called atomically with queue discard when the user approves quitting without saving.
+  export function discardProseDraftsForClose(drafts: ProseSave[]) {
+    beatViewRef?.discardFailedDrafts(drafts);
+    if (
+      drafts.some(
+        (draft) =>
+          draft.kind === "page" &&
+          draft.projectId === pageProseProjectId &&
+          draft.id === lastPageViewSceneId &&
+          draft.prose === pageProseContent
+      )
+    ) {
+      if (pageProseSaveTimeout) clearTimeout(pageProseSaveTimeout);
+      pageProseSaveTimeout = null;
+    }
+  }
+
   export async function discardFailedSaves(drafts: ProseSave[]) {
     const projectId = currentProject.value?.id;
     const scene = currentProject.currentScene;

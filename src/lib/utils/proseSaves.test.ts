@@ -22,6 +22,21 @@ it("retains failed saves for retry, isolates projects, and recovers after failur
   await queue.flush("project");
   expect(invoke).toHaveBeenCalledTimes(count);
 });
+it("flushes drafts across projects on exit and retains terminal failures for confirmation", async () => {
+  const queue = new ProseSaveQueue();
+  const page = { ...save, projectId: "other", kind: "page" as const, id: "scene" };
+  const locked = { ...save, projectId: "third", id: "locked" };
+  vi.mocked(invoke).mockRejectedValue("Disk full");
+  await expect(queue.save(save)).rejects.toBe("Disk full");
+  await expect(queue.save(page)).rejects.toBe("Disk full");
+  vi.mocked(invoke).mockRejectedValue("Cannot edit a locked scene");
+  await expect(queue.save(locked)).rejects.toBe("Cannot edit a locked scene");
+  expect(queue.draftsForRecovery()).toEqual(expect.arrayContaining([save, page, locked]));
+  vi.mocked(invoke).mockResolvedValue(undefined);
+  expect(await queue.flush()).toEqual([save, page]);
+  expect(queue.pendingFor()).toEqual([]);
+  expect(queue.draftsForRecovery()).toEqual([locked]);
+});
 it("serializes writes and retains the newest failed draft when an earlier write succeeds", async () => {
   const queue = new ProseSaveQueue();
   let finish!: () => void;
