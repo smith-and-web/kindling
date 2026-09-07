@@ -52,6 +52,7 @@ pub struct ProjectSettingsUpdate {
     pub reference_types: Option<Vec<String>>,
     pub project_type: Option<String>,
     pub target_page_count: Option<i32>,
+    pub daily_writing_goal: Option<i64>,
 }
 
 #[tauri::command]
@@ -63,8 +64,23 @@ pub async fn update_project_settings(
     let uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
+    apply_project_settings(&conn, &uuid, settings)
+}
+
+fn apply_project_settings(
+    conn: &rusqlite::Connection,
+    uuid: &Uuid,
+    settings: ProjectSettingsUpdate,
+) -> Result<Project, String> {
+    if settings
+        .daily_writing_goal
+        .is_some_and(|goal| !(0..=1_000_000).contains(&goal))
+    {
+        return Err("Daily goal must be a whole number between 0 and 1,000,000".into());
+    }
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     // Get the existing project
-    let mut project = db::get_project(&conn, &uuid)
+    let mut project = db::get_project(&tx, uuid)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "Project not found".to_string())?;
 
@@ -85,8 +101,18 @@ pub async fn update_project_settings(
     project.modified_at = chrono::Utc::now().to_rfc3339();
 
     // Save to database
-    db::update_project(&conn, &project).map_err(|e| e.to_string())?;
+    db::update_project(&tx, &project).map_err(|e| e.to_string())?;
 
+    if let Some(goal) = settings.daily_writing_goal {
+        db::writing::set_goal_in_transaction(
+            &tx,
+            &uuid.to_string(),
+            goal,
+            chrono::Local::now().date_naive(),
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(project)
 }
 
@@ -404,9 +430,12 @@ pub async fn save_scene_prose(
         return Err("Cannot edit a locked scene".to_string());
     }
 
-    db::writing::save_prose(&conn, &uuid, chrono::Local::now().date_naive(), |tx| {
-        db::update_scene_prose(tx, &uuid, &prose)
-    })
+    db::writing::save_prose(
+        &conn,
+        db::writing::ProseTarget::Scene(uuid),
+        chrono::Local::now().date_naive(),
+        |tx| db::update_scene_prose(tx, &uuid, &prose),
+    )
     .map_err(|e| e.to_string())?;
 
     // Update project modified time
@@ -441,9 +470,12 @@ pub async fn save_scene_page_prose(
         return Err("Cannot edit a locked scene".to_string());
     }
 
-    db::writing::save_prose(&conn, &uuid, chrono::Local::now().date_naive(), |tx| {
-        db::save_scene_page_prose(tx, &uuid, &prose)
-    })
+    db::writing::save_prose(
+        &conn,
+        db::writing::ProseTarget::Scene(uuid),
+        chrono::Local::now().date_naive(),
+        |tx| db::save_scene_page_prose(tx, &uuid, &prose),
+    )
     .map_err(|e| e.to_string())?;
 
     if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
@@ -750,9 +782,12 @@ pub async fn save_beat_prose(
         return Err("Cannot edit beats in a locked scene".to_string());
     }
 
-    db::writing::save_prose(&conn, &scene_id, chrono::Local::now().date_naive(), |tx| {
-        db::update_beat_prose(tx, &uuid, &prose)
-    })
+    db::writing::save_prose(
+        &conn,
+        db::writing::ProseTarget::Beat(uuid),
+        chrono::Local::now().date_naive(),
+        |tx| db::update_beat_prose(tx, &uuid, &prose),
+    )
     .map_err(|e| e.to_string())?;
 
     if let Some(project_id) =
@@ -2010,5 +2045,53 @@ mod reclassification_tests {
                 before
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod writing_settings_tests {
+    use super::*;
+
+    #[test]
+    fn metadata_and_daily_goal_commit_or_roll_back_together() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        let project = Project::new("Novel".into(), crate::models::SourceType::Blank, None);
+        db::insert_project(&conn, &project).unwrap();
+        let settings = || {
+            serde_json::from_value::<ProjectSettingsUpdate>(serde_json::json!({
+                "author_pen_name": "New name", "daily_writing_goal": 800
+            }))
+            .unwrap()
+        };
+        conn.execute_batch("CREATE TRIGGER fail_goal BEFORE INSERT ON writing_goals BEGIN SELECT RAISE(ABORT, 'disk failure'); END;").unwrap();
+        assert!(apply_project_settings(&conn, &project.id, settings()).is_err());
+        assert_eq!(
+            db::get_project(&conn, &project.id)
+                .unwrap()
+                .unwrap()
+                .author_pen_name,
+            None
+        );
+        assert_eq!(
+            db::writing::daily_goal(&conn, &project.id.to_string()).unwrap(),
+            500
+        );
+        conn.execute_batch("DROP TRIGGER fail_goal").unwrap();
+        let result = apply_project_settings(&conn, &project.id, settings()).unwrap();
+        assert_eq!(result.author_pen_name.as_deref(), Some("New name"));
+        assert_eq!(
+            db::writing::daily_goal(&conn, &project.id.to_string()).unwrap(),
+            800
+        );
+        let mut invalid = settings();
+        invalid.daily_writing_goal = Some(-1);
+        assert!(apply_project_settings(&conn, &project.id, invalid).is_err());
+        let legacy = serde_json::from_value(serde_json::json!({"genre": "Fantasy"})).unwrap();
+        apply_project_settings(&conn, &project.id, legacy).unwrap();
+        assert_eq!(
+            db::writing::daily_goal(&conn, &project.id.to_string()).unwrap(),
+            800
+        );
     }
 }

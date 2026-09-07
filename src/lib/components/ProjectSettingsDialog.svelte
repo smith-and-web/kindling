@@ -40,10 +40,12 @@
   );
   const projectId = currentProject.value?.id;
   let dailyGoal = $state<number | undefined>(undefined);
+  let goalLoaded = $state(false);
   onMount(async () => {
     try {
       const stats = await invoke<WritingStats>("get_writing_stats", { projectId });
       dailyGoal = stats.daily_goal;
+      goalLoaded = true;
     } catch (e) {
       error = `Could not load daily goal: ${String(e)}`;
     }
@@ -64,10 +66,11 @@
       }
 
       if (
-        dailyGoal === undefined ||
-        !Number.isInteger(dailyGoal) ||
-        dailyGoal < 0 ||
-        dailyGoal > 1000000
+        goalLoaded &&
+        (dailyGoal === undefined ||
+          !Number.isInteger(dailyGoal) ||
+          dailyGoal < 0 ||
+          dailyGoal > 1000000)
       ) {
         throw new Error("Daily goal must be a whole number between 0 and 1,000,000");
       }
@@ -78,14 +81,14 @@
         genre: genre.trim() || null,
         description: description.trim() || null,
         word_target: parsedWordTarget,
+        ...(goalLoaded ? { daily_writing_goal: dailyGoal } : {}),
       };
 
       const updatedProject = await invoke<Project>("update_project_settings", {
-        projectId: currentProject.value.id,
+        projectId,
         settings,
       });
 
-      await invoke("set_daily_writing_goal", { projectId, goal: dailyGoal });
       void writing.refresh(projectId);
       onSave(updatedProject);
     } catch (e) {
@@ -217,7 +220,7 @@
           max="1000000"
           step="1"
           bind:value={dailyGoal}
-          disabled={saving}
+          disabled={saving || !goalLoaded}
           class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2"
           aria-describedby="daily-goal-help"
         />

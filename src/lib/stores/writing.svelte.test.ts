@@ -101,3 +101,23 @@ describe("writing statistics", () => {
     expect(store.error).toContain("Could not reset session");
   });
 });
+
+it("coalesces burst saves and cancels delayed refreshes when changing projects", async () => {
+  vi.useFakeTimers();
+  vi.mocked(invoke).mockResolvedValue(stats);
+  const store = new WritingStore();
+  store.open("p");
+  await vi.advanceTimersByTimeAsync(0);
+  store.scheduleRefresh("other");
+  store.scheduleRefresh("p");
+  store.scheduleRefresh("p");
+  await vi.advanceTimersByTimeAsync(249);
+  expect(invoke).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(invoke).toHaveBeenCalledTimes(2);
+  store.scheduleRefresh("p");
+  store.open(null);
+  await vi.advanceTimersByTimeAsync(300);
+  expect(invoke).toHaveBeenCalledTimes(2);
+  vi.useRealTimers();
+});

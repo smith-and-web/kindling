@@ -315,10 +315,15 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       return projects as T;
 
     case "update_project_settings": {
-      const settings = getArg<Partial<Project>>(args, "settings");
+      const settings = getArg<Partial<Project> & { daily_writing_goal?: number }>(args, "settings");
       if (!projectId || !settings) throw new Error("Missing projectId or settings");
       const idx = projects.findIndex((p) => p.id === projectId);
       if (idx < 0) throw new Error(`Project not found: ${projectId}`);
+      if (settings.daily_writing_goal !== undefined) {
+        writingGoals.set(projectId, settings.daily_writing_goal);
+        const day = writingDays.get(`${projectId}:${writingDate()}`);
+        if (day) day.goal = settings.daily_writing_goal;
+      }
       projects[idx] = { ...projects[idx]!, ...settings };
       return projects[idx] as T;
     }

@@ -57,6 +57,17 @@ pub fn daily_goal(conn: &Connection, project_id: &str) -> Result<i64> {
 
 pub fn set_goal(conn: &Connection, project_id: &str, goal: i64, today: NaiveDate) -> Result<()> {
     let tx = conn.unchecked_transaction()?;
+    set_goal_in_transaction(&tx, project_id, goal, today)?;
+    tx.commit()
+}
+
+/// Caller holds the transaction for metadata and goal updates.
+pub fn set_goal_in_transaction(
+    tx: &Connection,
+    project_id: &str,
+    goal: i64,
+    today: NaiveDate,
+) -> Result<()> {
     tx.execute(
         "INSERT INTO writing_goals(project_id, daily_goal) VALUES (?1, ?2)
         ON CONFLICT(project_id) DO UPDATE SET daily_goal = excluded.daily_goal",
@@ -67,34 +78,58 @@ pub fn set_goal(conn: &Connection, project_id: &str, goal: i64, today: NaiveDate
         "UPDATE writing_sessions SET goal = ?1 WHERE project_id = ?2 AND date = ?3",
         params![goal, project_id, today.to_string()],
     )?;
-    tx.commit()
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+pub enum ProseTarget {
+    Beat(Uuid),
+    Scene(Uuid),
+}
+
+fn saved_document(conn: &Connection, target: ProseTarget) -> Result<(Uuid, i64)> {
+    match target {
+        ProseTarget::Beat(id) => {
+            let beat = super::get_beat(conn, &id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+            Ok((
+                beat.scene_id,
+                count_words(beat.prose.as_deref().unwrap_or("")),
+            ))
+        }
+        ProseTarget::Scene(id) => {
+            let scene =
+                super::get_scene_by_id(conn, &id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+            Ok((id, count_words(scene.prose.as_deref().unwrap_or(""))))
+        }
+    }
 }
 
 /// The prose and accounting updates share one transaction, so failed/retried
 /// saves cannot lose writing credit or count the same edit twice.
 pub fn save_prose(
     conn: &Connection,
-    scene_id: &Uuid,
+    target: ProseTarget,
     today: NaiveDate,
     save: impl FnOnce(&Connection) -> Result<()>,
 ) -> Result<()> {
     let tx = conn.unchecked_transaction()?;
-    save_prose_in_transaction(&tx, scene_id, today, save)?;
+    save_prose_in_transaction(&tx, target, today, save)?;
     tx.commit()
 }
 
 /// Caller must hold a transaction spanning the prose and accounting writes.
 pub fn save_prose_in_transaction(
     tx: &Connection,
-    scene_id: &Uuid,
+    target: ProseTarget,
     today: NaiveDate,
     save: impl FnOnce(&Connection) -> Result<()>,
 ) -> Result<()> {
-    let before = scene_words(tx, scene_id)?;
+    // Measure the document being saved, including recovered drafts from an older editor mode.
+    let (scene_id, before) = saved_document(tx, target)?;
     save(tx)?;
-    let delta = scene_words(tx, scene_id)? - before;
+    let delta = saved_document(tx, target)?.1 - before;
     let project_id =
-        super::get_scene_project_id(tx, scene_id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+        super::get_scene_project_id(tx, &scene_id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
     if delta != 0 {
         let goal = daily_goal(tx, &project_id.to_string())?;
         tx.execute(
@@ -153,18 +188,36 @@ pub fn stats(conn: &Connection, project_id: &Uuid, today: NaiveDate) -> Result<W
             .unwrap_or(0),
         streak: 0,
     };
-    for chapter in super::get_chapters(conn, project_id)?
-        .iter()
-        .filter(|c| !c.archived)
-    {
-        let mut words = 0;
-        for scene in super::get_scenes(conn, &chapter.id)? {
-            let count = scene_words(conn, &scene.id)?;
-            stats.scene_words.insert(scene.id.to_string(), count);
-            words += count;
-        }
-        stats.chapter_words.insert(chapter.id.to_string(), words);
-        stats.project_words += words;
+    // One bulk read avoids per-scene queries while holding the application's DB mutex.
+    let mut stmt = conn.prepare(
+        "SELECT c.id, s.id, s.editor_mode, s.prose, b.id, b.prose
+        FROM chapters c
+        LEFT JOIN scenes s ON s.chapter_id = c.id AND s.archived = 0
+        LEFT JOIN beats b ON b.scene_id = s.id
+        WHERE c.project_id = ?1 AND c.archived = 0",
+    )?;
+    let mut rows = stmt.query([&id])?;
+    while let Some(row) = rows.next()? {
+        let chapter_id: String = row.get(0)?;
+        let chapter_words = stats.chapter_words.entry(chapter_id).or_default();
+        let Some(scene_id) = row.get::<_, Option<String>>(1)? else {
+            continue;
+        };
+        let mode: String = row.get(2)?;
+        let beat_id: Option<String> = row.get(4)?;
+        let count = if mode == "page" || beat_id.is_none() {
+            // A Page View scene may join several stale beat copies; count the page once.
+            if stats.scene_words.contains_key(&scene_id) {
+                0
+            } else {
+                count_words(row.get::<_, Option<String>>(3)?.as_deref().unwrap_or(""))
+            }
+        } else {
+            count_words(row.get::<_, Option<String>>(5)?.as_deref().unwrap_or(""))
+        };
+        *stats.scene_words.entry(scene_id).or_default() += count;
+        *chapter_words += count;
+        stats.project_words += count;
     }
     let mut stmt = conn.prepare("SELECT date FROM writing_sessions WHERE project_id = ?1 AND goal > 0 AND words >= goal AND date <= ?2 ORDER BY date DESC")?;
     let days = stmt
@@ -217,8 +270,8 @@ mod tests {
         db::insert_beat(conn, &beat).unwrap();
         (project, chapter, scene, beat)
     }
-    fn save(conn: &Connection, scene: &Scene, beat: &Beat, day: u32, prose: &str) {
-        save_prose(conn, &scene.id, date(day), |tx| {
+    fn save(conn: &Connection, _scene: &Scene, beat: &Beat, day: u32, prose: &str) {
+        save_prose(conn, ProseTarget::Beat(beat.id), date(day), |tx| {
             db::update_beat_prose(tx, &beat.id, prose)
         })
         .unwrap();
@@ -264,7 +317,7 @@ mod tests {
         save(&conn, &s, &b, 7, "one two");
         db::switch_scene_editor_mode(&conn, &s.id, "page").unwrap();
         assert_eq!(stats(&conn, &p.id, date(7)).unwrap().project_words, 2);
-        save_prose(&conn, &s.id, date(7), |tx| {
+        save_prose(&conn, ProseTarget::Scene(s.id), date(7), |tx| {
             db::save_scene_page_prose(tx, &s.id, "one two three")
         })
         .unwrap();
@@ -278,14 +331,10 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         let (p, _, s, b) = seed(&conn);
         conn.execute_batch("CREATE TRIGGER fail_writing BEFORE INSERT ON writing_sessions BEGIN SELECT RAISE(ABORT, 'disk failure'); END;").unwrap();
-        assert!(
-            save_prose(&conn, &s.id, date(7), |tx| db::update_beat_prose(
-                tx,
-                &b.id,
-                "new words"
-            ))
-            .is_err()
-        );
+        assert!(save_prose(&conn, ProseTarget::Beat(b.id), date(7), |tx| {
+            db::update_beat_prose(tx, &b.id, "new words")
+        })
+        .is_err());
         assert_eq!(scene_words(&conn, &s.id).unwrap(), 0);
         conn.execute_batch("DROP TRIGGER fail_writing").unwrap();
         save(&conn, &s, &b, 7, "new words");
@@ -377,7 +426,7 @@ mod tests {
         let (p, _, s, b) = seed(&conn);
         conn.execute("DELETE FROM beats WHERE id = ?1", [b.id.to_string()])
             .unwrap();
-        save_prose(&conn, &s.id, date(7), |tx| {
+        save_prose(&conn, ProseTarget::Scene(s.id), date(7), |tx| {
             db::update_scene_prose(tx, &s.id, "scene words")
         })
         .unwrap();
@@ -385,5 +434,38 @@ mod tests {
         assert_eq!(stats(&conn, &p.id, date(7)).unwrap().project_words, 2);
         assert_eq!(stats(&conn, &other.id, date(7)).unwrap().today_words, 0);
         assert!(stats(&conn, &Uuid::new_v4(), date(7)).is_err());
+    }
+    #[test]
+    fn recovered_drafts_credit_the_saved_document_after_a_mode_change() {
+        let conn = Connection::open_in_memory().unwrap();
+        let (p, _, s, b) = seed(&conn);
+        save(&conn, &s, &b, 7, "one two");
+        db::switch_scene_editor_mode(&conn, &s.id, "page").unwrap();
+        save(&conn, &s, &b, 7, "one two three four");
+        let stat = stats(&conn, &p.id, date(7)).unwrap();
+        assert_eq!(
+            (stat.project_words, stat.today_words, stat.session_words),
+            (2, 4, 4)
+        );
+    }
+
+    #[test]
+    fn bulk_counts_include_empty_chapters_and_count_page_copies_only_once() {
+        let conn = Connection::open_in_memory().unwrap();
+        let (p, c, s, b) = seed(&conn);
+        save(&conn, &s, &b, 7, "one two");
+        let mut second = Beat::new(s.id, "second".into(), 1);
+        second.prose = Some("three four".into());
+        db::insert_beat(&conn, &second).unwrap();
+        let empty = Chapter::new(p.id, "Empty".into(), 1);
+        db::insert_chapter(&conn, &empty).unwrap();
+        assert_eq!(
+            stats(&conn, &p.id, date(7)).unwrap().chapter_words[&c.id.to_string()],
+            4
+        );
+        db::switch_scene_editor_mode(&conn, &s.id, "page").unwrap();
+        let stat = stats(&conn, &p.id, date(7)).unwrap();
+        assert_eq!(stat.project_words, 4);
+        assert_eq!(stat.chapter_words[&empty.id.to_string()], 0);
     }
 }

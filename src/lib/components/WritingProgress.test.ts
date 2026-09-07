@@ -80,3 +80,13 @@ it("shows an off goal without a progress bar and a load error without stale tota
   expect(screen.getByRole("alert").textContent).toContain("database unavailable");
   expect(screen.queryByText("2,500 project words")).toBeNull();
 });
+
+it("keeps loaded totals when metadata changes for the same project", async () => {
+  render(WritingProgress);
+  await vi.advanceTimersByTimeAsync(0);
+  const calls = vi.mocked(invoke).mock.calls.length;
+  currentProject.setProject({ ...mockProject, name: "Renamed" });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(screen.getByText("2,500 project words")).toBeTruthy();
+  expect(invoke).toHaveBeenCalledTimes(calls);
+});

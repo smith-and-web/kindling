@@ -6,13 +6,25 @@ export class WritingStore {
   error = $state<string | null>(null);
   private projectId: string | null = null;
   private request = 0;
+  private refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
   open(projectId: string | null) {
+    if (this.refreshTimer) clearTimeout(this.refreshTimer);
+    this.refreshTimer = null;
     this.projectId = projectId;
     this.request++;
     this.value = null;
     this.error = null;
     if (projectId) void this.refresh(projectId);
+  }
+
+  scheduleRefresh(projectId: string) {
+    if (projectId !== this.projectId) return;
+    if (this.refreshTimer) clearTimeout(this.refreshTimer);
+    this.refreshTimer = setTimeout(() => {
+      this.refreshTimer = null;
+      void this.refresh(projectId);
+    }, 250);
   }
 
   async refresh(projectId = this.projectId) {

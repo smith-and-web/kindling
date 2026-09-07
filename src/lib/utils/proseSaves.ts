@@ -38,7 +38,7 @@ export class ProseSaveQueue {
           prose: save.prose,
         });
         if (this.pending.get(save.id) === save) this.pending.delete(save.id);
-        void writingStats.refresh(save.projectId);
+        writingStats.scheduleRefresh(save.projectId);
       } catch (error) {
         if (isTerminal(error) && this.pending.get(save.id) === save) {
           this.pending.delete(save.id);

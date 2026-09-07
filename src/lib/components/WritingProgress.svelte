@@ -7,11 +7,15 @@
   let { prepareReset }: { prepareReset?: () => Promise<void> } = $props();
   let resetting = $state(false);
   let resetError = $state<string | null>(null);
+  const projectId = $derived(currentProject.value?.id ?? null);
   $effect(() => {
-    const projectId = currentProject.value?.id ?? null;
-    untrack(() => writing.open(projectId));
+    const id = projectId;
+    untrack(() => {
+      writing.open(id);
+      resetError = null;
+    });
     // Refresh after midnight and structural edits, even if no prose was saved.
-    const timer = setInterval(() => void writing.refresh(projectId), 30000);
+    const timer = setInterval(() => void writing.refresh(id), 30000);
     return () => {
       clearInterval(timer);
       writing.open(null);
@@ -28,7 +32,8 @@
       await proseSaves.flush(projectId);
       await writing.reset(projectId);
     } catch (error) {
-      resetError = `Save your pending prose before resetting: ${String(error)}`;
+      if (currentProject.value?.id === projectId)
+        resetError = `Save your pending prose before resetting: ${String(error)}`;
     } finally {
       resetting = false;
     }
@@ -66,8 +71,11 @@
     <p>{stats.streak} day{stats.streak === 1 ? "" : "s"} writing streak</p>
   </div>
 {/if}
-{#if writing.error || resetError}
-  <p role="alert" class="mt-2 text-press-eyebrow text-press-error">{resetError ?? writing.error}</p>
+{#if resetError}
+  <p role="alert" class="mt-2 text-press-eyebrow text-press-error">{resetError}</p>
+{/if}
+{#if writing.error}
+  <p role="alert" class="mt-2 text-press-eyebrow text-press-error">{writing.error}</p>
 {/if}
 
 <style>

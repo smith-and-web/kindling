@@ -90,7 +90,11 @@ fn replace_batch(
         }
         db::writing::save_prose_in_transaction(
             &tx,
-            &doc.scene_id,
+            if doc.beat_title.is_some() {
+                db::writing::ProseTarget::Beat(doc.id)
+            } else {
+                db::writing::ProseTarget::Scene(doc.id)
+            },
             chrono::Local::now().date_naive(),
             |tx| {
                 if doc.beat_title.is_some() {
