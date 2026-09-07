@@ -166,6 +166,48 @@
   let discardQuitDrafts = $state.raw<SynopsisDraft[] | null>(null);
   let discardQuitProse = $state.raw<ProseSave[]>([]);
 
+  const interactionBlocked = $derived(closePending || updatePending || discardQuitDrafts !== null);
+
+  let quitConfirmation: HTMLDialogElement | undefined = $state();
+
+  function focusQuitConfirmation(node: HTMLDialogElement) {
+    node.showModal();
+    node.querySelector<HTMLButtonElement>("button")?.focus();
+  }
+
+  // Capture before any child/window shortcut handler can act on the same event.
+  onMount(() => {
+    const guardKeyboard = (event: KeyboardEvent) => {
+      if (!interactionBlocked) return;
+      if (discardQuitDrafts && !closePending && event.key === "Tab") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const buttons = Array.from(
+          quitConfirmation?.querySelectorAll<HTMLButtonElement>("button") ?? []
+        );
+        const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        buttons[(current + (event.shiftKey ? buttons.length - 1 : 1)) % buttons.length]?.focus();
+        return;
+      }
+      const inConfirmation =
+        event.target instanceof HTMLElement &&
+        event.target.closest("[data-quit-confirmation]") !== null;
+      if (
+        inConfirmation &&
+        !closePending &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        event.key !== "Escape"
+      )
+        return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.key === "Escape" && !closePending && !updatePending) discardQuitDrafts = null;
+    };
+    window.addEventListener("keydown", guardKeyboard, true);
+    return () => window.removeEventListener("keydown", guardKeyboard, true);
+  });
+
   function flushBeforeClose() {
     if (discardQuitDrafts || updatePending) return Promise.resolve(false);
     if (closeRequest) return closeRequest;
@@ -279,6 +321,7 @@
   // Handle menu events from Tauri
   onMount(() => {
     const unlisten = listen<string>("menu-event", (event) => {
+      if (interactionBlocked) return;
       const menuId = event.payload;
 
       if (handleImportCommand(menuId)) return;
@@ -351,6 +394,7 @@
   );
 
   function runCommand(id: string) {
+    if (interactionBlocked) return;
     if (handleImportCommand(id)) return;
     switch (id) {
       case "find":
@@ -440,26 +484,28 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#if search && search.projectId === currentProject.value?.id}
-  {#key search.projectId}
-    <FindReplaceDialog
-      bind:this={searchDialog}
-      projectId={search.projectId}
-      sceneId={currentProject.currentScene?.id ?? null}
-      initialScope={search.scope}
-      showReplace={search.replace}
-      prepare={async () => {
-        await scenePanel?.prepareForSearch();
-      }}
-      onDiscardDrafts={async (drafts) => {
-        await scenePanel?.discardFailedSaves(drafts);
-      }}
-      onApplied={(changes) => scenePanel?.applySearchChanges(changes)}
-      onOpenScene={openSearchScene}
-      onClose={() => (search = null)}
-    />
-  {/key}
-{/if}
+<div inert={interactionBlocked} hidden={interactionBlocked}>
+  {#if search && search.projectId === currentProject.value?.id}
+    {#key search.projectId}
+      <FindReplaceDialog
+        bind:this={searchDialog}
+        projectId={search.projectId}
+        sceneId={currentProject.currentScene?.id ?? null}
+        initialScope={search.scope}
+        showReplace={search.replace}
+        prepare={async () => {
+          await scenePanel?.prepareForSearch();
+        }}
+        onDiscardDrafts={async (drafts) => {
+          await scenePanel?.discardFailedSaves(drafts);
+        }}
+        onApplied={(changes) => scenePanel?.applySearchChanges(changes)}
+        onOpenScene={openSearchScene}
+        onClose={() => (search = null)}
+      />
+    {/key}
+  {/if}
+</div>
 
 <UpdateBanner
   disabled={closePending || discardQuitDrafts !== null}
@@ -468,20 +514,28 @@
 />
 
 {#if discardQuitDrafts}
-  <ConfirmDialog
-    title={discardQuitProse.length
-      ? "Quit without saving writing changes?"
-      : "Quit without saving synopsis changes?"}
-    message={discardQuitProse.length
-      ? "Some prose or synopsis changes could not be saved. Quit and discard these unsaved writing changes, or keep editing to retry saving."
-      : "Some synopsis changes could not be saved. Quit and discard these unsaved synopsis changes, or keep editing to retry saving."}
-    confirmLabel="Quit and discard"
-    cancelLabel="Keep editing"
-    onConfirm={quitAndDiscard}
-    onCancel={() => {
-      if (!closePending) discardQuitDrafts = null;
-    }}
-  />
+  <dialog
+    data-quit-confirmation
+    bind:this={quitConfirmation}
+    use:focusQuitConfirmation
+    oncancel={(event) => event.preventDefault()}
+    class="border-0 p-0 max-w-none max-h-none"
+  >
+    <ConfirmDialog
+      title={discardQuitProse.length
+        ? "Quit without saving writing changes?"
+        : "Quit without saving synopsis changes?"}
+      message={discardQuitProse.length
+        ? "Some prose or synopsis changes could not be saved. Quit and discard these unsaved writing changes, or keep editing to retry saving."
+        : "Some synopsis changes could not be saved. Quit and discard these unsaved synopsis changes, or keep editing to retry saving."}
+      confirmLabel="Quit and discard"
+      cancelLabel="Keep editing"
+      onConfirm={quitAndDiscard}
+      onCancel={() => {
+        if (!closePending) discardQuitDrafts = null;
+      }}
+    />
+  </dialog>
 {/if}
 
 {#if synopsisSaves.failedCount && !discardQuitDrafts}
@@ -501,7 +555,7 @@
 {/if}
 
 <main
-  inert={closePending || updatePending || discardQuitDrafts !== null}
+  inert={interactionBlocked}
   aria-busy={closePending || updatePending}
   class="flex h-screen w-screen overflow-hidden bg-press-bg"
 >
@@ -530,108 +584,110 @@
   {/key}
 {/if}
 
-<!-- Command palette (⌘K) -->
-<CommandPalette
-  bind:open={showCommandPalette}
-  commands={paletteCommands}
-  onClose={() => (showCommandPalette = false)}
-/>
-
-<!-- Guidance overlay (first-visit tips, one at a time, modal-style) -->
-<GuidanceOverlay />
-
-<!-- Onboarding overlay (shown on first launch) -->
-<Onboarding
-  onImportLongform={openLongformImportDialog}
-  onImportComplete={(project: Project, type: string) => {
-    if (isImportType(type) && IMPORT_FORMATS[type].references) {
-      openReferenceClassificationDialog(project);
-    }
-  }}
-/>
-
-{#if showReferenceClassificationDialog && referenceClassificationProjectId}
-  <ReferenceClassificationDialog
-    projectId={referenceClassificationProjectId}
-    onClose={closeReferenceClassificationDialog}
-    onComplete={handleReferenceClassificationComplete}
+<div inert={interactionBlocked} hidden={interactionBlocked}>
+  <!-- Command palette (⌘K) -->
+  <CommandPalette
+    bind:open={showCommandPalette}
+    commands={paletteCommands}
+    onClose={() => (showCommandPalette = false)}
   />
-{/if}
 
-<!-- New Project Dialog (triggered by File menu or StartScreen) -->
-{#if showNewProjectDialog}
-  <NewProjectDialog onClose={() => (showNewProjectDialog = false)} />
-{/if}
+  <!-- Guidance overlay (first-visit tips, one at a time, modal-style) -->
+  <GuidanceOverlay />
 
-<!-- Quick Start Dialog (triggered by Help menu) -->
-{#if showQuickStart}
-  <QuickStartDialog onClose={() => (showQuickStart = false)} />
-{/if}
-
-<!-- Kindling Settings Dialog (triggered by menu) -->
-{#if showKindlingSettings}
-  <KindlingSettingsDialog
-    onClose={() => (showKindlingSettings = false)}
-    onSave={() => (showKindlingSettings = false)}
-  />
-{/if}
-
-<!-- Project Settings Dialog (triggered by menu) -->
-{#if showProjectSettings && currentProject.value}
-  <ProjectSettingsDialog
-    onClose={() => (showProjectSettings = false)}
-    onSave={(project) => {
-      currentProject.setProject(project);
-      showProjectSettings = false;
+  <!-- Onboarding overlay (shown on first launch) -->
+  <Onboarding
+    onImportLongform={openLongformImportDialog}
+    onImportComplete={(project: Project, type: string) => {
+      if (isImportType(type) && IMPORT_FORMATS[type].references) {
+        openReferenceClassificationDialog(project);
+      }
     }}
   />
-{/if}
 
-<!-- Export Dialog (triggered by menu) -->
-{#if showExportDialog && currentProject.value}
-  <ExportDialog
-    scope="project"
-    scopeId={null}
-    scopeTitle={currentProject.value.name}
-    onClose={() => (showExportDialog = false)}
-    onSuccess={(result) => {
-      showExportDialog = false;
-      exportResult = result;
-    }}
-  />
-{/if}
+  {#if showReferenceClassificationDialog && referenceClassificationProjectId}
+    <ReferenceClassificationDialog
+      projectId={referenceClassificationProjectId}
+      onClose={closeReferenceClassificationDialog}
+      onComplete={handleReferenceClassificationComplete}
+    />
+  {/if}
 
-{#if showLongformImportDialog}
-  <ImportLongformDialog
-    onSelectIndex={() => {
-      showLongformImportDialog = false;
-      importLongform();
-    }}
-    onSelectVault={() => {
-      showLongformImportDialog = false;
-      importLongformVault();
-    }}
-    onClose={() => (showLongformImportDialog = false)}
-  />
-{/if}
+  <!-- New Project Dialog (triggered by File menu or StartScreen) -->
+  {#if showNewProjectDialog}
+    <NewProjectDialog onClose={() => (showNewProjectDialog = false)} />
+  {/if}
 
-<!-- Export Success Dialog -->
-{#if exportResult}
-  <ExportSuccessDialog result={exportResult} onClose={() => (exportResult = null)} />
-{/if}
+  <!-- Quick Start Dialog (triggered by Help menu) -->
+  {#if showQuickStart}
+    <QuickStartDialog onClose={() => (showQuickStart = false)} />
+  {/if}
 
-<!-- About Dialog -->
-{#if showAboutDialog}
-  <AboutDialog
-    onClose={() => (showAboutDialog = false)}
-    onSendFeedback={() => {
-      showAboutDialog = false;
-      showFeedbackDialog = true;
-    }}
-  />
-{/if}
+  <!-- Kindling Settings Dialog (triggered by menu) -->
+  {#if showKindlingSettings}
+    <KindlingSettingsDialog
+      onClose={() => (showKindlingSettings = false)}
+      onSave={() => (showKindlingSettings = false)}
+    />
+  {/if}
 
-<!-- Feedback Dialog (opened from the Help menu or the About dialog) -->
-{#if showFeedbackDialog}
-  <FeedbackDialog onClose={() => (showFeedbackDialog = false)} />
-{/if}
+  <!-- Project Settings Dialog (triggered by menu) -->
+  {#if showProjectSettings && currentProject.value}
+    <ProjectSettingsDialog
+      onClose={() => (showProjectSettings = false)}
+      onSave={(project) => {
+        currentProject.setProject(project);
+        showProjectSettings = false;
+      }}
+    />
+  {/if}
+
+  <!-- Export Dialog (triggered by menu) -->
+  {#if showExportDialog && currentProject.value}
+    <ExportDialog
+      scope="project"
+      scopeId={null}
+      scopeTitle={currentProject.value.name}
+      onClose={() => (showExportDialog = false)}
+      onSuccess={(result) => {
+        showExportDialog = false;
+        exportResult = result;
+      }}
+    />
+  {/if}
+
+  {#if showLongformImportDialog}
+    <ImportLongformDialog
+      onSelectIndex={() => {
+        showLongformImportDialog = false;
+        importLongform();
+      }}
+      onSelectVault={() => {
+        showLongformImportDialog = false;
+        importLongformVault();
+      }}
+      onClose={() => (showLongformImportDialog = false)}
+    />
+  {/if}
+
+  <!-- Export Success Dialog -->
+  {#if exportResult}
+    <ExportSuccessDialog result={exportResult} onClose={() => (exportResult = null)} />
+  {/if}
+
+  <!-- About Dialog -->
+  {#if showAboutDialog}
+    <AboutDialog
+      onClose={() => (showAboutDialog = false)}
+      onSendFeedback={() => {
+        showAboutDialog = false;
+        showFeedbackDialog = true;
+      }}
+    />
+  {/if}
+
+  <!-- Feedback Dialog (opened from the Help menu or the About dialog) -->
+  {#if showFeedbackDialog}
+    <FeedbackDialog onClose={() => (showFeedbackDialog = false)} />
+  {/if}
+</div>
