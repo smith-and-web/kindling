@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { currentProject } from "./project.svelte";
+import { mockScenes } from "../../dev/mock-data";
 import type {
   Chapter,
   EditorMode,
@@ -417,6 +418,23 @@ describe("currentProject store", () => {
     currentProject.setCurrentScene(null);
 
     expect(currentProject.currentScene).toBeNull();
+    expect(currentProject.beats).toEqual([]);
+  });
+
+  it("clears the previous scene's beats while the next scene is loading", () => {
+    const scene = mockScenes[0];
+    const beat = {
+      id: "old-beat",
+      scene_id: scene.id,
+      content: "Old title",
+      prose: null,
+      position: 0,
+    };
+    currentProject.setCurrentScene(scene);
+    currentProject.setBeats([beat]);
+    currentProject.setCurrentScene({ ...scene, title: "Renamed scene" });
+    expect(currentProject.beats).toEqual([beat]);
+    currentProject.setCurrentScene({ ...scene, id: "next-scene" });
     expect(currentProject.beats).toEqual([]);
   });
 

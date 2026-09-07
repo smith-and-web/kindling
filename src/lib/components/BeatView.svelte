@@ -572,7 +572,7 @@
   </div>
   {#if beats.length > 0}
     <div class="space-y-4">
-      {#each beats as beat, index}
+      {#each beats as beat, index (beat.id)}
         {@const isExpanded = ui.expandedBeatId === beat.id}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <article

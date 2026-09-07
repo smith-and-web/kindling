@@ -19,6 +19,7 @@
   import ExportDialog from "./lib/components/ExportDialog.svelte";
   import ExportSuccessDialog from "./lib/components/ExportSuccessDialog.svelte";
   import ErrorToast from "./lib/components/ErrorToast.svelte";
+  import ConfirmDialog from "./lib/components/ConfirmDialog.svelte";
   import ImportLongformDialog from "./lib/components/ImportLongformDialog.svelte";
   import ReferenceClassificationDialog from "./lib/components/ReferenceClassificationDialog.svelte";
   import QuickStartDialog from "./lib/components/QuickStartDialog.svelte";
@@ -30,6 +31,8 @@
   import { COMMAND_DEFS } from "./lib/commands";
   import { currentProject } from "./lib/stores/project.svelte";
   import { session } from "./lib/stores/session.svelte";
+  import { synopsisSaves, type SynopsisDraft } from "./lib/stores/synopsisSaves.svelte";
+  import { proseSaves, type ProseSave } from "./lib/utils/proseSaves";
   import { ui } from "./lib/stores/ui.svelte";
   import type { ProseDocument } from "./lib/utils/proseSearch";
   import type { Project, ExportResult, Chapter, Scene, Beat } from "./lib/types";
@@ -157,7 +160,56 @@
     currentProject.setProject(null);
   }
 
-  async function flushBeforeClose() {
+  let closePending = $state(false);
+  let updatePending = $state(false);
+  let closeRequest: Promise<boolean> | null = null;
+  let discardQuitDrafts = $state.raw<SynopsisDraft[] | null>(null);
+  let discardQuitProse = $state.raw<ProseSave[]>([]);
+
+  function flushBeforeClose() {
+    if (discardQuitDrafts || updatePending) return Promise.resolve(false);
+    if (closeRequest) return closeRequest;
+    closePending = true;
+    closeRequest = saveBeforeClose().finally(() => {
+      closePending = false;
+      closeRequest = null;
+    });
+    return closeRequest;
+  }
+
+  async function flushProseBeforeExit() {
+    // This existing editor hook submits debounced page and beat edits to proseSaves.
+    await scenePanel?.prepareForSearch();
+    await proseSaves.flush();
+    if (proseSaves.draftsForRecovery().length) {
+      throw new Error(
+        "Prose changes could not be saved. Review the unsaved drafts in Find and Replace."
+      );
+    }
+  }
+
+  async function saveBeforeClose() {
+    let failed = false;
+    try {
+      await flushProseBeforeExit();
+    } catch {
+      failed = true;
+    }
+    try {
+      await synopsisSaves.flush();
+    } catch {
+      failed = true;
+    }
+    if (failed) {
+      discardQuitProse = proseSaves.draftsForRecovery();
+      discardQuitDrafts = synopsisSaves.snapshot();
+      return false;
+    }
+    await flushPositionBeforeClose();
+    return true;
+  }
+
+  async function flushPositionBeforeClose() {
     try {
       await session.flush();
     } catch (error) {
@@ -166,7 +218,7 @@
   }
 
   async function quit() {
-    await flushBeforeClose();
+    if (!(await flushBeforeClose())) return;
     try {
       await exit(0);
     } catch (error) {
@@ -174,13 +226,47 @@
     }
   }
 
+  async function quitAndDiscard() {
+    const approved = discardQuitDrafts;
+    if (!approved || closePending) return;
+    closePending = true;
+    try {
+      await proseSaves.discard(discardQuitProse, () =>
+        scenePanel?.discardProseDraftsForClose(discardQuitProse)
+      );
+      await synopsisSaves.discardAll(approved);
+      await flushPositionBeforeClose();
+      discardQuitDrafts = null;
+      await exit(0);
+    } catch (error) {
+      discardQuitDrafts = null;
+      ui.showError(`Could not quit: ${String(error)}`);
+    } finally {
+      closePending = false;
+    }
+  }
+
   onMount(() => {
     // Tauri awaits this handler before destroying the window.
-    const unlisten = getCurrentWindow().onCloseRequested(flushBeforeClose);
+    const unlisten = getCurrentWindow().onCloseRequested(async (event) => {
+      if (!(await flushBeforeClose())) event.preventDefault();
+    });
     return () => {
       void unlisten.then((stop) => stop());
     };
   });
+
+  let retryingSynopses = $state(false);
+  async function retrySynopses() {
+    retryingSynopses = true;
+    try {
+      await synopsisSaves.flush();
+    } catch {
+      // The banner and per-scene errors remain visible until saving succeeds.
+    } finally {
+      retryingSynopses = false;
+    }
+  }
 
   // Check for updates on launch (delayed so it doesn't block startup)
   onMount(() => {
@@ -375,9 +461,50 @@
   {/key}
 {/if}
 
-<UpdateBanner />
+<UpdateBanner
+  disabled={closePending || discardQuitDrafts !== null}
+  bind:restarting={updatePending}
+  prepare={flushProseBeforeExit}
+/>
 
-<main class="flex h-screen w-screen overflow-hidden bg-press-bg">
+{#if discardQuitDrafts}
+  <ConfirmDialog
+    title={discardQuitProse.length
+      ? "Quit without saving writing changes?"
+      : "Quit without saving synopsis changes?"}
+    message={discardQuitProse.length
+      ? "Some prose or synopsis changes could not be saved. Quit and discard these unsaved writing changes, or keep editing to retry saving."
+      : "Some synopsis changes could not be saved. Quit and discard these unsaved synopsis changes, or keep editing to retry saving."}
+    confirmLabel="Quit and discard"
+    cancelLabel="Keep editing"
+    onConfirm={quitAndDiscard}
+    onCancel={() => {
+      if (!closePending) discardQuitDrafts = null;
+    }}
+  />
+{/if}
+
+{#if synopsisSaves.failedCount && !discardQuitDrafts}
+  <div
+    role="alert"
+    class="fixed bottom-4 left-1/2 -translate-x-1/2 z-press-toast rounded-lg bg-press-surface border border-press-error p-4 shadow-lg text-press-ui"
+  >
+    <p class="text-press-error">Your synopsis changes have not been saved.</p>
+    <button
+      onclick={retrySynopses}
+      disabled={retryingSynopses || discardQuitDrafts !== null}
+      aria-label="Retry all synopsis saves"
+      class="mt-2 underline text-press-text disabled:opacity-50"
+      >{retryingSynopses ? "Saving..." : "Retry saving"}</button
+    >
+  </div>
+{/if}
+
+<main
+  inert={closePending || updatePending || discardQuitDrafts !== null}
+  aria-busy={closePending || updatePending}
+  class="flex h-screen w-screen overflow-hidden bg-press-bg"
+>
   {#if currentProject.value}
     <Sidebar />
     <ScenePanel bind:this={scenePanel} />

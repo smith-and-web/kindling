@@ -118,10 +118,10 @@ class ProjectStore {
 
   setCurrentScene(scene: Scene | null) {
     if (scene) session.selectScene(scene);
-    this.currentScene = scene;
-    if (!scene) {
+    if (!scene || this.currentScene?.id !== scene.id) {
       this.beats = [];
     }
+    this.currentScene = scene;
   }
 
   setBeats(beats: Beat[]) {

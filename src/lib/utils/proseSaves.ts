@@ -49,14 +49,16 @@ export class ProseSaveQueue {
     return writing;
   }
 
-  pendingFor(projectId: string): ProseSave[] {
-    return [...this.pending.values()].filter((save) => save.projectId === projectId);
+  pendingFor(projectId?: string): ProseSave[] {
+    return [...this.pending.values()].filter(
+      (save) => projectId === undefined || save.projectId === projectId
+    );
   }
 
-  draftsForRecovery(projectId: string): ProseSave[] {
+  draftsForRecovery(projectId?: string): ProseSave[] {
     return [...this.recovery.values()]
       .map((entry) => entry.draft)
-      .filter((save) => save.projectId === projectId)
+      .filter((save) => projectId === undefined || save.projectId === projectId)
       .concat(this.pendingFor(projectId));
   }
 
@@ -93,7 +95,7 @@ export class ProseSaveQueue {
     onDiscarded?.();
   }
 
-  async flush(projectId: string, onSaved?: (save: ProseSave) => void): Promise<ProseSave[]> {
+  async flush(projectId?: string, onSaved?: (save: ProseSave) => void): Promise<ProseSave[]> {
     await this.queue;
     const saved: ProseSave[] = [];
     const errors: string[] = [];
