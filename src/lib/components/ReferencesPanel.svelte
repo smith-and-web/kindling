@@ -1220,11 +1220,7 @@
                     <TagSelector
                       projectId={currentProject.value.id}
                       entityType={activeTypeOption
-                        ? activeTypeOption.id === "characters"
-                          ? "character"
-                          : activeTypeOption.id === "locations"
-                            ? "location"
-                            : activeTypeOption.id
+                        ? REFERENCE_FIELD_TYPES[activeTypeOption.id]
                         : "item"}
                       entityId={reference.id}
                       {allTags}
