@@ -162,6 +162,8 @@ pub fn run() {
             commands::delete_reference,
             commands::save_scene_reference_state,
             commands::reclassify_references,
+            commands::preview_reference_copy,
+            commands::copy_references_between_projects,
             commands::save_beat_prose,
             commands::get_search_documents,
             commands::replace_prose_batch,

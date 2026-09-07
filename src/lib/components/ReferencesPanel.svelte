@@ -1,10 +1,11 @@
 <script lang="ts">
   import { REFERENCE_FIELD_TYPES } from "../referenceTypes";
   import { invoke } from "@tauri-apps/api/core";
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import {
     ArrowDownAZ,
+    Copy,
     ChevronDown,
     ChevronRight,
     ChevronsLeft,
@@ -22,6 +23,7 @@
   import { ui } from "../stores/ui.svelte";
   import type {
     Project,
+    ReferenceCopyResult,
     ReferenceItem,
     ReferenceTypeId,
     ReferenceSuggestion,
@@ -37,11 +39,23 @@
     type ReferenceTypeOption,
     normalizeReferenceTypes,
   } from "../referenceTypes";
+  import CopyReferencesDialog from "./CopyReferencesDialog.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import ReferenceEditDialog from "./ReferenceEditDialog.svelte";
   import SuggestionCard from "./SuggestionCard.svelte";
   import TagSelector from "./TagSelector.svelte";
   import Tooltip from "./Tooltip.svelte";
+
+  let copyDestination = $state<Project | null>(null);
+
+  async function referencesCopied(result: ReferenceCopyResult) {
+    if (currentProject.value?.id !== result.project.id) return;
+    await loadReferences(true, result.project);
+    if (currentProject.value?.id !== result.project.id) return;
+    currentProject.setProject(result.project);
+    const sceneId = currentProject.currentScene?.id;
+    if (sceneId) await loadSuggestions(sceneId);
+  }
 
   let activeTab = $state<ReferenceTypeId | null>(null);
   let loading = $state(false);
@@ -111,9 +125,9 @@
   let iconBgClass = $derived(activeTypeOption?.bgClass ?? "bg-press-accent-wash");
   let iconTextClass = $derived(activeTypeOption?.accentClass ?? "text-press-accent-text");
 
-  async function loadReferences() {
+  async function loadReferences(reportErrors = false, projectOverride?: Project) {
     const requestId = ++loadReferencesRequestId;
-    const project = currentProject.value;
+    const project = projectOverride ?? currentProject.value;
     if (!project) return;
 
     const enabledTypes = normalizeReferenceTypes(
@@ -129,6 +143,12 @@
 
     if (enabledTypes.length === 0) {
       referencesByType = {} as Record<ReferenceTypeId, ReferenceItem[]>;
+      fieldDefsMap = {};
+      fieldValuesMap = {};
+      allTags = [];
+      entityTagIds = {};
+      currentProject.setCharacters([]);
+      currentProject.setLocations([]);
       loading = false;
       return;
     }
@@ -147,21 +167,10 @@
 
       if (requestId !== loadReferencesRequestId) return;
 
-      const next: Record<ReferenceTypeId, ReferenceItem[]> = {
-        ...(referencesByType as Record<ReferenceTypeId, ReferenceItem[]>),
-      };
+      const next = {} as Record<ReferenceTypeId, ReferenceItem[]>;
       for (const [type, items] of results) {
         next[type] = items;
       }
-      referencesByType = next;
-
-      if (next.characters) {
-        currentProject.setCharacters(next.characters);
-      }
-      if (next.locations) {
-        currentProject.setLocations(next.locations);
-      }
-
       // Load field definitions for each entity type
       const entityTypeMap = REFERENCE_FIELD_TYPES;
       const defsMap: Record<string, FieldDefinition[]> = {};
@@ -173,10 +182,11 @@
             entityType,
           });
         } catch {
+          if (reportErrors) throw new Error("Could not load copied fields");
           defsMap[type] = [];
         }
       }
-      fieldDefsMap = defsMap;
+      const vMap: Record<string, Record<string, string | null>> = {};
 
       // Load field values for all entities in bulk
       const allEntityIds = Object.values(next)
@@ -187,21 +197,22 @@
           const allValues = await invoke<FieldValue[]>("get_field_values_bulk", {
             entityIds: allEntityIds,
           });
-          const vMap: Record<string, Record<string, string | null>> = {};
+
           for (const v of allValues) {
             if (!vMap[v.entity_id]) vMap[v.entity_id] = {};
             vMap[v.entity_id][v.field_definition_id] = v.value;
           }
-          fieldValuesMap = vMap;
         } catch {
-          fieldValuesMap = {};
+          if (reportErrors) throw new Error("Could not load copied field values");
         }
       }
 
       // Load all project tags + per-entity tag assignments
+      let nextTags: Tag[] = [];
+      const tagMap: Record<string, string[]> = {};
       try {
-        allTags = await invoke<Tag[]>("get_tags", { projectId: project.id });
-        const tagMap: Record<string, string[]> = {};
+        nextTags = await invoke<Tag[]>("get_tags", { projectId: project.id });
+
         for (const id of allEntityIds) {
           const entityType =
             Object.entries(entityTypeMap).find(([typeKey]) =>
@@ -211,17 +222,25 @@
             const tags = await invoke<Tag[]>("get_entity_tags", { entityType, entityId: id });
             tagMap[id] = tags.map((t) => t.id);
           } catch {
+            if (reportErrors) throw new Error("Could not load copied tag assignments");
             tagMap[id] = [];
           }
         }
-        entityTagIds = tagMap;
-      } catch {
-        allTags = [];
-        entityTagIds = {};
+      } catch (e) {
+        if (reportErrors) throw e;
       }
+      if (requestId !== loadReferencesRequestId || currentProject.value?.id !== project.id) return;
+      referencesByType = next;
+      fieldDefsMap = defsMap;
+      fieldValuesMap = vMap;
+      allTags = nextTags;
+      entityTagIds = tagMap;
+      currentProject.setCharacters(next.characters ?? []);
+      currentProject.setLocations(next.locations ?? []);
     } catch (e) {
       if (requestId !== loadReferencesRequestId) return;
       console.error("Failed to load references:", e);
+      if (reportErrors) throw e;
     } finally {
       if (requestId === loadReferencesRequestId) {
         loading = false;
@@ -790,7 +809,7 @@
 
   $effect(() => {
     if (currentProject.value) {
-      loadReferences();
+      untrack(() => void loadReferences());
     }
   });
 
@@ -853,6 +872,16 @@
     <div class="flex items-center justify-between px-4 py-2">
       <h2 class="text-press-ui font-heading font-medium text-press-text">References</h2>
       <div class="flex items-center gap-1">
+        <Tooltip text="Copy references from project…" position="bottom">
+          <button
+            onclick={() => (copyDestination = currentProject.value)}
+            disabled={!currentProject.value || editDialog !== null}
+            class="text-press-muted hover:text-press-text p-1 disabled:cursor-not-allowed"
+            aria-label="Copy references from project…"
+          >
+            <Copy class="w-4 h-4" />
+          </button>
+        </Tooltip>
         <!-- Add Reference button -->
         <Tooltip
           text={activeTab
@@ -1339,4 +1368,12 @@
       </div>
     </div>
   </div>
+{/if}
+
+{#if copyDestination && currentProject.value?.id === copyDestination.id}
+  <CopyReferencesDialog
+    destination={copyDestination}
+    onClose={() => (copyDestination = null)}
+    onComplete={referencesCopied}
+  />
 {/if}

@@ -1,6 +1,7 @@
 pub mod detect;
 pub mod fields;
 pub mod queries;
+pub mod reference_copy;
 pub mod schema;
 pub mod session;
 pub mod tags;

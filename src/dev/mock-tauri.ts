@@ -1,3 +1,5 @@
+import { planMockCopy } from "./mock-reference-copy";
+import type { ReferenceCopyRequest } from "../lib/types";
 import type { ProseDocument, ProseReplacement } from "../lib/utils/proseSearch";
 import { IMPORT_FORMATS, importTypeForCommand } from "../lib/importFormats";
 /**
@@ -96,6 +98,89 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
     } as T;
   }
   switch (cmd) {
+    case "create_blank_project": {
+      const project: Project = {
+        ...mockProject,
+        id: nextId("project"),
+        name: getArg<string>(args, "name") ?? "Untitled",
+        source_type: "Blank",
+        source_path: null,
+        reference_types: ["characters", "locations"],
+        created_at: new Date().toISOString(),
+        modified_at: new Date().toISOString(),
+      };
+      projects.push(project);
+      return project as T;
+    }
+    case "preview_reference_copy":
+    case "copy_references_between_projects": {
+      const request = args.request as ReferenceCopyRequest;
+      const all = [
+        ...characters.map((r) => ({ ...r, reference_type: "characters" as const })),
+        ...locations.map((r) => ({ ...r, reference_type: "locations" as const })),
+        ...referenceItems,
+      ];
+      const plan = planMockCopy(
+        {
+          projects,
+          references: all,
+          fields: fieldDefinitions,
+          values: fieldValues,
+          tags,
+          assignments: entityTags,
+        },
+        request
+      );
+      if (cmd === "preview_reference_copy") return plan.preview as T;
+      if (args.expectedRevision !== plan.preview.revision)
+        throw {
+          code: "stale_preview",
+          message: "References changed. Refresh the preview and review it before copying.",
+        };
+      const refs = new Map<string, string>();
+      for (const row of plan.preview.references.filter((r) => r.action === "copy")) {
+        const original = plan.sourceRefs.find((r) => r.id === row.id)!;
+        const next = {
+          ...structuredClone(original),
+          id: nextId("reference"),
+          project_id: request.destination_project_id,
+          source_id: null,
+          name: row.destination_name,
+        };
+        refs.set(row.id, next.id);
+        if (next.reference_type === "characters") characters.push(next);
+        else if (next.reference_type === "locations") locations.push(next);
+        else referenceItems.push(next);
+      }
+      fieldDefinitions.push(...plan.fields);
+      tags.push(...plan.tags);
+      fieldValues.push(
+        ...plan.values.map((v) => ({
+          ...v,
+          id: nextId("value"),
+          field_definition_id: plan.fieldMap.get(v.field_definition_id)!,
+          entity_id: refs.get(v.entity_id)!,
+        }))
+      );
+      entityTags.push(
+        ...plan.assignments.map((a) => ({
+          ...a,
+          tag_id: plan.tagMap.get(a.tag_id)!,
+          entity_id: refs.get(a.entity_id)!,
+        }))
+      );
+      if (refs.size) {
+        plan.destination.reference_types.push(...plan.preview.enabled_types);
+        plan.destination.modified_at = new Date().toISOString();
+      }
+      return {
+        project: plan.destination,
+        created_reference_ids: [...refs.values()],
+        copied: plan.preview.copied,
+        skipped: plan.preview.skipped,
+      } as T;
+    }
+
     case "get_session_state": {
       const saved = sessions.get(projectId!);
       const scene = scenes.find((s) => s.id === saved?.current_scene_id && !s.archived);
@@ -435,7 +520,12 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       return locations.filter((l) => l.project_id === projectId) as T;
 
     case "get_references": {
-      const list = referenceItems.filter(
+      const all = [
+        ...characters.map((r) => ({ ...r, reference_type: "characters" })),
+        ...locations.map((r) => ({ ...r, reference_type: "locations" })),
+        ...referenceItems,
+      ];
+      const list = all.filter(
         (r) => r.project_id === projectId && r.reference_type === referenceType
       );
       return list as T;
@@ -487,8 +577,10 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         attributes: reference.attributes ?? {},
         source_id: null,
       };
-      referenceItems.push(newRef);
-      return undefined as T;
+      if (referenceType === "characters") characters.push(newRef);
+      else if (referenceType === "locations") locations.push(newRef);
+      else referenceItems.push(newRef);
+      return newRef.id as T;
     }
 
     case "update_reference": {
@@ -498,7 +590,9 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         attributes?: Record<string, string>;
       }>(args, "reference");
       if (!referenceId || !reference) return undefined as T;
-      const ref = referenceItems.find((r) => r.id === referenceId);
+      const ref = [...characters, ...locations, ...referenceItems].find(
+        (r) => r.id === referenceId
+      );
       if (ref) {
         ref.name = reference.name;
         ref.description = reference.description ?? ref.description;
@@ -510,6 +604,8 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
     case "delete_reference": {
       if (!referenceId) return undefined as T;
       referenceItems = referenceItems.filter((r) => r.id !== referenceId);
+      characters = characters.filter((r) => r.id !== referenceId);
+      locations = locations.filter((r) => r.id !== referenceId);
       return undefined as T;
     }
 

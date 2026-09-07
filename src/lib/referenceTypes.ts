@@ -1,5 +1,5 @@
 import { Building2, MapPin, Package, Target, User } from "lucide-svelte";
-import type { FieldEntityType, ReferenceTypeId } from "./types";
+import type { ReferenceTypeId } from "./types";
 
 export interface ReferenceTypeOption {
   id: ReferenceTypeId;
@@ -92,12 +92,4 @@ export function normalizeReferenceTypes(types?: string[] | null): ReferenceTypeI
   return result;
 }
 
-export const REFERENCE_FIELD_TYPES: Record<ReferenceTypeId, FieldEntityType> = {
-  characters: "character",
-  locations: "location",
-  items: "item",
-  objectives: "objective",
-  organizations: "organization",
-  timelines: "timeline",
-  custom: "custom",
-};
+export { REFERENCE_FIELD_TYPES } from "./referenceEntityTypes";
