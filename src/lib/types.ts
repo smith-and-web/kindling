@@ -648,3 +648,15 @@ export interface ReferenceCopyResult {
   copied: number;
   skipped: number;
 }
+
+/** Persisted daily writing and current app-session statistics for one project. */
+export interface WritingStats {
+  project_id: string;
+  project_words: number;
+  chapter_words: Record<string, number>;
+  scene_words: Record<string, number>;
+  daily_goal: number;
+  today_words: number;
+  session_words: number;
+  streak: number;
+}

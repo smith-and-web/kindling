@@ -1,3 +1,4 @@
+import { writing as writingStats } from "../stores/writing.svelte";
 import { invoke } from "@tauri-apps/api/core";
 
 export type ProseSave = { projectId: string; kind: "beat" | "page"; id: string; prose: string };
@@ -37,6 +38,7 @@ export class ProseSaveQueue {
           prose: save.prose,
         });
         if (this.pending.get(save.id) === save) this.pending.delete(save.id);
+        writingStats.scheduleRefresh(save.projectId);
       } catch (error) {
         if (isTerminal(error) && this.pending.get(save.id) === save) {
           this.pending.delete(save.id);

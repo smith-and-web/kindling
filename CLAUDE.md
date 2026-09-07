@@ -138,7 +138,7 @@ trusting it.
 ## The IPC boundary (Rust ↔ TypeScript)
 
 Rust and TypeScript are maintained independently and **nothing checks their
-agreement at build time**. Currently 127 `#[tauri::command]` functions, 127
+agreement at build time**. Currently 135 `#[tauri::command]` functions, 135
 registered. Three things must line
 up for every command:
 

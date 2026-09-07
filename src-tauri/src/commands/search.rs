@@ -88,11 +88,22 @@ fn replace_batch(
         if doc.locked {
             return Err("Cannot replace prose in a locked scene or chapter.".into());
         }
-        if doc.beat_title.is_some() {
-            db::update_beat_prose(&tx, &doc.id, &change.prose)
-        } else {
-            db::save_scene_page_prose(&tx, &doc.id, &change.prose)
-        }
+        db::writing::save_prose_in_transaction(
+            &tx,
+            if doc.beat_title.is_some() {
+                db::writing::ProseTarget::Beat(doc.id)
+            } else {
+                db::writing::ProseTarget::Scene(doc.id)
+            },
+            chrono::Local::now().date_naive(),
+            |tx| {
+                if doc.beat_title.is_some() {
+                    db::update_beat_prose(tx, &doc.id, &change.prose)
+                } else {
+                    db::save_scene_page_prose(tx, &doc.id, &change.prose)
+                }
+            },
+        )
         .map_err(|e| e.to_string())?;
     }
     if !changes.is_empty() {
@@ -224,6 +235,9 @@ mod tests {
             .unwrap()
             .iter()
             .all(|doc| doc.prose == "<p>Replaced</p>"));
+        let writing =
+            db::writing::stats(&conn, &project, chrono::Local::now().date_naive()).unwrap();
+        assert_eq!((writing.today_words, writing.session_words), (-3, -3));
         let undo = changes
             .into_iter()
             .map(|c| ProseReplacement {
@@ -233,6 +247,9 @@ mod tests {
             })
             .collect::<Vec<_>>();
         replace_batch(&conn, &project, &undo).unwrap();
+        let writing =
+            db::writing::stats(&conn, &project, chrono::Local::now().date_naive()).unwrap();
+        assert_eq!((writing.today_words, writing.session_words), (0, 0));
         assert_eq!(
             db::get_beat(&conn, &beat.id)
                 .unwrap()

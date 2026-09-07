@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { countWordsInHtml } from "../utils/wordCount";
+  import { writing } from "../stores/writing.svelte";
+  import WritingStatusBar from "./WritingStatusBar.svelte";
   import {
     FileText,
     ChevronDown,
@@ -44,15 +47,6 @@
   import Tooltip from "./Tooltip.svelte";
 
   const isScreenplay = $derived(currentProject.value?.project_type === "screenplay");
-
-  function countWordsInHtml(html: string | null | undefined): number {
-    if (!html) return 0;
-    const text = html
-      .replace(/<[^>]*>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    return text ? text.split(/\s+/).length : 0;
-  }
 
   const scenePageEstimate = $derived.by(() => {
     if (!isScreenplay || !currentProject.currentScene) return null;
@@ -666,6 +660,7 @@
   }
 
   export function applySearchChanges(changes: Pick<ProseReplacement, "id" | "prose">[]) {
+    void writing.refresh(currentProject.value?.id);
     for (const change of changes) {
       currentProject.updateBeatProse(change.id, change.prose);
       currentProject.updateScene(change.id, { prose: change.prose });
@@ -696,15 +691,8 @@
     }
   }
 
-  function stripHtmlTags(html: string): string {
-    return html.replace(/<[^>]*>/g, "").trim();
-  }
-
   function getPageWordCount(): number {
-    if (!pageProseContent) return 0;
-    return stripHtmlTags(pageProseContent)
-      .split(/\s+/)
-      .filter((w) => w.length > 0).length;
+    return countWordsInHtml(pageProseContent);
   }
 
   onMount(() => {
@@ -1361,6 +1349,9 @@
       <p class="text-press-ui mt-1">Choose a scene from the sidebar to view its content</p>
     </div>
   {/if}
+  {#key currentProject.value?.id}
+    <WritingStatusBar />
+  {/key}
 </div>
 
 {#if showSwitchToBeatConfirm}
