@@ -494,8 +494,20 @@ export async function dragWithMouseEvents(fromElement, toElement, whileDragging)
     ]);
     if (whileDragging) await whileDragging();
   } finally {
-    // Releasing the held button completes the drop, even if an assertion fails.
-    await browser.releaseActions();
+    // WebKit's releaseActions cleanup does not reliably emit the mouseup that
+    // commits our custom drag. Send pointerUp explicitly, even after an assertion.
+    try {
+      await browser.performActions([
+        {
+          type: "pointer",
+          id: "mouse",
+          parameters: { pointerType: "mouse" },
+          actions: [{ type: "pointerUp", button: 0 }],
+        },
+      ]);
+    } finally {
+      await browser.releaseActions();
+    }
   }
   // The UI updates after the database write; a fixed delay races that response on CI.
   await browser.waitUntil(
