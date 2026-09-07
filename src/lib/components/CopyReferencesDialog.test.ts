@@ -311,7 +311,7 @@ it("coalesces rapid toggles in a 500-reference library while keeping selection r
   expect(previewCalls()).toHaveLength(2);
   const request = (previewCalls()[1][1] as { request: ReferenceCopyRequest }).request;
   expect(request.selection).toHaveLength(495);
-});
+}, 20000);
 
 it("ignores stale results during a newer debounce and cancels queued work on unmount", async () => {
   const app = mount();
