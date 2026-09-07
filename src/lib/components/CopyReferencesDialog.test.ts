@@ -95,7 +95,10 @@ beforeEach(() => {
     throw new Error(command);
   });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("independent reference copies", () => {
   it("uses all projects, excludes destination, and commits the reviewed selection", async () => {
@@ -217,6 +220,7 @@ describe("independent reference copies", () => {
         })
     );
     await fireEvent.click(screen.getByRole("checkbox", { name: "Mara" }));
+    await waitFor(() => expect(resolve).toBeTypeOf("function"));
     await fireEvent.change(screen.getByLabelText("Source project"), { target: { value: "" } });
     resolve(base);
     await waitFor(() => expect(screen.queryByRole("checkbox", { name: "Mara" })).toBeNull());
@@ -273,4 +277,149 @@ it("shows an allocated source-duplicate name without requiring Keep both", async
   expect(
     (screen.getByRole("button", { name: "Copy 2 references" }) as HTMLButtonElement).disabled
   ).toBe(false);
+});
+
+it("coalesces rapid toggles in a 500-reference library while keeping selection responsive", async () => {
+  const large = {
+    ...base,
+    references: Array.from({ length: 500 }, (_, index) => ({
+      ...base.references[0],
+      id: `ref-${index}`,
+      name: `Reference ${index}`,
+    })),
+    copied: 500,
+  };
+  mock.mockImplementation(async (cmd) => (cmd === "get_all_projects" ? [source] : large));
+  mount();
+  await screen.findByRole("option", { name: /Book One/ });
+  await fireEvent.change(screen.getByLabelText("Source project"), { target: { value: "one" } });
+  await screen.findByLabelText("Reference 0");
+  vi.useFakeTimers();
+  const previewCalls = () => mock.mock.calls.filter(([cmd]) => cmd === "preview_reference_copy");
+  for (let index = 0; index < 5; index++) {
+    const checkbox = screen.getByLabelText(`Reference ${index}`) as HTMLInputElement;
+    expect(checkbox.closest("fieldset")!.disabled).toBe(false);
+    await fireEvent.click(checkbox);
+    expect(checkbox.checked).toBe(false);
+    await vi.advanceTimersByTimeAsync(30);
+  }
+  expect(previewCalls()).toHaveLength(1);
+  expect((screen.getByText("Copy 500 references") as HTMLButtonElement).disabled).toBe(true);
+  await fireEvent.click(screen.getByText("Copy 500 references"));
+  expect(mock.mock.calls.some(([cmd]) => cmd === "copy_references_between_projects")).toBe(false);
+  await vi.advanceTimersByTimeAsync(200);
+  expect(previewCalls()).toHaveLength(2);
+  const request = (previewCalls()[1][1] as { request: ReferenceCopyRequest }).request;
+  expect(request.selection).toHaveLength(495);
+}, 20000);
+
+it("ignores stale results during a newer debounce and cancels queued work on unmount", async () => {
+  const app = mount();
+  await selectSource();
+  vi.useFakeTimers();
+  let resolve!: (value: unknown) => void;
+  mock.mockImplementationOnce(
+    () =>
+      new Promise((r) => {
+        resolve = r;
+      })
+  );
+  await fireEvent.click(screen.getByRole("checkbox", { name: "Mara" }));
+  await vi.advanceTimersByTimeAsync(200);
+  await fireEvent.click(screen.getByRole("checkbox", { name: "Town" }));
+  resolve(base);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(
+    (screen.getByRole("button", { name: "Copy 2 references" }) as HTMLButtonElement).disabled
+  ).toBe(true);
+  expect(screen.getByText("0 selected across all categories")).toBeTruthy();
+  app.unmount();
+  await vi.advanceTimersByTimeAsync(500);
+  expect(mock.mock.calls.filter(([cmd]) => cmd === "preview_reference_copy")).toHaveLength(2);
+});
+
+it("cancels a queued selection preview when the source changes", async () => {
+  mount();
+  await selectSource();
+  vi.useFakeTimers();
+  await fireEvent.click(screen.getByRole("checkbox", { name: "Mara" }));
+  await fireEvent.change(screen.getByLabelText("Source project"), { target: { value: "" } });
+  await vi.advanceTimersByTimeAsync(500);
+  expect(mock.mock.calls.filter(([cmd]) => cmd === "preview_reference_copy")).toHaveLength(1);
+  expect(screen.queryByRole("checkbox", { name: "Mara" })).toBeNull();
+});
+
+it("keeps the same live region through preview loading and count updates", async () => {
+  mount();
+  await selectSource();
+  const status = screen.getByText("2 to copy · 0 possible duplicates skipped");
+  expect(status.getAttribute("role")).toBe("status");
+  vi.useFakeTimers();
+  await fireEvent.click(screen.getByRole("checkbox", { name: "Mara" }));
+  expect(screen.getByText("Updating preview…")).toBe(status);
+  await vi.advanceTimersByTimeAsync(200);
+  expect(screen.getByText("1 to copy · 0 possible duplicates skipped")).toBe(status);
+  await fireEvent.click(screen.getByRole("checkbox", { name: "Town" }));
+  expect(screen.getByText("Updating preview…")).toBe(status);
+  await vi.advanceTimersByTimeAsync(200);
+  expect(screen.getByText("0 to copy · 0 possible duplicates skipped")).toBe(status);
+});
+
+it("preserves expanded preview details, focus, and hints throughout a selection refresh", async () => {
+  const initial = {
+    ...base,
+    skipped: 1,
+    references: [{ ...base.references[0], destination_name: "Mara (copy)" }, base.references[1]],
+  };
+  mock.mockImplementation(async (cmd) => (cmd === "get_all_projects" ? [source] : initial));
+  mount();
+  await selectSource();
+  const summary = screen.getByText("Add 1 fields and 0 tags");
+  const details = summary.closest("details")!;
+  const hint = screen.getByText("Copy as: Mara (copy)");
+  const categories = screen.getByText("Enable categories: Characters, Locations");
+  const skipped = screen.getByText(/Matches use category and name/);
+  details.open = true;
+  summary.focus();
+  vi.useFakeTimers();
+  let resolve!: (value: ReferenceCopyPreview) => void;
+  mock.mockImplementationOnce(
+    () =>
+      new Promise((r) => {
+        resolve = r;
+      })
+  );
+  await fireEvent.click(screen.getByRole("checkbox", { name: "Town" }));
+  const assertStable = () => {
+    expect(screen.getByText("Add 1 fields and 0 tags").closest("details")).toBe(details);
+    expect(details.open).toBe(true);
+    expect(document.activeElement).toBe(summary);
+    expect(screen.getByText("Copy as: Mara (copy)")).toBe(hint);
+    expect(screen.getByText("Enable categories: Characters, Locations")).toBe(categories);
+    expect(screen.getByText(/Matches use category and name/)).toBe(skipped);
+  };
+  assertStable();
+  expect(details.getAttribute("aria-busy")).toBe("true");
+  await vi.advanceTimersByTimeAsync(200);
+  assertStable();
+  resolve({
+    ...initial,
+    copied: 1,
+    references: initial.references.map((r) =>
+      r.id === "town" ? { ...r, selected: false, action: "unselected" } : r
+    ),
+  });
+  await vi.advanceTimersByTimeAsync(0);
+  assertStable();
+  expect(details.getAttribute("aria-busy")).toBe("false");
+});
+
+it("omits the preview status line until a source is selected", async () => {
+  mount();
+  await screen.findByRole("option", { name: /Book One/ });
+  expect(screen.queryByRole("status")).toBeNull();
+  await selectSource();
+  expect(screen.getByRole("status").textContent).toContain("2 to copy");
+  await fireEvent.change(screen.getByLabelText("Source project"), { target: { value: "" } });
+  expect(screen.queryByRole("status")).toBeNull();
 });

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { updateState, installAndRelaunch, dismissUpdate, type UpdateState } from "../updater";
+  import { tick } from "svelte";
   import { X } from "lucide-svelte";
   import { ui } from "../stores/ui.svelte";
 
@@ -7,7 +8,13 @@
     disabled = false,
     restarting = $bindable(false),
     prepare,
-  }: { disabled?: boolean; restarting?: boolean; prepare?: () => Promise<void> } = $props();
+    captureFocus,
+  }: {
+    disabled?: boolean;
+    restarting?: boolean;
+    prepare?: () => Promise<void>;
+    captureFocus?: () => (restore: boolean) => void;
+  } = $props();
 
   let state = $state<UpdateState | null>(null);
 
@@ -20,14 +27,19 @@
 
   async function restart() {
     if (!state || disabled || restarting) return;
+    const finishFocus = captureFocus?.();
+    let failed = false;
     restarting = true;
     try {
       await prepare?.();
       await installAndRelaunch(state);
     } catch (error) {
+      failed = true;
       ui.showError(`Could not restart to update: ${String(error)}`);
     } finally {
       restarting = false;
+      await tick();
+      finishFocus?.(failed);
     }
   }
 </script>
@@ -41,6 +53,7 @@
     </span>
     <div class="flex items-center gap-2">
       <button
+        onpointerdown={(event) => event.preventDefault()}
         onclick={restart}
         disabled={disabled || restarting}
         class="rounded px-3 py-1 font-medium border border-press-on-accent hover:bg-press-accent-text transition-colors disabled:bg-press-disabled-bg disabled:text-press-disabled-text disabled:border-press-disabled-border"

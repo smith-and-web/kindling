@@ -1,6 +1,8 @@
 <script lang="ts">
   interface Props {
     title: string;
+    titleId?: string;
+    embedded?: boolean;
     message: string;
     confirmLabel?: string;
     cancelLabel?: string;
@@ -10,6 +12,8 @@
 
   let {
     title,
+    titleId = "dialog-title",
+    embedded = false,
     message,
     confirmLabel = "Delete",
     cancelLabel = "Cancel",
@@ -29,15 +33,15 @@
 <div
   data-testid="confirm-dialog"
   class="fixed inset-0 bg-press-overlay flex items-center justify-center z-press-modal"
-  role="dialog"
-  aria-modal="true"
-  aria-labelledby="dialog-title"
+  role={embedded ? undefined : "dialog"}
+  aria-modal={embedded ? undefined : true}
+  aria-labelledby={embedded ? undefined : titleId}
   tabindex="-1"
 >
   <div
     class="app-dialog-surface bg-press-surface rounded-lg p-6 max-w-md w-full mx-4 shadow-press-overlay"
   >
-    <h3 id="dialog-title" class="text-press-body-lg font-heading font-medium text-press-text mb-4">
+    <h3 id={titleId} class="text-press-body-lg font-heading font-medium text-press-text mb-4">
       {title}
     </h3>
     <p

@@ -47,12 +47,16 @@
   import Tooltip from "./Tooltip.svelte";
 
   let copyDestination = $state<Project | null>(null);
+  let explicitlyRefreshedProject: Project | null = null;
 
   async function referencesCopied(result: ReferenceCopyResult) {
     if (currentProject.value?.id !== result.project.id) return;
     await loadReferences(true, result.project);
     if (currentProject.value?.id !== result.project.id) return;
     currentProject.setProject(result.project);
+    // The explicit refresh reports failures to the copy dialog. Consume only this
+    // exact store assignment so ordinary settings updates still reload the panel.
+    explicitlyRefreshedProject = currentProject.value;
     const sceneId = currentProject.currentScene?.id;
     if (sceneId) await loadSuggestions(sceneId);
   }
@@ -808,9 +812,12 @@
   });
 
   $effect(() => {
-    if (currentProject.value) {
-      untrack(() => void loadReferences());
-    }
+    const project = currentProject.value;
+    untrack(() => {
+      const alreadyRefreshed = project === explicitlyRefreshedProject;
+      explicitlyRefreshedProject = null;
+      if (project && !alreadyRefreshed) void loadReferences();
+    });
   });
 
   onMount(() => {
@@ -1220,11 +1227,7 @@
                     <TagSelector
                       projectId={currentProject.value.id}
                       entityType={activeTypeOption
-                        ? activeTypeOption.id === "characters"
-                          ? "character"
-                          : activeTypeOption.id === "locations"
-                            ? "location"
-                            : activeTypeOption.id
+                        ? REFERENCE_FIELD_TYPES[activeTypeOption.id]
                         : "item"}
                       entityId={reference.id}
                       {allTags}

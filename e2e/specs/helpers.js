@@ -476,6 +476,8 @@ export async function dragWithMouseEvents(fromElement, toElement, whileDragging)
   const toX = Math.floor(toLocation.x + toSize.width / 2);
   const toY = Math.floor(toLocation.y + toSize.height / 2);
 
+  // Keep the first failure so cleanup cannot mask a drag/assertion error.
+  const errors = [];
   // Perform the drag using Actions API
   try {
     await browser.performActions([
@@ -493,10 +495,29 @@ export async function dragWithMouseEvents(fromElement, toElement, whileDragging)
       },
     ]);
     if (whileDragging) await whileDragging();
-  } finally {
-    // Releasing the held button completes the drop, even if an assertion fails.
-    await browser.releaseActions();
+  } catch (error) {
+    errors.push(error);
   }
+  // WebKit's cleanup does not reliably emit the mouseup that commits the drag.
+  // Attempt both releases even when the gesture, assertion, or pointerUp fails.
+  try {
+    await browser.performActions([
+      {
+        type: "pointer",
+        id: "mouse",
+        parameters: { pointerType: "mouse" },
+        actions: [{ type: "pointerUp", button: 0 }],
+      },
+    ]);
+  } catch (error) {
+    errors.push(error);
+  }
+  try {
+    await browser.releaseActions();
+  } catch (error) {
+    errors.push(error);
+  }
+  if (errors.length) throw errors[0];
   // The UI updates after the database write; a fixed delay races that response on CI.
   await browser.waitUntil(
     async () => JSON.stringify(await itemIds()) === JSON.stringify(expected),
