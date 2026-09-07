@@ -609,3 +609,42 @@ export interface NovelWriterExportOptions {
   include_notes: boolean;
   create_snapshot: boolean;
 }
+
+/** Independent reference transfer IPC contract. */
+export interface ReferenceCopyKey {
+  reference_type: ReferenceTypeId;
+  id: string;
+}
+export interface ReferenceCopyRequest {
+  source_project_id: string;
+  destination_project_id: string;
+  selection: ReferenceCopyKey[] | null;
+  keep_both: ReferenceCopyKey[];
+}
+export interface ReferenceCopyRow extends ReferenceCopyKey {
+  name: string;
+  description: string | null;
+  selected: boolean;
+  conflict: boolean;
+  action: "copy" | "skip" | "unselected";
+  destination_name: string;
+}
+export interface ReferenceCopyPreview {
+  references: ReferenceCopyRow[];
+  changes: {
+    kind: "field" | "tag";
+    entity_type: string;
+    source_name: string;
+    destination_name: string;
+  }[];
+  enabled_types: ReferenceTypeId[];
+  copied: number;
+  skipped: number;
+  revision: string;
+}
+export interface ReferenceCopyResult {
+  project: Project;
+  created_reference_ids: string[];
+  copied: number;
+  skipped: number;
+}

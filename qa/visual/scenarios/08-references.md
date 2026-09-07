@@ -70,3 +70,15 @@ JSON.stringify(window.__qa.flush());
 ```
 
 Cleanup is implicit: the fixture project is deleted at the end of the run.
+
+## Independent copies between books
+
+Use an isolated `KINDLING_DATA_DIR` as described in the QA runbook. Create two books and add references to the first: a character with notes, typed fields, and a nested tag; a location; an organization; a timeline; and a Notes reference. Disable at least one populated category. Give the second book a same-name character, an incompatible same-name custom field, and a same-name tag under a different parent.
+
+In Book Two, choose **Copy references from project…**. Check that Book One is selectable, Book Two is excluded, all source categories appear, and the existing character defaults to Skip. Search by name and verify that hidden selections remain counted. Choose Keep both and verify the proposed name. Expand the fields/tags summary and check renames and the explanation that new fields also apply to existing references.
+
+Capture the dialog in light and dark themes at 1100 × 700. Check no horizontal overflow, readable descriptions, visible focus, Tab/Shift+Tab containment, Escape dismissal, and focus restoration. With a large library (at least 500 references), check scrolling and filtered selection; the copy count must remain accurate.
+
+Copy, verify the success counts, and close the dialog. Inspect the transferred fields, tags, and notes; the new references should be unlinked. Check the original scene selection and editor content remain intact. Edit and link a copied reference, then verify Book One remains unchanged. Restart the app and verify the copied data persists with existing typed values intact; newly added legacy keys should still migrate under the existing per-key behavior. Repeat the default copy and confirm possible duplicates are skipped.
+
+Also check empty source/no-other-project states and a destination with no enabled categories. Inject a preview failure and a stale-preview response using the test harness: selections should remain, and retry must require a new preview. After a successful commit, simulate a refresh failure and verify the UI offers **Refresh references**, never another copy action.
