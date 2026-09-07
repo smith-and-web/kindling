@@ -129,6 +129,8 @@ pub struct SnapshotData {
     pub scene_reference_states: Vec<SceneReferenceState>,
     #[serde(default)]
     pub discovery_notes: Vec<DiscoveryNote>,
+    #[serde(default)]
+    pub scene_reviews: Vec<crate::db::revisions::ReviewBackup>,
 }
 
 impl SnapshotData {
@@ -162,6 +164,7 @@ impl SnapshotData {
             scene_reference_item_refs,
             scene_reference_states,
             discovery_notes,
+            scene_reviews: vec![],
         }
     }
 

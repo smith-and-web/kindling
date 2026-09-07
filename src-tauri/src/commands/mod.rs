@@ -64,3 +64,6 @@ pub use templates::*;
 
 mod writing;
 pub use writing::*;
+
+mod revisions;
+pub use revisions::*;

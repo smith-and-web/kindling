@@ -164,7 +164,7 @@ View prose and exclude archived content and outline prompts.
 Set a **Daily writing goal** in **Project Settings** (default: 500 words; 0 turns the
 goal off). Daily and session totals measure net words added by saved edits, including
 Find and Replace; deleting words reduces these totals, which can be negative.
-Imports, duplication and reorganization do not earn writing credit.
+Imports, duplication, reorganization, draft restoration and accepted editorial suggestions do not earn or remove writing credit. If you restore an earlier draft and write the text again, those new saved edits count as new writing activity.
 
 Daily totals use your computer's local calendar day and persist across app restarts.
 Your streak counts consecutive days meeting their goals; an unfinished today keeps
@@ -238,3 +238,11 @@ Your sponsorship helps keep Kindling free and open source.
 <p align="center">
   Made with ☕ for writers who plan before they write.
 </p>
+
+### Scene revisions and editorial review
+
+Open **Revisions** above a scene to review its prose without changing the manuscript as you annotate it. In **Draft history**, save a named draft (Draft 1, Draft 2, and so on), compare any two saved drafts or a draft with current prose, or restore a draft. Restoring and accepting suggestions automatically preserve the current prose as another draft. Drafts retain page prose, beat prose, and the editing mode; restoring requires the same beat structure. Comparison shows text changes; saved drafts retain formatting. Large, heavily changed scenes may show a single replacement for the changed passage to keep comparison responsive.
+
+In **Editorial review**, select text to add a comment or suggest a replacement/deletion, or place the cursor to propose an insertion. Enter your name to identify comments, reply to threads, and resolve or reopen them. Review insertions underlined in color and deletions struck through. Use **Previous change** / **Next change** to step through suggestions, then accept or reject one or all. Overlapping suggestions must be handled individually. When prose changes outside review, affected annotations are marked outdated: select their intended text and choose **Re-anchor to selection** before accepting them. No suggestion changes prose until accepted. Accepting changes marks the scene Revised. Bulk decisions and navigation cover the active editing mode; annotations on inactive prose remain available when you return to their original mode.
+
+Set a scene’s revision status to **First Draft**, **Editor Review**, **Revised**, or **Final**; **All scenes** shows the project’s statuses and saved-draft counts by chapter. Locked scenes can be read but not changed. Revision history and comments live in the local project database and are included in newly created project snapshots. This initial version supports writers and editors taking turns on the same local project; it does not exchange annotations through manuscript exports or provide simultaneous collaboration.
