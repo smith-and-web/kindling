@@ -404,7 +404,10 @@ pub async fn save_scene_prose(
         return Err("Cannot edit a locked scene".to_string());
     }
 
-    db::update_scene_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())?;
+    db::writing::save_prose(&conn, &uuid, chrono::Local::now().date_naive(), |tx| {
+        db::update_scene_prose(tx, &uuid, &prose)
+    })
+    .map_err(|e| e.to_string())?;
 
     // Update project modified time
     if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
@@ -438,7 +441,10 @@ pub async fn save_scene_page_prose(
         return Err("Cannot edit a locked scene".to_string());
     }
 
-    db::save_scene_page_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())?;
+    db::writing::save_prose(&conn, &uuid, chrono::Local::now().date_naive(), |tx| {
+        db::save_scene_page_prose(tx, &uuid, &prose)
+    })
+    .map_err(|e| e.to_string())?;
 
     if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
         let _ = db::update_project_modified(&conn, &project_id);
@@ -744,7 +750,10 @@ pub async fn save_beat_prose(
         return Err("Cannot edit beats in a locked scene".to_string());
     }
 
-    db::update_beat_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())?;
+    db::writing::save_prose(&conn, &scene_id, chrono::Local::now().date_naive(), |tx| {
+        db::update_beat_prose(tx, &uuid, &prose)
+    })
+    .map_err(|e| e.to_string())?;
 
     if let Some(project_id) =
         db::get_scene_project_id(&conn, &scene_id).map_err(|e| e.to_string())?

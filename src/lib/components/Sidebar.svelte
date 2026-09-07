@@ -8,6 +8,8 @@
   - Sync button for reimporting
 -->
 <script lang="ts">
+  import WritingProgress from "./WritingProgress.svelte";
+  import { writing } from "../stores/writing.svelte";
   import { supportsSync } from "../importFormats";
   import { invoke } from "@tauri-apps/api/core";
   import { onMount, tick, untrack } from "svelte";
@@ -81,6 +83,8 @@
     divider?: boolean;
     children?: MenuItem[];
   }
+
+  let { prepareWritingReset }: { prepareWritingReset?: () => Promise<void> } = $props();
 
   let loading = $state(false);
   let chaptersRequestId = 0;
@@ -1412,6 +1416,7 @@
           </div>
         </div>
       </div>
+      <WritingProgress prepareReset={prepareWritingReset} />
       <button
         onclick={goHome}
         class="mt-3 w-full flex items-center gap-2 px-3 py-1.5 text-press-eyebrow text-press-muted hover:text-press-text rounded-md hover:bg-press-sunken transition-colors"
@@ -1569,6 +1574,11 @@
                           class="font-medium text-press-ui truncate text-press-text"
                           class:text-press-disabled-text={chapter.locked}>{chapter.title}</span
                         >
+                        {#if writing.value?.chapter_words?.[chapter.id] !== undefined}
+                          <span class="text-press-eyebrow text-press-muted shrink-0"
+                            >{writing.value.chapter_words[chapter.id].toLocaleString()} words</span
+                          >
+                        {/if}
                       </button>
 
                       <!-- Three-dot menu button -->
@@ -1665,6 +1675,11 @@
                                 />
                               {/if}
                               <span class="truncate">{scene.title}</span>
+                              {#if writing.value?.scene_words?.[scene.id] !== undefined}
+                                <span class="text-press-eyebrow text-press-muted"
+                                  >{writing.value.scene_words[scene.id].toLocaleString()} words</span
+                                >
+                              {/if}
                             </button>
                           {/each}
 
@@ -1967,6 +1982,11 @@
                                   class="truncate flex-1"
                                   class:text-press-disabled-text={isLocked}>{scene.title}</span
                                 >
+                                {#if writing.value?.scene_words?.[scene.id] !== undefined}
+                                  <span class="text-press-eyebrow shrink-0"
+                                    >{writing.value.scene_words[scene.id].toLocaleString()} words</span
+                                  >
+                                {/if}
                                 <!-- Trailing badges: scene type + status dot -->
                                 <span class="flex items-center gap-1 shrink-0 ml-auto">
                                   {#if sceneType !== "normal"}

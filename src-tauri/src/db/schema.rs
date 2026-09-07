@@ -145,6 +145,22 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             last_opened_at TEXT
         );
 
+CREATE TABLE IF NOT EXISTS writing_goals (
+            project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+            daily_goal INTEGER NOT NULL CHECK(daily_goal BETWEEN 0 AND 1000000)
+        );
+        CREATE TABLE IF NOT EXISTS writing_sessions (
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            date TEXT NOT NULL,
+            words INTEGER NOT NULL DEFAULT 0,
+            goal INTEGER NOT NULL,
+            PRIMARY KEY(project_id, date)
+        );
+        CREATE TEMP TABLE IF NOT EXISTS writing_runtime (
+            project_id TEXT PRIMARY KEY,
+            words INTEGER NOT NULL DEFAULT 0
+        );
+
         CREATE TABLE IF NOT EXISTS snapshots (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

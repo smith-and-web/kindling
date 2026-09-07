@@ -947,12 +947,7 @@ fn build_epub_content_opf(
     )
 }
 
-/// Count words in text (simple whitespace split)
-fn count_words(text: &str) -> usize {
-    text.split_whitespace().count()
-}
-
-/// Calculate total word count from all beats in the project
+/// Count the same active prose representation shown in the writing sidebar.
 fn calculate_project_word_count(
     conn: &rusqlite::Connection,
     project_uuid: &Uuid,
@@ -965,14 +960,8 @@ fn calculate_project_word_count(
         let scenes = db::queries::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
 
         for scene in scenes.iter().filter(|s| !s.archived) {
-            let beats = db::queries::get_beats(conn, &scene.id).map_err(|e| e.to_string())?;
-
-            for beat in &beats {
-                if let Some(ref prose) = beat.prose {
-                    let clean_prose = strip_html(prose);
-                    total_words += count_words(&clean_prose);
-                }
-            }
+            total_words +=
+                db::writing::scene_words(conn, &scene.id).map_err(|e| e.to_string())? as usize;
         }
     }
 
@@ -5332,15 +5321,36 @@ mod tests {
     }
 
     #[test]
-    fn test_count_words() {
-        assert_eq!(count_words("hello world"), 2);
-        assert_eq!(count_words("  multiple   spaces  "), 2);
-        assert_eq!(count_words("one"), 1);
-        assert_eq!(count_words(""), 0);
-        assert_eq!(
-            count_words("This is a longer sentence with several words."),
-            8
-        );
+    fn title_page_word_count_matches_active_writing_prose() {
+        use crate::models::{Beat, Chapter, EditorMode, Project, Scene, SourceType};
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        let project = Project::new("Novel".into(), SourceType::Blank, None);
+        db::insert_project(&conn, &project).unwrap();
+        let chapter = Chapter::new(project.id, "Chapter".into(), 0);
+        db::insert_chapter(&conn, &chapter).unwrap();
+        let mut scene = Scene::new(chapter.id, "Page".into(), None, 0);
+        scene.editor_mode = EditorMode::Page;
+        scene.prose = Some("<p>one</p><p>two&nbsp;three</p>".into());
+        db::insert_scene(&conn, &scene).unwrap();
+        let mut beat = Beat::new(scene.id, "Outline".into(), 0);
+        beat.prose = Some("stale words".into());
+        db::insert_beat(&conn, &beat).unwrap();
+        assert_eq!(calculate_project_word_count(&conn, &project.id).unwrap(), 3);
+        conn.execute("DELETE FROM beats WHERE id = ?1", [beat.id.to_string()])
+            .unwrap();
+        conn.execute(
+            "UPDATE scenes SET editor_mode = 'beat' WHERE id = ?1",
+            [scene.id.to_string()],
+        )
+        .unwrap();
+        assert_eq!(calculate_project_word_count(&conn, &project.id).unwrap(), 3);
+        conn.execute(
+            "UPDATE scenes SET archived = 1 WHERE id = ?1",
+            [scene.id.to_string()],
+        )
+        .unwrap();
+        assert_eq!(calculate_project_word_count(&conn, &project.id).unwrap(), 0);
     }
 
     #[test]

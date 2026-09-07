@@ -8,6 +8,9 @@
   - Word target
 -->
 <script lang="ts">
+  import { onMount } from "svelte";
+  import { writing } from "../stores/writing.svelte";
+  import type { WritingStats } from "../types";
   import { REFERENCE_FIELD_TYPES, REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
   import { invoke } from "@tauri-apps/api/core";
   import { X, Loader2, BookOpen } from "lucide-svelte";
@@ -35,6 +38,16 @@
       ? String(currentProject.value.word_target)
       : ""
   );
+  const projectId = currentProject.value?.id;
+  let dailyGoal = $state<number | undefined>(undefined);
+  onMount(async () => {
+    try {
+      const stats = await invoke<WritingStats>("get_writing_stats", { projectId });
+      dailyGoal = stats.daily_goal;
+    } catch (e) {
+      error = `Could not load daily goal: ${String(e)}`;
+    }
+  });
   let saving = $state(false);
   let error = $state<string | null>(null);
 
@@ -50,6 +63,15 @@
         throw new Error("Word target must be a number");
       }
 
+      if (
+        dailyGoal === undefined ||
+        !Number.isInteger(dailyGoal) ||
+        dailyGoal < 0 ||
+        dailyGoal > 1000000
+      ) {
+        throw new Error("Daily goal must be a whole number between 0 and 1,000,000");
+      }
+
       // Convert empty strings to null for optional fields
       const settings = {
         author_pen_name: authorPenName.trim() || null,
@@ -63,6 +85,8 @@
         settings,
       });
 
+      await invoke("set_daily_writing_goal", { projectId, goal: dailyGoal });
+      void writing.refresh(projectId);
       onSave(updatedProject);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -180,6 +204,27 @@
           disabled={saving}
           class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent resize-none"
         ></textarea>
+      </div>
+
+      <div>
+        <label for="daily-writing-goal" class="block text-press-ui text-press-muted mb-1"
+          >Daily writing goal</label
+        >
+        <input
+          id="daily-writing-goal"
+          type="number"
+          min="0"
+          max="1000000"
+          step="1"
+          bind:value={dailyGoal}
+          disabled={saving}
+          class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2"
+          aria-describedby="daily-goal-help"
+        />
+        <p id="daily-goal-help" class="text-press-eyebrow text-press-muted mt-1">
+          Net words added per day in this project. Set to 0 to turn off the goal. Changes apply
+          today; earlier streak days keep their original goals.
+        </p>
       </div>
 
       <!-- Word Target -->

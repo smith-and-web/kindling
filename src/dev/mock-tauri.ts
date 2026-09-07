@@ -1,3 +1,4 @@
+import { countWordsInHtml } from "../lib/utils/wordCount";
 import { planMockCopy } from "./mock-reference-copy";
 import type { ReferenceCopyRequest } from "../lib/types";
 import type { ProseDocument, ProseReplacement } from "../lib/utils/proseSearch";
@@ -8,6 +9,7 @@ import { IMPORT_FORMATS, importTypeForCommand } from "../lib/importFormats";
  */
 
 import type {
+  WritingStats,
   Project,
   Chapter,
   Scene,
@@ -39,6 +41,27 @@ import {
 } from "./mock-data";
 
 // Mutable in-memory store (cloned from seed so we can mutate)
+const writingGoals = new Map<string, number>();
+const writingDays = new Map<string, { words: number; goal: number }>();
+const writingSessions = new Map<string, number>();
+function writingDate() {
+  return new Date().toLocaleDateString("en-CA");
+}
+function mockSceneWords(scene: Scene) {
+  const sceneBeats = beats.filter((beat) => beat.scene_id === scene.id);
+  return scene.editor_mode === "page" || sceneBeats.length === 0
+    ? countWordsInHtml(scene.prose)
+    : sceneBeats.reduce((sum, beat) => sum + countWordsInHtml(beat.prose), 0);
+}
+function recordMockWriting(scene: Scene, before: number) {
+  const projectId = chapters.find((chapter) => chapter.id === scene.chapter_id)?.project_id;
+  if (!projectId) return;
+  const delta = mockSceneWords(scene) - before;
+  const key = `${projectId}:${writingDate()}`;
+  const previous = writingDays.get(key) ?? { words: 0, goal: writingGoals.get(projectId) ?? 500 };
+  writingDays.set(key, { ...previous, words: previous.words + delta });
+  writingSessions.set(projectId, (writingSessions.get(projectId) ?? 0) + delta);
+}
 let projects: Project[] = [{ ...mockProject }];
 let chapters: Chapter[] = mockChapters.map((c) => ({ ...c }));
 let scenes: Scene[] = mockScenes.map((s) => ({ ...s }));
@@ -621,11 +644,61 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       return proj as T;
     }
 
+    case "get_writing_stats": {
+      if (!projectId) throw new Error("Missing projectId");
+      const result: WritingStats = {
+        project_id: projectId,
+        project_words: 0,
+        chapter_words: {},
+        scene_words: {},
+        daily_goal: writingGoals.get(projectId) ?? 500,
+        today_words: writingDays.get(`${projectId}:${writingDate()}`)?.words ?? 0,
+        session_words: writingSessions.get(projectId) ?? 0,
+        streak: 0,
+      };
+      for (const chapter of chapters.filter(
+        (chapter) => chapter.project_id === projectId && !chapter.archived
+      )) {
+        let total = 0;
+        for (const scene of scenes.filter(
+          (scene) => scene.chapter_id === chapter.id && !scene.archived
+        )) {
+          const count = mockSceneWords(scene);
+          result.scene_words[scene.id] = count;
+          total += count;
+        }
+        result.chapter_words[chapter.id] = total;
+        result.project_words += total;
+      }
+      const today = writingDays.get(`${projectId}:${writingDate()}`);
+      result.streak = today && today.goal > 0 && today.words >= today.goal ? 1 : 0;
+      return result as T;
+    }
+    case "set_daily_writing_goal": {
+      const goal = getArg<number>(args, "goal");
+      if (!projectId || goal === undefined || !Number.isInteger(goal) || goal < 0 || goal > 1000000)
+        throw new Error("Invalid daily goal");
+      writingGoals.set(projectId, goal);
+      const day = writingDays.get(`${projectId}:${writingDate()}`);
+      if (day) day.goal = goal;
+      return undefined as T;
+    }
+    case "reset_writing_session": {
+      if (!projectId) throw new Error("Missing projectId");
+      writingSessions.delete(projectId);
+      return undefined as T;
+    }
+
     case "save_beat_prose": {
       const prose = getArg<string>(args, "prose");
       if (!beatId) throw new Error("Missing beatId");
       const b = beats.find((x) => x.id === beatId);
-      if (b) b.prose = prose ?? null;
+      if (b) {
+        const scene = scenes.find((scene) => scene.id === b.scene_id);
+        const before = scene ? mockSceneWords(scene) : 0;
+        b.prose = prose ?? null;
+        if (scene) recordMockWriting(scene, before);
+      }
       return undefined as T;
     }
 
@@ -729,7 +802,11 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       if (!sceneId) throw new Error("Missing sceneId");
       const prose = getArg<string>(args, "prose") ?? "";
       const sc = scenes.find((s) => s.id === sceneId);
-      if (sc) sc.prose = prose;
+      if (sc) {
+        const before = mockSceneWords(sc);
+        sc.prose = prose;
+        recordMockWriting(sc, before);
+      }
       return undefined as T;
     }
 

@@ -583,7 +583,11 @@
   class="flex h-screen w-screen overflow-hidden bg-press-bg"
 >
   {#if currentProject.value}
-    <Sidebar />
+    <Sidebar
+      prepareWritingReset={async () => {
+        await scenePanel?.prepareForSearch();
+      }}
+    />
     <ScenePanel bind:this={scenePanel} />
     <ReferencesPanel />
   {:else}

@@ -152,6 +152,24 @@ cd src-tauri && cargo test
 npm run check:all
 ```
 
+## Writing goals and statistics
+
+The sidebar shows saved word counts for the project, chapters and scenes. The scene
+footer also shows its saved count and your session total. Counts use the active
+Page or Beat View prose and exclude archived content and outline prompts.
+
+Set a **Daily writing goal** in **Project Settings** (default: 500 words; 0 turns the
+goal off). Daily and session totals measure net words added by saved edits, including
+Find and Replace; deleting words reduces these totals, which can be negative.
+Imports, duplication and reorganization do not earn writing credit.
+
+Daily totals use your computer's local calendar day and persist across app restarts.
+Your streak counts consecutive days meeting their goals; an unfinished today keeps
+yesterday's streak alive until midnight. Changing a goal applies today and forward,
+without changing earlier days' targets. Session totals are per project, since the
+app started or you clicked **Reset**. Reset saves pending prose first and preserves
+daily totals and streaks.
+
 ## Find and replace prose
 
 Use **Edit → Find in Scene** (`Cmd/Ctrl+F`) or **Find and Replace in Project**
