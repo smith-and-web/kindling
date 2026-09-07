@@ -364,3 +364,62 @@ it("keeps the same live region through preview loading and count updates", async
   await vi.advanceTimersByTimeAsync(200);
   expect(screen.getByText("0 to copy · 0 possible duplicates skipped")).toBe(status);
 });
+
+it("preserves expanded preview details, focus, and hints throughout a selection refresh", async () => {
+  const initial = {
+    ...base,
+    skipped: 1,
+    references: [{ ...base.references[0], destination_name: "Mara (copy)" }, base.references[1]],
+  };
+  mock.mockImplementation(async (cmd) => (cmd === "get_all_projects" ? [source] : initial));
+  mount();
+  await selectSource();
+  const summary = screen.getByText("Add 1 fields and 0 tags");
+  const details = summary.closest("details")!;
+  const hint = screen.getByText("Copy as: Mara (copy)");
+  const categories = screen.getByText("Enable categories: Characters, Locations");
+  const skipped = screen.getByText(/Matches use category and name/);
+  details.open = true;
+  summary.focus();
+  vi.useFakeTimers();
+  let resolve!: (value: ReferenceCopyPreview) => void;
+  mock.mockImplementationOnce(
+    () =>
+      new Promise((r) => {
+        resolve = r;
+      })
+  );
+  await fireEvent.click(screen.getByRole("checkbox", { name: "Town" }));
+  const assertStable = () => {
+    expect(screen.getByText("Add 1 fields and 0 tags").closest("details")).toBe(details);
+    expect(details.open).toBe(true);
+    expect(document.activeElement).toBe(summary);
+    expect(screen.getByText("Copy as: Mara (copy)")).toBe(hint);
+    expect(screen.getByText("Enable categories: Characters, Locations")).toBe(categories);
+    expect(screen.getByText(/Matches use category and name/)).toBe(skipped);
+  };
+  assertStable();
+  expect(details.getAttribute("aria-busy")).toBe("true");
+  await vi.advanceTimersByTimeAsync(200);
+  assertStable();
+  resolve({
+    ...initial,
+    copied: 1,
+    references: initial.references.map((r) =>
+      r.id === "town" ? { ...r, selected: false, action: "unselected" } : r
+    ),
+  });
+  await vi.advanceTimersByTimeAsync(0);
+  assertStable();
+  expect(details.getAttribute("aria-busy")).toBe("false");
+});
+
+it("omits the preview status line until a source is selected", async () => {
+  mount();
+  await screen.findByRole("option", { name: /Book One/ });
+  expect(screen.queryByRole("status")).toBeNull();
+  await selectSource();
+  expect(screen.getByRole("status").textContent).toContain("2 to copy");
+  await fireEvent.change(screen.getByLabelText("Source project"), { target: { value: "" } });
+  expect(screen.queryByRole("status")).toBeNull();
+});

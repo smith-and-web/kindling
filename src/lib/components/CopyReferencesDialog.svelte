@@ -294,7 +294,7 @@
                           </select>
                         </label>
                       {/if}
-                      {#if !loading && row.action === "copy" && row.destination_name !== row.name}<p
+                      {#if row.action === "copy" && row.destination_name !== row.name}<p
                           class="text-press-small"
                         >
                           Copy as: {row.destination_name}
@@ -309,8 +309,8 @@
                 No references match your search. Selections are unchanged.
               </p>{/if}
           </div>
-          {#if !loading && preview.changes.length}
-            <details class="border-t border-press-border pt-3">
+          {#if preview.changes.length}
+            <details aria-busy={loading} class="border-t border-press-border pt-3">
               <summary class="text-press-ui cursor-pointer"
                 >Add {preview.changes.filter((c) => c.kind === "field").length} fields and {preview.changes.filter(
                   (c) => c.kind === "tag"
@@ -332,20 +332,22 @@
               </ul>
             </details>
           {/if}
-          {#if !loading && preview.enabled_types.length}<p class="text-press-small">
+          {#if preview.enabled_types.length}<p class="text-press-small">
               Enable categories: {preview.enabled_types.map(categoryName).join(", ")}
             </p>{/if}
-          {#if !loading && preview.skipped}<p class="text-press-small text-press-muted">
+          {#if preview.skipped}<p class="text-press-small text-press-muted">
               Matches use category and name, not content. Renamed references may be copied again.
             </p>{/if}
         {/if}
-        <p role="status" class="text-press-ui">
-          {#if loading}
-            Updating preview…
-          {:else if preview}
-            {preview.copied} to copy · {preview.skipped} possible duplicates skipped
-          {/if}
-        </p>
+        {#if sourceId}
+          <p role="status" class="text-press-ui">
+            {#if loading}
+              Updating preview…
+            {:else if preview}
+              {preview.copied} to copy · {preview.skipped} possible duplicates skipped
+            {/if}
+          </p>
+        {/if}
       {/if}
       {#if error}<p role="alert" class="text-press-error text-press-ui">{error}</p>{/if}
     </div>
