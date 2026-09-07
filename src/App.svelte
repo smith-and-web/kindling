@@ -26,6 +26,7 @@
   import GuidanceOverlay from "./lib/components/GuidanceOverlay.svelte";
   import CommandPalette from "./lib/components/CommandPalette.svelte";
   import UpdateBanner from "./lib/components/UpdateBanner.svelte";
+  import { captureWritingFocus } from "./lib/utils/writingFocus";
   import { checkForUpdate } from "./lib/updater";
   import NewProjectDialog from "./lib/components/NewProjectDialog.svelte";
   import { COMMAND_DEFS } from "./lib/commands";
@@ -172,7 +173,7 @@
 
   function focusQuitConfirmation(node: HTMLDialogElement) {
     node.showModal();
-    node.querySelector<HTMLButtonElement>("button")?.focus();
+    node.querySelector<HTMLElement>("button")?.focus();
   }
 
   // Capture before any child/window shortcut handler can act on the same event.
@@ -182,10 +183,8 @@
       if (discardQuitDrafts && !closePending && event.key === "Tab") {
         event.preventDefault();
         event.stopImmediatePropagation();
-        const buttons = Array.from(
-          quitConfirmation?.querySelectorAll<HTMLButtonElement>("button") ?? []
-        );
-        const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        const buttons = Array.from(quitConfirmation?.querySelectorAll<HTMLElement>("button") ?? []);
+        const current = buttons.indexOf(document.activeElement as HTMLElement);
         buttons[(current + (event.shiftKey ? buttons.length - 1 : 1)) % buttons.length]?.focus();
         return;
       }
@@ -511,6 +510,13 @@
   disabled={closePending || discardQuitDrafts !== null}
   bind:restarting={updatePending}
   prepare={flushProseBeforeExit}
+  captureFocus={() => {
+    const projectId = currentProject.value?.id;
+    const sceneId = currentProject.currentScene?.id;
+    return captureWritingFocus(
+      () => currentProject.value?.id === projectId && currentProject.currentScene?.id === sceneId
+    );
+  }}
 />
 
 {#if discardQuitDrafts}

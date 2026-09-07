@@ -758,3 +758,59 @@ it.each(["quit", "update"])(
     await vi.advanceTimersByTimeAsync(0);
   }
 );
+
+it.each(["same scene", "navigation", "other control", "unmount"])(
+  "restores update-failure selection only for the original writing target: %s",
+  async (target) => {
+    vi.useFakeTimers();
+    currentProject.setChapters(mockChapters);
+    updateState.set({
+      ready: true,
+      version: "1.2.1",
+      body: null,
+      update: { install: vi.fn() } as never,
+    });
+    const app = render(App);
+    await vi.advanceTimersByTimeAsync(0);
+    await fireEvent.click(screen.getByRole("button", { name: "Edit synopsis" }));
+    const editor = screen.getByPlaceholderText(
+      "Write a brief synopsis for this scene..."
+    ) as HTMLTextAreaElement;
+    await fireEvent.input(editor, { target: { value: "My unsaved writing" } });
+    editor.focus();
+    editor.setSelectionRange(3, 7, "backward");
+    let fail!: (error: Error) => void;
+    const saving = new Promise((_, reject) => {
+      fail = reject;
+    });
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === "save_scene_synopsis") await saving;
+      return [];
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+    await vi.advanceTimersByTimeAsync(0);
+    editor.blur(); // jsdom does not implement the browser's inert-induced blur.
+    if (target === "navigation") {
+      currentProject.setCurrentScene({ ...mockScenes[1], planning_status: "undefined" });
+      await tick();
+    }
+    const other = document.createElement("button");
+    if (target === "other control") {
+      document.body.append(other);
+      other.focus();
+    }
+    if (target === "unmount") app.unmount();
+    fail(new Error("disk full"));
+    await vi.advanceTimersByTimeAsync(0);
+    if (target === "same scene") {
+      expect(document.activeElement).toBe(editor);
+      expect([editor.selectionStart, editor.selectionEnd, editor.selectionDirection]).toEqual([
+        3,
+        7,
+        "backward",
+      ]);
+      expect(editor.value).toBe("My unsaved writing");
+    } else expect(document.activeElement).not.toBe(editor);
+    other.remove();
+  }
+);
