@@ -95,7 +95,10 @@ beforeEach(() => {
     throw new Error(command);
   });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("independent reference copies", () => {
   it("uses all projects, excludes destination, and commits the reviewed selection", async () => {
@@ -217,6 +220,7 @@ describe("independent reference copies", () => {
         })
     );
     await fireEvent.click(screen.getByRole("checkbox", { name: "Mara" }));
+    await waitFor(() => expect(resolve).toBeTypeOf("function"));
     await fireEvent.change(screen.getByLabelText("Source project"), { target: { value: "" } });
     resolve(base);
     await waitFor(() => expect(screen.queryByRole("checkbox", { name: "Mara" })).toBeNull());
@@ -273,4 +277,74 @@ it("shows an allocated source-duplicate name without requiring Keep both", async
   expect(
     (screen.getByRole("button", { name: "Copy 2 references" }) as HTMLButtonElement).disabled
   ).toBe(false);
+});
+
+it("coalesces rapid toggles in a 500-reference library while keeping selection responsive", async () => {
+  const large = {
+    ...base,
+    references: Array.from({ length: 500 }, (_, index) => ({
+      ...base.references[0],
+      id: `ref-${index}`,
+      name: `Reference ${index}`,
+    })),
+    copied: 500,
+  };
+  mock.mockImplementation(async (cmd) => (cmd === "get_all_projects" ? [source] : large));
+  mount();
+  await screen.findByRole("option", { name: /Book One/ });
+  await fireEvent.change(screen.getByLabelText("Source project"), { target: { value: "one" } });
+  await screen.findByLabelText("Reference 0");
+  vi.useFakeTimers();
+  const previewCalls = () => mock.mock.calls.filter(([cmd]) => cmd === "preview_reference_copy");
+  for (let index = 0; index < 5; index++) {
+    const checkbox = screen.getByLabelText(`Reference ${index}`) as HTMLInputElement;
+    expect(checkbox.closest("fieldset")!.disabled).toBe(false);
+    await fireEvent.click(checkbox);
+    expect(checkbox.checked).toBe(false);
+    await vi.advanceTimersByTimeAsync(30);
+  }
+  expect(previewCalls()).toHaveLength(1);
+  expect((screen.getByText("Copy 500 references") as HTMLButtonElement).disabled).toBe(true);
+  await fireEvent.click(screen.getByText("Copy 500 references"));
+  expect(mock.mock.calls.some(([cmd]) => cmd === "copy_references_between_projects")).toBe(false);
+  await vi.advanceTimersByTimeAsync(200);
+  expect(previewCalls()).toHaveLength(2);
+  const request = (previewCalls()[1][1] as { request: ReferenceCopyRequest }).request;
+  expect(request.selection).toHaveLength(495);
+});
+
+it("ignores stale results during a newer debounce and cancels queued work on unmount", async () => {
+  const app = mount();
+  await selectSource();
+  vi.useFakeTimers();
+  let resolve!: (value: unknown) => void;
+  mock.mockImplementationOnce(
+    () =>
+      new Promise((r) => {
+        resolve = r;
+      })
+  );
+  await fireEvent.click(screen.getByRole("checkbox", { name: "Mara" }));
+  await vi.advanceTimersByTimeAsync(200);
+  await fireEvent.click(screen.getByRole("checkbox", { name: "Town" }));
+  resolve(base);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(
+    (screen.getByRole("button", { name: "Copy 2 references" }) as HTMLButtonElement).disabled
+  ).toBe(true);
+  expect(screen.getByText("0 selected across all categories")).toBeTruthy();
+  app.unmount();
+  await vi.advanceTimersByTimeAsync(500);
+  expect(mock.mock.calls.filter(([cmd]) => cmd === "preview_reference_copy")).toHaveLength(2);
+});
+
+it("cancels a queued selection preview when the source changes", async () => {
+  mount();
+  await selectSource();
+  vi.useFakeTimers();
+  await fireEvent.click(screen.getByRole("checkbox", { name: "Mara" }));
+  await fireEvent.change(screen.getByLabelText("Source project"), { target: { value: "" } });
+  await vi.advanceTimersByTimeAsync(500);
+  expect(mock.mock.calls.filter(([cmd]) => cmd === "preview_reference_copy")).toHaveLength(1);
+  expect(screen.queryByRole("checkbox", { name: "Mara" })).toBeNull();
 });

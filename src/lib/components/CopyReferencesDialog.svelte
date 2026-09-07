@@ -35,6 +35,7 @@
   let result = $state<ReferenceCopyResult | null>(null);
   let refreshing = $state(false);
   let refreshFailed = $state(false);
+  let previewTimer: ReturnType<typeof setTimeout> | undefined;
   let generation = 0;
   let alive = true;
   const selectedCount = $derived(selection?.length ?? 0);
@@ -68,6 +69,8 @@
     }
   }
   async function loadPreview() {
+    clearTimeout(previewTimer);
+    previewTimer = undefined;
     const current = ++generation;
     if (!sourceId) {
       preview = null;
@@ -98,19 +101,27 @@
     search = "";
     void loadPreview();
   }
+  function schedulePreview() {
+    clearTimeout(previewTimer);
+    // Invalidate in-flight results immediately, before the debounce starts a new request.
+    generation++;
+    loading = true;
+    error = null;
+    previewTimer = setTimeout(() => void loadPreview(), 200);
+  }
   function selectRows(rows: ReferenceCopyKey[], selected: boolean) {
     const current = selection ?? [];
     selection = selected
       ? [...current, ...rows.filter((r) => !current.some((c) => same(c, r))).map(key)]
       : current.filter((c) => !rows.some((r) => same(c, r)));
     keepBoth = keepBoth.filter((k) => selection?.some((s) => same(s, k)));
-    void loadPreview();
+    schedulePreview();
   }
   function chooseDuplicate(row: ReferenceCopyKey, keep: boolean) {
     keepBoth = keep
       ? [...keepBoth.filter((k) => !same(k, row)), key(row)]
       : keepBoth.filter((k) => !same(k, row));
-    void loadPreview();
+    schedulePreview();
   }
   async function refreshCopied() {
     if (!result) return;
@@ -157,6 +168,7 @@
     dialog.showModal();
     void loadProjects();
     return () => {
+      clearTimeout(previewTimer);
       alive = false;
       generation++;
       dialog.close();
@@ -223,12 +235,12 @@
           <div class="flex flex-wrap gap-3 text-press-ui">
             <span>{selectedCount} selected across all categories</span>
             <button
-              disabled={loading || saving}
+              disabled={saving}
               onclick={() => selectRows(preview?.references ?? [], true)}
               class="underline">Select all references</button
             >
             <button
-              disabled={loading || saving}
+              disabled={saving}
               onclick={() => selectRows(preview?.references ?? [], false)}
               class="underline">Clear selection</button
             >
@@ -240,10 +252,7 @@
                 (r) => r.reference_type === category.id && matches(r.name)
               )}
               {#if rows.length}
-                <fieldset
-                  disabled={loading || saving}
-                  class="border-t border-press-border pt-2 min-w-0"
-                >
+                <fieldset disabled={saving} class="border-t border-press-border pt-2 min-w-0">
                   <legend class="text-press-ui font-medium">{category.label}</legend>
                   <label class="flex gap-2 items-center text-press-small mb-2">
                     <input
@@ -271,7 +280,7 @@
                         >
                           {row.description}
                         </p>{/if}
-                      {#if row.selected && row.conflict}
+                      {#if selection?.some((s) => same(s, row)) && row.conflict}
                         <label class="block text-press-small"
                           >Possible duplicate: {row.name}
                           <select
@@ -285,7 +294,7 @@
                           </select>
                         </label>
                       {/if}
-                      {#if row.action === "copy" && row.destination_name !== row.name}<p
+                      {#if !loading && row.action === "copy" && row.destination_name !== row.name}<p
                           class="text-press-small"
                         >
                           Copy as: {row.destination_name}
@@ -300,7 +309,7 @@
                 No references match your search. Selections are unchanged.
               </p>{/if}
           </div>
-          {#if preview.changes.length}
+          {#if !loading && preview.changes.length}
             <details class="border-t border-press-border pt-3">
               <summary class="text-press-ui cursor-pointer"
                 >Add {preview.changes.filter((c) => c.kind === "field").length} fields and {preview.changes.filter(
@@ -323,13 +332,15 @@
               </ul>
             </details>
           {/if}
-          {#if preview.enabled_types.length}<p class="text-press-small">
+          {#if !loading && preview.enabled_types.length}<p class="text-press-small">
               Enable categories: {preview.enabled_types.map(categoryName).join(", ")}
             </p>{/if}
-          <p role="status" class="text-press-ui">
-            {preview.copied} to copy · {preview.skipped} possible duplicates skipped
-          </p>
-          {#if preview.skipped}<p class="text-press-small text-press-muted">
+          {#if !loading}
+            <p role="status" class="text-press-ui">
+              {preview.copied} to copy · {preview.skipped} possible duplicates skipped
+            </p>
+          {/if}
+          {#if !loading && preview.skipped}<p class="text-press-small text-press-muted">
               Matches use category and name, not content. Renamed references may be copied again.
             </p>{/if}
         {/if}
