@@ -348,3 +348,19 @@ it("cancels a queued selection preview when the source changes", async () => {
   expect(mock.mock.calls.filter(([cmd]) => cmd === "preview_reference_copy")).toHaveLength(1);
   expect(screen.queryByRole("checkbox", { name: "Mara" })).toBeNull();
 });
+
+it("keeps the same live region through preview loading and count updates", async () => {
+  mount();
+  await selectSource();
+  const status = screen.getByText("2 to copy · 0 possible duplicates skipped");
+  expect(status.getAttribute("role")).toBe("status");
+  vi.useFakeTimers();
+  await fireEvent.click(screen.getByRole("checkbox", { name: "Mara" }));
+  expect(screen.getByText("Updating preview…")).toBe(status);
+  await vi.advanceTimersByTimeAsync(200);
+  expect(screen.getByText("1 to copy · 0 possible duplicates skipped")).toBe(status);
+  await fireEvent.click(screen.getByRole("checkbox", { name: "Town" }));
+  expect(screen.getByText("Updating preview…")).toBe(status);
+  await vi.advanceTimersByTimeAsync(200);
+  expect(screen.getByText("0 to copy · 0 possible duplicates skipped")).toBe(status);
+});
