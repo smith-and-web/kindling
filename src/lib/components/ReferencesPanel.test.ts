@@ -251,3 +251,50 @@ it("copies into a project with no enabled categories while preserving the curren
   expect(currentProject.currentScene?.id).toBe(scene.id);
   expect(currentProject.characters[0].id).toBe(reference.id);
 });
+
+it.each([
+  ["items", "item"],
+  ["objectives", "objective"],
+  ["organizations", "organization"],
+  ["timelines", "timeline"],
+] as const)("writes and reloads %s tags using the same entity type", async (type, entityType) => {
+  currentProject.setProject({ ...project, reference_types: [type] });
+  const tag = {
+    id: "tag",
+    project_id: project.id,
+    name: "Important",
+    color: null,
+    parent_id: null,
+    position: 0,
+    created_at: "",
+  };
+  let assigned = false;
+  vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+    const input = args as Record<string, unknown>;
+    if (cmd === "get_references") return [{ ...reference, reference_type: type }];
+    if (cmd === "get_tags") return [tag];
+    if (cmd === "tag_entity" && input.entityType === entityType) assigned = true;
+    if (cmd === "untag_entity" && input.entityType === entityType) assigned = false;
+    if (cmd === "get_entity_tags") return assigned && input.entityType === entityType ? [tag] : [];
+    return [];
+  });
+  render(ReferencesPanel);
+  await expandReference();
+  await fireEvent.click(screen.getByRole("button", { name: "Add tag" }));
+  await fireEvent.click(screen.getByRole("button", { name: "Important" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("tag_entity", {
+      tagId: tag.id,
+      entityId: reference.id,
+      entityType,
+    })
+  );
+  await fireEvent.click(await screen.findByRole("button", { name: "Remove tag Important" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("untag_entity", {
+      tagId: tag.id,
+      entityId: reference.id,
+      entityType,
+    })
+  );
+});
