@@ -61,6 +61,7 @@ beforeEach(async () => {
   currentProject.setCurrentScene({ ...mockScenes[0], planning_status: "undefined" });
   // Drain the real debounce timer before individual tests install fake timers or flush spies.
   await session.flush();
+  HTMLElement.prototype.scrollIntoView = vi.fn();
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute("open", "");
   };
@@ -687,3 +688,73 @@ it.each(["install", "relaunch"])("shows an actionable update error when %s fails
     false
   );
 });
+
+it.each(["quit", "update"])(
+  "gives %s preparation exclusive keyboard and command ownership",
+  async (mode) => {
+    vi.useFakeTimers();
+    currentProject.setChapters(mockChapters);
+    updateState.set({
+      ready: true,
+      version: "1.2.1",
+      body: null,
+      update: { install: vi.fn() } as never,
+    });
+    render(App);
+    await vi.advanceTimersByTimeAsync(0);
+    await fireEvent.click(screen.getByRole("button", { name: "Edit synopsis" }));
+    const editor = screen.getByPlaceholderText("Write a brief synopsis for this scene...");
+    await fireEvent.input(editor, { target: { value: "Keep this editor open" } });
+    let fail!: (error: Error) => void;
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === "save_scene_synopsis") {
+        if (mode === "quit") throw new Error("disk full");
+        await new Promise((_, reject) => {
+          fail = reject;
+        });
+      }
+      return [];
+    });
+    if (mode === "quit") await menu("quit");
+    else await fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+    await vi.advanceTimersByTimeAsync(0);
+    try {
+      if (mode === "quit") {
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "Keep editing" }));
+        await fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+        expect(document.activeElement).toBe(
+          screen.getByRole("button", { name: "Quit and discard" })
+        );
+        await fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "Keep editing" }));
+      }
+      for (const key of ["e", "k", "f", "H"]) {
+        await fireEvent.keyDown(window, { key, ctrlKey: true, shiftKey: key === "H" });
+        await fireEvent.keyDown(window, { key, metaKey: true, shiftKey: key === "H" });
+      }
+      for (const command of [
+        "export",
+        "command_palette",
+        "find",
+        "new_project",
+        "close_project",
+        "import_plottr",
+      ])
+        await menu(command);
+      expect(currentProject.value?.id).toBe(mockProject.id);
+      expect(screen.queryByPlaceholderText("Type a command or search...")).toBeNull();
+      expect(screen.queryByText("Export Project")).toBeNull();
+      await fireEvent.keyDown(window, { key: "Escape" });
+      expect(editor.isConnected).toBe(true);
+      if (mode === "quit")
+        expect(screen.queryByRole("button", { name: "Keep editing" })).toBeNull();
+      else expect(screen.getByRole("main", { hidden: true }).inert).toBe(true);
+    } finally {
+      fail?.(new Error("disk full"));
+    }
+    await vi.advanceTimersByTimeAsync(0);
+    await fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    expect(screen.getByPlaceholderText("Type a command or search...")).toBeTruthy();
+    await vi.advanceTimersByTimeAsync(0);
+  }
+);
