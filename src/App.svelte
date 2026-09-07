@@ -535,12 +535,15 @@
 {#if discardQuitDrafts}
   <dialog
     data-quit-confirmation
+    aria-labelledby="quit-confirmation-title"
     bind:this={quitConfirmation}
     use:focusQuitConfirmation
     oncancel={(event) => event.preventDefault()}
-    class="border-0 p-0 max-w-none max-h-none"
+    class="border-0 p-0 max-w-none max-h-none backdrop:bg-transparent"
   >
     <ConfirmDialog
+      embedded
+      titleId="quit-confirmation-title"
       title={discardQuitProse.length
         ? "Quit without saving writing changes?"
         : "Quit without saving synopsis changes?"}

@@ -891,6 +891,11 @@ it("keeps errors visible and dismissable within the active quit modal", async ()
   });
   await menu("quit");
   await vi.advanceTimersByTimeAsync(0);
+  const confirmation = screen.getByRole("dialog", {
+    name: "Quit without saving synopsis changes?",
+  });
+  expect(confirmation.tagName).toBe("DIALOG");
+  expect(confirmation.querySelector('[role="dialog"]')).toBeNull();
   expect(
     screen.getByText("Error before quitting").closest("[data-quit-confirmation]")
   ).toBeTruthy();
