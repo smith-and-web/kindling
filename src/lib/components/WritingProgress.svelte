@@ -74,9 +74,6 @@
 {#if resetError}
   <p role="alert" class="mt-2 text-press-eyebrow text-press-error">{resetError}</p>
 {/if}
-{#if writing.error}
-  <p role="alert" class="mt-2 text-press-eyebrow text-press-error">{writing.error}</p>
-{/if}
 
 <style>
   progress {

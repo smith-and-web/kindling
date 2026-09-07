@@ -29,6 +29,8 @@ export class WritingStore {
 
   async refresh(projectId = this.projectId) {
     if (!projectId || projectId !== this.projectId) return;
+    if (this.refreshTimer) clearTimeout(this.refreshTimer);
+    this.refreshTimer = null;
     const request = ++this.request;
     try {
       const stats = await invoke<WritingStats>("get_writing_stats", { projectId });

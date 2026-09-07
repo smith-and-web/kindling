@@ -154,9 +154,12 @@ npm run check:all
 
 ## Writing goals and statistics
 
-The sidebar shows saved word counts for the project, chapters and scenes. The scene
-footer also shows its saved count and your session total. Counts use the active
-Page or Beat View prose and exclude archived content and outline prompts.
+The sidebar shows saved word counts for the project, chapters and scenes. The editor
+status bar shows the current scene, current chapter, project and session totals,
+including when the sidebar is collapsed. Choose **Writing statistics** in the status
+bar for total words, a chapter breakdown, scenes with prose versus empty scenes, and
+average words per scene (including empty scenes). Counts use the active Page or Beat
+View prose and exclude archived content and outline prompts.
 
 Set a **Daily writing goal** in **Project Settings** (default: 500 words; 0 turns the
 goal off). Daily and session totals measure net words added by saved edits, including

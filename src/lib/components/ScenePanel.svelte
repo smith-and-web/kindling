@@ -1,6 +1,7 @@
 <script lang="ts">
   import { countWordsInHtml } from "../utils/wordCount";
   import { writing } from "../stores/writing.svelte";
+  import WritingStatusBar from "./WritingStatusBar.svelte";
   import {
     FileText,
     ChevronDown,
@@ -1337,12 +1338,6 @@
         {/if}
       </div>
     </div>
-    {#if writing.value?.scene_words?.[scene.id] !== undefined}
-      <footer class="px-4 py-2 border-t border-press-border text-press-eyebrow text-press-muted">
-        {writing.value.scene_words[scene.id].toLocaleString()} scene words · Session: {writing.value.session_words.toLocaleString()}
-        words
-      </footer>
-    {/if}
   {:else}
     <!-- Empty State -->
     <div
@@ -1354,6 +1349,9 @@
       <p class="text-press-ui mt-1">Choose a scene from the sidebar to view its content</p>
     </div>
   {/if}
+  {#key currentProject.value?.id}
+    <WritingStatusBar />
+  {/key}
 </div>
 
 {#if showSwitchToBeatConfirm}

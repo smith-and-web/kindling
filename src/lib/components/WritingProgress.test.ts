@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import { invoke } from "@tauri-apps/api/core";
 import WritingProgress from "./WritingProgress.svelte";
+import WritingStatusBar from "./WritingStatusBar.svelte";
 import { currentProject } from "../stores/project.svelte";
 import { mockProject } from "../../dev/mock-data";
 import type { WritingStats } from "../types";
@@ -76,6 +77,7 @@ it("shows an off goal without a progress bar and a load error without stale tota
   cleanup();
   vi.mocked(invoke).mockRejectedValue(new Error("database unavailable"));
   render(WritingProgress);
+  render(WritingStatusBar);
   await vi.advanceTimersByTimeAsync(0);
   expect(screen.getByRole("alert").textContent).toContain("database unavailable");
   expect(screen.queryByText("2,500 project words")).toBeNull();

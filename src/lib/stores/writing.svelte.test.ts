@@ -121,3 +121,28 @@ it("coalesces burst saves and cancels delayed refreshes when changing projects",
   expect(invoke).toHaveBeenCalledTimes(2);
   vi.useRealTimers();
 });
+
+it("an immediate refresh replaces a pending recount without dropping subsequent saves", async () => {
+  vi.useFakeTimers();
+  try {
+    vi.mocked(invoke).mockResolvedValue(stats);
+    const store = new WritingStore();
+    store.open("p");
+    await vi.advanceTimersByTimeAsync(0);
+    store.scheduleRefresh("p");
+    await vi.advanceTimersByTimeAsync(100);
+    await store.refresh();
+    expect(invoke).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(250);
+    expect(invoke).toHaveBeenCalledTimes(2);
+
+    store.scheduleRefresh("p");
+    // A stale project's request must not cancel the active project's timer.
+    await store.refresh("other");
+    await vi.advanceTimersByTimeAsync(250);
+    expect(invoke).toHaveBeenCalledTimes(3);
+    expect(invoke).toHaveBeenLastCalledWith("get_writing_stats", { projectId: "p" });
+  } finally {
+    vi.useRealTimers();
+  }
+});
