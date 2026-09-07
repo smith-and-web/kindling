@@ -195,62 +195,100 @@ describe("reference fixture rendering", () => {
   });
 });
 
-it("copies into a project with no enabled categories while preserving the current scene", async () => {
-  HTMLDialogElement.prototype.showModal = function () {
-    this.setAttribute("open", "");
-  };
-  HTMLDialogElement.prototype.close = function () {
-    this.removeAttribute("open");
-  };
-  const empty = { ...project, reference_types: [] };
-  currentProject.setProject(empty);
-  const scene = { id: "scene-copy", chapter_id: "chapter-copy", title: "Scene" } as Scene;
-  currentProject.setCurrentScene(scene);
-  const source = { ...project, id: "source", name: "Book One" };
-  const row = {
-    id: "source-character",
-    reference_type: "characters",
-    name: reference.name,
-    description: null,
-    selected: true,
-    conflict: false,
-    action: "copy",
-    destination_name: reference.name,
-  };
-  vi.mocked(invoke).mockImplementation(async (command) => {
-    if (command === "get_all_projects") return [empty, source];
-    if (command === "preview_reference_copy")
-      return {
-        references: [row],
-        changes: [],
-        enabled_types: ["characters"],
-        copied: 1,
-        skipped: 0,
-        revision: "preview",
-      };
-    if (command === "copy_references_between_projects")
-      return { project, created_reference_ids: [reference.id], copied: 1, skipped: 0 };
-    if (command === "get_references") return [reference];
-    return [];
-  });
-  render(ReferencesPanel);
-  const button = screen.getByRole("button", { name: "Copy references from project…" });
-  expect((button as HTMLButtonElement).disabled).toBe(false);
-  await fireEvent.click(button);
-  await screen.findByRole("option", { name: /Book One/ });
-  await fireEvent.change(screen.getByLabelText("Source project"), { target: { value: source.id } });
-  await waitFor(() =>
-    expect(
-      (screen.getByRole("button", { name: "Copy 1 references" }) as HTMLButtonElement).disabled
-    ).toBe(false)
-  );
-  await fireEvent.click(screen.getByRole("button", { name: "Copy 1 references" }));
-  await waitFor(() => expect(currentProject.value?.reference_types).toEqual(["characters"]));
-  await fireEvent.click(await screen.findByRole("button", { name: "Done" }));
-  await screen.findByRole("button", { name: reference.name });
-  expect(currentProject.currentScene?.id).toBe(scene.id);
-  expect(currentProject.characters[0].id).toBe(reference.id);
-});
+it.each([null, "get_references", "get_tags"])(
+  "refreshes a copy once, preserving the scene and retrying failures: %s",
+  async (failure) => {
+    HTMLDialogElement.prototype.showModal = function () {
+      this.setAttribute("open", "");
+    };
+    HTMLDialogElement.prototype.close = function () {
+      this.removeAttribute("open");
+    };
+    const empty = { ...project, reference_types: [] };
+    currentProject.setProject(empty);
+    const scene = { id: "scene-copy", chapter_id: "chapter-copy", title: "Scene" } as Scene;
+    currentProject.setCurrentScene(scene);
+    const source = { ...project, id: "source", name: "Book One" };
+    const row = {
+      id: "source-character",
+      reference_type: "characters",
+      name: reference.name,
+      description: null,
+      selected: true,
+      conflict: false,
+      action: "copy",
+      destination_name: reference.name,
+    };
+    let failNext = failure;
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === failNext) {
+        failNext = null;
+        throw new Error("Refresh unavailable");
+      }
+      if (command === "get_all_projects") return [empty, source];
+      if (command === "preview_reference_copy")
+        return {
+          references: [row],
+          changes: [],
+          enabled_types: ["characters"],
+          copied: 1,
+          skipped: 0,
+          revision: "preview",
+        };
+      if (command === "copy_references_between_projects")
+        return { project, created_reference_ids: [reference.id], copied: 1, skipped: 0 };
+      if (command === "get_references") return [reference];
+      return [];
+    });
+    render(ReferencesPanel);
+    const button = screen.getByRole("button", { name: "Copy references from project…" });
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+    await fireEvent.click(button);
+    await screen.findByRole("option", { name: /Book One/ });
+    await fireEvent.change(screen.getByLabelText("Source project"), {
+      target: { value: source.id },
+    });
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "Copy 1 references" }) as HTMLButtonElement).disabled
+      ).toBe(false)
+    );
+    await fireEvent.click(screen.getByRole("button", { name: "Copy 1 references" }));
+    if (failure) {
+      expect(await screen.findByRole("alert")).toHaveProperty(
+        "textContent",
+        expect.stringContaining("copy completed")
+      );
+      expect(currentProject.value?.reference_types).toEqual([]);
+      await fireEvent.click(screen.getByRole("button", { name: "Refresh references" }));
+    }
+    await waitFor(() => expect(currentProject.value?.reference_types).toEqual(["characters"]));
+    await fireEvent.click(await screen.findByRole("button", { name: "Done" }));
+    await screen.findByRole("button", { name: reference.name });
+    expect(currentProject.currentScene?.id).toBe(scene.id);
+    expect(currentProject.characters[0].id).toBe(reference.id);
+    await tick();
+    const calls = (command: string) =>
+      vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === command);
+    expect(calls("copy_references_between_projects")).toHaveLength(1);
+    expect(calls("get_references")).toHaveLength(failure ? 2 : 1);
+    expect(calls("get_field_definitions")).toHaveLength(failure === "get_tags" ? 2 : 1);
+    expect(calls("get_field_values_bulk")).toHaveLength(failure === "get_tags" ? 2 : 1);
+    expect(calls("get_tags")).toHaveLength(failure === "get_tags" ? 2 : 1);
+    expect(calls("get_entity_tags")).toHaveLength(1);
+
+    // A later metadata/settings assignment must still trigger a normal refresh.
+    currentProject.setProject({ ...project, name: "Updated name" });
+    await waitFor(() => expect(calls("get_entity_tags")).toHaveLength(2));
+    currentProject.setProject(source);
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("get_references", {
+        projectId: source.id,
+        referenceType: "characters",
+      })
+    );
+  }
+);
 
 it.each([
   ["items", "item"],
