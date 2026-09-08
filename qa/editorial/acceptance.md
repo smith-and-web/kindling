@@ -291,3 +291,34 @@ test exceeded its 20-second timeout (24.8 seconds under full-suite contention).
 That test passed in isolation in 4.97 seconds. The retry uses Vitest's supported
 `VITEST_MAX_WORKERS=1` setting through the normal push hook; assertions, timeouts,
 and hook checks are unchanged.
+
+## Package return navigation and round timestamps
+
+Follow-up base: `7e79af8d61ae96e887fd28a0b651adfd1ae2c476`.
+
+| Requested improvement                 | Implementation evidence                                                                                                     | Validation                                                                                                                                              | Gap  |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| Back returns to originating revisions | Package setup retains active local mode, review/save state and captured manuscript view; direct opens retain close behavior | Reviewing/Suggesting roundtrip tests include pending edits, filter, cursor, scroll, repeated setup and close/reopen; native Reviewing returned to 750px | None |
+| Readable manuscript menu              | Workspace-scoped 22rem width with viewport cap; icons do not shrink; shared menu unchanged                                  | Native computed 352px width and 40px single-line rows; light/dark browser-rendered menu details                                                         | None |
+| Distinct same-day rounds              | Localized date and time including seconds; existing newest-first order retained                                             | Timestamp precision regression; native rounds showed 4:27:31 PM, 4:27:12 PM and 4:27:01 PM on the same day                                              | None |
+
+All 37 workspace tests and `check:all` passed with the existing warnings.
+Production frontend build passed with the existing large-chunk warning.
+`package-setup-light.png` and `package-setup-dark.png` now include timestamps;
+`manuscript-menu-light.png` and `manuscript-menu-dark.png` show the wider menu.
+These are browser renderings of captured native DOM; the menu detail is positioned
+inside the browser viewport for the crop. The native webview was hidden during
+inspection, so its animation-frame viewport adjustment was not a runtime visual
+check. Window size and theme were restored; no manuscript data was changed.
+
+Review-agent's final result: **No findings**. Its review covered package return
+state, save-queue lifetime, failure paths, closing/replacement, menu scope and
+timestamp formatting.
+
+Claude high-effort session `bf6565dc-e36b-47b8-80e1-024f355a3ba3` identified
+package messages surviving Back and an unrelated change to local sidebar state
+on direct opens. Back now uses the shared action lifecycle to clear messages;
+the sidebar-state change was removed. Roundtrip tests cover both a package export
+notice and a failed round-open alert, plus direct reopening after local review.
+Review-agent rechecked these fixes and again returned **No findings**.
+Claude's final focused follow-up also returned **No findings**.

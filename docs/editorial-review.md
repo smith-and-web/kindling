@@ -12,6 +12,10 @@ manuscript** is selected by default. To send part of the manuscript, choose
 **Selected chapters** and check at least one chapter. Past rounds and the action
 for opening returned feedback appear beside the package form.
 
+When you open package setup from revisions, Back returns to the same review or
+suggesting mode and manuscript position. Review rounds show their creation date
+and local time, including seconds, so rounds created on the same day are distinct.
+
 **Export review package** creates a `.kindling-review` file. It contains the
 active prose in manuscript order, including scenes written using beats. Your
 original manuscript version is retained locally for this review round. You can

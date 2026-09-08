@@ -1024,6 +1024,90 @@ describe("editorial workspace", () => {
     expect(localStorage.getItem("kindling.editorial.recovery.round")).toContain("Rowan");
   });
 
+  it.each(["feedback", "review"] as const)(
+    "returns from packages to the same %s mode and manuscript position",
+    async (mode) => {
+      const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+      await view.component.openLocal("project", "s");
+      if (mode === "review") {
+        await fireEvent.change(view.getByLabelText("Editor mode"), { target: { value: mode } });
+        await waitFor(() => expect(editor().isEditable).toBe(true));
+        editor().commands.insertContent("Revised ");
+      }
+      await fireEvent.change(view.getByLabelText("Show feedback"), { target: { value: "all" } });
+      editor().commands.setTextSelection({ from: 9, to: 15 });
+      const text = editor().getText();
+      document.querySelector<HTMLElement>(".manuscript-column")!.scrollTop = 123;
+      await fireEvent.click(view.getByLabelText("Manuscript actions"));
+      await fireEvent.click(view.getByRole("menuitem", { name: "Review packages and rounds…" }));
+      await waitFor(() =>
+        expect(view.getByRole("button", { name: "Return to revisions" })).toBeTruthy()
+      );
+      expect(document.querySelector(".editorial-prose")).toBeNull();
+      // Reopening package setup through the application menu preserves its origin too.
+      await view.component.openProject("project");
+      if (mode === "review") {
+        const original = vi.mocked(invoke).getMockImplementation()!;
+        vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+          if (cmd === "get_editorial_feedback") throw new Error("Cannot open this round");
+          return original(cmd, args);
+        });
+        await fireEvent.click(view.getByRole("button", { name: "First review" }));
+        await waitFor(() =>
+          expect(view.getByRole("alert").textContent).toContain("Cannot open this round")
+        );
+      } else {
+        vi.mocked(save).mockResolvedValue("/round.kindling-review");
+        await fireEvent.click(view.getByRole("button", { name: "Export review package" }));
+        await waitFor(() => expect(view.getByText(/Review package saved to/)).toBeTruthy());
+      }
+      await fireEvent.click(view.getByRole("button", { name: "Return to revisions" }));
+      await waitFor(() => expect(view.getByLabelText("Editor mode")).toBeTruthy());
+      expect(view.queryByRole("alert")).toBeNull();
+      expect(view.queryByText(/Review package saved to/)).toBeNull();
+      expect(view.component.isLocal()).toBe(true);
+      expect((view.getByLabelText("Editor mode") as HTMLSelectElement).value).toBe(mode);
+      expect((view.getByLabelText("Show feedback") as HTMLSelectElement).value).toBe("all");
+      expect(editor().getText()).toBe(text);
+      expect(editor().state.selection.from).toBe(9);
+      expect(editor().state.selection.to).toBe(15);
+      expect(document.querySelector<HTMLElement>(".manuscript-column")!.scrollTop).toBe(123);
+      await view.component.closeWorkspace();
+      await view.component.openProject("project");
+      expect(view.queryByRole("button", { name: "Return to revisions" })).toBeNull();
+      expect(view.component.isLocal()).toBe(true);
+      await fireEvent.click(view.getByRole("button", { name: "Return to writing" }));
+      await waitFor(() => expect(view.component.isOpen()).toBe(false));
+    }
+  );
+
+  it("shows local date and time including seconds for review rounds", async () => {
+    const dates = ["2026-09-08T12:30:45Z", "2026-09-08T12:30:15Z"];
+    const original = vi.mocked(invoke).getMockImplementation()!;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) =>
+      cmd === "list_editorial_rounds"
+        ? dates.map((created_at, i) => ({ ...round, id: `round-${i}`, created_at }))
+        : original(cmd, args)
+    );
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openProject("project");
+    const times = Array.from(document.querySelectorAll(".round-link time"));
+    expect(times.map((e) => e.getAttribute("datetime"))).toEqual(dates);
+    expect(times.map((e) => e.textContent)).toEqual(
+      dates.map((date) =>
+        new Date(date).toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+      )
+    );
+    expect(times[0].textContent).not.toBe(times[1].textContent);
+  });
+
   it("exports scoped review rounds and opens their saved feedback", async () => {
     const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
     await view.component.openProject("project");

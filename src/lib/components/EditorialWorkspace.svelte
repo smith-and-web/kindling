@@ -94,6 +94,10 @@
   let exportScope = $state("all");
   let menuPosition = $state<{ x: number; y: number } | null>(null);
   let menuTrigger = $state<HTMLElement>();
+  let packageReturn = $state<{
+    screen: "review" | "feedback";
+    view: ReturnType<NonNullable<typeof prose>["captureView"]> | undefined;
+  } | null>(null);
   const manuscriptMenu = $derived<MenuItem[]>([
     ...(local
       ? [
@@ -401,6 +405,7 @@
       const current = await invoke<EditorialSource[]>("editorial_sources", { projectId: id });
       const reviews = await invoke<SceneReview[]>("get_project_scene_reviews", { projectId: id });
       local = true;
+      packageReturn = null;
       projectId = id;
       round = data.round;
       focusedScene = sceneId;
@@ -634,6 +639,7 @@
   export async function closeWorkspace() {
     menuPosition = null;
     await flush();
+    packageReturn = null;
     active = false;
     showHistory = false;
   }
@@ -705,6 +711,18 @@
       /* Keep all local work visible and recoverable. */
     }
   }
+  async function back() {
+    if (screen === "export" && packageReturn) {
+      const previous = packageReturn;
+      await action(async () => {
+        packageReturn = null;
+        screen = previous.screen;
+        await tick();
+        if (showSearch) prose?.find(search, searchIndex);
+        if (previous.view) prose?.restoreView(previous.view);
+      });
+    } else await close();
+  }
   async function action(work: () => Promise<void>) {
     if (busy) return false;
     busy = true;
@@ -768,6 +786,7 @@
       }
       // Commit workspace state only after the complete incoming/recovered review validates.
       local = false;
+      packageReturn = null;
       sceneReviews = [];
       showComment = false;
       search = "";
@@ -801,15 +820,26 @@
     await action(async () => {
       await flush();
       await prepareWriting();
-      projectId = id;
-      [exportSources, rounds] = await Promise.all([
+      const previous =
+        active && local && projectId === id
+          ? screen === "review" || screen === "feedback"
+            ? { screen, view: prose?.captureView() }
+            : packageReturn
+          : null;
+      const [nextSources, nextRounds] = await Promise.all([
         invoke<EditorialSource[]>("editorial_sources", { projectId: id }),
         invoke<EditorialRound[]>("list_editorial_rounds", { projectId: id }),
       ]);
-      saves = null;
-      session = null;
-      feedback = null;
-      round = null;
+      projectId = id;
+      exportSources = nextSources;
+      rounds = nextRounds;
+      packageReturn = previous;
+      if (!previous) {
+        saves = null;
+        session = null;
+        feedback = null;
+        round = null;
+      }
       screen = "export";
       selectedChapters = [];
       exportScope = "all";
@@ -1044,6 +1074,7 @@
       const view = prose?.captureView();
       const previous = feedback ? manuscript(feedback.sources) : null;
       feedback = await invoke<EditorialFeedback>("get_editorial_feedback", { roundId: id });
+      packageReturn = null;
       round = feedback.round;
       session = null;
       saves = null;
@@ -1165,10 +1196,14 @@
     <div class="heading">
       <button
         class="icon"
-        aria-label={local ? "Return to writing" : "Close review"}
-        title={local ? "Return to writing" : "Close review"}
+        aria-label={packageReturn
+          ? "Return to revisions"
+          : local
+            ? "Return to writing"
+            : "Close review"}
+        title={packageReturn ? "Return to revisions" : local ? "Return to writing" : "Close review"}
         disabled={busy}
-        onclick={close}><ChevronLeft size={18} /></button
+        onclick={back}><ChevronLeft size={18} /></button
       >
       <div>
         <span class="eyebrow">{local ? round?.title : "kindling"}</span>
@@ -1335,10 +1370,13 @@
                   disabled={busy}
                   onclick={() => openRound(item.id)}
                   ><span>{item.name}</span><time datetime={item.created_at}
-                    >{new Date(item.created_at).toLocaleDateString(undefined, {
+                    >{new Date(item.created_at).toLocaleString(undefined, {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                      second: "2-digit",
                     })}</time
                   ><ChevronRight size={16} /></button
                 >
@@ -1661,6 +1699,13 @@
   }
   .workspace-actions select {
     width: auto;
+  }
+  .workspace-actions :global([data-testid="context-menu"]) {
+    width: 22rem;
+    max-width: calc(100vw - var(--space-s));
+  }
+  .workspace-actions :global([data-testid="context-menu"] svg) {
+    flex-shrink: 0;
   }
   .compact-select {
     display: inline-grid;
