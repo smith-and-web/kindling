@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, fireEvent, waitFor, cleanup } from "@testing-library/svelte";
-import { tick } from "svelte";
+import { tick, flushSync } from "svelte";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import type { Editor } from "@tiptap/core";
@@ -185,8 +185,19 @@ describe("editorial workspace", () => {
     const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
     await view.component.openLocal("project", "s");
     const trigger = view.getByLabelText("Manuscript actions");
-    await fireEvent.click(trigger);
+    // Native event dispatch can flush Svelte's mount before the opening click
+    // reaches window. Reproduce that timing instead of relying on batched events.
+    const mountBeforeWindow = () => flushSync();
+    document.addEventListener("click", mountBeforeWindow);
+    try {
+      await fireEvent.click(trigger.querySelector("svg")!);
+    } finally {
+      document.removeEventListener("click", mountBeforeWindow);
+    }
     expect(view.getByRole("menu")).toBeTruthy();
+    await fireEvent.click(trigger);
+    expect(view.queryByRole("menu")).toBeNull();
+    await fireEvent.click(trigger);
     const manuscript = document.querySelector<HTMLElement>(".editorial-prose")!;
     manuscript.addEventListener("pointerdown", (e) => e.stopPropagation(), { once: true });
     await fireEvent.pointerDown(manuscript);
@@ -221,6 +232,16 @@ describe("editorial workspace", () => {
     expect(menu.open).toBe(false);
     await fireEvent.click(trigger);
     await fireEvent.click(view.getByRole("button", { name: "Refresh manuscript" }));
+    expect(menu.open).toBe(false);
+    await fireEvent.click(trigger);
+    const manuscriptActions = view.getByLabelText("Manuscript actions");
+    // Keyboard activation sends click without a preceding pointerdown.
+    await fireEvent.click(manuscriptActions);
+    expect(menu.open).toBe(false);
+    expect(view.getByRole("menu")).toBeTruthy();
+    await fireEvent.click(manuscriptActions);
+    await fireEvent.click(trigger);
+    await fireEvent.pointerDown(manuscriptActions);
     expect(menu.open).toBe(false);
   });
   it("leaves Escape available after a native project close with review options open", async () => {
@@ -653,6 +674,9 @@ describe("editorial workspace", () => {
     await fireEvent.click(view.getByRole("button", { name: "Find in manuscript" }));
     const search = view.getByRole("searchbox");
     const pane = document.querySelector<HTMLElement>(".manuscript-column")!;
+    // The search controls remain outside the prose's scroll container.
+    expect(pane.contains(search)).toBe(false);
+    expect(pane.parentElement).toBe(search.closest(".manuscript-region"));
     vi.spyOn(pane, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 400 } as ReturnType<
       HTMLElement["getBoundingClientRect"]
     >);
@@ -676,12 +700,14 @@ describe("editorial workspace", () => {
     editor().chain().setTextSelection(1).insertContent("Another letter. ").run();
     await tick();
     expect(view.getByText("1 of 2")).toBeTruthy();
+    await fireEvent.click(view.getByRole("button", { name: "Next" }));
+    expect(view.getByText("2 of 2")).toBeTruthy();
     await fireEvent.keyDown(search, { key: "Escape" });
     expect(document.querySelector(".editorial-search-match")).toBeNull();
     await fireEvent.click(view.getByRole("button", { name: "Find in manuscript" }));
     await tick();
     expect((view.getByRole("searchbox") as HTMLInputElement).value).toBe("letter");
-    expect(view.getByText("1 of 2")).toBeTruthy();
+    expect(view.getByText("2 of 2")).toBeTruthy();
     expect(document.querySelector(".editorial-search-match")?.textContent).toBe("letter");
     await fireEvent.click(view.getByRole("button", { name: "Comment" }));
     await tick();

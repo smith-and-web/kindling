@@ -1221,7 +1221,10 @@
           aria-label="Manuscript actions"
           aria-haspopup="menu"
           aria-expanded={!!menuPosition}
-          onclick={() => {
+          onclick={(event) => {
+            // The menu mounts before a native click reaches window. Keep this
+            // opening click out of ContextMenu's outside-click handler.
+            event.stopPropagation();
             const rect = menuTrigger!.getBoundingClientRect();
             menuPosition = menuPosition ? null : { x: rect.right, y: rect.bottom };
           }}><MoreHorizontal size={20} /></button
@@ -1388,7 +1391,7 @@
               }}>{source.scene}</button
             >{/each}
         </nav>{/if}
-      <section class="manuscript-column" aria-label="Manuscript">
+      <section class="manuscript-region" aria-label="Manuscript">
         {#if showSearch}<div class="search-bar">
             <Search size={16} /><input
               type="search"
@@ -1420,47 +1423,49 @@
               onclick={() => findNext(1)}>Next</button
             ><button onclick={closeSearch}>Done</button>
           </div>{/if}
-        {#key `${round.id}:${manuscriptVersion}`}
-          <EditorialManuscript
-            bind:this={prose}
-            {sources}
-            initial={screen === "review" ? session!.document : manuscript(sources).toJSON()}
-            changes={manuscriptAnnotations}
-            protectLocked={local}
-            {lockSources}
-            canComment={local || !!session}
-            readonly={screen === "feedback"}
-            {markup}
-            selected={selectedId}
-            onChange={updateDocument}
-            onSelection={updateSelection}
-            onComment={composeComment}
-            onReadingPosition={updateReadingPosition}
-            onSearchResults={(count) => (searchCount = count)}
-            onError={(e) => (error = e)}
-            onAnnotation={selectItem}
-            onActivate={chooseAnnotation}
-          >
-            {#snippet toolbar()}
-              {#if !local && !showNavigation}<button
-                  class="icon"
-                  aria-label="Show manuscript navigation"
-                  onclick={() => (showNavigation = true)}><PanelLeftOpen size={16} /></button
-                >{/if}
-              <span class="compact-select"
-                ><select
-                  class="compact-control"
-                  aria-label="Markup view"
-                  value={markup ? "all" : "simple"}
-                  onchange={(e) => (markup = e.currentTarget.value === "all")}
-                  ><option value="simple">Simple markup</option><option value="all"
-                    >All markup</option
-                  ></select
-                ><ChevronDown size={14} /></span
-              >
-            {/snippet}
-          </EditorialManuscript>
-        {/key}
+        <div class="manuscript-column">
+          {#key `${round.id}:${manuscriptVersion}`}
+            <EditorialManuscript
+              bind:this={prose}
+              {sources}
+              initial={screen === "review" ? session!.document : manuscript(sources).toJSON()}
+              changes={manuscriptAnnotations}
+              protectLocked={local}
+              {lockSources}
+              canComment={local || !!session}
+              readonly={screen === "feedback"}
+              {markup}
+              selected={selectedId}
+              onChange={updateDocument}
+              onSelection={updateSelection}
+              onComment={composeComment}
+              onReadingPosition={updateReadingPosition}
+              onSearchResults={(count) => (searchCount = count)}
+              onError={(e) => (error = e)}
+              onAnnotation={selectItem}
+              onActivate={chooseAnnotation}
+            >
+              {#snippet toolbar()}
+                {#if !local && !showNavigation}<button
+                    class="icon"
+                    aria-label="Show manuscript navigation"
+                    onclick={() => (showNavigation = true)}><PanelLeftOpen size={16} /></button
+                  >{/if}
+                <span class="compact-select"
+                  ><select
+                    class="compact-control"
+                    aria-label="Markup view"
+                    value={markup ? "all" : "simple"}
+                    onchange={(e) => (markup = e.currentTarget.value === "all")}
+                    ><option value="simple">Simple markup</option><option value="all"
+                      >All markup</option
+                    ></select
+                  ><ChevronDown size={14} /></span
+                >
+              {/snippet}
+            </EditorialManuscript>
+          {/key}
+        </div>
       </section>
       {#snippet contextualReferences()}{@render references?.(focusedScene)}{/snippet}
       <ReviewSidebar
@@ -1710,18 +1715,28 @@
     border: 0;
     margin-block: var(--space-3xs);
   }
-  .manuscript-column {
+  .manuscript-region {
     flex: 1;
     min-width: 0;
-    overflow: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     padding-inline: var(--space-m);
+  }
+  .manuscript-column {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
   }
   .search-bar {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     gap: var(--space-2xs);
     padding: var(--space-xs);
     background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
   }
   .search-bar input {
     flex: 1;
@@ -1732,11 +1747,9 @@
   }
   .accept-decision:not(:disabled) {
     color: var(--color-success);
-    background: var(--color-success-wash);
   }
   .reject-decision:not(:disabled) {
     color: var(--color-error);
-    background: var(--color-error-wash);
   }
   .workspace-error {
     padding: var(--space-xs) var(--space-m);

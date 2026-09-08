@@ -125,7 +125,8 @@ formatting changes are not included. Restoring a draft preserves the current
 prose as another saved draft before replacing it.
 
 Search highlights the active match and scrolls the manuscript to it, while the
-search field keeps focus. Previous/Next and Enter/Shift+Enter move through
+search field keeps focus. Its controls stay above the scrolling manuscript, with
+the formatting toolbar directly below. Previous/Next and Enter/Shift+Enter move through
 matches. Selecting a sidebar thread also brings its passage into view.
 Package setup, past rounds, and recovery exports also live under Manuscript actions.
 The revision status beside the scene title reflects the scene at the cursor.

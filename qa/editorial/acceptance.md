@@ -253,3 +253,41 @@ radio grouping, stale results after reopening search, and a mismatched visible
 and accessible comparison label. All were fixed and covered by focused tests.
 Both reviewers checked the final application code and returned **No findings**.
 The platform installation and upgrade verification gaps above remain unchanged.
+
+## Menu interaction and pinned search follow-up
+
+Follow-up base: `37dc05a9d9565c609d08a6de9f353ef8204f5870`.
+
+| Requested improvement                  | Implementation evidence                                                                                                                               | Validation                                                                                               | Gap                                                                                        |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Review options polish                  | Flat full-width action rows, consistent insets, separated identity field; green/red text with hover washes                                            | Updated light/dark menu captures; native computed styles                                                 | None                                                                                       |
+| Working header menu                    | Opening click does not reach the newly mounted menu's outside handler; outside capture coordinates Review options for pointer and keyboard activation | Event-flush timing, toggle, dismissal, action and menu-coordination regressions; native DOM click checks | Physical pointer tool did not deliver events; pointer behavior covered by regression tests |
+| Search stays visible during navigation | Search is a fixed flex row outside the manuscript scroller; formatting toolbar remains sticky inside it                                               | Search Next/reopen regression; native distant navigation and smaller-window geometry                     | None                                                                                       |
+
+All 34 workspace tests passed. `check:all` passed with the existing warnings;
+the production frontend build passed with the existing large-chunk warning.
+The native search bar stayed at y78–143 while Next navigated to the third
+`letter` match and scrolled the manuscript to 2000px. The toolbar remained at
+y143–198 and the match was visible at y469–486. At a 1360×800 outer window,
+search retained its position and there was no horizontal overflow.
+
+Native menu rows measured 8px/12px padding with transparent resting backgrounds
+and semantic decision text in both themes. The name input remained 14px with
+normal ink (#231D18 light, #E8E0D4 dark), confirmed against Press's direct control
+color declaration. Updated `review-menu-light.png` and `review-menu-dark.png`
+are browser renderings of captured native DOM. Theme and window size were
+restored; no manuscript data was edited for these checks.
+
+Review-agent identified coordination of the two menus for pointer and keyboard
+activation; both paths now dismiss the previously open menu. Its final result:
+**No findings**. Claude high-effort session
+`067fdf32-16fb-42b4-8f6c-2d9181cebb50` identified duplicate hover declarations,
+which were removed. It withdrew the input-color concern after checking the
+direct Press control declaration and its cascade above Tailwind preflight.
+Claude's final result: **No findings**.
+
+The first normal push run passed 517 tests but the existing 500-reference-library
+test exceeded its 20-second timeout (24.8 seconds under full-suite contention).
+That test passed in isolation in 4.97 seconds. The retry uses Vitest's supported
+`VITEST_MAX_WORKERS=1` setting through the normal push hook; assertions, timeouts,
+and hook checks are unchanged.

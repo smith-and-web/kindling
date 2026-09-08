@@ -51,6 +51,10 @@
   let reply = $state("");
   let container: HTMLElement;
   let optionsMenu = $state<HTMLDetailsElement>();
+  function dismissOptionsOutside(event: MouseEvent) {
+    if (optionsMenu?.open && event.target instanceof Node && !optionsMenu.contains(event.target))
+      optionsMenu.open = false;
+  }
   function dismissOptions(event: MouseEvent) {
     const target = event.target;
     if (
@@ -83,7 +87,11 @@
   });
 </script>
 
-<svelte:window onclick={dismissOptions} />
+<svelte:window
+  onpointerdowncapture={dismissOptionsOutside}
+  onclickcapture={dismissOptionsOutside}
+  onclick={dismissOptions}
+/>
 
 <aside class="review-sidebar" bind:this={container} aria-label="Editorial feedback">
   <div class="tabs" role="tablist" aria-label="Inspector">
@@ -362,10 +370,10 @@
   .review-menu {
     position: absolute;
     right: 0;
-    width: 18rem;
+    width: 20rem;
     max-height: 70vh;
     overflow: auto;
-    padding: var(--space-2xs);
+    padding-block: var(--space-3xs);
     background: var(--color-surface);
     box-shadow: var(--shadow-overlay);
     border: 1px solid var(--color-border);
@@ -373,7 +381,10 @@
     z-index: var(--z-dropdown);
   }
   .menu-identity {
-    padding: var(--space-2xs);
+    padding: var(--space-xs);
+    gap: var(--space-2xs);
+    color: var(--color-text-muted);
+    font-size: var(--text-eyebrow);
   }
   .review-menu :global(.review-menu-group) {
     border-top: 1px solid var(--color-border);
@@ -382,7 +393,7 @@
   }
   .review-menu :global(.review-menu-caption) {
     margin: 0;
-    padding: var(--space-3xs) var(--space-2xs);
+    padding: var(--space-2xs) var(--space-xs);
     font-size: var(--text-eyebrow);
     color: var(--color-text-muted);
     overflow-wrap: anywhere;
@@ -391,7 +402,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-2xs);
-    padding: var(--space-2xs);
+    padding: var(--space-xs);
   }
   .review-menu :global(button) {
     display: flex;
@@ -399,9 +410,27 @@
     gap: var(--space-2xs);
     width: 100%;
     border: 0;
-    padding: var(--space-2xs);
+    padding: var(--space-2xs) var(--space-xs);
+    border-radius: 0;
+    background: transparent;
     text-align: left;
     line-height: var(--leading-tight);
+  }
+  .review-menu :global(button:hover:not(:disabled)) {
+    background: var(--color-surface-sunken);
+  }
+  .review-menu :global(button.accept-decision:hover:not(:disabled)) {
+    background: var(--color-success-wash);
+  }
+  .review-menu :global(button.reject-decision:hover:not(:disabled)) {
+    background: var(--color-error-wash);
+  }
+  .review-menu :global(button:focus-visible) {
+    outline: none;
+    box-shadow: inset var(--focus-ring);
+  }
+  .review-menu :global(button svg) {
+    flex-shrink: 0;
   }
   .threads {
     min-height: 0;
