@@ -31,7 +31,8 @@
     "createUpdaterArtifacts": true,
     "macOS": {
       "signingIdentity": null,
-      "entitlements": "./Entitlements.plist"
+      "entitlements": "./Entitlements.plist",
+      "infoPlist": "EditorialDocuments.plist"
     },
     "icon": [
       "icons/32x32.png",
@@ -42,7 +43,39 @@
     ],
     "category": "Productivity",
     "shortDescription": "Spark your draft - Bridge the gap between outline and prose",
-    "longDescription": "Kindling helps fiction writers go from outline to draft by providing a scaffolded writing environment where scene beats appear as expandable prompts."
+    "longDescription": "Kindling helps fiction writers go from outline to draft by providing a scaffolded writing environment where scene beats appear as expandable prompts.",
+    "fileAssociations": [
+      {
+        "ext": [
+          "kindling-review"
+        ],
+        "name": "Kindling Review",
+        "description": "Kindling editorial manuscript",
+        "role": "Editor",
+        "mimeType": "application/x-kindling-review",
+        "exportedType": {
+          "identifier": "com.kindlingwriter.kindling-review",
+          "conformsTo": [
+            "public.json"
+          ]
+        }
+      },
+      {
+        "ext": [
+          "kindling-feedback"
+        ],
+        "name": "Kindling Feedback",
+        "description": "Kindling editorial feedback",
+        "role": "Editor",
+        "mimeType": "application/x-kindling-feedback",
+        "exportedType": {
+          "identifier": "com.kindlingwriter.kindling-feedback",
+          "conformsTo": [
+            "public.json"
+          ]
+        }
+      }
+    ]
   },
   "plugins": {
     "updater": {

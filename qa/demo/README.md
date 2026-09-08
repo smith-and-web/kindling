@@ -5,6 +5,12 @@ fixture in `src-tauri/src/commands/sample_project.rs`: three chapters, nine scen
 typed reference fields, hierarchical tags and an active-protagonist filter.
 This is the preferred source for new documentation and website screenshots.
 
+The current sample also includes the editorial scenarios documented in
+[Editorial review](../../docs/editorial-review.md#explore-the-sample): all four
+revision statuses, suggestions and discussion histories, outdated/overlapping
+anchors, draft comparisons, page/beat prose, and a locked final scene. Create a
+fresh sample to get these examples; existing projects are not overwritten.
+
 ## Create the current fixtures
 
 Start the debug app with an empty scratch data directory:

@@ -21,6 +21,7 @@
 pub mod commands;
 pub mod db;
 pub mod detect;
+mod editorial_files;
 pub mod menu;
 pub mod models;
 pub mod parsers;
@@ -84,6 +85,15 @@ pub fn run() {
     }
 
     let builder = tauri::Builder::default()
+        .manage(editorial_files::PendingEditorialFiles::default())
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            editorial_files::enqueue(
+                app,
+                args.into_iter()
+                    .skip(1)
+                    .map(|p| std::path::Path::new(&cwd).join(p)),
+            );
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -117,6 +127,10 @@ pub fn run() {
                 AppState::new(app_data_dir).expect("Failed to initialize application state");
 
             app.manage(state);
+            editorial_files::enqueue(
+                app.handle(),
+                std::env::args_os().skip(1).map(std::path::PathBuf::from),
+            );
 
             // Set up application menu
             let app_handle = app.handle();
@@ -229,6 +243,19 @@ pub fn run() {
             commands::get_scene_review,
             commands::save_scene_review,
             commands::get_revision_overview,
+            commands::editorial_sources,
+            commands::export_editorial_review,
+            commands::open_editorial_package,
+            commands::save_editorial_session,
+            commands::export_editorial_feedback,
+            commands::export_editorial_recovery,
+            commands::export_editorial_reply,
+            commands::import_editorial_feedback,
+            commands::get_editorial_feedback,
+            commands::decide_editorial_feedback,
+            commands::list_editorial_rounds,
+            commands::reply_editorial_feedback,
+            editorial_files::take_editorial_open_files,
             // Snapshot commands
             commands::create_snapshot,
             commands::list_snapshots,
@@ -278,8 +305,19 @@ pub fn run() {
             // Feedback commands
             commands::submit_feedback,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = event {
+                editorial_files::enqueue(
+                    app,
+                    urls.into_iter().filter_map(|url| url.to_file_path().ok()),
+                );
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }
 
 #[cfg(test)]

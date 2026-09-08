@@ -28,6 +28,7 @@ mod lock;
 mod novelwriter_sync;
 mod reference_copy;
 mod sample_project;
+mod sample_revisions;
 mod screenplay_project;
 mod search;
 mod session;
@@ -67,3 +68,5 @@ pub use writing::*;
 
 mod revisions;
 pub use revisions::*;
+pub mod editorial;
+pub use editorial::*;

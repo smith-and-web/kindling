@@ -23,6 +23,21 @@ export interface CommandDef {
 
 export const COMMAND_DEFS: CommandDef[] = [
   {
+    id: "editorial_open",
+    label: "Open review or feedback file",
+    shortcut: "⌘O",
+    category: "File",
+    keywords: ["editor", "package"],
+  },
+  {
+    id: "editorial_project",
+    label: "Editorial review and packages",
+    shortcut: "",
+    category: "Project",
+    requiresProject: true,
+    keywords: ["editor", "feedback", "revisions"],
+  },
+  {
     id: "find",
     label: "Find in scene",
     shortcut: "⌘F",

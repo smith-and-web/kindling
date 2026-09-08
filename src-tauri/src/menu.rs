@@ -113,6 +113,17 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
     // Build File submenu
     let file_submenu = SubmenuBuilder::new(app, "File")
         .item(&new_project)
+        .item(
+            &MenuItemBuilder::new("Open Review or Feedback File…")
+                .id("editorial_open")
+                .accelerator("CmdOrCtrl+O")
+                .build(app)?,
+        )
+        .item(
+            &MenuItemBuilder::new("Editorial Review…")
+                .id("editorial_project")
+                .build(app)?,
+        )
         .separator()
         .items(&[&import_submenu])
         .item(&export)
