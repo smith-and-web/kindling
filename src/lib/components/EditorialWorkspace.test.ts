@@ -117,6 +117,40 @@ afterEach(() => {
 });
 
 describe("editorial workspace", () => {
+  it("keeps review options open while editing identity and dismisses on Escape, outside click, or an action", async () => {
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openLocal("project", "s");
+    const trigger = view.getByLabelText("Review options");
+    const menu = trigger.closest("details")!;
+    await fireEvent.click(trigger);
+    expect(menu.open).toBe(true);
+    expect(view.queryByRole("group", { name: "Current review round" })).toBeNull();
+    await fireEvent.input(view.getByLabelText("Your name"), { target: { value: "Rowan" } });
+    await fireEvent.click(view.getByLabelText("Your name"));
+    expect(menu.open).toBe(true);
+    await fireEvent.keyDown(view.getByLabelText("Your name"), { key: "Escape" });
+    expect(menu.open).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+    await fireEvent.click(trigger);
+    await fireEvent.click(view.getByLabelText("Show feedback"));
+    expect(menu.open).toBe(false);
+    await fireEvent.click(trigger);
+    await fireEvent.click(view.getByRole("button", { name: "Refresh manuscript" }));
+    expect(menu.open).toBe(false);
+  });
+  it("leaves Escape available after a native project close with review options open", async () => {
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openLocal("project", "s");
+    await fireEvent.click(view.getByLabelText("Review options"));
+    await view.component.closeWorkspace();
+    const escape = new KeyboardEvent("keydown", {
+      key: "Escape",
+      bubbles: true,
+      cancelable: true,
+    });
+    document.body.dispatchEvent(escape);
+    expect(escape.defaultPrevented).toBe(false);
+  });
   it("keeps inactive prose feedback discoverable with its original discussion", async () => {
     localReview.documents.push({ id: "hidden-beat", label: "Beat 1", html: "<p>Old prose</p>" });
     localReview.data.annotations.push({
@@ -180,6 +214,13 @@ describe("editorial workspace", () => {
       const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
       await view.component.openLocal("project", "s");
       await fireEvent.click(view.getByLabelText("Review options"));
+      await fireEvent.change(view.getByLabelText("Show feedback"), {
+        target: { value: "accepted" },
+      });
+      expect(view.queryByRole("group", { name: "Active scene prose" })).toBeNull();
+      await fireEvent.change(view.getByLabelText("Show feedback"), {
+        target: { value: "open" },
+      });
       await fireEvent.click(
         view.getByRole("button", {
           name: `${decision === "rejected" ? "Reject" : "Accept"} visible suggestions on active scene prose`,

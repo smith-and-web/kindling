@@ -50,6 +50,24 @@
   });
   let reply = $state("");
   let container: HTMLElement;
+  let optionsMenu = $state<HTMLDetailsElement>();
+  function dismissOptions(event: MouseEvent) {
+    const target = event.target;
+    if (
+      optionsMenu?.open &&
+      target instanceof Element &&
+      (!optionsMenu.contains(target) || target.closest(".review-menu button:not(:disabled)"))
+    )
+      optionsMenu.open = false;
+  }
+  function escapeOptions(event: KeyboardEvent) {
+    if (event.key === "Escape" && optionsMenu?.open) {
+      event.preventDefault();
+      event.stopPropagation();
+      optionsMenu.open = false;
+      optionsMenu.querySelector("summary")?.focus();
+    }
+  }
   const visible = $derived(items.filter((i) => filter === "all" || i.state === filter));
   $effect(() => {
     if (selected || composing) {
@@ -65,6 +83,8 @@
   });
 </script>
 
+<svelte:window onclick={dismissOptions} />
+
 <aside class="review-sidebar" bind:this={container} aria-label="Editorial feedback">
   <div class="tabs" role="tablist" aria-label="Inspector">
     <button role="tab" aria-selected={tab === "review"} onclick={() => (tab = "review")}
@@ -78,11 +98,13 @@
   </div>
   {#if tab === "references"}{@render references?.()}{:else}
     <div class="review-controls">
-      <select aria-label="Show feedback" bind:value={filter}
-        ><option value="open">Pending feedback</option><option value="all">All feedback</option
-        ><option value="resolved">Resolved comments</option><option value="accepted"
-          >Accepted</option
-        ><option value="rejected">Rejected</option></select
+      <span class="compact-select"
+        ><select aria-label="Show feedback" bind:value={filter}
+          ><option value="open">Pending feedback</option><option value="all">All feedback</option
+          ><option value="resolved">Resolved comments</option><option value="accepted"
+            >Accepted</option
+          ><option value="rejected">Rejected</option></select
+        ><ChevronDown size={14} /></span
       >
       <button
         title="Previous annotation"
@@ -96,10 +118,10 @@
         disabled={!visible.length}
         onclick={() => onStep(1)}><ChevronDown size={16} /></button
       >
-      <details>
+      <details bind:this={optionsMenu} onkeydowncapture={escapeOptions}>
         <summary aria-label="Review options"><MoreHorizontal size={18} /></summary>
         <div class="review-menu">
-          <label
+          <label class="menu-identity"
             >Your name<input value={name} oninput={(e) => onName(e.currentTarget.value)} /></label
           >
           {@render options?.()}
@@ -296,9 +318,22 @@
     padding: var(--space-xs);
     border-bottom: 1px solid var(--color-border);
   }
-  .review-controls select {
+  .compact-select {
+    display: grid;
+    align-items: center;
     min-width: 0;
     flex: 1;
+  }
+  .compact-select select {
+    grid-area: 1 / 1;
+    appearance: none;
+  }
+  .compact-select :global(svg) {
+    grid-area: 1 / 1;
+    justify-self: end;
+    margin-right: var(--space-2xs);
+    pointer-events: none;
+    color: var(--color-text-muted);
   }
   .review-controls button {
     border: 0;
@@ -313,17 +348,57 @@
     display: flex;
     padding: var(--space-2xs);
   }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  summary:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+    border-radius: var(--radius-s);
+  }
   .review-menu {
     position: absolute;
     right: 0;
-    width: 17rem;
+    width: 18rem;
     max-height: 70vh;
     overflow: auto;
-    padding: var(--space-s);
+    padding: var(--space-2xs);
     background: var(--color-surface);
     box-shadow: var(--shadow-overlay);
     border: 1px solid var(--color-border);
+    border-radius: var(--radius-m);
     z-index: var(--z-dropdown);
+  }
+  .menu-identity {
+    padding: var(--space-2xs);
+  }
+  .review-menu :global(.review-menu-group) {
+    border-top: 1px solid var(--color-border);
+    margin-top: var(--space-2xs);
+    padding-top: var(--space-2xs);
+  }
+  .review-menu :global(.review-menu-caption) {
+    margin: 0;
+    padding: var(--space-3xs) var(--space-2xs);
+    font-size: var(--text-eyebrow);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+  }
+  .review-menu :global(.review-menu-field) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xs);
+    padding: var(--space-2xs);
+  }
+  .review-menu :global(button) {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    width: 100%;
+    border: 0;
+    padding: var(--space-2xs);
+    text-align: left;
+    line-height: var(--leading-tight);
   }
   .threads {
     min-height: 0;
@@ -400,9 +475,18 @@
   textarea,
   input,
   select {
-    font-size: var(--text-base);
+    /* Compact desktop review controls, explicitly requested for this workspace. */
+    font-size: var(--text-small);
+    padding: var(--space-3xs) var(--space-2xs);
+    line-height: var(--leading);
     width: 100%;
     box-sizing: border-box;
+  }
+  .compact-select select {
+    padding-right: var(--space-l);
+  }
+  textarea {
+    padding-block: var(--space-2xs);
   }
   .actions {
     display: flex;

@@ -178,3 +178,37 @@ sixth concern after confirming that actual prose replacements enforce locks and
 an already-applied, reanchored suggestion can legitimately record a decision
 without replacing prose. Both reviewers remained read-only; test, build, native,
 and screenshot verification were performed by the primary agent.
+
+## Review menu and compact controls follow-up
+
+The review options popover now uses left-aligned icon actions grouped by scope,
+with short labels and no empty bulk-action groups. Filtered or inactive feedback
+cannot become a target through those groups. Name editing stays open; action
+selection, outside clicks, and Escape dismiss the menu. Escape handling is local
+to the menu, so native File → Close Project cannot leave a hidden workspace
+intercepting the next keypress.
+
+At the user's explicit request, compact desktop review fields use the existing
+14px `--text-small` token, overriding the guide's default 16px form minimum for
+these controls. Full package setup forms keep their scale. macOS WebKit ignored
+padding on native select appearance; compact selects now retain their
+native interaction with a styled surface and a non-interactive chevron. Native
+computed styles for the status, mode, markup, and feedback filters in both themes
+confirmed 14px text, 4px vertical padding, 8px
+left padding, 32px right space for the chevron, and 32.39px control height.
+Name inputs use 4px/8px padding, and comment/reply areas use 8px padding.
+
+All 31 workspace tests passed, including filtered bulk groups, identity editing,
+menu dismissal, focus return, and the native-close Escape regression.
+`npm run check:all` and production frontend build passed with the same existing
+warnings as the prior follow-up. Native Escape dismissed the menu and restored
+focus to its trigger. The temporary theme change was restored. Screenshot
+artifacts `review-menu-light.png` and `review-menu-dark.png` are cropped browser
+renderings of captured native DOM with current input values, styles, and fonts.
+
+Both review-agent and Claude high-effort follow-up (session
+`4b115be0-716e-4040-a9d4-08c11f999500`) finished with **No findings**. Claude
+verified the Escape fix and withdrew a screenshot concern after native menu and
+input colors both measured background `rgb(38,33,27)` and text
+`rgb(232,224,212)`; direct PNG samples also confirmed the panel and input were
+dark. All five compact selects use the same wrapper and chevron treatment.

@@ -22,6 +22,7 @@ export default ts.config(
         localStorage: "readonly",
         requestAnimationFrame: "readonly",
         // DOM types
+        Element: "readonly",
         Node: "readonly",
         Event: "readonly",
         KeyboardEvent: "readonly",
@@ -31,6 +32,7 @@ export default ts.config(
         HTMLTextAreaElement: "readonly",
         HTMLDivElement: "readonly",
         HTMLDialogElement: "readonly",
+        HTMLDetailsElement: "readonly",
         MouseEvent: "readonly",
         CustomEvent: "readonly",
         HTMLSelectElement: "readonly",

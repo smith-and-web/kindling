@@ -18,9 +18,14 @@
   import {
     Search,
     ChevronLeft,
+    ChevronDown,
     MoreHorizontal,
     PanelLeftClose,
     PanelLeftOpen,
+    Check,
+    X,
+    RefreshCw,
+    Download,
   } from "lucide-svelte";
   import EditorialManuscript from "./EditorialManuscript.svelte";
   import { EditorialSaves } from "../utils/editorialSaves";
@@ -1103,27 +1108,32 @@
       </div>
     </div>
     <div class="workspace-actions">
-      {#if local && focusedReview}<select
-          aria-label="Revision status"
-          disabled={busy || focusedSource?.locked}
-          value={focusedReview.data.status}
-          onchange={(e) => setLocalStatus(e.currentTarget.value)}
-          >{#each Object.entries(revisionStatuses) as [value, label]}<option {value}>{label}</option
-            >{/each}</select
+      {#if local && focusedReview}<span class="compact-select"
+          ><select
+            aria-label="Revision status"
+            disabled={busy || focusedSource?.locked}
+            value={focusedReview.data.status}
+            onchange={(e) => setLocalStatus(e.currentTarget.value)}
+            >{#each Object.entries(revisionStatuses) as [value, label]}<option {value}
+                >{label}</option
+              >{/each}</select
+          ><ChevronDown size={14} /></span
         >{/if}
       {#if session}<span class="save-state" role="status">{savedState}</span>{/if}
       {#if screen === "review" || screen === "feedback"}
-        {#if local}<select
-            aria-label="Editor mode"
-            value={screen}
-            disabled={busy}
-            onchange={(e) => {
-              if (e.currentTarget.value === "review") void suggest();
-              else if (e.currentTarget.value === "writing") void close();
-              else void reviewDecisions();
-            }}
-            ><option value="writing">Writing</option><option value="feedback">Reviewing</option
-            ><option value="review">Suggesting</option></select
+        {#if local}<span class="compact-select"
+            ><select
+              aria-label="Editor mode"
+              value={screen}
+              disabled={busy}
+              onchange={(e) => {
+                if (e.currentTarget.value === "review") void suggest();
+                else if (e.currentTarget.value === "writing") void close();
+                else void reviewDecisions();
+              }}
+              ><option value="writing">Writing</option><option value="feedback">Reviewing</option
+              ><option value="review">Suggesting</option></select
+            ><ChevronDown size={14} /></span
           >{:else}<span class="mode">{session ? "Suggesting" : "Reviewing feedback"}</span>{/if}
         <button
           class="icon"
@@ -1294,12 +1304,16 @@
                   aria-label="Show manuscript navigation"
                   onclick={() => (showNavigation = true)}><PanelLeftOpen size={16} /></button
                 >{/if}
-              <select
-                aria-label="Markup view"
-                value={markup ? "all" : "simple"}
-                onchange={(e) => (markup = e.currentTarget.value === "all")}
-                ><option value="simple">Simple markup</option><option value="all">All markup</option
-                ></select
+              <span class="compact-select"
+                ><select
+                  class="compact-control"
+                  aria-label="Markup view"
+                  value={markup ? "all" : "simple"}
+                  onchange={(e) => (markup = e.currentTarget.value === "all")}
+                  ><option value="simple">Simple markup</option><option value="all"
+                    >All markup</option
+                  ></select
+                ><ChevronDown size={14} /></span
               >
             {/snippet}
           </EditorialManuscript>
@@ -1328,50 +1342,62 @@
       >
         {#snippet options()}
           {#if feedback && !session}
-            <p>Current review round: {feedback.round.name}</p>
-            <button
-              disabled={busy ||
-                !visibleEntries.some(
-                  (e) => e.decision === "open" && e.change.kind === "suggestion"
-                )}
-              onclick={() =>
-                decide(
-                  visibleEntries.filter(
-                    (e) => e.decision === "open" && e.change.kind === "suggestion"
-                  ),
-                  "accepted"
-                )}>Accept visible suggestions in this round</button
-            >
-            <button
-              disabled={busy ||
-                !visibleEntries.some(
-                  (e) => e.decision === "open" && e.change.kind === "suggestion"
-                )}
-              onclick={() =>
-                decide(
-                  visibleEntries.filter(
-                    (e) => e.decision === "open" && e.change.kind === "suggestion"
-                  ),
-                  "rejected"
-                )}>Reject visible suggestions in this round</button
-            >
-            {#if legacy.some((a) => a.annotation.state === "open" && a.change.kind === "suggestion")}<button
-                onclick={() => bulkLegacy("accepted")}
-                >Accept visible suggestions on active scene prose</button
-              ><button onclick={() => bulkLegacy("rejected")}
-                >Reject visible suggestions on active scene prose</button
-              >{/if}
-            <button disabled={busy} onclick={() => openRound(feedback!.round.id)}
-              >Refresh manuscript</button
-            >
-            {#if reviewers.length}<label
-                >Editor<select bind:value={replyReviewer}
-                  >{#each reviewers as reviewer}<option value={reviewer.id}>{reviewer.name}</option
-                    >{/each}</select
-                ></label
-              ><button disabled={busy} onclick={sendWriterReply}
-                >Export replies and decisions</button
-              >{/if}
+            {@const suggestions = visibleEntries.filter(
+              (e) => e.decision === "open" && e.change.kind === "suggestion"
+            )}
+            {#if suggestions.length}
+              <div class="review-menu-group" role="group" aria-label="Current review round">
+                <p class="review-menu-caption">Review round · {feedback.round.name}</p>
+                <button
+                  aria-label="Accept visible suggestions in this round"
+                  disabled={busy}
+                  onclick={() => decide(suggestions, "accepted")}
+                  ><Check size={16} />Accept visible suggestions</button
+                >
+                <button
+                  aria-label="Reject visible suggestions in this round"
+                  disabled={busy}
+                  onclick={() => decide(suggestions, "rejected")}
+                  ><X size={16} />Reject visible suggestions</button
+                >
+              </div>
+            {/if}
+            {#if (filter === "all" || filter === "open") && legacy.some((a) => a.annotation.state === "open" && a.change.kind === "suggestion")}
+              <div class="review-menu-group" role="group" aria-label="Active scene prose">
+                <p class="review-menu-caption">Active scene prose</p>
+                <button
+                  aria-label="Accept visible suggestions on active scene prose"
+                  disabled={busy}
+                  onclick={() => bulkLegacy("accepted")}
+                  ><Check size={16} />Accept visible suggestions</button
+                ><button
+                  aria-label="Reject visible suggestions on active scene prose"
+                  disabled={busy}
+                  onclick={() => bulkLegacy("rejected")}
+                  ><X size={16} />Reject visible suggestions</button
+                >
+              </div>
+            {/if}
+            <div class="review-menu-group">
+              <button disabled={busy} onclick={() => openRound(feedback!.round.id)}
+                ><RefreshCw size={16} />Refresh manuscript</button
+              >
+            </div>
+            {#if reviewers.length}
+              <div class="review-menu-group">
+                <label class="review-menu-field"
+                  >Send to editor<span class="compact-select"
+                    ><select class="compact-control" bind:value={replyReviewer}
+                      >{#each reviewers as reviewer}<option value={reviewer.id}
+                          >{reviewer.name}</option
+                        >{/each}</select
+                    ><ChevronDown size={14} /></span
+                  ></label
+                ><button disabled={busy} onclick={sendWriterReply}
+                  ><Download size={16} />Export replies and decisions</button
+                >
+              </div>
+            {/if}
           {/if}
         {/snippet}
       </ReviewSidebar>
@@ -1483,6 +1509,32 @@
   }
   .workspace-actions select {
     width: auto;
+  }
+  .compact-select {
+    display: inline-grid;
+    align-items: center;
+  }
+  .compact-select select {
+    grid-area: 1 / 1;
+    appearance: none;
+  }
+  .compact-select :global(svg) {
+    grid-area: 1 / 1;
+    justify-self: end;
+    margin-right: var(--space-2xs);
+    pointer-events: none;
+    color: var(--color-text-muted);
+  }
+  /* Compact desktop review controls, as requested; full setup forms retain their scale. */
+  .workspace-actions select,
+  .search-bar input,
+  .compact-control {
+    font-size: var(--text-small);
+    line-height: var(--leading);
+    padding: var(--space-3xs) var(--space-2xs);
+  }
+  .compact-select select {
+    padding-right: var(--space-l);
   }
   .workspace-layout {
     display: flex;
