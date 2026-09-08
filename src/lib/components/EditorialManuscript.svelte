@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import ProseToolbar from "./ProseToolbar.svelte";
   import { MessageSquare } from "lucide-svelte";
   import type { Snippet } from "svelte";
@@ -40,6 +40,7 @@
     protectLocked = false,
     canComment = true,
     lockSources,
+    onSearchResults,
   }: {
     sources: EditorialSource[];
     initial: ReturnType<Node["toJSON"]>;
@@ -59,11 +60,41 @@
     protectLocked?: boolean;
     canComment?: boolean;
     lockSources?: EditorialSource[];
+    onSearchResults?: (count: number) => void;
   } = $props();
   let element: HTMLDivElement;
   let editor = $state.raw<Editor>();
   let revision = $state(0);
   let programmaticSelection = false;
+  let navigationRequest = 0;
+  let searchMatch = $state<{ from: number; to: number } | null>(null);
+  let searchQuery = "";
+  let searchIndex = 0;
+  function refreshSearch(doc: Node) {
+    const results = searchManuscript(doc, searchQuery);
+    searchMatch =
+      results[((searchIndex % results.length) + results.length) % results.length] ?? null;
+    onSearchResults?.(results.length);
+    return results.length;
+  }
+  async function revealSelection(request: number) {
+    await tick();
+    if (!editor || editor.isDestroyed || request !== navigationRequest) return;
+    const container = element.parentElement!;
+    const bounds = container.getBoundingClientRect();
+    const toolbar = container.querySelector(".editorial-format")?.getBoundingClientRect();
+    const gutter =
+      parseFloat(window.getComputedStyle(container).getPropertyValue("--space-xs")) || 12;
+    const top = Math.max(bounds.top, toolbar?.bottom ?? bounds.top) + gutter;
+    const bottom = bounds.bottom - gutter;
+    const start = editor.view.coordsAtPos(editor.state.selection.from);
+    const end = editor.view.coordsAtPos(editor.state.selection.to);
+    if (start.top < top || end.bottom > bottom) {
+      // Scroll this pane explicitly: read-only or unfocused ProseMirror views
+      // need not honor a transaction's scrollIntoView request.
+      container.scrollTop += start.top - top;
+    }
+  }
   const key = new PluginKey("manuscript-markup");
   const base = $derived(manuscript(sources));
 
@@ -85,7 +116,7 @@
       editor.state.tr.replace(start, end.a + overlap, doc.slice(start, end.b + overlap))
     );
   }
-  export function select(from: number, to = from, focus = true) {
+  export function select(from: number, to = from, focus = true, reveal = true) {
     if (!editor) return;
     const doc = editor.state.doc;
     const selection = TextSelection.between(
@@ -99,6 +130,8 @@
       programmaticSelection = false;
     }
     if (focus) editor.view.focus();
+    const request = ++navigationRequest;
+    if (reveal) void revealSelection(request);
   }
   export function navigate(sourceId: string) {
     let position: number | undefined;
@@ -109,10 +142,11 @@
   }
   export function find(query: string, index: number) {
     if (!editor) return 0;
-    const results = searchManuscript(editor.state.doc, query);
-    const result = results[((index % results.length) + results.length) % results.length];
-    if (result) select(result.from, result.to, false);
-    return results.length;
+    searchQuery = query;
+    searchIndex = index;
+    const count = refreshSearch(editor.state.doc);
+    if (searchMatch) select(searchMatch.from, searchMatch.to, false);
+    return count;
   }
 
   function readingAnchor() {
@@ -139,7 +173,7 @@
     };
   }
   export function restoreView(view: ReturnType<typeof captureView>) {
-    select(view.from, view.to, view.focused);
+    select(view.from, view.to, view.focused, false);
     if (element?.parentElement) {
       const container = element.parentElement;
       if (view.reading && editor) {
@@ -152,6 +186,7 @@
     }
   }
   export function restoreReadingPosition(position: number) {
+    navigationRequest++;
     if (!editor || !element.parentElement) return;
     const point = editor.view.coordsAtPos(
       Math.max(1, Math.min(position, editor.state.doc.content.size - 1))
@@ -202,6 +237,7 @@
         },
       },
       onUpdate: ({ editor: instance, transaction }) => {
+        refreshSearch(instance.state.doc);
         try {
           onChange(normalizeOwnership(instance.state.doc, sources), {
             before: normalizeOwnership(transaction.before, sources),
@@ -272,6 +308,10 @@
     if (!editor) return;
     const doc = sources.length ? normalizeOwnership(editor.state.doc, sources) : editor.state.doc;
     const decorations: Decoration[] = [];
+    if (searchMatch && searchMatch.to <= doc.content.size)
+      decorations.push(
+        Decoration.inline(searchMatch.from, searchMatch.to, { class: "editorial-search-match" })
+      );
     const seenScenes = new SvelteSet<string>();
     let chapter = "";
     if (showSections)
@@ -451,7 +491,26 @@
     white-space: pre-wrap;
   }
   :global(.editorial-prose p) {
-    margin-block: var(--space-m);
+    margin: 0;
+    text-indent: 1.5em;
+  }
+  :global(.editorial-prose p:first-child),
+  :global(.editorial-section + p),
+  :global(.editorial-section p) {
+    text-indent: 0;
+  }
+  :global(.editorial-prose blockquote) {
+    margin-block: 1em;
+    padding: var(--space-s);
+    background: var(--color-prose-callout-bg);
+    border-left: 4px solid var(--color-prose-blockquote-border);
+    border-radius: 0 var(--radius-m) var(--radius-m) 0;
+    font-style: italic;
+    color: var(--color-prose-blockquote-text);
+  }
+  :global(.editorial-search-match) {
+    background: var(--color-accent-wash);
+    outline: 1px solid var(--color-accent);
   }
   :global(.editorial-section) {
     padding-block: var(--space-l) var(--space-s);

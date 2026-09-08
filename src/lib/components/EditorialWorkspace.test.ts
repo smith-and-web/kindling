@@ -14,6 +14,7 @@ import {
 } from "../utils/editorial";
 import type { SceneReview } from "../utils/revisions";
 import EditorialWorkspace from "./EditorialWorkspace.svelte";
+import EditorialManuscript from "./EditorialManuscript.svelte";
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
 
@@ -117,6 +118,90 @@ afterEach(() => {
 });
 
 describe("editorial workspace", () => {
+  it("keeps restored reading position ahead of a queued cursor reveal", async () => {
+    const view = render(EditorialManuscript, {
+      sources: [source],
+      initial: manuscript([source]).toJSON(),
+      onChange: vi.fn(),
+      onSelection: vi.fn(),
+      onComment: vi.fn(),
+      onError: vi.fn(),
+      onAnnotation: vi.fn(),
+      onReadingPosition: vi.fn(),
+    });
+    const pane = document.querySelector<HTMLElement>(".editorial-sheet")!.parentElement!;
+    vi.spyOn(pane, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 400 } as ReturnType<
+      HTMLElement["getBoundingClientRect"]
+    >);
+    vi.spyOn(editor().view, "coordsAtPos").mockImplementation((position) => ({
+      top: position === 15 ? 1200 : -500,
+      bottom: position === 15 ? 1220 : -480,
+      left: 0,
+      right: 10,
+    }));
+    view.component.select(1, 1, false);
+    view.component.restoreReadingPosition(15);
+    const restored = pane.scrollTop;
+    await tick();
+    expect(restored).toBeGreaterThan(1000);
+    expect(pane.scrollTop).toBe(restored);
+  });
+  it("scrolls the read-only manuscript to feedback selected in the sidebar", async () => {
+    const original = vi.mocked(invoke).getMockImplementation()!;
+    vi.mocked(invoke).mockImplementation((cmd, args) =>
+      cmd === "editorial_sources" ? Promise.resolve([{ ...source, id: "s" }]) : original(cmd, args)
+    );
+    localReview.data.annotations.push({
+      id: "late-note",
+      document_id: "s",
+      anchor_html: source.html,
+      from: 1,
+      to: 8,
+      quote: "Eleanor",
+      replacement: null,
+      state: "open",
+      messages: [{ author: "Editor", text: "Check this passage", created_at: "2026-01-01" }],
+    });
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openLocal("project", "s");
+    const pane = document.querySelector<HTMLElement>(".manuscript-column")!;
+    vi.spyOn(pane, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 400 } as ReturnType<
+      HTMLElement["getBoundingClientRect"]
+    >);
+    vi.spyOn(editor().view, "coordsAtPos").mockReturnValue({
+      top: 1200,
+      bottom: 1220,
+      left: 0,
+      right: 10,
+    });
+    expect(editor().isEditable).toBe(false);
+    await fireEvent.click(view.getByRole("button", { name: /Check this passage/ }));
+    await waitFor(() => expect(pane.scrollTop).toBeGreaterThan(1000));
+    expect(
+      editor().state.doc.textBetween(editor().state.selection.from, editor().state.selection.to)
+    ).toBe("Eleanor");
+  });
+  it("uses the shared manuscript menu and dismisses on outside pointer presses and actions", async () => {
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openLocal("project", "s");
+    const trigger = view.getByLabelText("Manuscript actions");
+    await fireEvent.click(trigger);
+    expect(view.getByRole("menu")).toBeTruthy();
+    const manuscript = document.querySelector<HTMLElement>(".editorial-prose")!;
+    manuscript.addEventListener("pointerdown", (e) => e.stopPropagation(), { once: true });
+    await fireEvent.pointerDown(manuscript);
+    expect(view.queryByRole("menu")).toBeNull();
+    await fireEvent.click(trigger);
+    await fireEvent.keyDown(view.getByRole("menuitem", { name: "Draft history" }), {
+      key: "Escape",
+    });
+    expect(view.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    await fireEvent.click(trigger);
+    await fireEvent.click(view.getByRole("menuitem", { name: "Draft history" }));
+    await waitFor(() => expect(view.getByRole("dialog")).toBeTruthy());
+    expect(view.queryByRole("menu")).toBeNull();
+  });
   it("keeps review options open while editing identity and dismisses on Escape, outside click, or an action", async () => {
     const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
     await view.component.openLocal("project", "s");
@@ -420,7 +505,7 @@ describe("editorial workspace", () => {
     await view.component.openLocal("project", "s");
     fail = false;
     await fireEvent.click(view.getByLabelText("Manuscript actions"));
-    await fireEvent.click(view.getByRole("button", { name: "Draft history" }));
+    await fireEvent.click(view.getByRole("menuitem", { name: "Draft history" }));
     await fireEvent.input(await view.findByLabelText("Draft name"), {
       target: { value: "Before review" },
     });
@@ -551,7 +636,7 @@ describe("editorial workspace", () => {
     );
     vi.mocked(save).mockResolvedValue("/returned.kindling-feedback");
     await fireEvent.click(view.getByLabelText("Manuscript actions"));
-    await fireEvent.click(view.getByRole("button", { name: "Export feedback" }));
+    await fireEvent.click(view.getByRole("menuitem", { name: "Export feedback" }));
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith(
         "export_editorial_feedback",
@@ -567,12 +652,37 @@ describe("editorial workspace", () => {
     await view.component.openFile("/review.kindling-review");
     await fireEvent.click(view.getByRole("button", { name: "Find in manuscript" }));
     const search = view.getByRole("searchbox");
+    const pane = document.querySelector<HTMLElement>(".manuscript-column")!;
+    vi.spyOn(pane, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 400 } as ReturnType<
+      HTMLElement["getBoundingClientRect"]
+    >);
+    vi.spyOn(editor().view, "coordsAtPos").mockReturnValue({
+      top: 1200,
+      bottom: 1220,
+      left: 0,
+      right: 10,
+    });
     search.focus();
     await fireEvent.input(search, { target: { value: "letter" } });
     expect(document.activeElement).toBe(search);
     expect(
       editor().state.doc.textBetween(editor().state.selection.from, editor().state.selection.to)
     ).toBe("letter");
+    await waitFor(() => expect(pane.scrollTop).toBeGreaterThan(1000));
+    expect(document.querySelector(".editorial-search-match")?.textContent).toBe("letter");
+    editor().chain().setTextSelection(1).insertContent("Before this, ").run();
+    await tick();
+    expect(document.querySelector(".editorial-search-match")?.textContent).toBe("letter");
+    editor().chain().setTextSelection(1).insertContent("Another letter. ").run();
+    await tick();
+    expect(view.getByText("1 of 2")).toBeTruthy();
+    await fireEvent.keyDown(search, { key: "Escape" });
+    expect(document.querySelector(".editorial-search-match")).toBeNull();
+    await fireEvent.click(view.getByRole("button", { name: "Find in manuscript" }));
+    await tick();
+    expect((view.getByRole("searchbox") as HTMLInputElement).value).toBe("letter");
+    expect(view.getByText("1 of 2")).toBeTruthy();
+    expect(document.querySelector(".editorial-search-match")?.textContent).toBe("letter");
     await fireEvent.click(view.getByRole("button", { name: "Comment" }));
     await tick();
     expect(document.activeElement).toBe(view.getByLabelText("Comment"));
@@ -892,6 +1002,12 @@ describe("editorial workspace", () => {
     const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
     await view.component.openProject("project");
     vi.mocked(save).mockResolvedValue("/round.kindling-review");
+    await fireEvent.click(view.getByLabelText("Selected chapters"));
+    expect((view.getByLabelText("Selected chapters") as HTMLInputElement).name).toBe(
+      (view.getByLabelText("Entire manuscript") as HTMLInputElement).name
+    );
+    expect((view.getByLabelText("Selected chapters") as HTMLInputElement).name).not.toBe("");
+    expect((view.getByText("Export review package") as HTMLButtonElement).disabled).toBe(true);
     await fireEvent.click(view.getByLabelText("Chapter One"));
     await fireEvent.click(view.getByText("Export review package"));
     await waitFor(() =>

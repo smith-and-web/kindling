@@ -227,11 +227,14 @@
                   class="actions decisions"
                 >
                   <button
+                    class="accept-decision"
                     disabled={busy || item.conflict}
                     onclick={() => onDecide(item.id, "accepted")}><Check size={16} />Accept</button
                   >
-                  <button disabled={busy} onclick={() => onDecide(item.id, "rejected")}
-                    ><X size={16} />Reject</button
+                  <button
+                    class="reject-decision"
+                    disabled={busy}
+                    onclick={() => onDecide(item.id, "rejected")}><X size={16} />Reject</button
                   >
                   {#if item.conflict}<button
                       disabled={busy || !canReanchor}
@@ -498,6 +501,16 @@
     display: flex;
     align-items: center;
     gap: var(--space-3xs);
+  }
+  .accept-decision:not(:disabled) {
+    color: var(--color-success);
+    border-color: var(--color-success);
+    background: var(--color-success-wash);
+  }
+  .reject-decision:not(:disabled) {
+    color: var(--color-error);
+    border-color: var(--color-error);
+    background: var(--color-error-wash);
   }
   .quiet {
     border: 0;

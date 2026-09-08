@@ -7,8 +7,10 @@ network connection; choose your own way to transfer the files.
 ## Send a manuscript
 
 Open your project and choose **File → Editorial Review** (also available in the
-command palette). Name the review round, add an optional brief, and choose
-chapters. Leaving every chapter unchecked includes the whole manuscript.
+command palette). Name the review round and add an optional brief. **Entire
+manuscript** is selected by default. To send part of the manuscript, choose
+**Selected chapters** and check at least one chapter. Past rounds and the action
+for opening returned feedback appear beside the package form.
 
 **Export review package** creates a `.kindling-review` file. It contains the
 active prose in manuscript order, including scenes written using beats. Your
@@ -116,6 +118,15 @@ their original discussion. Their notice explains which scene and editing mode
 to return to before acting on them. Bulk scene decisions apply to active prose.
 
 **Manuscript actions (⋯) → Draft history** opens saved versions and comparisons.
+Choose a saved draft from the list, then use **Compare with** to choose current
+prose or another draft. The two versions appear side by side: removed text on
+the left, added text on the right. Only each version's active prose is compared;
+formatting changes are not included. Restoring a draft preserves the current
+prose as another saved draft before replacing it.
+
+Search highlights the active match and scrolls the manuscript to it, while the
+search field keeps focus. Previous/Next and Enter/Shift+Enter move through
+matches. Selecting a sidebar thread also brings its passage into view.
 Package setup, past rounds, and recovery exports also live under Manuscript actions.
 The revision status beside the scene title reflects the scene at the cursor.
 

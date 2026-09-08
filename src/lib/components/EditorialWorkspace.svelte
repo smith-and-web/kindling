@@ -5,6 +5,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { Node, Slice, Fragment } from "@tiptap/pm/model";
   import type { Mapping } from "@tiptap/pm/transform";
+  import ContextMenu, { type MenuItem } from "./ContextMenu.svelte";
   import ReviewSidebar from "./ReviewSidebar.svelte";
   import RevisionsPanel from "./RevisionsPanel.svelte";
   import { localAnnotations, localSelection } from "../utils/localEditorial";
@@ -19,6 +20,7 @@
     Search,
     ChevronLeft,
     ChevronDown,
+    ChevronRight,
     MoreHorizontal,
     PanelLeftClose,
     PanelLeftOpen,
@@ -26,6 +28,10 @@
     X,
     RefreshCw,
     Download,
+    History,
+    FolderOpen,
+    FileOutput,
+    RotateCcw,
   } from "lucide-svelte";
   import EditorialManuscript from "./EditorialManuscript.svelte";
   import { EditorialSaves } from "../utils/editorialSaves";
@@ -85,6 +91,55 @@
   let projectId = $state(""),
     roundName = $state("Editorial pass"),
     brief = $state("");
+  let exportScope = $state("all");
+  let menuPosition = $state<{ x: number; y: number } | null>(null);
+  let menuTrigger = $state<HTMLElement>();
+  const manuscriptMenu = $derived<MenuItem[]>([
+    ...(local
+      ? [
+          {
+            label: "Draft history",
+            icon: History,
+            action: async () => {
+              if (!session || (await reviewDecisions())) showHistory = true;
+            },
+          },
+          {
+            label: "Start suggestions from current prose",
+            icon: RotateCcw,
+            action: async () => {
+              await suggest(true);
+            },
+          },
+          { label: "", divider: true, action: () => {} },
+          {
+            label: "Review packages and rounds…",
+            icon: FileOutput,
+            action: () => openProject(projectId),
+          },
+        ]
+      : []),
+    ...(session
+      ? [
+          {
+            label: "Export feedback",
+            icon: FileOutput,
+            disabled: !session.name.trim() || busy,
+            action: () => returnFeedback(),
+          },
+          { label: "Export recovery copy", icon: Download, action: () => returnFeedback(true) },
+        ]
+      : []),
+    { label: "Open review or feedback file…", icon: FolderOpen, action: () => openFile() },
+  ]);
+  function dismissManuscriptMenu(event: MouseEvent) {
+    if (!menuPosition || !(event.target instanceof Element)) return;
+    if (
+      !menuTrigger?.contains(event.target) &&
+      !event.target.closest('[data-testid="context-menu"]')
+    )
+      menuPosition = null;
+  }
   let selectedChapters = $state<string[]>([]);
   let selection = $state({ from: 1, to: 1 });
   let reanchorReady = $state(false);
@@ -577,13 +632,17 @@
     return active;
   }
   export async function closeWorkspace() {
+    menuPosition = null;
     await flush();
     active = false;
     showHistory = false;
   }
   export function focusSearch() {
     showSearch = true;
-    void tick().then(() => dialog.querySelector<HTMLInputElement>('input[type="search"]')?.focus());
+    void tick().then(() => {
+      dialog.querySelector<HTMLInputElement>('input[type="search"]')?.focus();
+      searchCount = prose?.find(search, searchIndex) ?? 0;
+    });
   }
   export function exportFeedback() {
     if (session) return returnFeedback();
@@ -753,12 +812,14 @@
       round = null;
       screen = "export";
       selectedChapters = [];
+      exportScope = "all";
       await show();
     });
     if (error && !active) await show();
   }
 
   async function exportReview() {
+    if (exportScope === "selected" && !selectedChapters.length) return;
     await action(async () => {
       const path = await save({
         title: "Export for editorial review",
@@ -770,7 +831,7 @@
         projectId,
         name: roundName,
         brief,
-        chapterIds: selectedChapters,
+        chapterIds: exportScope === "selected" ? selectedChapters : [],
         path,
       });
       rounds = [created, ...rounds];
@@ -1024,6 +1085,10 @@
           : "Review decision saved.";
     });
   }
+  function closeSearch() {
+    showSearch = false;
+    prose?.find("", 0);
+  }
   function findNext(direction: number) {
     searchIndex += direction;
     searchCount = prose?.find(search, searchIndex) ?? 0;
@@ -1073,6 +1138,8 @@
   });
 </script>
 
+<svelte:window onpointerdowncapture={dismissManuscriptMenu} />
+
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <section
   bind:this={dialog}
@@ -1082,6 +1149,11 @@
   aria-label="Editorial workspace"
   tabindex="-1"
   onkeydown={(e) => {
+    if (e.key === "Escape" && menuPosition) {
+      e.preventDefault();
+      menuPosition = null;
+      menuTrigger?.focus();
+    }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
       e.preventDefault();
       focusSearch();
@@ -1101,14 +1173,16 @@
       <div>
         <span class="eyebrow">{local ? round?.title : "kindling"}</span>
         <h1>
-          {local
-            ? focusedSource?.scene || round?.title || "Revisions"
-            : round?.title || "Editorial review"}
+          {screen === "export"
+            ? "Review packages"
+            : local
+              ? focusedSource?.scene || round?.title || "Revisions"
+              : round?.title || "Editorial review"}
         </h1>
       </div>
     </div>
     <div class="workspace-actions">
-      {#if local && focusedReview}<span class="compact-select"
+      {#if local && focusedReview && screen !== "export"}<span class="compact-select"
           ><select
             aria-label="Revision status"
             disabled={busy || focusedSource?.locked}
@@ -1141,23 +1215,25 @@
           aria-label="Find in manuscript"
           onclick={focusSearch}><Search size={18} /></button
         >
-        <details class="workspace-menu">
-          <summary aria-label="Manuscript actions"><MoreHorizontal size={20} /></summary>
-          <div>
-            {#if local}<button
-                onclick={async () => {
-                  if (!session || (await reviewDecisions())) showHistory = true;
-                }}>Draft history</button
-              ><button onclick={() => suggest(true)}>Start suggestions from current prose</button
-              ><button onclick={() => openProject(projectId)}>Review packages and rounds…</button
-              >{/if}
-            {#if session}<button
-                disabled={!session.name.trim() || busy}
-                onclick={() => returnFeedback()}>Export feedback</button
-              ><button onclick={() => returnFeedback(true)}>Export recovery copy</button>{/if}
-            <button onclick={() => openFile()}>Open review or feedback file…</button>
-          </div>
-        </details>
+        <button
+          bind:this={menuTrigger}
+          class="icon"
+          aria-label="Manuscript actions"
+          aria-haspopup="menu"
+          aria-expanded={!!menuPosition}
+          onclick={() => {
+            const rect = menuTrigger!.getBoundingClientRect();
+            menuPosition = menuPosition ? null : { x: rect.right, y: rect.bottom };
+          }}><MoreHorizontal size={20} /></button
+        >
+        {#if active && menuPosition}
+          <ContextMenu
+            items={manuscriptMenu}
+            x={menuPosition.x}
+            y={menuPosition.y}
+            onClose={() => (menuPosition = null)}
+          />
+        {/if}
       {/if}
     </div>
   </header>
@@ -1169,52 +1245,107 @@
     </div>{/if}
   {#if notice}<p role="status" class="workspace-notice">{notice}</p>{/if}
   {#if screen === "export"}
-    <section class="workspace-intro">
-      <h2>Send a manuscript for review</h2>
-      <p>
-        Your editor opens the package in Kindling and works offline. Returned feedback comes back
-        here for your decisions.
-      </p>
-      <label
-        >Review round<input
-          bind:value={roundName}
-          placeholder="Developmental edit — September"
-        /></label
-      >
-      <label
-        >Brief for your editor <span>(optional)</span><textarea
-          bind:value={brief}
-          placeholder="What would you like your editor to focus on?"
-          rows="3"
-        ></textarea></label
-      >
-      <fieldset>
-        <legend>Chapters <span>(none selected means the whole manuscript)</span></legend>
-        {#each exportSources.filter((s, i) => !exportSources
-              .slice(0, i)
-              .some((p) => p.chapter_id === s.chapter_id)) as chapter}
-          <label class="checkbox"
+    <div class="package-layout">
+      <section class="package-form" aria-labelledby="package-title">
+        <h2 id="package-title">Send a manuscript for review</h2>
+        <p class="package-description">
+          Create a file your editor can open in Kindling. They can read, suggest edits, and return
+          their feedback without an account.
+        </p>
+        <label
+          >Review round<input
+            bind:value={roundName}
+            placeholder="Developmental edit — September"
+          /></label
+        >
+        <label
+          ><span>Brief for your editor <span class="optional">Optional</span></span><textarea
+            bind:value={brief}
+            placeholder="What would you like your editor to focus on?"
+            rows="4"
+          ></textarea></label
+        >
+        <fieldset class="package-scope">
+          <legend>Manuscript to include</legend>
+          <label class="scope-choice"
             ><input
-              type="checkbox"
-              value={chapter.chapter_id}
-              bind:group={selectedChapters}
-            />{chapter.chapter}</label
+              type="radio"
+              name="editorial-package-scope"
+              bind:group={exportScope}
+              value="all"
+            />Entire manuscript</label
           >
-        {/each}
-      </fieldset>
-      <button disabled={busy || !roundName.trim() || !exportSources.length} onclick={exportReview}
-        >Export review package</button
-      >
-      <button disabled={busy} onclick={() => openFile()}>Open review or feedback file…</button>
-      {#if rounds.length}<h2 class="mt-8">Review rounds</h2>
-        <ul>
-          {#each rounds as item}<li>
-              <button onclick={() => openRound(item.id)}>{item.name}</button><span
-                >{new Date(item.created_at).toLocaleDateString()}</span
-              >
-            </li>{/each}
-        </ul>{/if}
-    </section>
+          <label class="scope-choice"
+            ><input
+              type="radio"
+              name="editorial-package-scope"
+              bind:group={exportScope}
+              value="selected"
+            />Selected chapters</label
+          >
+          {#if exportScope === "selected"}
+            <div class="chapter-choices">
+              {#each exportSources.filter((s, i) => !exportSources
+                    .slice(0, i)
+                    .some((p) => p.chapter_id === s.chapter_id)) as chapter}
+                <label class="scope-choice"
+                  ><input
+                    type="checkbox"
+                    value={chapter.chapter_id}
+                    bind:group={selectedChapters}
+                  />{chapter.chapter}</label
+                >
+              {/each}
+              {#if !selectedChapters.length}<p class="scope-hint">
+                  Choose at least one chapter.
+                </p>{/if}
+            </div>
+          {/if}
+        </fieldset>
+        <div class="package-export">
+          <button
+            class="primary-action"
+            disabled={busy ||
+              !roundName.trim() ||
+              !exportSources.length ||
+              (exportScope === "selected" && !selectedChapters.length)}
+            onclick={exportReview}><FileOutput size={16} />Export review package</button
+          >
+          <p class="scope-hint">Save the file, then share it with your editor.</p>
+        </div>
+      </section>
+      <aside class="package-rounds" aria-label="Review rounds">
+        <h2>Continue a review</h2>
+        <button class="open-package" disabled={busy} onclick={() => openFile()}
+          ><FolderOpen size={16} />Open review or feedback file…</button
+        >
+        <p class="scope-hint">
+          Open returned feedback to review suggestions and send your decisions back.
+        </p>
+        <h3>Review rounds</h3>
+        {#if rounds.length}
+          <ul>
+            {#each rounds as item}<li>
+                <button
+                  class="round-link"
+                  aria-label={item.name}
+                  disabled={busy}
+                  onclick={() => openRound(item.id)}
+                  ><span>{item.name}</span><time datetime={item.created_at}
+                    >{new Date(item.created_at).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}</time
+                  ><ChevronRight size={16} /></button
+                >
+              </li>{/each}
+          </ul>
+        {:else}<p class="scope-hint">
+            Your review rounds will appear here after you export a package.
+          </p>{/if}
+      </aside>
+    </div>
   {:else if screen === "preview" && received}
     <section class="workspace-intro">
       <h2>Feedback from {received.session?.name}</h2>
@@ -1269,14 +1400,25 @@
                 searchCount = prose?.find(search, 0) ?? 0;
               }}
               onkeydown={(e) => {
-                if (e.key === "Enter") findNext(e.shiftKey ? -1 : 1);
-                if (e.key === "Escape") showSearch = false;
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  findNext(e.shiftKey ? -1 : 1);
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  closeSearch();
+                }
               }}
-            /><span>{search ? `${searchCount} matches` : ""}</span><button
-              onclick={() => findNext(-1)}>Previous</button
-            ><button onclick={() => findNext(1)}>Next</button><button
-              onclick={() => (showSearch = false)}>Done</button
-            >
+            /><span aria-live="polite"
+              >{search
+                ? searchCount
+                  ? `${(((searchIndex % searchCount) + searchCount) % searchCount) + 1} of ${searchCount}`
+                  : "No matches"
+                : ""}</span
+            ><button disabled={!searchCount} onclick={() => findNext(-1)}>Previous</button><button
+              disabled={!searchCount}
+              onclick={() => findNext(1)}>Next</button
+            ><button onclick={closeSearch}>Done</button>
           </div>{/if}
         {#key `${round.id}:${manuscriptVersion}`}
           <EditorialManuscript
@@ -1294,6 +1436,7 @@
             onSelection={updateSelection}
             onComment={composeComment}
             onReadingPosition={updateReadingPosition}
+            onSearchResults={(count) => (searchCount = count)}
             onError={(e) => (error = e)}
             onAnnotation={selectItem}
             onActivate={chooseAnnotation}
@@ -1349,12 +1492,14 @@
               <div class="review-menu-group" role="group" aria-label="Current review round">
                 <p class="review-menu-caption">Review round · {feedback.round.name}</p>
                 <button
+                  class="accept-decision"
                   aria-label="Accept visible suggestions in this round"
                   disabled={busy}
                   onclick={() => decide(suggestions, "accepted")}
                   ><Check size={16} />Accept visible suggestions</button
                 >
                 <button
+                  class="reject-decision"
                   aria-label="Reject visible suggestions in this round"
                   disabled={busy}
                   onclick={() => decide(suggestions, "rejected")}
@@ -1366,11 +1511,13 @@
               <div class="review-menu-group" role="group" aria-label="Active scene prose">
                 <p class="review-menu-caption">Active scene prose</p>
                 <button
+                  class="accept-decision"
                   aria-label="Accept visible suggestions on active scene prose"
                   disabled={busy}
                   onclick={() => bulkLegacy("accepted")}
                   ><Check size={16} />Accept visible suggestions</button
                 ><button
+                  class="reject-decision"
                   aria-label="Reject visible suggestions on active scene prose"
                   disabled={busy}
                   onclick={() => bulkLegacy("rejected")}
@@ -1583,34 +1730,13 @@
   .search-bar span {
     white-space: nowrap;
   }
-  .workspace-menu {
-    position: relative;
+  .accept-decision:not(:disabled) {
+    color: var(--color-success);
+    background: var(--color-success-wash);
   }
-  .workspace-menu summary {
-    list-style: none;
-    cursor: pointer;
-    padding: var(--space-2xs);
-    display: flex;
-  }
-  .workspace-menu > div {
-    position: absolute;
-    right: 0;
-    top: 100%;
-    width: 19rem;
-    max-height: 70vh;
-    overflow: auto;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2xs);
-    padding: var(--space-s);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    box-shadow: var(--shadow-overlay);
-    z-index: var(--z-dropdown);
-  }
-  .workspace-menu button {
-    text-align: left;
-    border: 0;
+  .reject-decision:not(:disabled) {
+    color: var(--color-error);
+    background: var(--color-error-wash);
   }
   .workspace-error {
     padding: var(--space-xs) var(--space-m);
@@ -1625,21 +1751,144 @@
     margin: 0;
     border-bottom: 1px solid var(--color-border);
   }
+  .package-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, 19rem);
+    gap: var(--space-xl);
+    width: min(68rem, 100%);
+    padding: var(--space-xl);
+    margin-inline: auto;
+    overflow: auto;
+  }
+  .package-form h2 {
+    font-family: var(--font-display);
+    font-size: var(--text-h2);
+    margin: 0 0 var(--space-xs);
+  }
+  .package-description {
+    color: var(--color-text-muted);
+    line-height: var(--leading);
+    margin-bottom: var(--space-l);
+  }
+  .package-form > label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xs);
+    margin-bottom: var(--space-m);
+  }
+  .optional {
+    color: var(--color-text-muted);
+    font-size: var(--text-eyebrow);
+    margin-left: var(--space-2xs);
+  }
+  .package-form input:not([type]),
+  .package-form textarea {
+    width: 100%;
+    padding: var(--space-2xs) var(--space-xs);
+    font-size: var(--text-small);
+    line-height: var(--leading);
+  }
+  .package-scope {
+    border: 0;
+    padding: 0;
+    margin-bottom: var(--space-m);
+  }
+  .package-scope legend {
+    margin-bottom: var(--space-2xs);
+  }
+  .scope-choice {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    padding-block: var(--space-2xs);
+    cursor: pointer;
+  }
+  .chapter-choices {
+    padding-left: var(--space-m);
+    margin-left: var(--space-2xs);
+    border-left: 1px solid var(--color-border);
+  }
+  .scope-hint {
+    color: var(--color-text-muted);
+    font-size: var(--text-eyebrow);
+    line-height: var(--leading);
+    margin-block: var(--space-2xs);
+  }
+  .package-export {
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-m);
+  }
+  .primary-action,
+  .open-package {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    padding: var(--space-xs) var(--space-s);
+  }
+  .primary-action {
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    border-color: var(--color-accent);
+  }
+  .primary-action:hover {
+    background: var(--color-accent-text);
+  }
+  .package-rounds {
+    border-left: 1px solid var(--color-border);
+    padding-left: var(--space-l);
+  }
+  .package-rounds h2,
+  .package-rounds h3 {
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    margin-top: 0;
+  }
+  .package-rounds h3 {
+    margin-top: var(--space-l);
+  }
+  .open-package {
+    width: 100%;
+    text-align: left;
+  }
+  .package-rounds ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .round-link {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-3xs) var(--space-2xs);
+    text-align: left;
+    border: 0;
+    border-bottom: 1px solid var(--color-border);
+    border-radius: 0;
+    width: 100%;
+    padding: var(--space-xs) 0;
+    overflow-wrap: anywhere;
+  }
+  .round-link time {
+    grid-column: 1;
+    font-size: var(--text-eyebrow);
+    color: var(--color-text-muted);
+  }
+  .round-link :global(svg) {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    align-self: center;
+  }
+  @media (max-width: 1100px) {
+    .package-layout {
+      gap: var(--space-l);
+      padding: var(--space-l);
+    }
+  }
   .workspace-intro {
     width: min(44rem, 100%);
     box-sizing: border-box;
     padding: var(--space-xl);
     margin: auto;
     overflow: auto;
-  }
-  .workspace-intro label {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2xs);
-    margin-block: var(--space-s);
-  }
-  .workspace-intro .checkbox {
-    flex-direction: row;
   }
   .brief {
     white-space: pre-wrap;

@@ -212,3 +212,44 @@ verified the Escape fix and withdrew a screenshot concern after native menu and
 input colors both measured background `rgb(38,33,27)` and text
 `rgb(232,224,212)`; direct PNG samples also confirmed the panel and input were
 dark. All five compact selects use the same wrapper and chevron treatment.
+
+## Package, history, and manuscript polish follow-up
+
+Follow-up base: `82d09c7bf592116639064ec00230e10f1936e7f0`.
+
+| Requested improvement                  | Implementation evidence                                                                                                 | Validation                                                                                               | Gap  |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---- |
+| Package setup polish                   | Separate setup and continuing-review columns; padded compact fields; explicit entire-manuscript/selected-chapters scope | Native layout and scope checks; selected scope cannot export without a chapter; workspace regression     | None |
+| Clear draft history                    | Newest-first saved-draft list; separate original and comparison panes; active prose only; visible text-change legend    | Three history tests, including latest selection and unchanged prose; both-theme visual inspection        | None |
+| Consistent dismissible manuscript menu | Existing ContextMenu component, icons and divider; outside pointer and Escape dismissal; focus return                   | Native outside dismissal and history opening; workspace menu regression                                  | None |
+| Green/red decisions                    | Success/error foreground, border and wash tokens for enabled individual and bulk decisions                              | Native computed colors match tokens in both themes                                                       | None |
+| Search navigation                      | Explicit pane scrolling and persistent match decoration; refresh matches after edits and on search reopening            | Native distant search with input focus retained; count, highlight, edit, reopen and scrolling regression | None |
+| Selected feedback navigation           | Scroll selected passage inside manuscript pane after rendering; saved reading position cancels queued cursor reveals    | Native cross-scene sidebar selection; read-only scroll and resume-position regressions                   | None |
+| Readable paragraph spacing             | Writing-editor paragraph margins and indentation; matching blockquote treatment                                         | Native computed margins zero and subsequent paragraph indentation 1.5em; content unchanged               | None |
+
+All 37 focused workspace/history tests passed. `npm run check:all` passed with
+the same six existing Svelte warnings and two restricted-schema HTML lint
+warnings; production frontend build passed with the existing large-chunk
+warning. No Rust code changed in this follow-up.
+
+Native macOS verification used the running demo without editing manuscript data,
+saving drafts, deciding suggestions, or exporting packages. Searching for
+`register` scrolled the manuscript to 1991px and placed the highlighted match
+inside the viewport while keeping focus in the search input. Selecting feedback
+for The Seventh Step scrolled from 0 to 1207px and revealed `The step`. Enabled
+Accept/Reject colors measured #356B4D/#9E3E36 in light and #5FA37E/#E58B7F in dark,
+matching the semantic tokens. Package setup and history had no horizontal
+overflow at a 1360×800 outer window. Theme and window size were restored.
+
+New `package-setup-light.png`, `package-setup-dark.png`,
+`draft-history-light.png`, and `draft-history-dark.png` show the updated screens.
+They are browser renderings of captured native DOM with current field values,
+checked states, styles, and fonts, rather than native pixel screenshots.
+
+The independent review-agent found queued cursor scrolling overriding restored
+reading position and stale search offsets after edits. Claude's high-effort
+code-review session `9b013d4c-3675-4833-8665-be790861a556` found missing native
+radio grouping, stale results after reopening search, and a mismatched visible
+and accessible comparison label. All were fixed and covered by focused tests.
+Both reviewers checked the final application code and returned **No findings**.
+The platform installation and upgrade verification gaps above remain unchanged.
