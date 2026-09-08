@@ -161,6 +161,12 @@ CREATE TABLE IF NOT EXISTS writing_goals (
             words INTEGER NOT NULL DEFAULT 0
         );
 
+        CREATE TABLE IF NOT EXISTS scene_reviews (
+            scene_id TEXT PRIMARY KEY REFERENCES scenes(id) ON DELETE CASCADE,
+            version INTEGER NOT NULL,
+            data TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS snapshots (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

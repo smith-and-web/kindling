@@ -14,3 +14,5 @@ pub use session::*;
 pub use tags::*;
 
 pub mod writing;
+
+pub mod revisions;

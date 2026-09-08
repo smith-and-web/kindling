@@ -80,7 +80,7 @@ fn collect_project_data(
     let discovery_notes =
         db::get_all_discovery_notes_for_project(conn, project_id).map_err(|e| e.to_string())?;
 
-    Ok(SnapshotData::new(
+    let mut data = SnapshotData::new(
         project,
         chapters,
         scenes,
@@ -93,7 +93,9 @@ fn collect_project_data(
         scene_reference_item_refs,
         scene_reference_states,
         discovery_notes,
-    ))
+    );
+    data.scene_reviews = db::revisions::backup(conn, project_id)?;
+    Ok(data)
 }
 
 /// Serialize and compress snapshot data to a file
@@ -272,6 +274,10 @@ fn restore_replace_current(
         db::insert_beat(&tx, beat).map_err(|e| e.to_string())?;
     }
 
+    for review in &data.scene_reviews {
+        db::revisions::restore_backup(&tx, review, &HashMap::new())?;
+    }
+
     // Insert characters
     for character in &data.characters {
         db::insert_character(&tx, character).map_err(|e| e.to_string())?;
@@ -441,6 +447,10 @@ fn restore_create_new(
         db::insert_beat(&tx, &new_beat).map_err(|e| e.to_string())?;
     }
 
+    for review in &data.scene_reviews {
+        db::revisions::restore_backup(&tx, review, &id_map)?;
+    }
+
     // Insert characters with remapped IDs
     for character in &data.characters {
         let new_character = Character {
@@ -576,6 +586,74 @@ mod tests {
     use super::*;
     use crate::models::SourceType;
     use tempfile::tempdir;
+
+    #[test]
+    fn editorial_history_survives_both_snapshot_restore_paths() {
+        use crate::db::revisions::{self, Annotation, ReviewDraft};
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        conn.execute_batch("PRAGMA foreign_keys=ON").unwrap();
+        let project = Project::new("Editorial snapshot".into(), SourceType::Blank, None);
+        db::insert_project(&conn, &project).unwrap();
+        let chapter = Chapter::new(project.id, "Chapter".into(), 0);
+        db::insert_chapter(&conn, &chapter).unwrap();
+        let scene = Scene::new(chapter.id, "Scene".into(), None, 0);
+        db::insert_scene(&conn, &scene).unwrap();
+        let mut beat = Beat::new(scene.id, "Beat".into(), 0);
+        beat.prose = Some("<p>Original prose</p>".into());
+        db::insert_beat(&conn, &beat).unwrap();
+        let review = revisions::load(&conn, &scene.id).unwrap();
+        let mut data = review.data.clone();
+        data.drafts.push(ReviewDraft {
+            name: "First draft".into(),
+            created_at: "today".into(),
+            mode: review.mode,
+            documents: review.documents.clone(),
+        });
+        data.annotations.push(Annotation {
+            id: "thread".into(),
+            document_id: beat.id.to_string(),
+            anchor_html: beat.prose.clone().unwrap(),
+            from: 1,
+            to: 9,
+            quote: "Original".into(),
+            replacement: Some("Revised".into()),
+            state: "open".into(),
+            messages: vec![],
+        });
+        revisions::save(&conn, &review, &data, None).unwrap();
+        let snapshot = collect_project_data(&conn, &project.id).unwrap();
+        let serialized = serde_json::to_string(&snapshot).unwrap();
+        let snapshot: SnapshotData = serde_json::from_str(&serialized).unwrap();
+        db::update_beat_prose(&conn, &beat.id, "Later prose").unwrap();
+        restore_replace_current(&conn, snapshot.clone()).unwrap();
+        let restored = revisions::load(&conn, &scene.id).unwrap();
+        assert_eq!(restored.documents[1].html, "<p>Original prose</p>");
+        assert_eq!(restored.data.drafts.len(), 1);
+        assert_eq!(
+            restored.data.annotations[0].document_id,
+            beat.id.to_string()
+        );
+        let copy = restore_create_new(&conn, snapshot, Some("Copy".into())).unwrap();
+        let chapters = db::get_chapters(&conn, &copy.id).unwrap();
+        let scenes = db::get_scenes(&conn, &chapters[0].id).unwrap();
+        let copied = revisions::load(&conn, &scenes[0].id).unwrap();
+        assert_ne!(copied.scene_id, restored.scene_id);
+        assert_eq!(copied.data.drafts[0].documents[0].id, copied.scene_id);
+        assert_eq!(
+            copied.data.annotations[0].document_id,
+            copied.documents[1].id
+        );
+        assert_ne!(copied.documents[1].id, beat.id.to_string());
+        // Earlier snapshots have no editorial field and still deserialize.
+        let mut old =
+            serde_json::to_value(collect_project_data(&conn, &project.id).unwrap()).unwrap();
+        old.as_object_mut().unwrap().remove("scene_reviews");
+        assert!(serde_json::from_value::<SnapshotData>(old)
+            .unwrap()
+            .scene_reviews
+            .is_empty());
+    }
 
     #[test]
     fn test_generate_snapshot_filename_includes_trigger() {

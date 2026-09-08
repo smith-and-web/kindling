@@ -226,6 +226,9 @@ pub fn run() {
             commands::preview_scrivener_matches,
             commands::export_to_scrivener,
             commands::export_to_novelwriter,
+            commands::get_scene_review,
+            commands::save_scene_review,
+            commands::get_revision_overview,
             // Snapshot commands
             commands::create_snapshot,
             commands::list_snapshots,

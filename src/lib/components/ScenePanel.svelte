@@ -1,6 +1,8 @@
 <script lang="ts">
   import { countWordsInHtml } from "../utils/wordCount";
   import { writing } from "../stores/writing.svelte";
+  import RevisionsPanel from "./RevisionsPanel.svelte";
+  import type { SceneReview } from "../utils/revisions";
   import WritingStatusBar from "./WritingStatusBar.svelte";
   import {
     FileText,
@@ -45,6 +47,49 @@
   import SluglineInput from "./SluglineInput.svelte";
   import TagSelector from "./TagSelector.svelte";
   import Tooltip from "./Tooltip.svelte";
+
+  let revisionsScene = $state<{
+    id: string;
+    projectId: string;
+    title: string;
+    locked: boolean;
+  } | null>(null);
+  let openingRevisions = $state(false);
+  let revisionEditorVersion = $state(0);
+  async function openRevisions() {
+    const scene = currentProject.currentScene;
+    const project = currentProject.value;
+    if (!scene || !project) return;
+    openingRevisions = true;
+    try {
+      await prepareForSearch();
+      if (proseSaves.draftsForRecovery(project.id).length)
+        throw new Error("Save or recover unsaved prose before opening Revisions.");
+      if (currentProject.currentScene?.id !== scene.id) return;
+      revisionsScene = {
+        id: scene.id,
+        projectId: project.id,
+        title: scene.title,
+        locked: isLocked,
+      };
+    } catch (e) {
+      ui.showError(String(e));
+    } finally {
+      openingRevisions = false;
+    }
+  }
+  function applyRevision(review: SceneReview) {
+    if (currentProject.currentScene?.id !== review.scene_id) return;
+    const prose = review.documents.find((d) => d.id === review.scene_id)?.html ?? "";
+    currentProject.updateScene(review.scene_id, { prose, editor_mode: review.mode });
+    pageProseContent = prose;
+    for (const doc of review.documents) {
+      if (doc.id !== review.scene_id) currentProject.updateBeatProse(doc.id, doc.html);
+    }
+    pageEditorVersion++;
+    revisionEditorVersion++;
+    writing.scheduleRefresh(currentProject.value!.id);
+  }
 
   const isScreenplay = $derived(currentProject.value?.project_type === "screenplay");
 
@@ -730,6 +775,14 @@
     {@const projectId = currentProject.value.id}
     <div use:trackSceneScroll={{ projectId, sceneId: scene.id }} class="flex-1 overflow-y-auto">
       <div class="max-w-3xl mx-auto p-8">
+        <div class="flex justify-end border-b border-press-border px-4 py-2">
+          <button
+            disabled={openingRevisions}
+            onclick={openRevisions}
+            class="text-press-ui text-press-text"
+            >{openingRevisions ? "Opening revisions…" : "Revisions"}</button
+          >
+        </div>
         <!-- Scene Title -->
         <header class="mb-8">
           <div class="flex items-center gap-3 flex-wrap">
@@ -1306,7 +1359,7 @@
               projectId={currentProject.value?.id}
               sceneId={scene.id}
               content={pageProseContent}
-              readonly={isLocked || switchingMode}
+              readonly={isLocked || switchingMode || openingRevisions || !!revisionsScene}
               saveStatus={pageProseSaveStatus}
               wordCount={getPageWordCount()}
               onUpdate={handlePageProseUpdate}
@@ -1316,11 +1369,13 @@
 
         <!-- Beats (Fixed + Beat mode only) -->
         {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode !== "page"}
-          <BeatView
-            bind:this={beatViewRef}
-            beats={currentProject.beats}
-            isLocked={isLocked || switchingMode}
-          />
+          {#key revisionEditorVersion}
+            <BeatView
+              bind:this={beatViewRef}
+              beats={currentProject.beats}
+              isLocked={isLocked || switchingMode || openingRevisions || !!revisionsScene}
+            />
+          {/key}
         {/if}
 
         <!-- Scene Prose fallback (Fixed + Beat mode only, if exists and no beats) -->
@@ -1364,5 +1419,16 @@
       doSwitchMode("beat");
     }}
     onCancel={() => (showSwitchToBeatConfirm = false)}
+  />
+{/if}
+
+{#if revisionsScene}
+  <RevisionsPanel
+    sceneId={revisionsScene.id}
+    projectId={revisionsScene.projectId}
+    title={revisionsScene.title}
+    locked={revisionsScene.locked}
+    onApplied={applyRevision}
+    onClose={() => (revisionsScene = null)}
   />
 {/if}
