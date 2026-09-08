@@ -12,6 +12,7 @@ import {
   type EditorialPackage,
   type EditorialFeedback,
 } from "../utils/editorial";
+import type { SceneReview } from "../utils/revisions";
 import EditorialWorkspace from "./EditorialWorkspace.svelte";
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
@@ -45,6 +46,7 @@ const packageData: EditorialPackage = {
 const prepareWriting = vi.fn().mockResolvedValue(undefined),
   onManuscriptChanged = vi.fn().mockResolvedValue(undefined);
 let returned: EditorialFeedback;
+let localReview: SceneReview;
 function editor() {
   return (document.querySelector(".editorial-prose") as HTMLElement & { editor: Editor }).editor;
 }
@@ -70,8 +72,28 @@ beforeEach(() => {
     .fn()
     .mockReturnValue({ left: 0, right: 0, top: 0, bottom: 0 });
   returned = { round, sources: [source], entries: [], version: 1 };
+  localReview = {
+    scene_id: "s",
+    version: 0,
+    mode: "page",
+    documents: [{ id: "s", label: "Page", html: source.html }],
+    data: { status: "first_draft", drafts: [], annotations: [] },
+  };
   vi.mocked(invoke).mockImplementation(async (command, args) => {
     if (command === "take_editorial_open_files") return [];
+    if (command === "open_local_editorial_review") return structuredClone(packageData);
+    if (command === "get_project_scene_reviews") return [structuredClone(localReview)];
+    if (command === "get_scene_review") return structuredClone(localReview);
+    if (command === "save_scene_review") {
+      const update = args as {
+        data: SceneReview["data"];
+        next: { documents: SceneReview["documents"] } | null;
+      };
+      localReview.data = update.data;
+      if (update.next) localReview.documents = update.next.documents;
+      localReview.version++;
+      return structuredClone(localReview);
+    }
     if (command === "open_editorial_package") return structuredClone(packageData);
     if (command === "get_editorial_feedback" || command === "import_editorial_feedback")
       return structuredClone(returned);
@@ -95,6 +117,312 @@ afterEach(() => {
 });
 
 describe("editorial workspace", () => {
+  it("keeps inactive prose feedback discoverable with its original discussion", async () => {
+    localReview.documents.push({ id: "hidden-beat", label: "Beat 1", html: "<p>Old prose</p>" });
+    localReview.data.annotations.push({
+      id: "hidden-note",
+      document_id: "hidden-beat",
+      anchor_html: "<p>Old prose</p>",
+      from: 1,
+      to: 4,
+      quote: "Old",
+      replacement: null,
+      state: "open",
+      messages: [{ author: "Rowan", text: "Keep this perspective.", created_at: "today" }],
+    });
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openLocal("project", "s");
+    await fireEvent.click(view.getByRole("button", { name: /Keep this perspective/ }));
+    expect(view.getByText(/Saved on inactive beat prose/)).toBeTruthy();
+    expect(view.getByText("Keep this perspective.")).toBeTruthy();
+    expect(view.queryByRole("button", { name: "Reply" })).toBeNull();
+    expect(document.querySelectorAll(".editorial-margin-marker")).toHaveLength(0);
+  });
+  it.each(["accepted", "rejected", "locked", "failed"])(
+    "groups active scene suggestions atomically for %s bulk decisions",
+    async (decision) => {
+      const sources = ["s", "t"].map((id) => ({
+        ...source,
+        id,
+        scene_id: id,
+        locked: decision === "locked" && id === "t",
+      }));
+      const reviews: SceneReview[] = sources.map((src) => ({
+        ...structuredClone(localReview),
+        scene_id: src.id,
+        documents: [{ id: src.id, label: "Page", html: src.html }],
+        data: {
+          status: "editor_review",
+          drafts: [],
+          annotations: [
+            {
+              id: `note-${src.id}`,
+              document_id: src.id,
+              anchor_html: src.html,
+              from: 1,
+              to: 8,
+              quote: "Eleanor",
+              replacement: "Rowan",
+              state: "open",
+              messages: [],
+            },
+          ],
+        },
+      }));
+      const original = vi.mocked(invoke).getMockImplementation()!;
+      vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+        if (cmd === "editorial_sources") return structuredClone(sources);
+        if (cmd === "get_project_scene_reviews") return structuredClone(reviews);
+        if (cmd === "save_scene_review_batch" && decision === "failed")
+          throw new Error("Review changed in another window");
+        return original(cmd, args);
+      });
+      const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+      await view.component.openLocal("project", "s");
+      await fireEvent.click(view.getByLabelText("Review options"));
+      await fireEvent.click(
+        view.getByRole("button", {
+          name: `${decision === "rejected" ? "Reject" : "Accept"} visible suggestions on active scene prose`,
+        })
+      );
+      if (decision === "failed") {
+        await waitFor(() =>
+          expect(view.getByRole("alert").textContent).toContain("another window")
+        );
+        expect(reviews.every((r) => r.data.annotations[0].state === "open")).toBe(true);
+      } else if (decision === "locked") {
+        await waitFor(() => expect(view.getByRole("alert").textContent).toContain("Unlock"));
+        expect(
+          vi.mocked(invoke).mock.calls.some(([cmd]) => cmd === "save_scene_review_batch")
+        ).toBe(false);
+      } else {
+        await waitFor(() =>
+          expect(
+            vi.mocked(invoke).mock.calls.some(([cmd]) => cmd === "save_scene_review_batch")
+          ).toBe(true)
+        );
+        const call = vi
+          .mocked(invoke)
+          .mock.calls.find(([cmd]) => cmd === "save_scene_review_batch")![1] as {
+          updates: {
+            expected: SceneReview;
+            data: SceneReview["data"];
+            next: { documents: SceneReview["documents"] } | null;
+          }[];
+        };
+        expect(call.updates.map((u) => u.expected.scene_id)).toEqual(["s", "t"]);
+        for (const update of call.updates) {
+          expect(update.data.annotations[0].state).toBe(decision);
+          expect(update.expected.data.annotations[0].state).toBe("open");
+          if (decision === "accepted") {
+            expect(update.next!.documents[0].id).toBe(update.expected.scene_id);
+            expect(update.next!.documents[0].html).toContain("Rowan");
+            expect(update.data.drafts[0].documents).toEqual(update.expected.documents);
+          } else expect(update.next).toBeNull();
+        }
+      }
+    }
+  );
+  it("reanchors and accepts a saved scene suggestion using the selected current passage", async () => {
+    const current = { ...source, id: "s", html: "<p>Young Eleanor opened the letter.</p>" };
+    localReview.documents[0].html = current.html;
+    localReview.data.annotations.push({
+      id: "old-edit",
+      document_id: "s",
+      anchor_html: source.html,
+      from: 1,
+      to: 8,
+      quote: "Eleanor",
+      replacement: "Rowan",
+      state: "open",
+      messages: [],
+    });
+    const original = vi.mocked(invoke).getMockImplementation()!;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) =>
+      cmd === "editorial_sources" ? [current] : original(cmd, args)
+    );
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openLocal("project", "s");
+    await fireEvent.click(view.getByRole("button", { name: /Suggested edit/ }));
+    expect((view.getByRole("button", { name: "Accept" }) as HTMLButtonElement).disabled).toBe(true);
+    editor().commands.setTextSelection({ from: 7, to: 14 });
+    await tick();
+    await fireEvent.click(view.getByRole("button", { name: "Apply to selected passage" }));
+    await waitFor(() => expect(localReview.data.annotations[0].state).toBe("accepted"));
+    expect(localReview.documents[0].html).toContain("Young Rowan opened");
+    expect(localReview.data.drafts[0].documents[0].html).toBe(current.html);
+  });
+  it("propagates failed workspace closing so its project cannot be discarded", async () => {
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openLocal("project", "s");
+    await fireEvent.change(view.getByLabelText("Editor mode"), { target: { value: "review" } });
+    await waitFor(() => expect(editor().isEditable).toBe(true));
+    const original = vi.mocked(invoke).getMockImplementation()!;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === "import_editorial_feedback") throw new Error("disk full");
+      return original(cmd, args);
+    });
+    await expect(view.component.closeWorkspace()).rejects.toThrow("disk full");
+    expect(view.component.isOpen()).toBe(true);
+  });
+  it("keeps first-time attribution mounted through native-style character input", async () => {
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openFile("/review.kindling-review");
+    const input = view.getByLabelText("Name shown with feedback");
+    for (const value of ["R", "Ro", "Rowan"]) {
+      await fireEvent.input(input, { target: { value } });
+      expect(view.getByLabelText("Name shown with feedback")).toBe(input);
+    }
+    await fireEvent.click(view.getByRole("button", { name: "Done" }));
+    expect(view.queryByLabelText("Name shown with feedback")).toBeNull();
+    expect(localStorage.getItem("kindling.editorial.name")).toBe("Rowan");
+  });
+  it("activates inline feedback without expanding the edit selection", async () => {
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openFile("/review.kindling-review");
+    editor().commands.setTextSelection(1);
+    editor().commands.insertContent("Quietly, ");
+    await fireEvent.change(view.getByLabelText("Markup view"), { target: { value: "all" } });
+    const marker = document.querySelector(".editorial-margin-marker");
+    editor().commands.setTextSelection(4);
+    await tick();
+    expect(document.querySelector(".editorial-margin-marker")).toBe(marker);
+    const mark = document.querySelector(".editorial-insertion")!;
+    await fireEvent.click(mark);
+    expect(editor().state.selection.from).toBe(4);
+    expect(editor().state.selection.to).toBe(4);
+    editor().commands.insertContent("X");
+    expect(editor().getText()).toContain("QuiXetly, ");
+  });
+  it("uses current scene locks when resuming and refreshing an existing local pass", async () => {
+    let locked = true;
+    const original = vi.mocked(invoke).getMockImplementation()!;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) =>
+      cmd === "editorial_sources" ? [{ ...source, locked }] : original(cmd, args)
+    );
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openLocal("project", "s");
+    await fireEvent.change(view.getByLabelText("Editor mode"), { target: { value: "review" } });
+    await waitFor(() => expect(editor().isEditable).toBe(true));
+    editor().commands.setTextSelection(1);
+    editor().commands.insertContent("Blocked ");
+    expect(editor().getText()).not.toContain("Blocked");
+    locked = false;
+    await view.component.refreshLocalContext();
+    editor().commands.insertContent("Allowed ");
+    expect(editor().getText()).toContain("Allowed");
+  });
+  it("does not offer unsupported new comments in returned portable feedback", async () => {
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openProject("project");
+    await fireEvent.click(view.getByRole("button", { name: "First review" }));
+    await waitFor(() => expect(editor().isEditable).toBe(false));
+    expect(view.queryByRole("button", { name: "Comment" })).toBeNull();
+  });
+  it("opens local revisions in the editor, suggests with normal gestures and publishes only acknowledged saves", async () => {
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openLocal("project", "s", { sourceId: "a", from: 9, to: 15 });
+    expect(view.queryByRole("dialog")).toBeNull();
+    expect(view.component.isLocal()).toBe(true);
+    expect(editor().state.selection.from).toBe(9);
+    await fireEvent.change(view.getByLabelText("Editor mode"), { target: { value: "review" } });
+    await waitFor(() => expect(editor().isEditable).toBe(true));
+    expect(editor().state.selection.from).toBe(9);
+    editor().commands.insertContent("read");
+    await tick();
+    expect((view.getByLabelText("Markup view") as HTMLSelectElement).value).toBe("simple");
+    expect(document.querySelectorAll(".editorial-margin-marker")).toHaveLength(1);
+    expect(document.querySelector(".editorial-deletion")).toBeNull();
+    await fireEvent.click(view.getByRole("button", { name: /Suggested edit/ }));
+    expect(document.querySelector(".editorial-deletion")).toBeTruthy();
+    await view.component.flush();
+    const calls = vi.mocked(invoke).mock.calls;
+    const saved = calls.filter(([cmd]) => cmd === "save_editorial_session").slice(-1)[0]![1] as {
+      session: unknown;
+    };
+    const published = calls
+      .filter(([cmd]) => cmd === "import_editorial_feedback")
+      .slice(-1)[0]![1] as {
+      package: { session: unknown };
+    };
+    expect(published.package.session).toEqual(saved.session);
+    await fireEvent.change(view.getByLabelText("Editor mode"), { target: { value: "feedback" } });
+    await waitFor(() => expect(editor().isEditable).toBe(false));
+    await fireEvent.click(view.getByRole("button", { name: "Return to writing" }));
+    expect(view.component.isOpen()).toBe(false);
+  });
+  it("presents saved scene comments and preserves a failed reply for retry", async () => {
+    // A page source uses the scene id; this fixture exercises existing scene annotations.
+    const localSource = { ...source, id: "s" };
+    localReview.data.annotations = [
+      {
+        id: "old",
+        document_id: "s",
+        anchor_html: source.html,
+        from: 1,
+        to: 8,
+        quote: "Eleanor",
+        replacement: null,
+        state: "open",
+        messages: [{ author: "Rowan", text: "Whose letter?", created_at: "2026-01-01" }],
+      },
+    ];
+    const original = vi.mocked(invoke).getMockImplementation()!;
+    let fail = true;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === "editorial_sources") return [localSource];
+      if (cmd === "save_scene_review" && fail)
+        throw new Error("Another window changed this review");
+      return original(cmd, args);
+    });
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openLocal("project", "s");
+    fail = false;
+    await fireEvent.click(view.getByLabelText("Manuscript actions"));
+    await fireEvent.click(view.getByRole("button", { name: "Draft history" }));
+    await fireEvent.input(await view.findByLabelText("Draft name"), {
+      target: { value: "Before review" },
+    });
+    await fireEvent.click(view.getByRole("button", { name: "Save named draft" }));
+    await waitFor(() => expect(localReview.version).toBe(1));
+    await fireEvent.click(view.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(view.queryByRole("dialog")).toBeNull());
+    fail = true;
+    await fireEvent.click(view.getByRole("button", { name: /Rowan.*Whose letter/ }));
+    await fireEvent.input(view.getByLabelText("Reply"), {
+      target: { value: "Her guardian sent it." },
+    });
+    await fireEvent.click(view.getByRole("button", { name: "Reply" }));
+    await waitFor(() => expect(view.getByRole("alert").textContent).toContain("Another window"));
+    expect((view.getByLabelText("Reply") as HTMLTextAreaElement).value).toBe(
+      "Her guardian sent it."
+    );
+    fail = false;
+    await fireEvent.click(view.getByRole("button", { name: "Reply" }));
+    await waitFor(() =>
+      expect((view.getByLabelText("Reply") as HTMLTextAreaElement).value).toBe("")
+    );
+    expect(localReview.data.annotations[0].messages.slice(-1)[0]?.text).toBe(
+      "Her guardian sent it."
+    );
+    await fireEvent.click(view.getByRole("button", { name: "Resolve thread" }));
+    await waitFor(() => expect(localReview.data.annotations[0].state).toBe("resolved"));
+  });
+  it("keeps the current workspace usable when opening local feedback fails", async () => {
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openFile("/review.kindling-review");
+    editor().commands.insertContent("A note. ");
+    const text = editor().getText();
+    const original = vi.mocked(invoke).getMockImplementation()!;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === "get_project_scene_reviews") throw new Error("Scene unavailable");
+      return original(cmd, args);
+    });
+    await view.component.openLocal("project", "s");
+    expect(view.component.isLocal()).toBe(false);
+    expect(editor().getText()).toBe(text);
+    expect(view.getByRole("alert").textContent).toContain("Scene unavailable");
+  });
   it("shows an actionable error when a package fails before the workspace opens", async () => {
     const original = vi.mocked(invoke).getMockImplementation()!;
     vi.mocked(invoke).mockImplementation(async (cmd, args) => {
@@ -103,10 +431,11 @@ describe("editorial workspace", () => {
     });
     const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
     await view.component.openFile("/future.kindling-review");
-    expect((view.getByRole("dialog") as HTMLDialogElement).open).toBe(true);
+    expect(view.component.isOpen()).toBe(true);
+    expect(view.queryByRole("dialog")).toBeNull();
     expect(view.getByRole("alert").textContent).toContain("Unsupported review package version");
     expect(view.getByText("Open review or feedback file…")).toBeTruthy();
-    await fireEvent.click(view.getByText("Back to Kindling"));
+    await fireEvent.click(view.getByRole("button", { name: "Close review" }));
     await waitFor(() => expect(view.component.isOpen()).toBe(false));
   });
   it("resumes separate saved suggestions in a substantial scene without changing their identities", async () => {
@@ -166,7 +495,7 @@ describe("editorial workspace", () => {
     editor().commands.setTextSelection(1);
     editor().commands.insertContent("At dusk, ");
     await tick();
-    expect(view.getByText("Insertion · open")).toBeTruthy();
+    expect(view.getByRole("button", { name: /Suggested edit/ })).toBeTruthy();
     editor().commands.undo();
     await tick();
     expect(view.queryByText("Insertion · open")).toBeNull();
@@ -180,6 +509,7 @@ describe("editorial workspace", () => {
       })
     );
     vi.mocked(save).mockResolvedValue("/returned.kindling-feedback");
+    await fireEvent.click(view.getByLabelText("Manuscript actions"));
     await fireEvent.click(view.getByRole("button", { name: "Export feedback" }));
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith(
@@ -187,21 +517,22 @@ describe("editorial workspace", () => {
         expect.objectContaining({ path: "/returned.kindling-feedback" })
       )
     );
-    await fireEvent.click(view.getByText("Back to Kindling"));
+    await fireEvent.click(view.getByRole("button", { name: "Close review" }));
     await waitFor(() => expect(view.component.isOpen()).toBe(false));
   });
 
   it("keeps focus in search while selecting a match and focuses comment composition", async () => {
     const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
     await view.component.openFile("/review.kindling-review");
-    const search = view.getByLabelText("Find in manuscript");
+    await fireEvent.click(view.getByRole("button", { name: "Find in manuscript" }));
+    const search = view.getByRole("searchbox");
     search.focus();
     await fireEvent.input(search, { target: { value: "letter" } });
     expect(document.activeElement).toBe(search);
     expect(
       editor().state.doc.textBetween(editor().state.selection.from, editor().state.selection.to)
     ).toBe("letter");
-    await fireEvent.click(view.getByRole("button", { name: "Add comment" }));
+    await fireEvent.click(view.getByRole("button", { name: "Comment" }));
     await tick();
     expect(document.activeElement).toBe(view.getByLabelText("Comment"));
     await view.component.flush();
@@ -214,7 +545,7 @@ describe("editorial workspace", () => {
     await fireEvent.input(view.getByLabelText("Your name"), { target: { value: "Rowan" } });
     await expect(view.component.flush()).rejects.toThrow("disk full");
     vi.mocked(save).mockResolvedValue("/recovery.kindling-review");
-    await fireEvent.click(view.getByText("Export recovery copy"));
+    await fireEvent.click(view.getAllByText("Export recovery copy")[0]);
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith(
         "export_editorial_recovery",
@@ -231,23 +562,23 @@ describe("editorial workspace", () => {
     await view.component.openFile("/review.kindling-review");
     await fireEvent.input(view.getByLabelText("Your name"), { target: { value: "Rowan" } });
     editor().commands.setTextSelection({ from: 1, to: 8 });
-    await fireEvent.click(view.getByRole("button", { name: "Add comment" }));
+    await fireEvent.click(view.getByRole("button", { name: "Comment" }));
     await fireEvent.input(view.getByLabelText("Comment"), {
       target: { value: "What is Eleanor afraid of?" },
     });
     await fireEvent.click(view.getByText("Save comment"));
-    expect(view.getByText("What is Eleanor afraid of?")).toBeTruthy();
+    expect(view.getAllByText("What is Eleanor afraid of?")).toHaveLength(1);
     await fireEvent.input(view.getByLabelText("Reply"), {
       target: { value: "The letter should make this clearer." },
     });
     await fireEvent.click(view.getByRole("button", { name: "Reply" }));
     expect(view.getByText("The letter should make this clearer.")).toBeTruthy();
-    await fireEvent.click(view.getByRole("button", { name: "Resolve" }));
-    await fireEvent.change(view.getByLabelText("Show", { exact: true }), {
+    await fireEvent.click(view.getByRole("button", { name: "Resolve thread" }));
+    await fireEvent.change(view.getByLabelText("Show feedback"), {
       target: { value: "all" },
     });
-    await fireEvent.click(view.getByRole("button", { name: "Reopen" }));
-    expect(view.getByText("Comment · open")).toBeTruthy();
+    await fireEvent.click(view.getByRole("button", { name: "Reopen thread" }));
+    expect(view.getByRole("button", { name: /Rowan.*Comment/ })).toBeTruthy();
     await view.component.flush();
   });
 
@@ -283,8 +614,10 @@ describe("editorial workspace", () => {
     await view.component.openFile("/feedback.kindling-feedback");
     expect(invoke).not.toHaveBeenCalledWith("import_editorial_feedback", expect.anything());
     await fireEvent.click(view.getByText("Import and review feedback"));
-    await waitFor(() => expect(view.getByText("Rowan · suggestion · open")).toBeTruthy());
-    await fireEvent.click(view.getByText("Rowan · suggestion · open"));
+    await waitFor(() =>
+      expect(view.getByRole("button", { name: /Rowan.*Suggested edit/ })).toBeTruthy()
+    );
+    await fireEvent.click(view.getByRole("button", { name: /Rowan.*Suggested edit/ }));
     await fireEvent.click(view.getByRole("button", { name: "Accept" }));
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith(
@@ -305,7 +638,7 @@ describe("editorial workspace", () => {
     await view.component.openFile("/review.kindling-review");
     await fireEvent.input(view.getByLabelText("Your name"), { target: { value: "Rowan" } });
     editor().commands.setTextSelection({ from: 20, to: 26 });
-    await fireEvent.click(view.getByText("Add comment"));
+    await fireEvent.click(view.getByRole("button", { name: "Comment" }));
     await fireEvent.input(view.getByLabelText("Comment"), {
       target: { value: "Keep the letter tangible." },
     });
@@ -313,7 +646,7 @@ describe("editorial workspace", () => {
     editor().commands.setTextSelection(1);
     editor().commands.insertContent("At dusk, ");
     await tick();
-    await fireEvent.click(view.getByText("Insertion · open"));
+    await fireEvent.click(view.getByRole("button", { name: /Suggested edit/ }));
     await fireEvent.click(view.getByText("Withdraw suggestion"));
     await tick();
     await view.component.flush();
@@ -350,7 +683,7 @@ describe("editorial workspace", () => {
     expect(editor().state.doc.child(1).attrs.source).toBeNull();
     const originalStart = editor().state.doc.content.size - 27;
     editor().commands.setTextSelection({ from: originalStart + 19, to: originalStart + 25 });
-    await fireEvent.click(view.getByText("Add comment"));
+    await fireEvent.click(view.getByRole("button", { name: "Comment" }));
     await fireEvent.input(view.getByLabelText("Comment"), {
       target: { value: "Keep the letter tangible." },
     });
@@ -358,7 +691,7 @@ describe("editorial workspace", () => {
     editor().commands.setTextSelection(editor().state.doc.content.size - 1);
     editor().commands.insertContent(" Later.");
     await tick();
-    await fireEvent.click(view.getAllByText("Insertion · open").slice(-1)[0]!);
+    await fireEvent.click(view.getAllByRole("button", { name: /Suggested edit/ }).slice(-1)[0]!);
     await fireEvent.click(view.getByText("Withdraw suggestion"));
     await tick();
     await view.component.flush();
@@ -396,8 +729,10 @@ describe("editorial workspace", () => {
     const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
     await view.component.openProject("project");
     await fireEvent.click(view.getByText("First review"));
-    await waitFor(() => expect(view.getByText("Rowan · suggestion · open")).toBeTruthy());
-    await fireEvent.click(view.getByText("Rowan · suggestion · open"));
+    await waitFor(() =>
+      expect(view.getByRole("button", { name: /Rowan.*Suggested edit/ })).toBeTruthy()
+    );
+    await fireEvent.click(view.getByRole("button", { name: /Rowan.*Suggested edit/ }));
     const before = editor();
     const selection = before.state.selection;
     await fireEvent.click(view.getByRole("button", { name: "Reject" }));
@@ -405,6 +740,7 @@ describe("editorial workspace", () => {
     expect(editor()).toBe(before);
     expect(editor().state.selection.eq(selection)).toBe(true);
     vi.mocked(save).mockResolvedValue("/reply.kindling-review");
+    await fireEvent.click(view.getByLabelText("Review options"));
     await fireEvent.click(view.getByText("Export replies and decisions"));
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith("export_editorial_reply", {
@@ -441,8 +777,10 @@ describe("editorial workspace", () => {
     const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
     await view.component.openProject("project");
     await fireEvent.click(view.getByText("First review"));
-    await waitFor(() => expect(view.getByText("Rowan · suggestion · open")).toBeTruthy());
-    await fireEvent.click(view.getByText("Rowan · suggestion · open"));
+    await waitFor(() =>
+      expect(view.getByRole("button", { name: /Rowan.*Suggested edit/ })).toBeTruthy()
+    );
+    await fireEvent.click(view.getByRole("button", { name: /Rowan.*Suggested edit/ }));
     editor().commands.setTextSelection({ from: 20, to: 26 });
     await fireEvent.click(view.getByRole("button", { name: "Accept" }));
     await waitFor(() => expect(editor().state.doc.textContent).toContain("At dusk"));
@@ -464,8 +802,10 @@ describe("editorial workspace", () => {
     const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
     await view.component.openProject("project");
     await fireEvent.click(view.getByText("First review"));
-    await waitFor(() => expect(view.getByText("Rowan · suggestion · open")).toBeTruthy());
-    await fireEvent.click(view.getByText("Rowan · suggestion · open"));
+    await waitFor(() =>
+      expect(view.getByRole("button", { name: /Rowan.*Suggested edit/ })).toBeTruthy()
+    );
+    await fireEvent.click(view.getByRole("button", { name: /Rowan.*Suggested edit/ }));
     const apply = view.getByText("Apply to selected passage") as HTMLButtonElement;
     expect(apply.disabled).toBe(true);
     editor().commands.setTextSelection({ from: 9, to: 12 });
@@ -501,7 +841,7 @@ describe("editorial workspace", () => {
     await view.component.flush();
     vi.mocked(invoke).mockRejectedValue(new Error("disk full"));
     await fireEvent.input(view.getByLabelText("Your name"), { target: { value: "Rowan" } });
-    await fireEvent.click(view.getByText("Back to Kindling"));
+    await fireEvent.click(view.getByRole("button", { name: "Close review" }));
     await waitFor(() => expect(view.getByRole("alert").textContent).toContain("disk full"));
     expect(view.component.isOpen()).toBe(true);
     expect(localStorage.getItem("kindling.editorial.recovery.round")).toContain("Rowan");
@@ -520,6 +860,6 @@ describe("editorial workspace", () => {
       )
     );
     await fireEvent.click(view.getAllByText("First review")[0]);
-    await waitFor(() => expect(view.getByText("Returned feedback")).toBeTruthy());
+    await waitFor(() => expect(view.getByRole("tab", { name: /Review/ })).toBeTruthy());
   });
 });

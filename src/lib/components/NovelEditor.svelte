@@ -5,20 +5,8 @@
   import Underline from "@tiptap/extension-underline";
   import TextAlign from "@tiptap/extension-text-align";
   import { trackEditorPosition } from "../utils/editorPosition";
-  import {
-    Bold,
-    Italic,
-    Underline as UnderlineIcon,
-    Code,
-    AlignLeft,
-    AlignCenter,
-    AlignRight,
-    AlignJustify,
-    Quote,
-    IndentIncrease,
-    IndentDecrease,
-    Loader2,
-  } from "lucide-svelte";
+  import { Loader2 } from "lucide-svelte";
+  import ProseToolbar from "./ProseToolbar.svelte";
 
   interface Props {
     content: string;
@@ -66,28 +54,9 @@
   // Word count
   let wordCount = $state(0);
 
-  // Track editor state for toolbar reactivity
-  let isBold = $state(false);
-  let isItalic = $state(false);
-  let isUnderline = $state(false);
-  let isCode = $state(false);
-  let isBlockquote = $state(false);
-  let textAlign = $state<"left" | "center" | "right" | "justify">("left");
-
+  let toolbarRevision = $state(0);
   function updateToolbarState() {
-    if (!editor) return;
-    isBold = editor.isActive("bold");
-    isItalic = editor.isActive("italic");
-    isUnderline = editor.isActive("underline");
-    isCode = editor.isActive("code");
-    isBlockquote = editor.isActive("blockquote");
-    textAlign = editor.isActive({ textAlign: "center" })
-      ? "center"
-      : editor.isActive({ textAlign: "right" })
-        ? "right"
-        : editor.isActive({ textAlign: "justify" })
-          ? "justify"
-          : "left";
+    untrack(() => toolbarRevision++);
   }
 
   function updateWordCount() {
@@ -191,40 +160,8 @@
   });
 
   // Toolbar actions
-  function toggleBold() {
-    editor?.chain().focus().toggleBold().run();
-  }
-
-  function toggleItalic() {
-    editor?.chain().focus().toggleItalic().run();
-  }
-
-  function toggleUnderline() {
-    editor?.chain().focus().toggleUnderline().run();
-  }
-
-  function toggleCode() {
-    editor?.chain().focus().toggleCode().run();
-  }
-
-  function toggleBlockquote() {
-    editor?.chain().focus().toggleBlockquote().run();
-  }
-
-  function setAlignment(align: "left" | "center" | "right" | "justify") {
-    editor?.chain().focus().setTextAlign(align).run();
-  }
-
   function insertTab() {
     editor?.chain().focus().insertContent("\t").run();
-  }
-
-  function indent() {
-    insertTab();
-  }
-
-  function outdent() {
-    // No-op for now
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -247,109 +184,7 @@
 <div class="novel-editor" class:readonly>
   <!-- Toolbar -->
   {#if !readonly}
-    <div class="novel-editor-toolbar">
-      <div class="toolbar-group">
-        <button
-          type="button"
-          class="toolbar-btn"
-          class:active={isBold}
-          onclick={toggleBold}
-          title="Bold (Ctrl+B)"
-        >
-          <Bold class="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          class="toolbar-btn"
-          class:active={isItalic}
-          onclick={toggleItalic}
-          title="Italic (Ctrl+I)"
-        >
-          <Italic class="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          class="toolbar-btn"
-          class:active={isUnderline}
-          onclick={toggleUnderline}
-          title="Underline (Ctrl+U)"
-        >
-          <UnderlineIcon class="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          class="toolbar-btn"
-          class:active={isCode}
-          onclick={toggleCode}
-          title="Monospace"
-        >
-          <Code class="w-4 h-4" />
-        </button>
-      </div>
-
-      <div class="toolbar-divider"></div>
-
-      <div class="toolbar-group">
-        <button
-          type="button"
-          class="toolbar-btn"
-          class:active={textAlign === "left"}
-          onclick={() => setAlignment("left")}
-          title="Align Left"
-        >
-          <AlignLeft class="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          class="toolbar-btn"
-          class:active={textAlign === "center"}
-          onclick={() => setAlignment("center")}
-          title="Align Center"
-        >
-          <AlignCenter class="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          class="toolbar-btn"
-          class:active={textAlign === "right"}
-          onclick={() => setAlignment("right")}
-          title="Align Right"
-        >
-          <AlignRight class="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          class="toolbar-btn"
-          class:active={textAlign === "justify"}
-          onclick={() => setAlignment("justify")}
-          title="Justify"
-        >
-          <AlignJustify class="w-4 h-4" />
-        </button>
-      </div>
-
-      <div class="toolbar-divider"></div>
-
-      <div class="toolbar-group">
-        <button
-          type="button"
-          class="toolbar-btn"
-          class:active={isBlockquote}
-          onclick={toggleBlockquote}
-          title="Block Quote"
-        >
-          <Quote class="w-4 h-4" />
-        </button>
-        <button type="button" class="toolbar-btn" onclick={indent} title="Indent">
-          <IndentIncrease class="w-4 h-4" />
-        </button>
-        <button type="button" class="toolbar-btn" onclick={outdent} title="Outdent">
-          <IndentDecrease class="w-4 h-4" />
-        </button>
-      </div>
-
-      <!-- Save status and word count -->
-      <div class="toolbar-spacer"></div>
+    <ProseToolbar {editor} revision={toolbarRevision}>
       {#if saveStatus === "saving"}
         <div class="save-status saving" data-testid="save-indicator">
           <Loader2 class="w-3.5 h-3.5 animate-spin" />
@@ -364,14 +199,19 @@
         {wordCount}
         {wordCount === 1 ? "word" : "words"}
       </div>
-    </div>
+    </ProseToolbar>
   {/if}
 
   <!-- Editor -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div bind:this={scrollElement} class="novel-pages-container" onkeydown={handleKeydown}>
     <div class="novel-page app-prose-sheet">
-      <div bind:this={editorElement} class="editor-wrapper" data-testid="beat-prose-editor"></div>
+      <div
+        bind:this={editorElement}
+        class="editor-wrapper"
+        data-testid="beat-prose-editor"
+        data-source-id={beatId ?? sceneId}
+      ></div>
     </div>
   </div>
 </div>
@@ -387,60 +227,6 @@
 
   .novel-editor.readonly {
     cursor: default;
-  }
-
-  /* Toolbar */
-  .novel-editor-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.5rem 0.75rem;
-    background: var(--color-surface-sunken);
-    border-bottom: 1px solid var(--color-border);
-    flex-wrap: wrap;
-  }
-
-  .toolbar-group {
-    display: flex;
-    align-items: center;
-    gap: 0.125rem;
-  }
-
-  .toolbar-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    border-radius: var(--radius-s);
-    color: var(--color-text-muted);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    transition:
-      background-color var(--transition),
-      color var(--transition);
-  }
-
-  .toolbar-btn:hover {
-    background: var(--color-surface);
-    color: var(--color-text);
-  }
-
-  .toolbar-btn.active {
-    background: var(--color-accent);
-    color: var(--color-on-accent);
-  }
-
-  .toolbar-divider {
-    width: 1px;
-    height: 1.5rem;
-    background: var(--color-border);
-    margin: 0 0.5rem;
-  }
-
-  .toolbar-spacer {
-    flex: 1;
   }
 
   .save-status {

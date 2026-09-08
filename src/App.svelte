@@ -4,7 +4,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { exit } from "@tauri-apps/plugin-process";
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { runImport, type ImportType } from "./lib/utils/import";
   import AboutDialog from "./lib/components/AboutDialog.svelte";
   import EditorialWorkspace from "./lib/components/EditorialWorkspace.svelte";
@@ -475,6 +475,27 @@
     }
   }
 
+  let previousEditorialScene: string | undefined;
+  $effect(() => {
+    const scene = currentProject.currentScene?.id;
+    if (scene && scene !== previousEditorialScene && untrack(() => editorial?.isLocal()))
+      untrack(() => editorial?.navigateScene(scene));
+    previousEditorialScene = scene;
+  });
+
+  $effect(() => {
+    // A lock/status change in the shared outline refreshes local review metadata.
+    const metadata = [
+      currentProject.chapters.map((c) => [c.id, c.locked]),
+      currentProject.scenes.map((s) => [s.id, s.locked, s.scene_status]),
+    ];
+    void metadata;
+    if (untrack(() => editorial?.isLocal()))
+      untrack(() => {
+        void editorial?.refreshLocalContext();
+      });
+  });
+
   // Global keyboard shortcuts
   function handleKeydown(event: KeyboardEvent) {
     if (editorial?.isOpen()) return;
@@ -610,46 +631,66 @@
   aria-busy={closePending || updatePending}
   class="flex h-screen w-screen overflow-hidden bg-press-bg"
 >
-  {#if currentProject.value}
+  {#if currentProject.value && (!editorial?.isOpen() || editorial?.isLocal())}
     <Sidebar
-      prepareWritingReset={async () => {
-        await scenePanel?.prepareForSearch();
-      }}
-    />
-    <ScenePanel bind:this={scenePanel} />
-    <ReferencesPanel />
-  {:else}
-    <StartScreen
-      {recentProjects}
-      onOpenEditorial={() => editorial?.openFile()}
-      onImportLongform={openLongformImportDialog}
-      onImportComplete={(project, type) => {
-        if (IMPORT_FORMATS[type].references) {
-          openReferenceClassificationDialog(project);
+      beforeCloseProject={async () => {
+        if (editorial?.isLocal()) {
+          await editorial.closeWorkspace();
         }
       }}
-      onOpenQuickStart={() => (showQuickStart = true)}
-      onNewProject={() => (showNewProjectDialog = true)}
+      prepareWritingReset={async () => {
+        await scenePanel?.prepareForSearch();
+        await editorial?.flush();
+      }}
     />
   {/if}
-</main>
+  <div class="writing-surface" class:writing-hidden={editorial?.isOpen()}>
+    {#if currentProject.value}
+      <ScenePanel
+        bind:this={scenePanel}
+        onOpenEditorial={async (id, sceneId, cursor) => {
+          await editorial?.openLocal(id, sceneId, cursor);
+        }}
+      />
+      <ReferencesPanel />
+    {:else}
+      <StartScreen
+        {recentProjects}
+        onOpenEditorial={() => editorial?.openFile()}
+        onImportLongform={openLongformImportDialog}
+        onImportComplete={(project, type) => {
+          if (IMPORT_FORMATS[type].references) {
+            openReferenceClassificationDialog(project);
+          }
+        }}
+        onOpenQuickStart={() => (showQuickStart = true)}
+        onNewProject={() => (showNewProjectDialog = true)}
+      />
+    {/if}
+  </div>
 
-<EditorialWorkspace
-  bind:this={editorial}
-  prepareWriting={async () => {
-    await scenePanel?.prepareForSearch();
-    await proseSaves.flush();
-  }}
-  onManuscriptChanged={async () => {
-    const scene = currentProject.currentScene;
-    if (scene) {
-      const scenes = await invoke<Scene[]>("get_scenes", { chapterId: scene.chapter_id });
-      currentProject.setScenes(scenes);
-      currentProject.setCurrentScene(scenes.find((s) => s.id === scene.id) ?? null);
-      currentProject.setBeats(await invoke<Beat[]>("get_beats", { sceneId: scene.id }));
-    }
-  }}
-/>
+  <EditorialWorkspace
+    bind:this={editorial}
+    prepareWriting={async () => {
+      await scenePanel?.prepareForSearch();
+      await proseSaves.flush();
+    }}
+    onManuscriptChanged={async () => {
+      const scene = currentProject.currentScene;
+      if (scene) {
+        const scenes = await invoke<Scene[]>("get_scenes", { chapterId: scene.chapter_id });
+        currentProject.setScenes(scenes);
+        currentProject.setCurrentScene(scenes.find((s) => s.id === scene.id) ?? null);
+        currentProject.setBeats(await invoke<Beat[]>("get_beats", { sceneId: scene.id }));
+        scenePanel?.applyRevision(await invoke("get_scene_review", { sceneId: scene.id }));
+      }
+    }}
+    >{#snippet references(sceneId)}<ReferencesPanel
+        contextSceneId={sceneId}
+        embedded
+      />{/snippet}</EditorialWorkspace
+  >
+</main>
 
 {#if !discardQuitDrafts}
   {@render errorToast()}
@@ -765,3 +806,14 @@
     <FeedbackDialog onClose={() => (showFeedbackDialog = false)} />
   {/if}
 </div>
+
+<style>
+  .writing-surface {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+  }
+  .writing-hidden {
+    display: none;
+  }
+</style>

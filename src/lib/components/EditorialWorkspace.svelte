@@ -1,10 +1,27 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, type Snippet } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { listen } from "@tauri-apps/api/event";
-  import { Node } from "@tiptap/pm/model";
+  import { Node, Slice, Fragment } from "@tiptap/pm/model";
   import type { Mapping } from "@tiptap/pm/transform";
+  import ReviewSidebar from "./ReviewSidebar.svelte";
+  import RevisionsPanel from "./RevisionsPanel.svelte";
+  import { localAnnotations, localSelection } from "../utils/localEditorial";
+  import {
+    acceptSuggestions,
+    activeDocuments,
+    revisionStatuses,
+    type SceneReview,
+  } from "../utils/revisions";
+  import type { ReviewItem } from "../utils/reviewItems";
+  import {
+    Search,
+    ChevronLeft,
+    MoreHorizontal,
+    PanelLeftClose,
+    PanelLeftOpen,
+  } from "lucide-svelte";
   import EditorialManuscript from "./EditorialManuscript.svelte";
   import { EditorialSaves } from "../utils/editorialSaves";
   import {
@@ -34,8 +51,20 @@
   let {
     prepareWriting,
     onManuscriptChanged,
-  }: { prepareWriting: () => Promise<void>; onManuscriptChanged: () => Promise<void> } = $props();
-  let dialog: HTMLDialogElement;
+    references,
+  }: {
+    prepareWriting: () => Promise<void>;
+    onManuscriptChanged: () => Promise<void>;
+    references?: Snippet<[string]>;
+  } = $props();
+  let dialog: HTMLElement;
+  let local = $state(false);
+  let focusedScene = $state("");
+  let sceneReviews = $state<SceneReview[]>([]);
+  let localSources = $state<EditorialSource[]>([]);
+  let showHistory = $state(false);
+  let showSearch = $state(false);
+  let showNavigation = $state(true);
   let prose = $state<ReturnType<typeof EditorialManuscript>>();
   let active = $state(false);
   let screen = $state<"export" | "review" | "preview" | "feedback">("export");
@@ -56,10 +85,9 @@
   let reanchorReady = $state(false);
   let selectedId = $state<string | null>(null);
   let commentText = $state(""),
-    replyText = $state(""),
     writerName = $state("Writer");
   let showComment = $state(false),
-    markup = $state(true),
+    markup = $state(false),
     filter = $state("open");
   let replyReviewer = $state("");
   const reviewers = $derived(
@@ -84,59 +112,473 @@
   const sources = $derived(
     screen === "feedback" ? (feedback?.sources ?? []) : (round?.sources ?? [])
   );
+  const lockSources = $derived(
+    local
+      ? sources.map((s) => ({
+          ...s,
+          locked: localSources.find((current) => current.id === s.id)?.locked ?? true,
+        }))
+      : sources
+  );
+  const legacy = $derived(local ? localAnnotations(sceneReviews, lockSources) : []);
+  const inactive = $derived(
+    local
+      ? sceneReviews.flatMap((review) =>
+          review.data.annotations
+            .filter((a) => !activeDocuments(review).some((d) => d.id === a.document_id))
+            .map((annotation) => ({ review, annotation }))
+        )
+      : []
+  );
+  const focusedReview = $derived(sceneReviews.find((r) => r.scene_id === focusedScene));
+  const focusedSource = $derived(lockSources.find((s) => s.scene_id === focusedScene));
+
   const baseline = $derived(round ? manuscript(round.sources) : null);
   const navigation = $derived(
     sources.filter((s, i) => !sources.slice(0, i).some((p) => p.scene_id === s.scene_id))
   );
-  const visibleChanges = $derived(
-    session?.changes.filter((c) => filter === "all" || (c.writer_decision ?? c.state) === filter) ??
-      []
-  );
   const visibleEntries = $derived(
     feedback?.entries.filter((e) => filter === "all" || e.decision === filter) ?? []
   );
-  const selectedChange = $derived(session?.changes.find((c) => c.id === selectedId));
-  const selectedEntry = $derived(feedback?.entries.find((e) => e.key === selectedId));
   const manuscriptAnnotations = $derived.by(() => {
-    if (session) return session.changes;
+    if (session)
+      return [
+        ...session.changes,
+        ...legacy
+          .filter((a) => a.annotation.state === "open")
+          .map((a) => ({ ...a.change, from: a.from, to: a.to, unapplied: true })),
+      ];
     if (!feedback) return [];
     const base = manuscript(feedback.round.sources),
       current = manuscript(feedback.sources);
-    return feedback.entries
-      .filter((e) => e.decision === "open")
-      .map((entry) => {
-        const location = locateChange(base, current, entry.change);
+    return [
+      ...legacy
+        .filter((a) => a.annotation.state === "open")
+        .map((a) => ({ ...a.change, from: a.from, to: a.to, unapplied: true })),
+      ...feedback.entries
+        .filter((e) => e.decision === "open")
+        .map((entry) => {
+          const location = locateChange(base, current, entry.change);
+          return {
+            ...entry.change,
+            id: entry.key,
+            from: location.from,
+            to: Math.max(location.from, location.to),
+            state: "open" as const,
+          };
+        }),
+    ];
+  });
+  const items = $derived<ReviewItem[]>([
+    ...legacy.map((a) => ({
+      id: a.key,
+      kind: a.change.kind,
+      state: a.annotation.state,
+      author: a.annotation.messages[0]?.author || "Writer",
+      excerpt: a.annotation.quote || a.annotation.replacement || "General feedback",
+      messages: a.change.messages,
+      before: a.annotation.quote
+        ? sliceHtml(
+            new Slice(Fragment.from(editorialSchema.text(a.annotation.quote)), 0, 0).toJSON()
+          )
+        : "",
+      after: sliceHtml(a.change.after),
+      current: a.current,
+      conflict: a.conflict,
+      locked: a.locked,
+      reanchor: !session,
+      decide: !session,
+      resolve: !session && a.change.kind === "comment",
+    })),
+    ...(session?.changes.map((c) => ({
+      id: c.id,
+      kind: c.kind,
+      state: c.writer_decision ?? c.state,
+      author: c.messages[0]?.author || session!.name,
+      excerpt: sliceText(c.before) || sliceText(c.after),
+      messages: c.messages,
+      before: sliceHtml(c.before),
+      after: sliceHtml(c.after),
+      withdraw: !c.writer_decision || c.writer_decision === "open",
+      resolve: c.kind === "comment",
+    })) ?? []),
+    ...(!session
+      ? (feedback?.entries.map((e) => {
+          const location = locateChange(
+            manuscript(feedback!.round.sources),
+            manuscript(feedback!.sources),
+            e.change
+          );
+          return {
+            id: e.key,
+            kind: e.change.kind,
+            state: e.decision,
+            author: e.reviewer,
+            excerpt: sliceText(e.change.before) || sliceText(e.change.after),
+            messages: e.change.messages,
+            before: sliceHtml(e.change.before),
+            after: sliceHtml(e.change.after),
+            current: manuscript(feedback!.sources).textBetween(
+              location.from,
+              Math.max(location.from, location.to),
+              "\n"
+            ),
+            conflict: location.conflict,
+            decide: true,
+            resolve: e.change.kind === "comment",
+          };
+        }) ?? [])
+      : []),
+    ...inactive.map(({ review, annotation: a }) => ({
+      id: `inactive:${review.scene_id}:${a.id}`,
+      kind: a.replacement === null ? ("comment" as const) : ("suggestion" as const),
+      state: a.state,
+      author: a.messages[0]?.author || "Writer",
+      excerpt: a.quote || a.replacement || "General feedback",
+      messages: a.messages.map((m, i) => ({ ...m, id: `${a.id}:${i}` })),
+      before: a.quote
+        ? sliceHtml(new Slice(Fragment.from(editorialSchema.text(a.quote)), 0, 0).toJSON())
+        : "",
+      after: a.replacement
+        ? sliceHtml(new Slice(Fragment.from(editorialSchema.text(a.replacement)), 0, 0).toJSON())
+        : "",
+      unavailable: `Saved on inactive ${review.mode === "page" ? "beat" : "page"} prose in “${sources.find((s) => s.scene_id === review.scene_id)?.scene || "this scene"}”. Return to Writing and switch that scene to ${review.mode === "page" ? "Beat" : "Page"} mode to act on this feedback.`,
+    })),
+  ]);
+  function stepAnnotation(direction: number) {
+    const visible = items.filter((i) => filter === "all" || i.state === filter);
+    if (!visible.length) return;
+    selectItem(
+      visible[
+        (visible.findIndex((i) => i.id === selectedId) + direction + visible.length) %
+          visible.length
+      ].id
+    );
+  }
+  function selectItem(id: string) {
+    const hidden = inactive.find(
+      ({ review, annotation }) => `inactive:${review.scene_id}:${annotation.id}` === id
+    );
+    if (hidden) {
+      chooseAnnotation(id);
+      navigateScene(hidden.review.scene_id);
+      return;
+    }
+    const old = legacy.find((a) => a.key === id);
+    if (old) {
+      chooseAnnotation(id);
+      focusedScene = old.review.scene_id;
+      const range =
+        session && baseline
+          ? projectedRange(baseline, Node.fromJSON(editorialSchema, session.document), {
+              ...old.change,
+              from: old.from,
+              to: old.to,
+            })
+          : old;
+      prose?.select(range.from, range.to);
+    } else if (session) {
+      const change = session.changes.find((c) => c.id === id);
+      if (change) selectChange(change);
+    } else {
+      const entry = feedback?.entries.find((e) => e.key === id);
+      if (entry) selectEntry(entry);
+    }
+  }
+  function rememberName(name: string) {
+    writerName = name;
+    localStorage.setItem("kindling.editorial.name", name);
+    if (session) {
+      session.name = name;
+      stage();
+    }
+  }
+  let localLoad = 0;
+  async function loadLocalScenes() {
+    if (!local) return;
+    const id = projectId,
+      request = ++localLoad;
+    const current = await invoke<EditorialSource[]>("editorial_sources", { projectId: id });
+    const reviews = await invoke<SceneReview[]>("get_project_scene_reviews", { projectId: id });
+    if (!local || projectId !== id || request !== localLoad) return;
+    localSources = current;
+    if (feedback) feedback.sources = current;
+    sceneReviews = reviews;
+  }
+  export async function refreshLocalContext() {
+    if (!local || !active) return;
+    try {
+      await loadLocalScenes();
+      await tick();
+    } catch (e) {
+      error = String(e);
+    }
+  }
+  export function isLocal() {
+    return local && active;
+  }
+  export function navigateScene(sceneId: string) {
+    focusedScene = sceneId;
+    const source = sources.find((s) => s.scene_id === sceneId);
+    if (source) prose?.navigate(source.id);
+  }
+  export async function openLocal(
+    id: string,
+    sceneId: string,
+    cursor?: { sourceId: string; from: number; to: number }
+  ) {
+    await action(async () => {
+      await flush();
+      await prepareWriting();
+      const data = await invoke<EditorialPackage>("open_local_editorial_review", {
+        projectId: id,
+        fresh: false,
+      });
+      validateEditorialPackage(data);
+      const nextFeedback = await invoke<EditorialFeedback>("get_editorial_feedback", {
+        roundId: data.round.id,
+      });
+      const current = await invoke<EditorialSource[]>("editorial_sources", { projectId: id });
+      const reviews = await invoke<SceneReview[]>("get_project_scene_reviews", { projectId: id });
+      local = true;
+      projectId = id;
+      round = data.round;
+      focusedScene = sceneId;
+      session = null;
+      saves = null;
+      feedback = { ...nextFeedback, sources: current };
+      sceneReviews = reviews;
+      localSources = current;
+      screen = "feedback";
+      filter = "open";
+      selectedId = null;
+      search = "";
+      showComment = false;
+      writerName = localStorage.getItem("kindling.editorial.name") || "Writer";
+      manuscriptVersion++;
+      await show();
+      await tick();
+      if (cursor) {
+        let offset = 0;
+        for (const source of sources) {
+          if (source.id === cursor.sourceId) {
+            prose?.select(offset + cursor.from, offset + cursor.to, false);
+            return;
+          }
+          offset += manuscript([source]).content.size;
+        }
+      }
+      navigateScene(sceneId);
+    });
+  }
+  async function suggest(fresh = false) {
+    return action(async () => {
+      await flush();
+      const data = await invoke<EditorialPackage & { saved_generation?: number | null }>(
+        "open_local_editorial_review",
+        { projectId, fresh }
+      );
+      validateEditorialPackage(data);
+      await loadLocalScenes();
+      const nextSaves = new EditorialSaves(data.round, data.session, data.saved_generation);
+      const nextSession = nextSaves.recover(data.session) ?? {
+        reviewer_id: window.crypto.randomUUID(),
+        name: writerName,
+        generation: 0,
+        document: manuscript(data.round.sources).toJSON(),
+        changes: [],
+        position: 1,
+      };
+      validateEditorialPackage({ ...data, session: nextSession });
+      round = data.round;
+      saves = nextSaves;
+      session = nextSession;
+      restoreTracking(
+        manuscript(round.sources),
+        Node.fromJSON(editorialSchema, session.document),
+        $state.snapshot(session.changes)
+      );
+      const view = prose?.captureView();
+      const previous = prose?.currentDocument();
+      screen = "review";
+      selectedId = null;
+      manuscriptVersion++;
+      stage();
+      await tick();
+      if (view && previous)
+        restoreMappedView(view, previous, Node.fromJSON(editorialSchema, session.document));
+    });
+  }
+  async function reviewDecisions() {
+    return action(async () => {
+      await flush();
+      const view = prose?.captureView();
+      const previous = prose?.currentDocument();
+      const next = await invoke<EditorialFeedback>("get_editorial_feedback", {
+        roundId: round!.id,
+      });
+      session = null;
+      saves = null;
+      feedback = next;
+      screen = "feedback";
+      selectedId = null;
+      await loadLocalScenes();
+      manuscriptVersion++;
+      await tick();
+      if (view && previous) restoreMappedView(view, previous);
+    });
+  }
+  async function legacyDecision(id: string, decision: string, reanchor = false) {
+    const old = legacy.find((a) => a.key === id);
+    if (!old) return;
+    await action(async () => {
+      if (old.locked) throw new Error("Unlock this scene before changing its review.");
+      const expected = $state.snapshot(old.review);
+      let data = window.structuredClone(expected.data);
+      let next = null;
+      if (reanchor) {
+        const range = localSelection(sources, selection.from, selection.to);
+        if (range.source.scene_id !== old.review.scene_id)
+          throw new Error("Select a passage in the original scene.");
+        Object.assign(data.annotations.find((a) => a.id === old.annotation.id)!, {
+          document_id: range.source.id,
+          anchor_html: range.source.html,
+          from: range.from,
+          to: range.to,
+          quote: range.quote,
+        });
+      }
+      if (decision === "accepted")
+        ({ data, next } = acceptSuggestions({ ...expected, data }, [old.annotation.id]));
+      else if (decision !== "reanchor")
+        data.annotations.find((a) => a.id === old.annotation.id)!.state = decision as
+          | "open"
+          | "resolved"
+          | "rejected";
+      const view = prose?.captureView();
+      const previous = prose?.currentDocument();
+      await invoke("save_scene_review", { expected, data, next });
+      await loadLocalScenes();
+      if (next) {
+        manuscriptVersion++;
+        await tick();
+        if (view && previous) restoreMappedView(view, previous);
+        await onManuscriptChanged();
+      }
+    });
+  }
+  function decideItem(id: string, decision: string, reanchor = false) {
+    if (legacy.some((a) => a.key === id)) void legacyDecision(id, decision, reanchor);
+    else {
+      const entry = feedback?.entries.find((e) => e.key === id);
+      if (entry) void decide([entry], decision, reanchor);
+    }
+  }
+  async function replyItem(id: string, text: string): Promise<boolean> {
+    return action(async () => {
+      const old = legacy.find((a) => a.key === id);
+      if (old) {
+        if (old.locked) throw new Error("Unlock this scene before changing its review.");
+        const expected = $state.snapshot(old.review);
+        const data = window.structuredClone(expected.data);
+        data.annotations
+          .find((a) => a.id === old.annotation.id)!
+          .messages.push({ author: writerName, text, created_at: new Date().toISOString() });
+        await invoke("save_scene_review", { expected, data, next: null });
+        await loadLocalScenes();
+      } else if (session) {
+        const change = session.changes.find((c) => c.id === id);
+        if (!change) throw new Error("This conversation is no longer available.");
+        change.messages.push(message(session.name, text));
+        stage();
+      } else if (feedback) {
+        feedback = await invoke<EditorialFeedback>("reply_editorial_feedback", {
+          roundId: feedback.round.id,
+          version: feedback.version,
+          key: id,
+          message: message(writerName, text),
+        });
+      }
+    });
+  }
+  function resolveItem(id: string) {
+    const item = items.find((i) => i.id === id);
+    if (!item) return;
+    if (session) {
+      const change = session.changes.find((c) => c.id === id)!;
+      change.state = item.state === "resolved" ? "open" : "resolved";
+      if (change.writer_decision) {
+        change.revision++;
+        change.writer_decision = undefined;
+      }
+      stage();
+    } else decideItem(id, item.state === "resolved" ? "open" : "resolved");
+  }
+  function withdrawItem(id: string) {
+    const change = session?.changes.find((c) => c.id === id);
+    if (change) withdraw(change);
+  }
+  async function bulkLegacy(decision: string) {
+    await action(async () => {
+      const targets = legacy.filter(
+        (a) =>
+          a.annotation.state === "open" &&
+          a.change.kind === "suggestion" &&
+          (filter === "all" || filter === "open")
+      );
+      if (targets.some((a) => a.locked))
+        throw new Error("Unlock the selected scenes before deciding on their suggestions.");
+      const updates = [...new Set(targets.map((a) => a.review.scene_id))].map((id) => {
+        const expected = $state.snapshot(sceneReviews.find((r) => r.scene_id === id)!);
+        const ids = targets.filter((a) => a.review.scene_id === id).map((a) => a.annotation.id);
+        if (decision === "accepted") return { expected, ...acceptSuggestions(expected, ids) };
         return {
-          ...entry.change,
-          id: entry.key,
-          from: location.from,
-          to: Math.max(location.from, location.to),
-          state: "open" as const,
+          expected,
+          data: {
+            ...expected.data,
+            annotations: expected.data.annotations.map((a) =>
+              ids.includes(a.id) ? { ...a, state: "rejected" } : a
+            ),
+          },
+          next: null,
         };
       });
-  });
-  function stepAnnotation(direction: number) {
-    if (session && visibleChanges.length) {
-      const index = visibleChanges.findIndex((c) => c.id === selectedId);
-      selectChange(
-        visibleChanges[(index + direction + visibleChanges.length) % visibleChanges.length]
-      );
-    } else if (feedback && visibleEntries.length) {
-      const index = visibleEntries.findIndex((e) => e.key === selectedId);
-      selectEntry(
-        visibleEntries[(index + direction + visibleEntries.length) % visibleEntries.length]
-      );
-    }
+      const view = prose?.captureView();
+      const previous = prose?.currentDocument();
+      await invoke("save_scene_review_batch", { updates });
+      await loadLocalScenes();
+      if (decision === "accepted") {
+        manuscriptVersion++;
+        await tick();
+        if (view && previous) restoreMappedView(view, previous);
+        await onManuscriptChanged();
+      }
+    });
+  }
+  async function setLocalStatus(status: string) {
+    if (!focusedReview) return;
+    await action(async () => {
+      await invoke("save_scene_review", {
+        expected: $state.snapshot(focusedReview),
+        data: { ...$state.snapshot(focusedReview.data), status },
+        next: null,
+      });
+      await loadLocalScenes();
+      await onManuscriptChanged();
+    });
   }
 
   export function isOpen() {
     return active;
   }
-  export function closeWorkspace() {
-    return close();
+  export async function closeWorkspace() {
+    await flush();
+    active = false;
+    showHistory = false;
   }
   export function focusSearch() {
-    dialog.querySelector<HTMLInputElement>('input[type="search"]')?.focus();
+    showSearch = true;
+    void tick().then(() => dialog.querySelector<HTMLInputElement>('input[type="search"]')?.focus());
   }
   export function exportFeedback() {
     if (session) return returnFeedback();
@@ -151,8 +593,20 @@
     clearTimeout(timer);
     if (saves && session) {
       try {
-        const generation = await saves.flush();
+        const queue = saves;
+        const generation = await queue.flush();
         if (generation !== null) session.generation = generation;
+        const committed = queue.savedSession();
+        if (local && round && committed)
+          await invoke("import_editorial_feedback", {
+            package: {
+              format: "kindling-editorial",
+              version: 1,
+              kind: "feedback",
+              round: $state.snapshot(round),
+              session: committed,
+            },
+          });
         savedState = "Saved locally";
       } catch (e) {
         savedState = "Not saved — retry or export a recovery copy";
@@ -175,30 +629,31 @@
     }, 350);
   }
   async function show() {
+    const alreadyOpen = active;
     active = true;
     await tick();
-    if (!dialog.open) dialog.showModal();
+    if (!alreadyOpen) dialog.focus();
   }
   async function close() {
     try {
-      await flush();
-      dialog.close();
-      active = false;
+      await closeWorkspace();
     } catch {
       /* Keep all local work visible and recoverable. */
     }
   }
   async function action(work: () => Promise<void>) {
-    if (busy) return;
+    if (busy) return false;
     busy = true;
     error = "";
     notice = "";
     try {
       await work();
+      return true;
     } catch (e) {
       error = String(e);
       // File opening can fail before the workspace has ever been shown.
       await show();
+      return false;
     } finally {
       busy = false;
     }
@@ -238,7 +693,7 @@
         );
         nextSession = nextSaves.recover(packageData.session) ?? {
           reviewer_id: window.crypto.randomUUID(),
-          name: "",
+          name: localStorage.getItem("kindling.editorial.name") || "",
           generation: 0,
           document: manuscript(packageData.round.sources).toJSON(),
           changes: [],
@@ -248,6 +703,10 @@
         validateEditorialPackage({ ...packageData, session: nextSession });
       }
       // Commit workspace state only after the complete incoming/recovered review validates.
+      local = false;
+      sceneReviews = [];
+      showComment = false;
+      search = "";
       round = packageData.round;
       if (nextSession)
         restoreTracking(
@@ -322,6 +781,17 @@
   }
   function updateSelection(from: number, to: number, explicit: boolean) {
     selection = { from, to };
+    const doc = prose?.currentDocument();
+    if (doc) {
+      const cursor = doc.resolve(Math.min(from, doc.content.size));
+      for (let depth = cursor.depth; depth > 0; depth--) {
+        const source = sources.find((s) => s.id === cursor.node(depth).attrs.source);
+        if (source) {
+          focusedScene = source.scene_id;
+          break;
+        }
+      }
+    }
     reanchorReady = explicit;
     if (session) {
       session.position = from;
@@ -335,6 +805,12 @@
     }
   }
   function composeComment() {
+    if (local && !session) {
+      void suggest().then((opened) => {
+        if (opened) showComment = true;
+      });
+      return;
+    }
     showComment = true;
     void tick().then(() =>
       dialog.querySelector<HTMLTextAreaElement>(".comment-compose textarea")?.focus()
@@ -343,12 +819,21 @@
   function chooseAnnotation(id: string) {
     selectedId = id;
     reanchorReady = false;
-    replyText = "";
   }
   function addComment() {
     if (!session || !round || !commentText.trim() || !session.name.trim()) return;
     const base = manuscript(round.sources),
       proposed = Node.fromJSON(editorialSchema, session.document);
+    if (local) {
+      let locked = false;
+      proposed.nodesBetween(selection.from, Math.max(selection.from, selection.to), (node) => {
+        if (lockSources.some((s) => s.id === node.attrs.source && s.locked)) locked = true;
+      });
+      if (locked) {
+        error = "Unlock this scene before adding feedback.";
+        return;
+      }
+    }
     const deltas = changesBetween(base, proposed);
     const inverse = changeMap(deltas).invert();
     const containing = deltas.find(
@@ -378,7 +863,6 @@
   function selectChange(change: EditorialChange) {
     if (!round || !session) return;
     selectedId = change.id;
-    replyText = "";
     const range = projectedRange(
       manuscript(round.sources),
       Node.fromJSON(editorialSchema, session.document),
@@ -390,7 +874,6 @@
     if (!feedback) return;
     selectedId = entry.key;
     reanchorReady = false;
-    replyText = "";
     const range = locateChange(
       manuscript(feedback.round.sources),
       manuscript(feedback.sources),
@@ -413,24 +896,6 @@
       stage();
     }
     selectedId = null;
-  }
-  function reply() {
-    if (!replyText.trim()) return;
-    if (selectedChange && session?.name.trim()) {
-      selectedChange.messages.push(message(session.name, replyText));
-      stage();
-      replyText = "";
-    } else if (selectedEntry && feedback && writerName.trim()) {
-      void action(async () => {
-        feedback = await invoke<EditorialFeedback>("reply_editorial_feedback", {
-          roundId: feedback!.round.id,
-          version: feedback!.version,
-          key: selectedEntry!.key,
-          message: message(writerName, replyText),
-        });
-        replyText = "";
-      });
-    }
   }
   async function returnFeedback(recovery = false) {
     await action(async () => {
@@ -491,10 +956,11 @@
   }
   function restoreMappedView(
     view: ReturnType<NonNullable<typeof prose>["captureView"]>,
-    previous: Node
+    previous: Node,
+    current?: Node
   ) {
-    if (!feedback) return;
-    const map = changeMap(changesBetween(previous, manuscript(feedback.sources)));
+    if (!current && !feedback) return;
+    const map = changeMap(changesBetween(previous, current ?? manuscript(feedback!.sources)));
     const from = map.map(view.from, 1),
       to = Math.max(from, map.map(view.to, -1));
     prose?.restoreView({
@@ -508,10 +974,14 @@
   }
   async function openRound(id: string) {
     await action(async () => {
+      await flush();
       const view = prose?.captureView();
       const previous = feedback ? manuscript(feedback.sources) : null;
       feedback = await invoke<EditorialFeedback>("get_editorial_feedback", { roundId: id });
       round = feedback.round;
+      session = null;
+      saves = null;
+      if (local) await loadLocalScenes();
       screen = "feedback";
       manuscriptVersion++;
       selectedId = null;
@@ -541,6 +1011,7 @@
         await tick();
         if (view) restoreMappedView(view, previous);
       }
+      if (local) await loadLocalScenes();
       await onManuscriptChanged();
       notice =
         decision === "accepted"
@@ -597,14 +1068,14 @@
   });
 </script>
 
-<dialog
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<section
   bind:this={dialog}
   class="editorial-workspace"
+  class:active
+  hidden={!active}
   aria-label="Editorial workspace"
-  oncancel={(e) => {
-    e.preventDefault();
-    void close();
-  }}
+  tabindex="-1"
   onkeydown={(e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
       e.preventDefault();
@@ -613,18 +1084,71 @@
     e.stopPropagation();
   }}
 >
-  <header>
-    <div>
-      <span class="workspace-label">Kindling / Editorial</span>
-      <h1>{round?.title ?? "Editorial review"}</h1>
-      {#if round}<p>{round.name}</p>{/if}
+  <header class="workspace-header">
+    <div class="heading">
+      <button
+        class="icon"
+        aria-label={local ? "Return to writing" : "Close review"}
+        title={local ? "Return to writing" : "Close review"}
+        disabled={busy}
+        onclick={close}><ChevronLeft size={18} /></button
+      >
+      <div>
+        <span class="eyebrow">{local ? round?.title : "kindling"}</span>
+        <h1>
+          {local
+            ? focusedSource?.scene || round?.title || "Revisions"
+            : round?.title || "Editorial review"}
+        </h1>
+      </div>
     </div>
-    <div class="header-actions">
-      {#if screen === "review"}<span role="status">{savedState}</span><button
-          disabled={busy || !session?.name.trim()}
-          onclick={() => returnFeedback()}>Export feedback</button
+    <div class="workspace-actions">
+      {#if local && focusedReview}<select
+          aria-label="Revision status"
+          disabled={busy || focusedSource?.locked}
+          value={focusedReview.data.status}
+          onchange={(e) => setLocalStatus(e.currentTarget.value)}
+          >{#each Object.entries(revisionStatuses) as [value, label]}<option {value}>{label}</option
+            >{/each}</select
         >{/if}
-      <button disabled={busy} onclick={close}>Back to Kindling</button>
+      {#if session}<span class="save-state" role="status">{savedState}</span>{/if}
+      {#if screen === "review" || screen === "feedback"}
+        {#if local}<select
+            aria-label="Editor mode"
+            value={screen}
+            disabled={busy}
+            onchange={(e) => {
+              if (e.currentTarget.value === "review") void suggest();
+              else if (e.currentTarget.value === "writing") void close();
+              else void reviewDecisions();
+            }}
+            ><option value="writing">Writing</option><option value="feedback">Reviewing</option
+            ><option value="review">Suggesting</option></select
+          >{:else}<span class="mode">{session ? "Suggesting" : "Reviewing feedback"}</span>{/if}
+        <button
+          class="icon"
+          title="Find in manuscript"
+          aria-label="Find in manuscript"
+          onclick={focusSearch}><Search size={18} /></button
+        >
+        <details class="workspace-menu">
+          <summary aria-label="Manuscript actions"><MoreHorizontal size={20} /></summary>
+          <div>
+            {#if local}<button
+                onclick={async () => {
+                  if (!session || (await reviewDecisions())) showHistory = true;
+                }}>Draft history</button
+              ><button onclick={() => suggest(true)}>Start suggestions from current prose</button
+              ><button onclick={() => openProject(projectId)}>Review packages and rounds…</button
+              >{/if}
+            {#if session}<button
+                disabled={!session.name.trim() || busy}
+                onclick={() => returnFeedback()}>Export feedback</button
+              ><button onclick={() => returnFeedback(true)}>Export recovery copy</button>{/if}
+            <button onclick={() => openFile()}>Open review or feedback file…</button>
+          </div>
+        </details>
+      {/if}
     </div>
   </header>
   {#if error}<div role="alert" class="workspace-error">
@@ -634,7 +1158,6 @@
         >{/if}
     </div>{/if}
   {#if notice}<p role="status" class="workspace-notice">{notice}</p>{/if}
-
   {#if screen === "export"}
     <section class="workspace-intro">
       <h2>Send a manuscript for review</h2>
@@ -699,46 +1222,61 @@
     </section>
   {:else if round && (session || feedback)}
     <div class="workspace-layout">
-      <nav aria-label="Manuscript navigation">
-        {#if round.brief}<details open>
-            <summary>Writer’s brief</summary>
-            <p class="brief">{round.brief}</p>
-          </details>{/if}
-        <label
-          >Find in manuscript<input
-            type="search"
-            bind:value={search}
-            oninput={() => {
-              searchIndex = 0;
-              searchCount = prose?.find(search, 0) ?? 0;
-            }}
-            onkeydown={(e) => {
-              if (e.key === "Enter") findNext(e.shiftKey ? -1 : 1);
-            }}
-          /></label
-        >
-        {#if search}<div class="inline-actions">
-            <button onclick={() => findNext(-1)} aria-label="Previous search match">Previous</button
-            ><button onclick={() => findNext(1)} aria-label="Next search match">Next</button><span
-              >{searchCount} matches</span
+      {#if !local && showNavigation}<nav class="manuscript-nav" aria-label="Manuscript navigation">
+          <div class="nav-title">
+            <h2>Manuscript</h2>
+            <button
+              class="icon"
+              aria-label="Hide manuscript navigation"
+              onclick={() => (showNavigation = false)}><PanelLeftClose size={16} /></button
+            >
+          </div>
+          <p class="round-name">{round.name}</p>
+          {#if round.brief}<details>
+              <summary>Writer’s brief</summary>
+              <p class="brief">{round.brief}</p>
+            </details>{/if}
+          {#each navigation as source, index}{#if index === 0 || source.chapter_id !== navigation[index - 1].chapter_id}<h3
+              >
+                {source.chapter}
+              </h3>{/if}<button
+              class="scene-link"
+              onclick={() => {
+                focusedScene = source.scene_id;
+                prose?.navigate(source.id);
+              }}>{source.scene}</button
+            >{/each}
+        </nav>{/if}
+      <section class="manuscript-column" aria-label="Manuscript">
+        {#if showSearch}<div class="search-bar">
+            <Search size={16} /><input
+              type="search"
+              aria-label="Find in manuscript"
+              bind:value={search}
+              placeholder="Find in manuscript"
+              oninput={() => {
+                searchIndex = 0;
+                searchCount = prose?.find(search, 0) ?? 0;
+              }}
+              onkeydown={(e) => {
+                if (e.key === "Enter") findNext(e.shiftKey ? -1 : 1);
+                if (e.key === "Escape") showSearch = false;
+              }}
+            /><span>{search ? `${searchCount} matches` : ""}</span><button
+              onclick={() => findNext(-1)}>Previous</button
+            ><button onclick={() => findNext(1)}>Next</button><button
+              onclick={() => (showSearch = false)}>Done</button
             >
           </div>{/if}
-        {#each navigation as source, index}
-          {#if index === 0 || source.chapter_id !== navigation[index - 1].chapter_id}<h2>
-              {source.chapter}
-            </h2>{/if}
-          <button class="scene-link" onclick={() => prose?.navigate(source.id)}
-            >{source.scene}</button
-          >
-        {/each}
-      </nav>
-      <section class="manuscript-column" aria-label="Manuscript">
         {#key `${round.id}:${manuscriptVersion}`}
           <EditorialManuscript
             bind:this={prose}
             {sources}
             initial={screen === "review" ? session!.document : manuscript(sources).toJSON()}
             changes={manuscriptAnnotations}
+            protectLocked={local}
+            {lockSources}
+            canComment={local || !!session}
             readonly={screen === "feedback"}
             {markup}
             selected={selectedId}
@@ -747,419 +1285,312 @@
             onComment={composeComment}
             onReadingPosition={updateReadingPosition}
             onError={(e) => (error = e)}
-            onAnnotation={chooseAnnotation}
-          />
+            onAnnotation={selectItem}
+            onActivate={chooseAnnotation}
+          >
+            {#snippet toolbar()}
+              {#if !local && !showNavigation}<button
+                  class="icon"
+                  aria-label="Show manuscript navigation"
+                  onclick={() => (showNavigation = true)}><PanelLeftOpen size={16} /></button
+                >{/if}
+              <select
+                aria-label="Markup view"
+                value={markup ? "all" : "simple"}
+                onchange={(e) => (markup = e.currentTarget.value === "all")}
+                ><option value="simple">Simple markup</option><option value="all">All markup</option
+                ></select
+              >
+            {/snippet}
+          </EditorialManuscript>
         {/key}
       </section>
-      <aside aria-label="Editorial feedback">
-        <h2>{screen === "review" ? "Your review" : "Returned feedback"}</h2>
-        {#if session}<label
-            >Your name<input
-              bind:value={session.name}
-              oninput={stage}
-              placeholder="Name shown with your feedback"
-            /></label
-          >{:else}<label>Your name<input bind:value={writerName} /></label>{/if}
-        <label class="checkbox"><input type="checkbox" bind:checked={markup} />Show markup</label>
-        <div class="inline-actions">
-          <button
-            disabled={session ? !visibleChanges.length : !visibleEntries.length}
-            onclick={() => stepAnnotation(-1)}>Previous annotation</button
-          ><button
-            disabled={session ? !visibleChanges.length : !visibleEntries.length}
-            onclick={() => stepAnnotation(1)}>Next annotation</button
-          >
-        </div>
-        <label
-          >Show<select bind:value={filter}
-            ><option value="open">Pending feedback</option><option value="all">All feedback</option
-            ><option value="resolved">Resolved comments</option><option value="accepted"
-              >Accepted</option
-            ><option value="rejected">Rejected</option></select
-          ></label
-        >
-        {#if session}
-          <button onclick={composeComment}>Add comment</button>
-          {#if showComment}<div class="comment-compose">
-              <p>
-                {selection.from === selection.to
-                  ? "General feedback at this reading position"
-                  : "Comment on the selected passage"}
-              </p>
-              <label>Comment<textarea bind:value={commentText} rows="4"></textarea></label><button
-                disabled={!commentText.trim() || !session.name.trim()}
-                onclick={addComment}>Save comment</button
-              >
-            </div>{/if}
-          {#if !visibleChanges.length}<p class="empty-state">
-              Read and edit the manuscript naturally. Your edits become suggestions; the writer’s
-              original stays preserved.
-            </p>{/if}
-          {#each visibleChanges as change}<article>
-              <button
-                class="annotation-title"
-                aria-pressed={change.id === selectedId}
-                onclick={() => selectChange(change)}
-                >{change.kind === "comment"
-                  ? "Comment"
-                  : !sliceText(change.before)
-                    ? "Insertion"
-                    : !sliceText(change.after)
-                      ? "Deletion"
-                      : "Change"} · {change.writer_decision
-                  ? `Writer ${change.writer_decision}`
-                  : change.state}</button
-              >
-              <p class="excerpt">
-                {sliceText(change.before).slice(0, 120) ||
-                  sliceText(change.after).slice(0, 120) ||
-                  "Formatting or general feedback"}
-              </p>
-              {#if change.id === selectedId}
-                {#if change.kind === "suggestion"}<div class="comparison">
-                    <div class="original-prose">
-                      {@html sliceHtml(change.before) || "Insertion point"}
-                    </div>
-                    <div class="suggested-prose">
-                      {@html sliceHtml(change.after) || "Delete passage"}
-                    </div>
-                    <p class="hint">Edit the suggestion directly in the manuscript to refine it.</p>
-                  </div>{/if}
-                {#each change.messages as note}<p class="thread">
-                    <strong>{note.author}</strong><br />{note.text}
-                  </p>{/each}
-                <label>Reply<textarea bind:value={replyText}></textarea></label><button
-                  disabled={!replyText.trim() || !session.name.trim()}
-                  onclick={reply}>Reply</button
-                >
-                {#if change.kind === "comment"}<button
-                    onclick={() => {
-                      change.state =
-                        (change.writer_decision ?? change.state) === "resolved"
-                          ? "open"
-                          : "resolved";
-                      if (change.writer_decision) {
-                        change.revision++;
-                        change.writer_decision = undefined;
-                      }
-                      stage();
-                    }}>{change.state === "resolved" ? "Reopen" : "Resolve"}</button
-                  >{/if}
-                <button onclick={() => withdraw(change)}>Withdraw {change.kind}</button>
-              {/if}
-            </article>{/each}
-        {:else if feedback}
-          {#if reviewers.length}
-            <details>
-              <summary>Send replies to your editor</summary>
-              <label
-                >Editor<select bind:value={replyReviewer}>
-                  {#each reviewers as reviewer}<option value={reviewer.id}>{reviewer.name}</option
-                    >{/each}
-                </select></label
-              >
-              <button disabled={busy} onclick={sendWriterReply}>Export replies and decisions</button
-              >
-            </details>
-          {/if}
-          <div class="inline-actions">
+      {#snippet contextualReferences()}{@render references?.(focusedScene)}{/snippet}
+      <ReviewSidebar
+        {items}
+        selected={selectedId}
+        bind:filter
+        name={session?.name ?? writerName}
+        onName={rememberName}
+        onSelect={selectItem}
+        onStep={stepAnnotation}
+        onReply={replyItem}
+        onDecide={decideItem}
+        onWithdraw={withdrawItem}
+        onResolve={resolveItem}
+        canReanchor={reanchorReady}
+        {busy}
+        composing={showComment}
+        bind:comment={commentText}
+        onComment={addComment}
+        onCancelComment={() => (showComment = false)}
+        references={local && references ? contextualReferences : undefined}
+      >
+        {#snippet options()}
+          {#if feedback && !session}
+            <p>Current review round: {feedback.round.name}</p>
             <button
               disabled={busy ||
                 !visibleEntries.some(
-                  (e) => e.change.kind === "suggestion" && e.decision === "open"
+                  (e) => e.decision === "open" && e.change.kind === "suggestion"
                 )}
               onclick={() =>
                 decide(
                   visibleEntries.filter(
-                    (e) => e.change.kind === "suggestion" && e.decision === "open"
+                    (e) => e.decision === "open" && e.change.kind === "suggestion"
                   ),
                   "accepted"
-                )}>Accept visible suggestions</button
-            ><button
+                )}>Accept visible suggestions in this round</button
+            >
+            <button
               disabled={busy ||
                 !visibleEntries.some(
-                  (e) => e.change.kind === "suggestion" && e.decision === "open"
+                  (e) => e.decision === "open" && e.change.kind === "suggestion"
                 )}
               onclick={() =>
                 decide(
                   visibleEntries.filter(
-                    (e) => e.change.kind === "suggestion" && e.decision === "open"
+                    (e) => e.decision === "open" && e.change.kind === "suggestion"
                   ),
                   "rejected"
-                )}>Reject visible suggestions</button
+                )}>Reject visible suggestions in this round</button
             >
-          </div>
-          <button disabled={busy} onclick={() => openRound(feedback!.round.id)}
-            >Refresh manuscript</button
-          >
-          {#if !visibleEntries.length}<p class="empty-state">
-              No feedback in this view. You can open another returned file or choose All feedback.
-            </p>{/if}
-          {#each visibleEntries as entry}<article>
-              <button
-                class="annotation-title"
-                aria-pressed={entry.key === selectedId}
-                onclick={() => selectEntry(entry)}
-                >{entry.reviewer} · {entry.change.kind} · {entry.decision}</button
-              >
-              <p class="excerpt">
-                {sliceText(entry.change.before).slice(0, 120) ||
-                  sliceText(entry.change.after).slice(0, 120) ||
-                  "Formatting or general feedback"}
-              </p>
-              {#if entry.key === selectedId}
-                {@const location = locateChange(
-                  manuscript(feedback.round.sources),
-                  manuscript(feedback.sources),
-                  entry.change
-                )}
-                <div class="comparison">
-                  <h3>Original passage</h3>
-                  <div class="original-prose">
-                    {@html sliceHtml(entry.change.before) || "Insertion point"}
-                  </div>
-                  <h3>Current passage</h3>
-                  <p>
-                    {manuscript(feedback.sources).textBetween(
-                      location.from,
-                      Math.max(location.from, location.to),
-                      "\n"
-                    ) || "Empty passage"}
-                  </p>
-                  {#if entry.change.kind === "suggestion"}<h3>Suggested passage</h3>
-                    <div class="suggested-prose">
-                      {@html sliceHtml(entry.change.after) || "Delete passage"}
-                    </div>{/if}
-                </div>
-                {#if location.conflict && entry.decision === "open"}<p class="conflict">
-                    This passage changed after export. Select the intended passage in the current
-                    manuscript before applying this suggestion.
-                  </p>{/if}
-                {#each entry.change.messages as note}<p class="thread">
-                    <strong>{note.author}</strong><br />{note.text}
-                  </p>{/each}
-                <label>Reply<textarea bind:value={replyText}></textarea></label><button
-                  disabled={busy || !replyText.trim() || !writerName.trim()}
-                  onclick={reply}>Reply</button
-                >
-                {#if entry.decision === "open" && entry.change.kind === "suggestion"}<button
-                    disabled={busy || location.conflict}
-                    onclick={() => decide([entry], "accepted")}>Accept</button
-                  ><button disabled={busy} onclick={() => decide([entry], "rejected")}
-                    >Reject</button
-                  >
-                  {#if location.conflict}<button
-                      disabled={busy || !reanchorReady}
-                      onclick={() => decide([entry], "accepted", true)}
-                      >Apply to selected passage</button
-                    >{/if}
-                {:else if entry.change.kind === "comment"}<button
-                    disabled={busy}
-                    onclick={() =>
-                      decide([entry], entry.decision === "resolved" ? "open" : "resolved")}
-                    >{entry.decision === "resolved" ? "Reopen" : "Resolve"}</button
-                  >{/if}
-              {/if}
-            </article>{/each}
-        {/if}
-      </aside>
+            {#if legacy.some((a) => a.annotation.state === "open" && a.change.kind === "suggestion")}<button
+                onclick={() => bulkLegacy("accepted")}
+                >Accept visible suggestions on active scene prose</button
+              ><button onclick={() => bulkLegacy("rejected")}
+                >Reject visible suggestions on active scene prose</button
+              >{/if}
+            <button disabled={busy} onclick={() => openRound(feedback!.round.id)}
+              >Refresh manuscript</button
+            >
+            {#if reviewers.length}<label
+                >Editor<select bind:value={replyReviewer}
+                  >{#each reviewers as reviewer}<option value={reviewer.id}>{reviewer.name}</option
+                    >{/each}</select
+                ></label
+              ><button disabled={busy} onclick={sendWriterReply}
+                >Export replies and decisions</button
+              >{/if}
+          {/if}
+        {/snippet}
+      </ReviewSidebar>
     </div>
   {/if}
-</dialog>
+  {#if showHistory && focusedSource}<RevisionsPanel
+      sceneId={focusedScene}
+      {projectId}
+      title={focusedSource.scene}
+      locked={focusedSource.locked}
+      onApplied={async () => {
+        await action(async () => {
+          const view = prose?.captureView();
+          const previous = prose?.currentDocument();
+          await loadLocalScenes();
+          manuscriptVersion++;
+          await tick();
+          if (view && previous) restoreMappedView(view, previous);
+          await onManuscriptChanged();
+        });
+      }}
+      onClose={() => {
+        void action(async () => {
+          await loadLocalScenes();
+          showHistory = false;
+        });
+      }}
+    />{/if}
+</section>
 
 <style>
   .editorial-workspace {
-    position: fixed;
-    inset: 0;
-    margin: 0;
-    width: 100vw;
-    height: 100vh;
-    max-width: none;
-    max-height: none;
-    border: none;
-    border-radius: 0;
-    padding: 0;
-    background: var(--color-bg);
-    color: var(--color-text);
-    font-family: var(--font-ui);
-  }
-  .editorial-workspace[open] {
-    display: flex;
+    display: none;
+    min-width: 0;
+    flex: 1;
     flex-direction: column;
-    overflow: hidden;
+    height: 100%;
+    color: var(--color-text);
+    background: var(--color-bg);
+    font-family: var(--font-ui);
+    font-size: var(--text-small);
   }
-  header {
+  .editorial-workspace.active {
+    display: flex;
+  }
+  .workspace-header {
+    display: flex;
     flex-shrink: 0;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-s);
+    padding: var(--space-s) var(--space-m);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+  .heading,
+  .workspace-actions {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--space-l);
-    padding: var(--space-s) var(--space-l);
-    border-bottom: 1px solid var(--color-border);
+    gap: var(--space-xs);
+  }
+  .heading {
+    min-width: 0;
+  }
+  .eyebrow,
+  .save-state,
+  .round-name {
+    color: var(--color-text-muted);
+    font-size: var(--text-eyebrow);
   }
   h1 {
     font-family: var(--font-display);
-    font-size: var(--text-h2);
-  }
-  h2 {
-    font-family: var(--font-display);
     font-size: var(--text-h3);
-    margin-block: var(--space-m);
+    margin: 0;
   }
-  h3,
-  .workspace-label {
+  h2,
+  h3 {
     font-size: var(--text-small);
-    color: var(--color-text-muted);
+    margin: var(--space-s) 0;
   }
-  header p,
-  .header-actions span,
-  .hint,
-  .inline-actions span,
-  legend span,
-  label span {
-    font-size: var(--text-small);
-    color: var(--color-text-muted);
+  button {
+    padding: var(--space-2xs) var(--space-xs);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-s);
+    background: transparent;
+    color: var(--color-text);
+    font: inherit;
+    cursor: pointer;
   }
-  .header-actions,
-  .inline-actions {
+  button:hover {
+    background: var(--color-surface-sunken);
+  }
+  button:disabled {
+    color: var(--color-disabled-text);
+    background: var(--color-disabled-bg);
+    cursor: default;
+  }
+  .icon {
+    border: 0;
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2xs);
-  }
-  .workspace-layout {
-    display: grid;
-    grid-template-columns: minmax(10rem, 1fr) minmax(0, 3fr) minmax(17rem, 1.4fr);
-    flex: 1;
-    min-height: 0;
-  }
-  nav,
-  aside,
-  .manuscript-column {
-    overflow-y: auto;
-    padding: var(--space-m);
-  }
-  nav {
-    border-right: 1px solid var(--color-border);
-  }
-  aside {
-    border-left: 1px solid var(--color-border);
-  }
-  .manuscript-column {
-    max-width: calc(var(--measure) + 6rem);
-    width: 100%;
-    margin-inline: auto;
-  }
-  label {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-xs);
-    margin-block: var(--space-m);
-  }
-  label.checkbox {
-    flex-direction: row;
-    align-items: center;
-    gap: var(--space-s);
+    padding: var(--space-2xs);
   }
   input,
   textarea,
   select {
+    font-size: var(--text-base);
     max-width: 100%;
+    box-sizing: border-box;
   }
-  button {
-    padding: var(--space-xs) var(--space-s);
+  .workspace-actions select {
+    width: auto;
+  }
+  .workspace-layout {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+  }
+  .manuscript-nav {
+    width: 14rem;
+    flex-shrink: 0;
+    padding: var(--space-s);
+    box-sizing: border-box;
+    overflow: auto;
+    border-right: 1px solid var(--color-border);
+    background: var(--color-surface-sunken);
+  }
+  .nav-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
   .scene-link {
     display: block;
+    width: 100%;
     text-align: left;
-    width: 100%;
-    padding-block: var(--space-s);
+    border: 0;
+    margin-block: var(--space-3xs);
   }
-  .workspace-intro {
-    overflow-y: auto;
-    width: 100%;
-    padding: var(--space-xl);
-    max-width: var(--measure);
-    margin-inline: auto;
+  .manuscript-column {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+    padding-inline: var(--space-m);
   }
-  .workspace-intro > p,
-  .brief,
-  .empty-state,
-  .excerpt,
-  .thread,
-  .comparison > p {
-    font-family: var(--font-body);
-    font-size: var(--text-body);
-    max-width: var(--measure);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-  .workspace-intro li {
+  .search-bar {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--color-border);
-    padding-block: var(--space-s);
+    gap: var(--space-2xs);
+    padding: var(--space-xs);
+    background: var(--color-surface);
   }
-  .workspace-intro li span {
-    font-size: var(--text-small);
-    color: var(--color-text-muted);
+  .search-bar input {
+    flex: 1;
+    min-width: 0;
   }
-  article {
-    border-top: 1px solid var(--color-border);
-    padding-block: var(--space-m);
+  .search-bar span {
+    white-space: nowrap;
   }
-  .annotation-title {
-    text-align: left;
-    font-size: var(--text-ui);
-    padding-inline: 0;
+  .workspace-menu {
+    position: relative;
   }
-  .annotation-title[aria-pressed="true"] {
-    color: var(--color-accent-text);
+  .workspace-menu summary {
+    list-style: none;
+    cursor: pointer;
+    padding: var(--space-2xs);
+    display: flex;
   }
-  .thread {
-    margin-block: var(--space-m);
-  }
-  .thread strong {
-    font-family: var(--font-ui);
-    font-size: var(--text-small);
-  }
-  .comparison {
-    padding-block: var(--space-s);
-  }
-  .comparison h3 {
-    margin-top: var(--space-m);
-  }
-  .original-prose,
-  .suggested-prose {
-    font-family: var(--font-body);
-    font-size: var(--text-body);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-  .original-prose {
-    border-left: 2px solid var(--color-error);
-    padding-left: var(--space-xs);
-  }
-  .suggested-prose {
-    border-left: 2px solid var(--color-success);
-    padding-left: var(--space-xs);
-    margin-block: var(--space-s);
-  }
-  .conflict {
-    border-left: 2px solid var(--color-warning);
+  .workspace-menu > div {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    width: 19rem;
+    max-height: 70vh;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xs);
     padding: var(--space-s);
-    color: var(--color-warning);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-overlay);
+    z-index: var(--z-dropdown);
   }
-  .workspace-error,
-  .workspace-notice {
-    padding: var(--space-s) var(--space-xl);
-    border-bottom: 1px solid var(--color-border);
+  .workspace-menu button {
+    text-align: left;
+    border: 0;
   }
   .workspace-error {
-    color: var(--color-error);
+    padding: var(--space-xs) var(--space-m);
+    border-bottom: 1px solid var(--color-error);
+    background: var(--color-surface);
+  }
+  .workspace-error p {
+    margin: 0 0 var(--space-2xs);
   }
   .workspace-notice {
-    color: var(--color-text);
+    padding: var(--space-2xs) var(--space-m);
+    margin: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .workspace-intro {
+    width: min(44rem, 100%);
+    box-sizing: border-box;
+    padding: var(--space-xl);
+    margin: auto;
+    overflow: auto;
+  }
+  .workspace-intro label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xs);
+    margin-block: var(--space-s);
+  }
+  .workspace-intro .checkbox {
+    flex-direction: row;
+  }
+  .brief {
+    white-space: pre-wrap;
+    line-height: var(--leading-relaxed);
   }
 </style>

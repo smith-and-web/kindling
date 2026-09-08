@@ -31,6 +31,18 @@ beforeEach(() => {
 });
 
 describe("editorial save journal", () => {
+  it("exposes only the acknowledged payload while another draft is pending", async () => {
+    const queue = new EditorialSaves(round, null);
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    queue.stage(draft);
+    await queue.flush();
+    queue.stage({ ...draft, name: "Still typing" });
+    const saved = queue.savedSession()!;
+    expect(saved.name).toBe("Rowan");
+    expect(saved.generation).toBe(1);
+    saved.name = "External mutation";
+    expect(queue.savedSession()!.name).toBe("Rowan");
+  });
   it("journals before debounce, coalesces edits, and advances acknowledged generations", async () => {
     const queue = new EditorialSaves(round, null);
     queue.stage(draft);

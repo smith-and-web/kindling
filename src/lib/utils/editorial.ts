@@ -212,6 +212,22 @@ export function normalizeOwnership(doc: Node, sources: EditorialSource[]): Node 
   return normalized;
 }
 
+/** Locks in the local writing project protect prose and local review gestures. */
+export function lockedProseChanged(before: Node, after: Node, sources: EditorialSource[]): boolean {
+  const locked = sources.filter((s) => s.locked);
+  if (!locked.length) return false;
+  const a = normalizeOwnership(before, sources),
+    b = normalizeOwnership(after, sources);
+  const content = (doc: Node, id: string) => {
+    const nodes: Node[] = [];
+    doc.forEach((n) => {
+      if (n.attrs.source === id) nodes.push(n);
+    });
+    return Fragment.fromArray(nodes);
+  };
+  return locked.some((s) => !content(a, s.id).eq(content(b, s.id)));
+}
+
 export function sourceHtml(doc: Node, sources: EditorialSource[]): Map<string, string> {
   const groups = new Map(sources.map((s) => [s.id, [] as Node[]]));
   doc.forEach((node) => {

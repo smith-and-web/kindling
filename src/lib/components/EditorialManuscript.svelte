@@ -1,5 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import ProseToolbar from "./ProseToolbar.svelte";
+  import { MessageSquare } from "lucide-svelte";
+  import type { Snippet } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { Editor } from "@tiptap/core";
   import type { Mapping } from "@tiptap/pm/transform";
@@ -11,8 +14,8 @@
     editorialSchema,
     manuscript,
     normalizeOwnership,
-    changesBetween,
     projectedRange,
+    lockedProseChanged,
     searchManuscript,
     type EditorialSource,
     type EditorialChange,
@@ -30,11 +33,17 @@
     onComment,
     onError,
     onAnnotation,
+    onActivate,
     onReadingPosition,
+    toolbar,
+    showSections = true,
+    protectLocked = false,
+    canComment = true,
+    lockSources,
   }: {
     sources: EditorialSource[];
     initial: ReturnType<Node["toJSON"]>;
-    changes?: EditorialChange[];
+    changes?: (EditorialChange & { unapplied?: boolean })[];
     readonly?: boolean;
     markup?: boolean;
     selected?: string | null;
@@ -43,21 +52,18 @@
     onComment: () => void;
     onError: (message: string) => void;
     onAnnotation: (id: string) => void;
+    onActivate?: (id: string) => void;
     onReadingPosition: (position: number) => void;
+    toolbar?: Snippet;
+    showSections?: boolean;
+    protectLocked?: boolean;
+    canComment?: boolean;
+    lockSources?: EditorialSource[];
   } = $props();
   let element: HTMLDivElement;
   let editor = $state.raw<Editor>();
   let revision = $state(0);
   let programmaticSelection = false;
-  const format = $derived.by(() => {
-    void revision;
-    return {
-      bold: editor?.isActive("bold") ?? false,
-      italic: editor?.isActive("italic") ?? false,
-      underline: editor?.isActive("underline") ?? false,
-      blockquote: editor?.isActive("blockquote") ?? false,
-    };
-  });
   const key = new PluginKey("manuscript-markup");
   const base = $derived(manuscript(sources));
 
@@ -173,7 +179,7 @@
         handleClick: (_view, _position, event) => {
           const id = (event.target as HTMLElement).closest<HTMLElement>("[data-review-id]")?.dataset
             .reviewId;
-          if (id) onAnnotation(id);
+          if (id) (onActivate ?? onAnnotation)(id);
           return false;
         },
         attributes: {
@@ -182,7 +188,12 @@
           spellcheck: "true",
         },
         handleKeyDown: (_view, event) => {
-          if ((event.metaKey || event.ctrlKey) && event.altKey && event.key.toLowerCase() === "m") {
+          if (
+            canComment &&
+            (event.metaKey || event.ctrlKey) &&
+            event.altKey &&
+            event.key.toLowerCase() === "m"
+          ) {
             event.preventDefault();
             onComment();
             return true;
@@ -214,6 +225,10 @@
           if (!tr.docChanged) return true;
           try {
             normalizeOwnership(tr.doc, sources);
+            if (protectLocked && lockedProseChanged(tr.before, tr.doc, lockSources ?? sources)) {
+              onError("Unlock this scene before suggesting changes to its prose.");
+              return false;
+            }
             return true;
           } catch {
             onError("To move this passage, cut and paste it at the destination.");
@@ -259,94 +274,113 @@
     const decorations: Decoration[] = [];
     const seenScenes = new SvelteSet<string>();
     let chapter = "";
-    doc.forEach((node, offset) => {
-      const source = sources.find((s) => s.id === node.attrs.source);
-      if (!source || seenScenes.has(source.scene_id)) return;
-      seenScenes.add(source.scene_id);
-      const chapterTitle = source.chapter_id !== chapter ? source.chapter : "";
-      chapter = source.chapter_id;
-      decorations.push(
-        Decoration.widget(
-          offset,
-          () => {
-            const header = document.createElement("div");
-            header.className = "editorial-section";
-            header.contentEditable = "false";
-            if (chapterTitle) {
-              const title = document.createElement("h2");
-              title.textContent = chapterTitle;
-              header.append(title);
-            }
-            const scene = document.createElement("p");
-            scene.textContent = source.scene;
-            header.append(scene);
-            return header;
-          },
-          { side: -1, key: source.scene_id }
-        )
-      );
-    });
-    if (markup) {
-      for (const delta of changesBetween(base, doc)) {
-        if (delta.fromB < delta.toB)
-          decorations.push(
-            Decoration.inline(delta.fromB, delta.toB, { class: "editorial-insertion" })
-          );
-        if (delta.fromA < delta.toA)
-          decorations.push(
-            Decoration.widget(
-              delta.fromB,
-              () => {
-                const deleted = document.createElement("del");
-                deleted.className = "editorial-deletion";
-                deleted.append(
-                  DOMSerializer.fromSchema(editorialSchema).serializeFragment(
-                    base.slice(delta.fromA, delta.toA).content
-                  )
-                );
-                return deleted;
-              },
-              { side: -1 }
-            )
-          );
-      }
-      for (const change of changes.filter((c) => c.state === "open")) {
-        const range = projectedRange(base, doc, change);
-        if (range.from < range.to)
-          decorations.push(
-            Decoration.inline(range.from, range.to, {
-              class:
-                change.id === selected
-                  ? "editorial-selected"
-                  : change.kind === "comment"
-                    ? "editorial-comment"
-                    : readonly
-                      ? "editorial-deletion"
-                      : "editorial-insertion",
-              "data-review-id": change.id,
-            })
-          );
-        if (readonly && change.kind === "suggestion") {
+    if (showSections)
+      doc.forEach((node, offset) => {
+        const source = sources.find((s) => s.id === node.attrs.source);
+        if (!source || seenScenes.has(source.scene_id)) return;
+        seenScenes.add(source.scene_id);
+        const chapterTitle = source.chapter_id !== chapter ? source.chapter : "";
+        chapter = source.chapter_id;
+        decorations.push(
+          Decoration.widget(
+            offset,
+            () => {
+              const header = document.createElement("div");
+              header.className = "editorial-section";
+              header.contentEditable = "false";
+              if (chapterTitle) {
+                const title = document.createElement("h2");
+                title.textContent = chapterTitle;
+                header.append(title);
+              }
+              const scene = document.createElement("p");
+              scene.textContent = source.scene;
+              header.append(scene);
+              return header;
+            },
+            { side: -1, key: source.scene_id }
+          )
+        );
+      });
+    // A transient decoration index; never retained as reactive state.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const markers = new Map<number, EditorialChange[]>();
+    for (const change of changes.filter(
+      (c) => c.state === "open" && (!c.writer_decision || c.writer_decision === "open")
+    )) {
+      const preview = readonly || change.unapplied;
+      const range = projectedRange(base, doc, change);
+      const from = Math.max(0, Math.min(range.from, doc.content.size));
+      const to = Math.max(from, Math.min(range.to, doc.content.size));
+      const resolved = doc.resolve(from);
+      const at = resolved.depth ? resolved.start() : from;
+      markers.set(at, [...(markers.get(at) ?? []), change]);
+      if (!markup && change.id !== selected) continue;
+      if (from < to)
+        decorations.push(
+          Decoration.inline(from, to, {
+            class:
+              change.id === selected
+                ? "editorial-selected"
+                : change.kind === "comment"
+                  ? "editorial-comment"
+                  : preview
+                    ? "editorial-deletion"
+                    : "editorial-insertion",
+            "data-review-id": change.id,
+          })
+        );
+      if (change.kind === "suggestion") {
+        const slice = Slice.fromJSON(editorialSchema, preview ? change.after : change.before);
+        if (slice.size)
           decorations.push(
             Decoration.widget(
-              range.to,
+              preview ? to : from,
               () => {
-                const inserted = document.createElement("ins");
-                inserted.className = "editorial-insertion";
-                inserted.dataset.reviewId = change.id;
-                inserted.append(
-                  DOMSerializer.fromSchema(editorialSchema).serializeFragment(
-                    Slice.fromJSON(editorialSchema, change.after).content
-                  )
+                const node = document.createElement(preview ? "ins" : "del");
+                node.className = preview ? "editorial-insertion" : "editorial-deletion";
+                node.dataset.reviewId = change.id;
+                node.append(
+                  DOMSerializer.fromSchema(editorialSchema).serializeFragment(slice.content)
                 );
-                return inserted;
+                return node;
               },
-              { side: 1 }
+              {
+                side: preview ? 1 : -1,
+                key: `change:${change.id}:${change.revision}:${preview ? "proposed" : "original"}`,
+              }
             )
           );
-        }
       }
     }
+    for (const [position, annotations] of markers)
+      decorations.push(
+        Decoration.widget(
+          position,
+          () => {
+            const marker = document.createElement("button");
+            marker.className = "editorial-margin-marker";
+            marker.type = "button";
+            marker.contentEditable = "false";
+            marker.textContent = String(annotations.length);
+            marker.title = `${annotations.length} comments or changes in this paragraph`;
+            marker.setAttribute("aria-label", marker.title);
+            marker.setAttribute("aria-pressed", String(annotations.some((c) => c.id === selected)));
+            marker.onmousedown = (event) => event.preventDefault();
+            marker.onclick = (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const index = annotations.findIndex((c) => c.id === selected);
+              onAnnotation(annotations[(index + 1) % annotations.length].id);
+            };
+            return marker;
+          },
+          {
+            side: -1,
+            key: `margin:${JSON.stringify(annotations.map((c) => c.id))}:${annotations.some((c) => c.id === selected) ? selected : ""}`,
+          }
+        )
+      );
     editor.view.dispatch(
       editor.state.tr
         .setMeta(key, DecorationSet.create(editor.state.doc, decorations))
@@ -355,82 +389,54 @@
   });
 </script>
 
-{#if !readonly}
-  <div class="editorial-format" role="toolbar" aria-label="Suggest formatting">
-    <span>Suggesting</span>
-    <button
-      aria-label="Suggest bold"
-      aria-pressed={format.bold}
-      onmousedown={(e) => e.preventDefault()}
-      onclick={() => editor?.chain().focus().toggleBold().run()}><strong>B</strong></button
-    >
-    <button
-      aria-label="Suggest italic"
-      aria-pressed={format.italic}
-      onmousedown={(e) => e.preventDefault()}
-      onclick={() => editor?.chain().focus().toggleItalic().run()}><em>I</em></button
-    >
-    <button
-      aria-label="Suggest underline"
-      aria-pressed={format.underline}
-      onmousedown={(e) => e.preventDefault()}
-      onclick={() => editor?.chain().focus().toggleUnderline().run()}>U̲</button
-    >
-    <button
-      aria-label="Suggest blockquote"
-      aria-pressed={format.blockquote}
-      onmousedown={(e) => e.preventDefault()}
-      onclick={() => editor?.chain().focus().toggleBlockquote().run()}>Quote</button
-    >
-    <select
-      aria-label="Suggest paragraph alignment"
-      onchange={(e) => editor?.chain().focus().setTextAlign(e.currentTarget.value).run()}
-    >
-      <option value="left">Align left</option><option value="center">Center</option><option
-        value="right">Align right</option
-      ><option value="justify">Justify</option>
-    </select>
-    <button aria-label="Undo suggested edit" onclick={() => editor?.chain().focus().undo().run()}
-      >Undo</button
-    >
-    <button aria-label="Redo suggested edit" onclick={() => editor?.chain().focus().redo().run()}
-      >Redo</button
-    >
-    <button onclick={onComment}>Comment <kbd>⌘/Ctrl Alt M</kbd></button>
-  </div>
-{/if}
+<div class="editorial-format">
+  <ProseToolbar {editor} {revision} {readonly}>
+    {@render toolbar?.()}
+    {#if canComment}<button class="comment-action" onclick={onComment}
+        ><MessageSquare size={16} /> Comment</button
+      >{/if}
+  </ProseToolbar>
+</div>
 <div class="app-prose-sheet editorial-sheet" bind:this={element}></div>
 
 <style>
   .editorial-format {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-3xs);
-    padding-block: var(--space-2xs);
-    border-bottom: 1px solid var(--color-border);
     position: sticky;
     top: 0;
-    background: var(--color-bg);
     z-index: var(--z-sticky);
   }
-  .editorial-format span,
-  kbd {
+  .comment-action {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    background: transparent;
+    border: 0;
+    color: var(--color-text);
+    padding: var(--space-2xs);
     font-family: var(--font-ui);
     font-size: var(--text-small);
-    color: var(--color-text-muted);
   }
-  .editorial-format button {
-    padding: var(--space-2xs);
+  :global(.editorial-margin-marker) {
+    position: absolute;
+    transform: translateX(calc(-1 * var(--space-l)));
+    padding: var(--space-3xs);
+    min-width: var(--space-m);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-s);
+    font-family: var(--font-ui);
+    font-size: var(--text-eyebrow);
+    color: var(--color-prose-text);
+    background: var(--color-accent-wash);
+    cursor: pointer;
   }
-  .editorial-format select {
-    width: auto;
-    max-width: 9rem;
-    padding: var(--space-2xs);
-    font-size: var(--text-small);
+  :global(.editorial-margin-marker[aria-pressed="true"]) {
+    border-color: var(--color-accent);
   }
   .editorial-sheet {
-    margin-block: var(--space-l);
+    margin: var(--space-l) auto;
+    width: 100%;
+    max-width: calc(var(--measure) + var(--space-xl) * 2);
+    box-sizing: border-box;
     padding: var(--space-xl);
   }
   :global(.editorial-prose) {

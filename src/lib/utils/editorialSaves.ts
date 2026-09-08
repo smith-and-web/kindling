@@ -5,6 +5,7 @@ import type { EditorialRound, EditorialSession } from "./editorial";
  * A synchronous recovery journal covers the debounce and interrupted IPC window. */
 export class EditorialSaves {
   private expected: number | null;
+  private committed: EditorialSession | null;
   private generationFloor: number;
   private pending: EditorialSession | null = null;
   private running: Promise<void> | null = null;
@@ -15,6 +16,7 @@ export class EditorialSaves {
     saved: EditorialSession | null,
     savedGeneration?: number | null
   ) {
+    this.committed = saved ? structuredClone(saved) : null;
     this.expected = savedGeneration === undefined ? (saved?.generation ?? null) : savedGeneration;
     this.generationFloor = saved?.generation ?? 0;
     this.key = `kindling.editorial.recovery.${round.id}`;
@@ -64,6 +66,10 @@ export class EditorialSaves {
     return selected;
   }
 
+  savedSession() {
+    return this.committed ? structuredClone(this.committed) : null;
+  }
+
   recoveryGeneration() {
     return Math.max(this.expected ?? 0, this.generationFloor, this.pending?.generation ?? 0) + 1;
   }
@@ -107,6 +113,7 @@ export class EditorialSaves {
         session,
         expectedGeneration: this.expected,
       });
+      this.committed = structuredClone(session);
       this.expected = session.generation;
       if (this.pending === draft) {
         this.pending = null;

@@ -84,7 +84,11 @@
     children?: MenuItem[];
   }
 
-  let { prepareWritingReset }: { prepareWritingReset?: () => Promise<void> } = $props();
+  let {
+    prepareWritingReset,
+    beforeCloseProject,
+  }: { prepareWritingReset?: () => Promise<void>; beforeCloseProject?: () => Promise<void> } =
+    $props();
 
   let loading = $state(false);
   let chaptersRequestId = 0;
@@ -578,9 +582,14 @@
     }
   }
 
-  function goHome() {
-    currentProject.setProject(null);
-    ui.setView("start");
+  async function goHome() {
+    try {
+      await beforeCloseProject?.();
+      currentProject.setProject(null);
+      ui.setView("start");
+    } catch (error) {
+      ui.showError(String(error));
+    }
   }
 
   function toggleSidebar() {

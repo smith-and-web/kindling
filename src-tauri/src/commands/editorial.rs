@@ -121,7 +121,10 @@ pub fn initialize(conn: &Connection) -> rusqlite::Result<()> {
         CREATE TABLE IF NOT EXISTS editorial_returns (
         round_id TEXT NOT NULL REFERENCES editorial_rounds(id) ON DELETE CASCADE,
         reviewer_id TEXT NOT NULL, generation INTEGER NOT NULL, data TEXT NOT NULL,
-        PRIMARY KEY(round_id, reviewer_id));")
+        PRIMARY KEY(round_id, reviewer_id));
+        CREATE TABLE IF NOT EXISTS editorial_local_rounds (
+        project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+        round_id TEXT NOT NULL REFERENCES editorial_rounds(id) ON DELETE CASCADE);")
 }
 
 pub fn sources(conn: &Connection, project_id: &str) -> Result<Vec<Source>> {
@@ -516,6 +519,129 @@ pub async fn open_editorial_package(
     resume_package(&*state.db.lock().map_err(err)?, package)
 }
 
+fn local_review(conn: &Connection, project_id: &str, fresh: bool) -> Result<OpenedPackage> {
+    let current_sources = sources(conn, project_id)?;
+    let existing: Option<String> = conn
+        .query_row(
+            "SELECT round_id FROM editorial_local_rounds WHERE project_id=?1",
+            [project_id],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(err)?;
+    if let Some(id) = existing.filter(|_| !fresh) {
+        let opened = resume_package(
+            conn,
+            Package {
+                format: "kindling-editorial".into(),
+                version: 1,
+                kind: "review".into(),
+                round: round(conn, &id)?,
+                session: None,
+            },
+        )?;
+        if let Some(session) = &opened.package.session {
+            let returned: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM editorial_returns WHERE round_id=?1 AND reviewer_id=?2)", params![id,session.reviewer_id], |r|r.get(0)).map_err(err)?;
+            if returned {
+                return resume_package(conn, writer_response(conn, &id, &session.reviewer_id)?);
+            }
+        }
+        return Ok(opened);
+    }
+    let project = db::get_project(conn, &Uuid::parse_str(project_id).map_err(err)?)
+        .map_err(err)?
+        .ok_or("Project no longer exists")?;
+    let review_round = Round {
+        id: Uuid::new_v4().to_string(),
+        project_id: project_id.into(),
+        title: project.name,
+        name: "Local review".into(),
+        brief: String::new(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        sources: current_sources,
+    };
+    let package = Package {
+        format: "kindling-editorial".into(),
+        version: 1,
+        kind: "review".into(),
+        round: review_round.clone(),
+        session: None,
+    };
+    validate(&package)?;
+    let tx = conn.unchecked_transaction().map_err(err)?;
+    tx.execute(
+        "INSERT INTO editorial_rounds(id,project_id,data) VALUES (?1,?2,?3)",
+        params![
+            review_round.id,
+            project_id,
+            serde_json::to_string(&review_round).map_err(err)?
+        ],
+    )
+    .map_err(err)?;
+    tx.execute(
+        "INSERT INTO editorial_local_rounds(project_id,round_id) VALUES (?1,?2)
+        ON CONFLICT(project_id) DO UPDATE SET round_id=excluded.round_id",
+        params![project_id, review_round.id],
+    )
+    .map_err(err)?;
+    tx.commit().map_err(err)?;
+    resume_package(conn, package)
+}
+
+#[tauri::command]
+pub async fn open_local_editorial_review(
+    project_id: String,
+    fresh: bool,
+    state: State<'_, AppState>,
+) -> Result<OpenedPackage> {
+    local_review(&*state.db.lock().map_err(err)?, &project_id, fresh)
+}
+
+fn project_reviews(conn: &Connection, project_id: &str) -> Result<Vec<db::revisions::SceneReview>> {
+    let mut seen = HashSet::new();
+    sources(conn, project_id)?
+        .into_iter()
+        .filter(|s| seen.insert(s.scene_id.clone()))
+        .map(|s| db::revisions::load(conn, &Uuid::parse_str(&s.scene_id).map_err(err)?))
+        .collect()
+}
+
+#[tauri::command]
+pub async fn get_project_scene_reviews(
+    project_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<db::revisions::SceneReview>> {
+    project_reviews(&*state.db.lock().map_err(err)?, &project_id)
+}
+
+#[derive(Deserialize)]
+pub struct SceneReviewUpdate {
+    expected: db::revisions::SceneReview,
+    data: db::revisions::ReviewData,
+    next: Option<db::revisions::ReviewDraft>,
+}
+
+#[tauri::command]
+pub async fn save_scene_review_batch(
+    updates: Vec<SceneReviewUpdate>,
+    state: State<'_, AppState>,
+) -> Result<()> {
+    save_review_batch(&*state.db.lock().map_err(err)?, updates)
+}
+
+fn save_review_batch(conn: &Connection, updates: Vec<SceneReviewUpdate>) -> Result<()> {
+    let tx = conn.unchecked_transaction().map_err(err)?;
+    for update in updates {
+        db::revisions::save_in_transaction(
+            &tx,
+            &update.expected,
+            &update.data,
+            update.next.as_ref(),
+        )?;
+    }
+    tx.commit().map_err(err)
+}
+
 #[tauri::command]
 pub async fn export_editorial_recovery(round: Round, session: Session, path: String) -> Result<()> {
     write_package(
@@ -900,6 +1026,97 @@ mod tests {
             }),
         };
         (conn, package)
+    }
+
+    #[test]
+    fn project_review_reads_deduplicate_beat_sources_and_validate_project() {
+        let (conn, package) = fixture();
+        let reviews = project_reviews(&conn, &package.round.project_id).unwrap();
+        assert_eq!(reviews.len(), 1);
+        assert_eq!(
+            reviews[0].scene_id.to_string(),
+            package.round.sources[0].scene_id
+        );
+        assert!(project_reviews(&conn, &Uuid::new_v4().to_string()).is_err());
+    }
+
+    #[test]
+    fn local_rounds_resume_decisions_and_keep_previous_passes() {
+        let (conn, mut package) = fixture();
+        let first = local_review(&conn, &package.round.project_id, false).unwrap();
+        package.round = first.package.round;
+        let repeated = local_review(&conn, &package.round.project_id, false).unwrap();
+        assert_eq!(repeated.package.round.id, package.round.id);
+        let session = package.session.as_ref().unwrap();
+        conn.execute(
+            "INSERT INTO editorial_sessions(round_id,round_data,data) VALUES (?1,?2,?3)",
+            params![
+                package.round.id,
+                serde_json::to_string(&package.round).unwrap(),
+                serde_json::to_string(session).unwrap()
+            ],
+        )
+        .unwrap();
+        let mut entries = import_feedback(&conn, &package).unwrap().entries;
+        entries[0].decision = "accepted".into();
+        entries[0].decided_by_writer = true;
+        conn.execute(
+            "UPDATE editorial_rounds SET feedback=?1 WHERE id=?2",
+            params![serde_json::to_string(&entries).unwrap(), package.round.id],
+        )
+        .unwrap();
+        let resumed = local_review(&conn, &package.round.project_id, false).unwrap();
+        assert_eq!(
+            resumed.package.session.unwrap().changes[0]
+                .writer_decision
+                .as_deref(),
+            Some("accepted")
+        );
+        let fresh = local_review(&conn, &package.round.project_id, true).unwrap();
+        assert_ne!(fresh.package.round.id, package.round.id);
+        assert_eq!(
+            feedback(&conn, &package.round.id).unwrap().entries[0].decision,
+            "accepted"
+        );
+    }
+
+    #[test]
+    fn scene_review_batches_roll_back_all_updates_after_a_stale_write() {
+        let (conn, package) = fixture();
+        let id = Uuid::parse_str(&package.round.sources[0].scene_id).unwrap();
+        let expected = db::revisions::load(&conn, &id).unwrap();
+        let mut data = expected.data.clone();
+        data.status = "revised".into();
+        let updates = vec![
+            SceneReviewUpdate {
+                expected: expected.clone(),
+                data: data.clone(),
+                next: None,
+            },
+            SceneReviewUpdate {
+                expected: expected.clone(),
+                data: data.clone(),
+                next: None,
+            },
+        ];
+        assert!(save_review_batch(&conn, updates).is_err());
+        assert_eq!(
+            serde_json::to_value(db::revisions::load(&conn, &id).unwrap()).unwrap(),
+            serde_json::to_value(&expected).unwrap()
+        );
+        save_review_batch(
+            &conn,
+            vec![SceneReviewUpdate {
+                expected: expected.clone(),
+                data,
+                next: None,
+            }],
+        )
+        .unwrap();
+        assert_eq!(
+            db::revisions::load(&conn, &id).unwrap().data.status,
+            "revised"
+        );
     }
 
     #[test]

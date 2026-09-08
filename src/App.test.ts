@@ -1007,7 +1007,7 @@ it("attempts writing saves and offers explicit recovery when an editorial save b
     .fn()
     .mockReturnValue({ left: 0, right: 0, top: 0, bottom: 0 });
   render(App);
-  await screen.findByRole("dialog", { name: "Editorial workspace" });
+  await screen.findByRole("region", { name: "Editorial workspace" });
   await fireEvent.input(screen.getByLabelText("Your name"), { target: { value: "Rowan" } });
   vi.spyOn(EditorialSaves.prototype, "flush").mockRejectedValue(new Error("disk full"));
   const writing = vi.spyOn(proseSaves, "flush").mockResolvedValue([]);
