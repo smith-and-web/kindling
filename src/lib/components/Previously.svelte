@@ -111,7 +111,7 @@
         {/if}
         {#if previous.excerpt}
           <blockquote
-            class="font-prose text-press-body text-press-text max-w-press-measure break-words"
+            class="font-prose text-press-body text-press-text max-w-press-measure italic break-words"
           >
             {previous.excerpt}
           </blockquote>
