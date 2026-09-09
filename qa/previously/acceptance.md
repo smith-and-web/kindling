@@ -47,3 +47,15 @@ are included as evidence.
 
 The fixture project was deleted through IPC after inspection, saved preferences
 were restored, and the isolated debug app was stopped.
+
+## Toolbar layout follow-up
+
+Previously and Revisions now share one compact, left-aligned Scene tools row.
+The summary expands beneath it; the separate rows and dividing rules are removed.
+Revisions remains available for the first scene, during loading, and on errors.
+
+Validated against the running native app in light/collapsed and dark/expanded
+states. Both controls share the same y-coordinate and 32px height, use Inter,
+and have no borders. Inspected both screenshots and restored the original theme
+and collapse preference. The 19 existing Previously/SceneRevisions component
+tests, type check, ESLint, and production build passed.

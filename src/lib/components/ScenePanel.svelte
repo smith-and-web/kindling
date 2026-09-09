@@ -6,6 +6,7 @@
   import Previously from "./Previously.svelte";
   import {
     FileText,
+    History,
     ChevronDown,
     Loader2,
     Plus,
@@ -793,15 +794,19 @@
     {@const projectId = currentProject.value.id}
     <div use:trackSceneScroll={{ projectId, sceneId: scene.id }} class="flex-1 overflow-y-auto">
       <div class="max-w-3xl mx-auto p-8">
-        <Previously refreshVersion={previousSceneVersion} bind:loading={previousSceneLoading} />
-        <div class="flex justify-end border-b border-press-border px-4 py-2">
-          <button
-            disabled={openingRevisions}
-            onclick={openRevisions}
-            class="text-press-ui text-press-text"
-            >{openingRevisions ? "Opening revisions…" : "Revisions"}</button
-          >
-        </div>
+        <Previously refreshVersion={previousSceneVersion} bind:loading={previousSceneLoading}>
+          {#snippet actions()}
+            <button
+              type="button"
+              disabled={openingRevisions}
+              onclick={openRevisions}
+              class="flex items-center gap-2 py-1 text-press-ui font-press-ui text-press-muted hover:text-press-text"
+            >
+              <History class="w-4 h-4" strokeWidth={1} aria-hidden="true" />
+              {openingRevisions ? "Opening revisions…" : "Revisions"}
+            </button>
+          {/snippet}
+        </Previously>
         <!-- Scene Title -->
         <header class="mb-8">
           <div class="flex items-center gap-3 flex-wrap">

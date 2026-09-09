@@ -1,14 +1,15 @@
 <script lang="ts">
-  import { tick } from "svelte";
+  import { tick, type Snippet } from "svelte";
   import { ChevronDown } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { synopsisSaves } from "../stores/synopsisSaves.svelte";
   import { loadPreviousScene } from "../utils/previousScene";
 
   let {
+    actions,
     refreshVersion = 0,
     loading = $bindable(true),
-  }: { refreshVersion?: number; loading?: boolean } = $props();
+  }: { actions?: Snippet; refreshVersion?: number; loading?: boolean } = $props();
 
   const storageKey = "kindling:previouslyCollapsed";
   let collapsed = $state(localStorage.getItem(storageKey) === "true");
@@ -72,29 +73,34 @@
   }
 </script>
 
-{#if previous}
-  <section
-    aria-label="Previously"
-    aria-busy={loading}
-    data-testid="previously"
-    class="border-b border-press-border py-4 mb-6"
-  >
-    <button
-      type="button"
-      onclick={toggle}
-      aria-expanded={!collapsed}
-      aria-controls="previously-content"
-      class="flex items-center gap-2 text-press-ui font-press-ui text-press-muted hover:text-press-text"
-    >
-      <ChevronDown
-        class={collapsed ? "w-4 h-4 -rotate-90" : "w-4 h-4"}
-        strokeWidth={1}
-        aria-hidden="true"
-      />
-      Previously
-    </button>
-    {#if !collapsed}
-      <div id="previously-content" class="mt-3 space-y-3">
+{#if previous || actions || error}
+  <div class="mb-6" aria-busy={loading}>
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-2" role="group" aria-label="Scene tools">
+      {#if previous}
+        <button
+          type="button"
+          onclick={toggle}
+          aria-expanded={!collapsed}
+          aria-controls="previously-content"
+          class="flex items-center gap-2 py-1 text-press-ui font-press-ui text-press-muted hover:text-press-text"
+        >
+          <ChevronDown
+            class={collapsed ? "w-4 h-4 -rotate-90" : "w-4 h-4"}
+            strokeWidth={1}
+            aria-hidden="true"
+          />
+          Previously
+        </button>
+      {/if}
+      {@render actions?.()}
+    </div>
+    {#if previous && !collapsed}
+      <section
+        id="previously-content"
+        aria-label="Previously"
+        data-testid="previously"
+        class="mt-4 space-y-3"
+      >
         <h2 class="font-heading text-press-h3 text-press-text break-words">{title}</h2>
         {#if synopsis}
           <p
@@ -105,17 +111,19 @@
         {/if}
         {#if previous.excerpt}
           <blockquote
-            class="font-prose text-press-body text-press-text max-w-press-measure border-l border-press-border pl-4 break-words"
+            class="font-prose text-press-body text-press-text max-w-press-measure break-words"
           >
             {previous.excerpt}
           </blockquote>
         {/if}
-      </div>
+      </section>
+    {:else if error}
+      <p role="status" class="mt-3 text-press-ui text-press-muted">
+        Could not load previous scene context.
+        <button type="button" onclick={() => retry++} class="underline text-press-text"
+          >Retry</button
+        >
+      </p>
     {/if}
-  </section>
-{:else if error}
-  <p role="status" class="py-4 text-press-ui text-press-muted">
-    Could not load previous scene context.
-    <button type="button" onclick={() => retry++} class="underline text-press-text">Retry</button>
-  </p>
+  </div>
 {/if}
