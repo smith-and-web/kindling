@@ -371,3 +371,32 @@ The final focused review also clarified search behavior when selecting past
 rounds and separated book/chapter typography using existing sidebar tokens.
 Claude's final result: **No findings**. Review-agent rechecked these last deltas
 and also returned **No findings**.
+
+## Returned feedback opening screen
+
+Follow-up base: `a252f8e85f3624f5b5489ef0dca4d7fe1e59fea2`.
+
+| Requested improvement | Implementation evidence | Validation | Gap |
+| --- | --- | --- | --- |
+| Clearer feedback introduction | Reuses package layout, display typography, hairlines and primary action; reviewer heading and distinct scene/suggestion/comment totals | Light/dark captured-DOM renderings at 1600×968 and 1360×768; no horizontal overflow; import action visible | None |
+| Useful review context | Original manuscript, round and optional brief; guidance for comments, decisions, changed passages and returning replies | Mixed feedback and comment-only tests verify counts, scene deduplication and omitted empty brief | None |
+| Explicit import with clear effect | Existing import handler retained; prose changes only on accepting a suggestion | Preview does not import automatically; Close does not import; native import showed the comment and identical before/after manuscript sources | None |
+
+All 41 workspace tests and repository checks passed. Frontend and macOS app
+bundle builds passed with existing warnings; updater artifacts were disabled
+only for the local verification build. No backend or package format changed.
+
+[Feedback preview, light](feedback-preview-light.png) and
+[feedback preview, dark](feedback-preview-dark.png) are browser renderings of
+captured native DOM, not native window screenshots. Native checks used a real
+feedback export containing one comment on the disposable sample. The QA dev
+instance used a separate identifier and the existing disposable data directory;
+no QA bundle/file association was registered. The initial standard dev launch
+forwarded a QA file to the running release's single-instance handler; it was
+not imported there. Subsequent preview/import checks ran in the isolated instance.
+
+Review-agent returned **No findings**. Claude high-effort session
+`d8a66221-6a03-4e67-a6cb-76699fc084cf` found no blocking issues; its observations
+were intentional self-contained review metadata, a below-minimum-window fallback,
+and unchanged counts of all annotations in the file rather than only pending items.
+Its final focused disposition was **No findings**.

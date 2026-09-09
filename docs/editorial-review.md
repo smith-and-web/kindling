@@ -70,7 +70,9 @@ created even before entering your display name.
 **Manuscript actions (⋯) → Export feedback** creates a `.kindling-feedback` file. Return it to the writer.
 You can send a partial review and continue working, then export another response.
 
-The writer opens the response and chooses **Import and review feedback**. Import
+The writer opens the response to see who returned it, the scenes included,
+suggestion and comment counts, and the original review round and brief. Choose
+**Import and review feedback** to read it alongside the manuscript. Import
 adds annotations; prose changes only when the writer accepts suggestions. Open
 previously imported feedback under **File → Editorial Review → Review rounds**.
 

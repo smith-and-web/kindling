@@ -885,6 +885,15 @@ describe("editorial workspace", () => {
     const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
     await view.component.openFile("/feedback.kindling-feedback");
     expect(document.querySelector(".workspace-header .eyebrow")).toBeNull();
+    expect(view.getByRole("heading", { name: "Feedback from Rowan" })).toBeTruthy();
+    expect(view.getByLabelText("Feedback in this file").textContent).toContain("1scene included");
+    expect(view.getByLabelText("Feedback in this file").textContent).toContain("1suggestion");
+    expect(view.getByLabelText("Feedback in this file").textContent).toContain("0comments");
+    expect(view.getByLabelText("Review details").textContent).toContain("First review");
+    expect(view.getByText("Check motivation")).toBeTruthy();
+    expect(
+      view.getByText("Your manuscript changes only when you accept a suggestion.")
+    ).toBeTruthy();
     expect(invoke).not.toHaveBeenCalledWith("import_editorial_feedback", expect.anything());
     await fireEvent.click(view.getByText("Import and review feedback"));
     await waitFor(() =>
@@ -904,6 +913,49 @@ describe("editorial workspace", () => {
         })
       )
     );
+  });
+
+  it("summarizes comment-only feedback by scene rather than prose source and omits an empty brief", async () => {
+    const sources = [source, { ...source, id: "b", html: "<p>More of the same scene.</p>" }];
+    const base = manuscript(sources);
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "take_editorial_open_files") return [];
+      if (command === "open_editorial_package")
+        return {
+          ...packageData,
+          kind: "feedback",
+          round: { ...round, sources, brief: "   " },
+          session: {
+            name: "Joe",
+            reviewer_id: "joe",
+            generation: 1,
+            document: base.toJSON(),
+            position: 1,
+            changes: [
+              {
+                id: "comment",
+                revision: 1,
+                kind: "comment",
+                from: 1,
+                to: 1,
+                before: base.slice(1, 1).toJSON(),
+                after: base.slice(1, 1).toJSON(),
+                state: "open",
+                messages: [],
+              },
+            ],
+          },
+        };
+    });
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openFile("/feedback.kindling-feedback");
+    const summary = view.getByLabelText("Feedback in this file");
+    expect(summary.textContent).toContain("1scene included");
+    expect(summary.textContent).toContain("0suggestions");
+    expect(summary.textContent).toContain("1comment");
+    expect(view.queryByText("Your original brief")).toBeNull();
+    await fireEvent.click(view.getByRole("button", { name: "Close review" }));
+    expect(invoke).not.toHaveBeenCalledWith("import_editorial_feedback", expect.anything());
   });
 
   it("withdraws a suggestion without moving unrelated comments, including undo and redo", async () => {

@@ -8,6 +8,10 @@ resolve the actual file handler and check that executable's build time. An old
 QA bundle can remain the default even while current source is running in dev.
 Ordinary UI checks should open files explicitly with the current test executable
 and isolated data, without registering another default application.
+When a release instance is running, also give the QA dev instance a separate
+Tauri `identifier` via a command-line config override. A data-directory override
+alone does not isolate single-instance file routing. Confirm the QA process and
+socket are running before sending fixtures to its executable.
 
 Association checks must record the previous handlers. Immediately afterward,
 unregister temporary QA bundles and restore the intended current application for

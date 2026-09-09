@@ -1404,20 +1404,59 @@
       </aside>
     </div>
   {:else if screen === "preview" && received}
-    <section class="workspace-intro">
-      <h2>Feedback from {received.session?.name}</h2>
-      <p>
-        {new Set(received.round.sources.map((s) => s.scene_id)).size} scenes · {received.session?.changes.filter(
-          (c) => c.kind === "suggestion"
-        ).length} suggestions · {received.session?.changes.filter((c) => c.kind === "comment")
-          .length} comments
-      </p>
-      <p>
-        Import adds feedback to the original review round. You decide which suggestions to accept,
-        including where the manuscript has changed since it was sent.
-      </p>
-      <button disabled={busy} onclick={importFeedback}>Import and review feedback</button>
-    </section>
+    {@const sceneCount = new Set(received.round.sources.map((s) => s.scene_id)).size}
+    {@const suggestionCount = received.session!.changes.filter(
+      (c) => c.kind === "suggestion"
+    ).length}
+    {@const commentCount = received.session!.changes.filter((c) => c.kind === "comment").length}
+    <div class="package-layout feedback-preview">
+      <section class="feedback-summary" aria-labelledby="feedback-heading">
+        <h2 id="feedback-heading">Feedback from {received.session!.name}</h2>
+        <p class="package-description">
+          Bring your editor’s feedback into the original review round, then read it alongside your
+          manuscript.
+        </p>
+        <ul class="feedback-counts" aria-label="Feedback in this file">
+          <li>
+            <strong>{sceneCount}</strong>{sceneCount === 1 ? "scene included" : "scenes included"}
+          </li>
+          <li>
+            <strong>{suggestionCount}</strong>{suggestionCount === 1 ? "suggestion" : "suggestions"}
+          </li>
+          <li><strong>{commentCount}</strong>{commentCount === 1 ? "comment" : "comments"}</li>
+        </ul>
+        <div class="feedback-next">
+          <h3>What happens next</h3>
+          <p>
+            Read comments, reply to your editor, and accept or reject suggestions. If you’ve
+            rewritten a passage, Kindling helps you place its feedback before applying an edit.
+          </p>
+          <p>
+            You can work through the feedback at your own pace and export your replies and decisions
+            when you’re ready.
+          </p>
+        </div>
+        <div class="package-export">
+          <button class="primary-action" disabled={busy} onclick={importFeedback}
+            ><FolderOpen size={16} />Import and review feedback</button
+          >
+          <p class="scope-hint">Your manuscript changes only when you accept a suggestion.</p>
+        </div>
+      </section>
+      <aside class="package-rounds feedback-details" aria-label="Review details">
+        <h2>Review details</h2>
+        <dl>
+          <dt>Manuscript</dt>
+          <dd>{received.round.title}</dd>
+          <dt>Review round</dt>
+          <dd>{received.round.name}</dd>
+        </dl>
+        {#if received.round.brief.trim()}
+          <h3>Your original brief</h3>
+          <p class="brief">{received.round.brief}</p>
+        {/if}
+      </aside>
+    </div>
   {:else if round && (session || feedback)}
     <div class="workspace-layout">
       {#if !local && showNavigation}<nav class="manuscript-nav" aria-label="Manuscript navigation">
@@ -1870,7 +1909,8 @@
     margin-inline: auto;
     overflow: auto;
   }
-  .package-form h2 {
+  .package-form h2,
+  .feedback-summary h2 {
     font-family: var(--font-display);
     font-size: var(--text-h2);
     margin: 0 0 var(--space-xs);
@@ -1993,12 +2033,54 @@
       padding: var(--space-l);
     }
   }
-  .workspace-intro {
-    width: min(44rem, 100%);
-    box-sizing: border-box;
-    padding: var(--space-xl);
-    margin: auto;
-    overflow: auto;
+  .feedback-preview {
+    align-items: start;
+    overflow-wrap: anywhere;
+  }
+  .feedback-counts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-s);
+    list-style: none;
+    padding: var(--space-m) 0;
+    margin: 0;
+    border-block: 1px solid var(--color-border);
+  }
+  .feedback-counts strong {
+    display: block;
+    font-family: var(--font-display);
+    font-size: var(--text-h2);
+    font-weight: 500;
+  }
+  .feedback-next {
+    margin-block: var(--space-l);
+    line-height: var(--leading);
+  }
+  .feedback-next h3 {
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    margin-bottom: var(--space-xs);
+  }
+  .feedback-next p + p {
+    margin-top: var(--space-xs);
+  }
+  .feedback-details dt {
+    color: var(--color-text-muted);
+    font-size: var(--text-eyebrow);
+    margin-top: var(--space-s);
+  }
+  .feedback-details dd {
+    margin: var(--space-2xs) 0 0;
+  }
+  @media (max-width: 800px) {
+    .feedback-preview {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .feedback-details {
+      border-left: 0;
+      border-top: 1px solid var(--color-border);
+      padding: var(--space-m) 0 0;
+    }
   }
   .brief {
     white-space: pre-wrap;
