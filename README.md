@@ -152,6 +152,15 @@ cd src-tauri && cargo test
 npm run check:all
 ```
 
+## Previous scene context
+
+The **Previously** section at the top of a scene shows the preceding scene's title,
+synopsis, and last three sentences of prose (or all available prose if shorter).
+It follows manuscript order across chapters, skips archived scenes and chapters,
+and reads the active Beat or Page view. Outline prompts are never used as prose.
+The first scene has no Previously section. Collapse it to save space; Kindling
+remembers that preference across scenes and app restarts.
+
 ## Writing goals and statistics
 
 The sidebar shows saved word counts for the project, chapters and scenes. The editor

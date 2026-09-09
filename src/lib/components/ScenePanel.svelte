@@ -3,6 +3,7 @@
   import { writing } from "../stores/writing.svelte";
   import type { SceneReview } from "../utils/revisions";
   import WritingStatusBar from "./WritingStatusBar.svelte";
+  import Previously from "./Previously.svelte";
   import {
     FileText,
     ChevronDown,
@@ -57,6 +58,8 @@
     ) => Promise<void>;
   } = $props();
   let openingRevisions = $state(false);
+  let previousSceneVersion = $state(0);
+  let previousSceneLoading = $state(true);
   let revisionEditorVersion = $state(0);
   async function openRevisions() {
     const scene = currentProject.currentScene;
@@ -90,6 +93,7 @@
     }
   }
   export function applyRevision(review: SceneReview) {
+    previousSceneVersion++;
     if (currentProject.currentScene?.id !== review.scene_id) return;
     const prose = review.documents.find((d) => d.id === review.scene_id)?.html ?? "";
     currentProject.updateScene(review.scene_id, { prose, editor_mode: review.mode });
@@ -407,7 +411,8 @@
       request.projectId !== currentProject.value?.id ||
       request.sceneId !== currentProject.currentScene?.id ||
       discoveryNotesLoading ||
-      sceneReferenceLoading
+      sceneReferenceLoading ||
+      previousSceneLoading
     )
       return;
     return untrack(() =>
@@ -713,9 +718,11 @@
       }
     }
     pageProseSaveStatus = "idle";
+    previousSceneVersion++;
   }
 
   export function applySearchChanges(changes: Pick<ProseReplacement, "id" | "prose">[]) {
+    previousSceneVersion++;
     void writing.refresh(currentProject.value?.id);
     for (const change of changes) {
       currentProject.updateBeatProse(change.id, change.prose);
@@ -786,6 +793,7 @@
     {@const projectId = currentProject.value.id}
     <div use:trackSceneScroll={{ projectId, sceneId: scene.id }} class="flex-1 overflow-y-auto">
       <div class="max-w-3xl mx-auto p-8">
+        <Previously refreshVersion={previousSceneVersion} bind:loading={previousSceneLoading} />
         <div class="flex justify-end border-b border-press-border px-4 py-2">
           <button
             disabled={openingRevisions}
