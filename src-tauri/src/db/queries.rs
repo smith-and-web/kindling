@@ -1829,7 +1829,16 @@ pub fn update_scene_metadata(
     scene_type: &SceneType,
     scene_status: &SceneStatus,
 ) -> Result<()> {
-    conn.execute(
+    let tx = conn.unchecked_transaction()?;
+    let old_status: String = tx.query_row(
+        "SELECT scene_status FROM scenes WHERE id=?1",
+        [scene_id.to_string()],
+        |r| r.get(0),
+    )?;
+    if old_status != scene_status.as_str() {
+        tx.execute("UPDATE scene_reviews SET data=json_set(data,'$.status',?1), version=version+1 WHERE scene_id=?2", params![match scene_status.as_str() { "final" => "final", "revised" => "revised", _ => "first_draft" }, scene_id.to_string()])?;
+    }
+    tx.execute(
         "UPDATE scenes SET scene_type = ?1, scene_status = ?2 WHERE id = ?3",
         params![
             scene_type.as_str(),
@@ -1837,7 +1846,7 @@ pub fn update_scene_metadata(
             scene_id.to_string()
         ],
     )?;
-    Ok(())
+    tx.commit()
 }
 
 pub fn update_scene_planning_status(

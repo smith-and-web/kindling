@@ -347,7 +347,8 @@ fn seed_sample_project(conn: &Connection) -> rusqlite::Result<Project> {
         scene_status: SceneStatus::Draft,
         scene_type: SceneType::Normal,
         planning_status: PlanningStatus::Fixed,
-        editor_mode: EditorMode::Beat,
+        editor_mode: EditorMode::Page,
+        prose: Some("<p>The register lay open beneath the verger's hand. Where Eleanor expected the spring entries, a narrow strip of paper clung to the stitching.</p><p>Someone had cut the page out recently. The edge was white, while every other leaf had yellowed.</p><p>When she asked for Margaret Wren, the verger closed the book.</p>".into()),
         ..Scene::new(
             chapter.id,
             "The Damaged Register".into(),
@@ -506,6 +507,7 @@ fn seed_sample_project(conn: &Connection) -> rusqlite::Result<Project> {
     db::add_scene_character_ref(&tx, &scene.id, &thomas.id)?;
     db::add_scene_location_ref(&tx, &scene.id, &lighthouse.id)?;
     db::add_scene_reference_item_ref(&tx, &scene.id, &seventh_step_key.id)?;
+    super::sample_revisions::seed(&tx, &project.id)?;
     tx.commit()?;
     Ok(project)
 }
@@ -520,6 +522,61 @@ mod tests {
         db::initialize_schema(&conn).unwrap();
         let project = seed_sample_project(&conn).unwrap();
         (conn, project)
+    }
+
+    #[test]
+    fn revisions_cover_the_agreed_editorial_scenarios() {
+        let (conn, project) = fixture();
+        let scenes = db::get_all_project_scenes(&conn, &project.id).unwrap();
+        let review = |title: &str| {
+            db::revisions::load(&conn, &scenes.iter().find(|s| s.title == title).unwrap().id)
+                .unwrap()
+        };
+        let cliff = review("On the Cliff");
+        assert_eq!(cliff.data.status, "editor_review");
+        assert!(cliff.data.drafts.len() >= 2);
+        assert!(cliff.data.annotations.iter().any(|a| a.messages.len() == 3));
+        assert!(cliff
+            .data
+            .annotations
+            .iter()
+            .any(|a| a.from == a.to && a.replacement.is_some()));
+        assert!(cliff
+            .data
+            .annotations
+            .iter()
+            .any(|a| a.replacement.as_deref() == Some("")));
+        let step = review("The Seventh Step");
+        assert!(step
+            .data
+            .drafts
+            .iter()
+            .any(|d| d.documents.len() != step.documents.len()));
+        assert!(step.data.annotations.iter().any(|a| step
+            .documents
+            .iter()
+            .any(|d| d.id == a.document_id && d.html != a.anchor_html)));
+        let supper = review("Supper with Silas");
+        assert_eq!(supper.data.status, "revised");
+        for state in ["accepted", "rejected", "resolved"] {
+            assert!(supper.data.annotations.iter().any(|a| a.state == state));
+        }
+        let tide = review("Low Tide");
+        assert_eq!(tide.data.status, "first_draft");
+        assert!(tide.data.drafts.is_empty() && tide.data.annotations.is_empty());
+        let register = review("The Damaged Register");
+        assert_eq!(register.mode, EditorMode::Page);
+        assert!(register
+            .data
+            .annotations
+            .iter()
+            .any(|a| a.document_id != register.scene_id));
+        let final_scene = scenes
+            .iter()
+            .find(|s| s.title == "Margaret's Room")
+            .unwrap();
+        assert!(final_scene.locked);
+        assert_eq!(review("Margaret's Room").data.status, "final");
     }
 
     #[test]

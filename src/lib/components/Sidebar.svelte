@@ -70,7 +70,7 @@
   import ExportSuccessDialog from "./ExportSuccessDialog.svelte";
   import SnapshotsPanel from "./SnapshotsPanel.svelte";
   import Tooltip from "./Tooltip.svelte";
-  import BrandMark from "./BrandMark.svelte";
+  import BrandWordmark from "./BrandWordmark.svelte";
 
   import type { ComponentType } from "svelte";
 
@@ -84,7 +84,11 @@
     children?: MenuItem[];
   }
 
-  let { prepareWritingReset }: { prepareWritingReset?: () => Promise<void> } = $props();
+  let {
+    prepareWritingReset,
+    beforeCloseProject,
+  }: { prepareWritingReset?: () => Promise<void>; beforeCloseProject?: () => Promise<void> } =
+    $props();
 
   let loading = $state(false);
   let chaptersRequestId = 0;
@@ -578,9 +582,14 @@
     }
   }
 
-  function goHome() {
-    currentProject.setProject(null);
-    ui.setView("start");
+  async function goHome() {
+    try {
+      await beforeCloseProject?.();
+      currentProject.setProject(null);
+      ui.setView("start");
+    } catch (error) {
+      ui.showError(String(error));
+    }
   }
 
   function toggleSidebar() {
@@ -1299,13 +1308,7 @@
   <!-- Header -->
   <div class="p-4 border-b border-press-border">
     <div class="flex items-center justify-between">
-      <span
-        class="flex items-center gap-2 text-press-accent-text font-heading font-medium text-press-body-lg"
-      >
-        <!-- Mini Logo Mark -->
-        <BrandMark size={24} variant="flame" class="shrink-0" />
-        kindling
-      </span>
+      <BrandWordmark />
       <Tooltip text="Collapse sidebar" position="bottom">
         <button
           onclick={toggleSidebar}

@@ -15,6 +15,7 @@ import { runImport } from "./lib/utils/import";
 import { currentProject } from "./lib/stores/project.svelte";
 import { mockProject, mockScenes, mockChapters } from "./dev/mock-data";
 import App from "./App.svelte";
+import { EditorialSaves } from "./lib/utils/editorialSaves";
 
 vi.hoisted(() => {
   const values = new Map([
@@ -972,4 +973,51 @@ it.each(["quit", "update"])("blocks retry saving while %s preparation is pending
   await fireEvent.click(enabledRetry);
   await vi.advanceTimersByTimeAsync(0);
   expect(synopsisSaves.failedCount).toBe(0);
+});
+
+it("attempts writing saves and offers explicit recovery when an editorial save blocks quitting", async () => {
+  const round = {
+    id: "quit-review",
+    project_id: "project",
+    title: "Letter",
+    name: "Review",
+    brief: "",
+    created_at: "today",
+    sources: [
+      {
+        id: "source",
+        scene_id: "scene",
+        chapter_id: "chapter",
+        chapter: "Chapter",
+        scene: "Letter",
+        mode: "page",
+        html: "<p>Eleanor waited.</p>",
+        locked: false,
+      },
+    ],
+  };
+  vi.mocked(invoke).mockImplementation(async (cmd) => {
+    if (cmd === "take_editorial_open_files") return ["/review.kindling-review"];
+    if (cmd === "open_editorial_package")
+      return { format: "kindling-editorial", version: 1, kind: "review", round, session: null };
+    return [];
+  });
+  Range.prototype.getClientRects = vi.fn().mockReturnValue([]);
+  Range.prototype.getBoundingClientRect = vi
+    .fn()
+    .mockReturnValue({ left: 0, right: 0, top: 0, bottom: 0 });
+  render(App);
+  await screen.findByRole("region", { name: "Editorial workspace" });
+  await fireEvent.input(screen.getByLabelText("Your name"), { target: { value: "Rowan" } });
+  vi.spyOn(EditorialSaves.prototype, "flush").mockRejectedValue(new Error("disk full"));
+  const writing = vi.spyOn(proseSaves, "flush").mockResolvedValue([]);
+  const synopsis = vi.spyOn(synopsisSaves, "flush").mockResolvedValue(undefined);
+  await menu("quit");
+  await screen.findByRole("dialog", { name: "Quit without saving review changes?" });
+  expect(writing).toHaveBeenCalled();
+  expect(synopsis).toHaveBeenCalled();
+  expect(exit).not.toHaveBeenCalled();
+  await fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+  expect(localStorage.getItem("kindling.editorial.recovery.quit-review")).toContain("Rowan");
+  localStorage.removeItem("kindling.editorial.recovery.quit-review");
 });

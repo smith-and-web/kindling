@@ -105,7 +105,18 @@ pub fn load(conn: &Connection, scene_id: &Uuid) -> Result<SceneReview> {
         .map_err(err)?;
     let (version, data) = match saved {
         Some((v, json)) => (v, serde_json::from_str(&json).map_err(err)?),
-        None => (0, ReviewData::default()),
+        None => (
+            0,
+            ReviewData {
+                status: match scene.scene_status.as_str() {
+                    "revised" => "revised",
+                    "final" => "final",
+                    _ => "first_draft",
+                }
+                .into(),
+                ..ReviewData::default()
+            },
+        ),
     };
     Ok(SceneReview {
         scene_id: scene_id.to_string(),
@@ -122,12 +133,24 @@ pub fn save(
     data: &ReviewData,
     next: Option<&ReviewDraft>,
 ) -> Result<SceneReview> {
-    let id = Uuid::parse_str(&expected.scene_id).map_err(err)?;
     let tx = conn.unchecked_transaction().map_err(err)?;
-    if super::is_scene_locked(&tx, &id).map_err(err)? {
+    let result = save_in_transaction(&tx, expected, data, next)?;
+    tx.commit().map_err(err)?;
+    Ok(result)
+}
+
+/// Caller owns the encompassing transaction (e.g. multi-scene acceptance).
+pub fn save_in_transaction(
+    tx: &Connection,
+    expected: &SceneReview,
+    data: &ReviewData,
+    next: Option<&ReviewDraft>,
+) -> Result<SceneReview> {
+    let id = Uuid::parse_str(&expected.scene_id).map_err(err)?;
+    if super::is_scene_locked(tx, &id).map_err(err)? {
         return Err("Cannot edit a locked scene".into());
     }
-    let current = load(&tx, &id)?;
+    let current = load(tx, &id)?;
     if current.version != expected.version
         || current.mode != expected.mode
         || current.documents != expected.documents
@@ -166,9 +189,9 @@ pub fn save(
         for doc in &next.documents {
             let doc_id = Uuid::parse_str(&doc.id).map_err(err)?;
             if doc.id == expected.scene_id {
-                super::update_scene_prose(&tx, &doc_id, &doc.html).map_err(err)?;
+                super::update_scene_prose(tx, &doc_id, &doc.html).map_err(err)?;
             } else {
-                super::update_beat_prose(&tx, &doc_id, &doc.html).map_err(err)?;
+                super::update_beat_prose(tx, &doc_id, &doc.html).map_err(err)?;
             }
         }
         tx.execute(
@@ -179,17 +202,28 @@ pub fn save(
     }
     let json = serde_json::to_string(data).map_err(err)?;
     tx.execute(
+        "UPDATE scenes SET scene_status=?1 WHERE id=?2",
+        params![
+            match data.status.as_str() {
+                "final" => "final",
+                "revised" => "revised",
+                _ => "draft",
+            },
+            id.to_string()
+        ],
+    )
+    .map_err(err)?;
+    tx.execute(
         "INSERT INTO scene_reviews(scene_id, version, data) VALUES (?1, ?2, ?3)
         ON CONFLICT(scene_id) DO UPDATE SET version = excluded.version, data = excluded.data",
         params![id.to_string(), current.version + 1, json],
     )
     .map_err(err)?;
-    let project_id = super::get_scene_project_id(&tx, &id)
+    let project_id = super::get_scene_project_id(tx, &id)
         .map_err(err)?
         .ok_or("Project no longer exists")?;
-    super::update_project_modified(&tx, &project_id).map_err(err)?;
-    let result = load(&tx, &id)?;
-    tx.commit().map_err(err)?;
+    super::update_project_modified(tx, &project_id).map_err(err)?;
+    let result = load(tx, &id)?;
     Ok(result)
 }
 
@@ -203,7 +237,7 @@ pub struct RevisionOverview {
 }
 
 pub fn overview(conn: &Connection, project_id: &Uuid) -> Result<Vec<RevisionOverview>> {
-    let mut stmt = conn.prepare("SELECT s.id, s.title, c.title, r.data FROM scenes s JOIN chapters c ON c.id = s.chapter_id
+    let mut stmt = conn.prepare("SELECT s.id, s.title, c.title, r.data, s.scene_status FROM scenes s JOIN chapters c ON c.id = s.chapter_id
         LEFT JOIN scene_reviews r ON r.scene_id = s.id WHERE c.project_id = ?1 AND NOT s.archived AND NOT c.archived
         ORDER BY c.position, s.position").map_err(err)?;
     let rows = stmt
@@ -213,16 +247,25 @@ pub fn overview(conn: &Connection, project_id: &Uuid) -> Result<Vec<RevisionOver
                 r.get::<_, String>(1)?,
                 r.get::<_, String>(2)?,
                 r.get::<_, Option<String>>(3)?,
+                r.get::<_, String>(4)?,
             ))
         })
         .map_err(err)?
         .map(|row| {
-            let (scene_id, title, chapter, json) = row.map_err(err)?;
+            let (scene_id, title, chapter, json, status) = row.map_err(err)?;
             let data: ReviewData = json
                 .map(|j| serde_json::from_str(&j))
                 .transpose()
                 .map_err(err)?
-                .unwrap_or_default();
+                .unwrap_or_else(|| ReviewData {
+                    status: match status.as_str() {
+                        "final" => "final",
+                        "revised" => "revised",
+                        _ => "first_draft",
+                    }
+                    .into(),
+                    ..ReviewData::default()
+                });
             Ok(RevisionOverview {
                 scene_id,
                 title,

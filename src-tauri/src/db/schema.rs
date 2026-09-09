@@ -277,7 +277,8 @@ CREATE TABLE IF NOT EXISTS writing_goals (
     )?;
 
     // Apply migrations for existing databases
-    apply_migrations(conn)
+    apply_migrations(conn)?;
+    crate::commands::editorial::initialize(conn)
 }
 
 /// Apply schema migrations for existing databases

@@ -336,3 +336,20 @@ it.each([
     })
   );
 });
+
+it("embeds references for the reviewed passage without changing the writing scene", async () => {
+  currentProject.setCurrentScene({ id: "writing-scene" } as Scene);
+  ui.referencesPanelCollapsed = true;
+  const view = render(ReferencesPanel, { contextSceneId: "reviewed-scene", embedded: true });
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("get_scene_reference_state", { sceneId: "reviewed-scene" })
+  );
+  expect(view.queryByLabelText("Collapse references panel")).toBeNull();
+  expect(view.queryByLabelText("Resize references panel")).toBeNull();
+  expect((view.container.querySelector("aside") as HTMLElement).style.width).toBe("100%");
+  expect(currentProject.currentScene?.id).toBe("writing-scene");
+  await view.rerender({ contextSceneId: "next-passage", embedded: true });
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("get_scene_reference_state", { sceneId: "next-passage" })
+  );
+});

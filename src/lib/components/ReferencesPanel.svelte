@@ -46,6 +46,17 @@
   import TagSelector from "./TagSelector.svelte";
   import Tooltip from "./Tooltip.svelte";
 
+  let { contextSceneId, embedded = false }: { contextSceneId?: string | null; embedded?: boolean } =
+    $props();
+  const referenceScene = $derived(
+    contextSceneId === undefined
+      ? currentProject.currentScene
+      : contextSceneId
+        ? { id: contextSceneId }
+        : null
+  );
+  const collapsed = $derived(!embedded && ui.referencesPanelCollapsed);
+
   let copyDestination = $state<Project | null>(null);
   let explicitlyRefreshedProject: Project | null = null;
 
@@ -57,7 +68,7 @@
     // The explicit refresh reports failures to the copy dialog. Consume only this
     // exact store assignment so ordinary settings updates still reload the panel.
     explicitlyRefreshedProject = currentProject.value;
-    const sceneId = currentProject.currentScene?.id;
+    const sceneId = referenceScene?.id;
     if (sceneId) await loadSuggestions(sceneId);
   }
 
@@ -97,9 +108,7 @@
   let entityTagIds = $state<Record<string, string[]>>({});
   let activeTypeOption = $derived(getReferenceTypeOption(activeTab));
   let activeSceneStates = $derived(
-    activeTab && currentProject.currentScene
-      ? getSceneStatesForType(activeTab)
-      : ([] as SceneReferenceState[])
+    activeTab && referenceScene ? getSceneStatesForType(activeTab) : ([] as SceneReferenceState[])
   );
   let linkedIds = $derived(new Set(activeSceneStates.map((state) => state.reference_id)));
   let linkedItems = $derived(
@@ -119,7 +128,7 @@
       : []
   );
   let activeItems = $derived(
-    currentProject.currentScene
+    referenceScene
       ? [...linkedItems, ...unlinkedItems]
       : activeTab
         ? getReferencesForType(activeTab as ReferenceTypeId)
@@ -358,7 +367,7 @@
   }
 
   async function linkSuggestion(s: ReferenceSuggestion) {
-    const scene = currentProject.currentScene;
+    const scene = referenceScene;
     if (!scene) return;
 
     const refType = referenceTypeForSuggestion(s);
@@ -377,7 +386,7 @@
   }
 
   async function dismissSuggestion(s: ReferenceSuggestion) {
-    const scene = currentProject.currentScene;
+    const scene = referenceScene;
     if (!scene) return;
     try {
       await invoke("dismiss_suggestion", { sceneId: scene.id, referenceId: s.reference_id });
@@ -403,7 +412,7 @@
     referenceType: ReferenceTypeId,
     updates: SceneReferenceStateUpdate[]
   ) {
-    const scene = currentProject.currentScene;
+    const scene = referenceScene;
     if (!scene) return;
     try {
       await invoke("save_scene_reference_state", {
@@ -433,7 +442,7 @@
   function toggleExpanded(id: string) {
     const isExpanded = expandedIds.has(id);
     const nextExpanded = !isExpanded;
-    if (currentProject.currentScene && activeTab && linkedIds.has(id)) {
+    if (referenceScene && activeTab && linkedIds.has(id)) {
       const states = getSceneStatesForType(activeTab);
       const updates = states.map((state, index) => ({
         reference_id: state.reference_id,
@@ -452,7 +461,7 @@
   }
 
   function collapseAll() {
-    if (currentProject.currentScene && activeTab) {
+    if (referenceScene && activeTab) {
       const states = getSceneStatesForType(activeTab);
       const updates = states.map((state, index) => ({
         reference_id: state.reference_id,
@@ -467,7 +476,7 @@
 
   function sortAlphabetically() {
     if (!activeTab) return;
-    if (currentProject.currentScene) {
+    if (referenceScene) {
       const states = getSceneStatesForType(activeTab);
       const itemMap = new Map((referencesByType[activeTab] ?? []).map((item) => [item.id, item]));
       const sorted = [...states].sort((a, b) => {
@@ -495,7 +504,7 @@
   }
 
   async function toggleSceneLink(reference: ReferenceItem) {
-    if (!currentProject.currentScene) return;
+    if (!referenceScene) return;
     const referenceType = reference.reference_type;
     const states = getSceneStatesForType(referenceType);
     const isLinked = states.some((state) => state.reference_id === reference.id);
@@ -635,8 +644,8 @@
         referenceType: deleteTarget.reference_type,
       });
       await loadReferences();
-      if (currentProject.currentScene) {
-        loadSceneReferenceState(currentProject.currentScene.id);
+      if (referenceScene) {
+        loadSceneReferenceState(referenceScene.id);
       }
     } catch (e) {
       console.error("Failed to delete reference:", e);
@@ -719,7 +728,7 @@
     }
 
     if (draggedId && dragOverId && draggedId !== dragOverId && activeTab) {
-      if (currentProject.currentScene) {
+      if (referenceScene) {
         const states = getSceneStatesForType(activeTab);
         const fromIndex = states.findIndex((state) => state.reference_id === draggedId);
         const toIndex = states.findIndex((state) => state.reference_id === dragOverId);
@@ -796,7 +805,7 @@
 
   let lastSceneId: string | null = null;
   $effect(() => {
-    const sceneId = currentProject.currentScene?.id ?? null;
+    const sceneId = referenceScene?.id ?? null;
     if (sceneId === lastSceneId) return;
     lastSceneId = sceneId;
     if (sceneId) {
@@ -822,7 +831,7 @@
 
   onMount(() => {
     const handler = () => {
-      const sceneId = currentProject.currentScene?.id;
+      const sceneId = referenceScene?.id;
       if (sceneId) loadSuggestions(sceneId);
     };
     const allHandler = async () => {
@@ -830,7 +839,7 @@
       if (!projectId) return;
       try {
         await invoke("detect_all_references", { projectId });
-        const sceneId = currentProject.currentScene?.id;
+        const sceneId = referenceScene?.id;
         if (sceneId) loadSuggestions(sceneId);
       } catch (e) {
         console.error("Failed to detect all references:", e);
@@ -847,18 +856,22 @@
 
 <aside
   class="bg-press-surface border-l border-press-border flex flex-col h-full relative"
-  class:w-0={ui.referencesPanelCollapsed}
-  class:min-w-0={ui.referencesPanelCollapsed}
-  class:overflow-hidden={ui.referencesPanelCollapsed}
-  class:opacity-0={ui.referencesPanelCollapsed}
-  class:border-l-0={ui.referencesPanelCollapsed}
-  class:p-0={ui.referencesPanelCollapsed}
+  class:w-0={collapsed}
+  class:min-w-0={collapsed}
+  class:overflow-hidden={collapsed}
+  class:opacity-0={collapsed}
+  class:border-l-0={collapsed}
+  class:p-0={collapsed}
   class:transition-all={!isResizing}
   class:duration-200={!isResizing}
-  style={ui.referencesPanelCollapsed ? "" : `width: ${ui.referencesPanelWidth}px`}
+  style={embedded
+    ? "width: 100%; min-height: 0; border-left: 0"
+    : collapsed
+      ? ""
+      : `width: ${ui.referencesPanelWidth}px`}
 >
   <!-- Resize handle -->
-  {#if !ui.referencesPanelCollapsed}
+  {#if !embedded && !collapsed}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
@@ -937,15 +950,15 @@
           </button>
         </Tooltip>
         <!-- Close panel button -->
-        <Tooltip text="Collapse panel" position="bottom">
-          <button
-            onclick={toggleReferencesPanel}
-            class="text-press-muted hover:text-press-text p-1"
-            aria-label="Collapse references panel"
-          >
-            <ChevronsRight class="w-4 h-4" />
-          </button>
-        </Tooltip>
+        {#if !embedded}<Tooltip text="Collapse panel" position="bottom">
+            <button
+              onclick={toggleReferencesPanel}
+              class="text-press-muted hover:text-press-text p-1"
+              aria-label="Collapse references panel"
+            >
+              <ChevronsRight class="w-4 h-4" />
+            </button>
+          </Tooltip>{/if}
       </div>
     </div>
 
@@ -967,7 +980,7 @@
   </div>
 
   <!-- Suggested References -->
-  {#if currentProject.currentScene && (suggestions.length > 0 || suggestionsLoading)}
+  {#if referenceScene && (suggestions.length > 0 || suggestionsLoading)}
     <div class="border-t border-press-border">
       <button
         onclick={() => (suggestionsOpen = !suggestionsOpen)}
@@ -1041,7 +1054,7 @@
         </span>
       </div>
     {:else}
-      {#if currentProject.currentScene}
+      {#if referenceScene}
         <div
           class="flex items-center justify-between px-1 pb-2 text-press-eyebrow text-press-muted"
         >
@@ -1062,9 +1075,9 @@
         {#each activeItems as reference, index (reference.id)}
           {@const isExpanded = expandedIds.has(reference.id)}
           {@const notes = getNotes(reference.attributes)}
-          {@const isLinked = currentProject.currentScene ? linkedIds.has(reference.id) : false}
-          {@const canDrag = !currentProject.currentScene || isLinked}
-          {#if currentProject.currentScene && linkedItems.length > 0 && index === linkedItems.length}
+          {@const isLinked = referenceScene ? linkedIds.has(reference.id) : false}
+          {@const canDrag = !referenceScene || isLinked}
+          {#if referenceScene && linkedItems.length > 0 && index === linkedItems.length}
             <div
               class="border-t border-press-border pt-3 mt-3 text-press-eyebrow text-press-muted uppercase tracking-wide"
             >
@@ -1091,7 +1104,7 @@
               >
                 <GripVertical class="w-4 h-4" />
               </div>
-              {#if currentProject.currentScene}
+              {#if referenceScene}
                 <Tooltip text={isLinked ? "Unlink from scene" : "Link to scene"} position="bottom">
                   <button
                     onclick={() => toggleSceneLink(reference)}

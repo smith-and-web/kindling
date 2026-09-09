@@ -107,7 +107,8 @@ it.each(["page", "beat"] as const)(
       }
       return [];
     });
-    render(ScenePanel);
+    const onOpenEditorial = vi.fn().mockResolvedValue(undefined);
+    render(ScenePanel, { onOpenEditorial });
     await waitFor(() => expect(document.querySelector(".tiptap")).not.toBeNull());
     await tick();
     // NovelEditor enables change notifications on its first timer turn.
@@ -118,18 +119,9 @@ it.each(["page", "beat"] as const)(
     await waitFor(() => expect(releaseSave).toBeTypeOf("function"));
     expect(vi.mocked(invoke).mock.calls.some(([cmd]) => cmd === "get_scene_review")).toBe(false);
     releaseSave();
-    await screen.findByText("1 pending changes");
-    await fireEvent.click(screen.getByText("Accept all"));
     await waitFor(() =>
-      expect(
-        mode === "page" ? currentProject.currentScene?.prose : currentProject.beats[0].prose
-      ).toBe("<p>Reviewed prose.</p>")
+      expect(onOpenEditorial).toHaveBeenCalledWith(mockProject.id, scene.id, expect.anything())
     );
-    await fireEvent.click(screen.getByText("Close"));
-    await waitFor(() =>
-      expect(
-        (document.querySelector(".tiptap") as HTMLElement & { editor: Editor }).editor.getText()
-      ).toBe("Reviewed prose.")
-    );
+    expect(html).toBe("<p>Newest prose.</p>");
   }
 );

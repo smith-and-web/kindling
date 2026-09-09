@@ -4,9 +4,10 @@
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { exit } from "@tauri-apps/plugin-process";
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { runImport, type ImportType } from "./lib/utils/import";
   import AboutDialog from "./lib/components/AboutDialog.svelte";
+  import EditorialWorkspace from "./lib/components/EditorialWorkspace.svelte";
   import FeedbackDialog from "./lib/components/FeedbackDialog.svelte";
   import Onboarding from "./lib/components/Onboarding.svelte";
   import ReferencesPanel from "./lib/components/ReferencesPanel.svelte";
@@ -39,6 +40,7 @@
   import type { Project, ExportResult, Chapter, Scene, Beat } from "./lib/types";
 
   let scenePanel: ReturnType<typeof ScenePanel> | undefined = $state();
+  let editorial: ReturnType<typeof EditorialWorkspace> | undefined = $state();
   let searchDialog: ReturnType<typeof FindReplaceDialog> | undefined = $state();
   let search = $state<{ projectId: string; scope: "scene" | "project"; replace: boolean } | null>(
     null
@@ -222,7 +224,7 @@
     return closeRequest;
   }
 
-  async function flushProseBeforeExit() {
+  async function flushWritingBeforeExit() {
     // This existing editor hook submits debounced page and beat edits to proseSaves.
     await scenePanel?.prepareForSearch();
     await proseSaves.flush();
@@ -233,18 +235,19 @@
     }
   }
 
+  async function flushProseBeforeExit() {
+    const results = await Promise.allSettled([editorial?.flush(), flushWritingBeforeExit()]);
+    for (const result of results) if (result.status === "rejected") throw result.reason;
+  }
+  let editorialQuitFailed = $state(false);
   async function saveBeforeClose() {
-    let failed = false;
-    try {
-      await flushProseBeforeExit();
-    } catch {
-      failed = true;
-    }
-    try {
-      await synopsisSaves.flush();
-    } catch {
-      failed = true;
-    }
+    const results = await Promise.allSettled([
+      editorial?.flush(),
+      flushWritingBeforeExit(),
+      synopsisSaves.flush(),
+    ]);
+    editorialQuitFailed = results[0].status === "rejected";
+    const failed = results.some((result) => result.status === "rejected");
     if (failed) {
       discardQuitProse = proseSaves.draftsForRecovery();
       discardQuitDrafts = synopsisSaves.snapshot();
@@ -276,6 +279,7 @@
     if (!approved || closePending) return;
     closePending = true;
     try {
+      if (editorialQuitFailed) editorial?.discardForQuit();
       await proseSaves.discard(discardQuitProse, () =>
         scenePanel?.discardProseDraftsForClose(discardQuitProse)
       );
@@ -327,6 +331,16 @@
     const unlisten = listen<string>("menu-event", (event) => {
       if (interactionBlocked) return;
       const menuId = event.payload;
+      if (menuId === "editorial_open" || menuId === "editorial_project") {
+        runCommand(menuId);
+        return;
+      }
+      if (editorial?.isOpen() && menuId !== "quit") {
+        if (menuId === "close_project") void editorial.closeWorkspace();
+        if (["find", "find_project", "find_replace"].includes(menuId)) editorial.focusSearch();
+        if (menuId === "export") void editorial.exportFeedback();
+        return;
+      }
 
       if (handleImportCommand(menuId)) return;
       if (["find", "find_replace", "find_project"].includes(menuId)) {
@@ -401,6 +415,12 @@
     if (interactionBlocked) return;
     if (handleImportCommand(id)) return;
     switch (id) {
+      case "editorial_open":
+        void editorial?.openFile();
+        break;
+      case "editorial_project":
+        if (currentProject.value) void editorial?.openProject(currentProject.value.id);
+        break;
       case "find":
         openSearch("scene");
         break;
@@ -455,8 +475,30 @@
     }
   }
 
+  let previousEditorialScene: string | undefined;
+  $effect(() => {
+    const scene = currentProject.currentScene?.id;
+    if (scene && scene !== previousEditorialScene && untrack(() => editorial?.isLocal()))
+      untrack(() => editorial?.navigateScene(scene));
+    previousEditorialScene = scene;
+  });
+
+  $effect(() => {
+    // A lock/status change in the shared outline refreshes local review metadata.
+    const metadata = [
+      currentProject.chapters.map((c) => [c.id, c.locked]),
+      currentProject.scenes.map((s) => [s.id, s.locked, s.scene_status]),
+    ];
+    void metadata;
+    if (untrack(() => editorial?.isLocal()))
+      untrack(() => {
+        void editorial?.refreshLocalContext();
+      });
+  });
+
   // Global keyboard shortcuts
   function handleKeydown(event: KeyboardEvent) {
+    if (editorial?.isOpen()) return;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
       if (!currentProject.value) return;
       event.preventDefault();
@@ -496,7 +538,10 @@
   {/if}
 {/snippet}
 
-<div inert={interactionBlocked} hidden={interactionBlocked}>
+<div
+  inert={interactionBlocked || editorial?.isOpen()}
+  hidden={interactionBlocked || editorial?.isOpen()}
+>
   {#if search && search.projectId === currentProject.value?.id}
     {#key search.projectId}
       <FindReplaceDialog
@@ -544,12 +589,16 @@
     <ConfirmDialog
       embedded
       titleId="quit-confirmation-title"
-      title={discardQuitProse.length
-        ? "Quit without saving writing changes?"
-        : "Quit without saving synopsis changes?"}
-      message={discardQuitProse.length
-        ? "Some prose or synopsis changes could not be saved. Quit and discard these unsaved writing changes, or keep editing to retry saving."
-        : "Some synopsis changes could not be saved. Quit and discard these unsaved synopsis changes, or keep editing to retry saving."}
+      title={editorialQuitFailed
+        ? "Quit without saving review changes?"
+        : discardQuitProse.length
+          ? "Quit without saving writing changes?"
+          : "Quit without saving synopsis changes?"}
+      message={editorialQuitFailed
+        ? "Your review could not be saved. Keep editing to retry or export a recovery copy. Quitting and discarding removes all unsaved review, prose, and synopsis changes."
+        : discardQuitProse.length
+          ? "Some prose or synopsis changes could not be saved. Quit and discard these unsaved writing changes, or keep editing to retry saving."
+          : "Some synopsis changes could not be saved. Quit and discard these unsaved synopsis changes, or keep editing to retry saving."}
       confirmLabel="Quit and discard"
       cancelLabel="Keep editing"
       onConfirm={quitAndDiscard}
@@ -582,34 +631,75 @@
   aria-busy={closePending || updatePending}
   class="flex h-screen w-screen overflow-hidden bg-press-bg"
 >
-  {#if currentProject.value}
+  {#if currentProject.value && (!editorial?.isOpen() || editorial?.isLocal())}
     <Sidebar
-      prepareWritingReset={async () => {
-        await scenePanel?.prepareForSearch();
-      }}
-    />
-    <ScenePanel bind:this={scenePanel} />
-    <ReferencesPanel />
-  {:else}
-    <StartScreen
-      {recentProjects}
-      onImportLongform={openLongformImportDialog}
-      onImportComplete={(project, type) => {
-        if (IMPORT_FORMATS[type].references) {
-          openReferenceClassificationDialog(project);
+      beforeCloseProject={async () => {
+        if (editorial?.isLocal()) {
+          await editorial.closeWorkspace();
         }
       }}
-      onOpenQuickStart={() => (showQuickStart = true)}
-      onNewProject={() => (showNewProjectDialog = true)}
+      prepareWritingReset={async () => {
+        await scenePanel?.prepareForSearch();
+        await editorial?.flush();
+      }}
     />
   {/if}
+  <div class="writing-surface" class:writing-hidden={editorial?.isOpen()}>
+    {#if currentProject.value}
+      <ScenePanel
+        bind:this={scenePanel}
+        onOpenEditorial={async (id, sceneId, cursor) => {
+          await editorial?.openLocal(id, sceneId, cursor);
+        }}
+      />
+      <ReferencesPanel />
+    {:else}
+      <StartScreen
+        {recentProjects}
+        onOpenEditorial={() => editorial?.openFile()}
+        onImportLongform={openLongformImportDialog}
+        onImportComplete={(project, type) => {
+          if (IMPORT_FORMATS[type].references) {
+            openReferenceClassificationDialog(project);
+          }
+        }}
+        onOpenQuickStart={() => (showQuickStart = true)}
+        onNewProject={() => (showNewProjectDialog = true)}
+      />
+    {/if}
+  </div>
+
+  <EditorialWorkspace
+    bind:this={editorial}
+    prepareWriting={async () => {
+      await scenePanel?.prepareForSearch();
+      await proseSaves.flush();
+    }}
+    onManuscriptChanged={async () => {
+      const scene = currentProject.currentScene;
+      if (scene) {
+        const scenes = await invoke<Scene[]>("get_scenes", { chapterId: scene.chapter_id });
+        currentProject.setScenes(scenes);
+        currentProject.setCurrentScene(scenes.find((s) => s.id === scene.id) ?? null);
+        currentProject.setBeats(await invoke<Beat[]>("get_beats", { sceneId: scene.id }));
+        scenePanel?.applyRevision(await invoke("get_scene_review", { sceneId: scene.id }));
+      }
+    }}
+    >{#snippet references(sceneId)}<ReferencesPanel
+        contextSceneId={sceneId}
+        embedded
+      />{/snippet}</EditorialWorkspace
+  >
 </main>
 
 {#if !discardQuitDrafts}
   {@render errorToast()}
 {/if}
 
-<div inert={interactionBlocked} hidden={interactionBlocked}>
+<div
+  inert={interactionBlocked || editorial?.isOpen()}
+  hidden={interactionBlocked || editorial?.isOpen()}
+>
   <!-- Command palette (⌘K) -->
   <CommandPalette
     bind:open={showCommandPalette}
@@ -716,3 +806,14 @@
     <FeedbackDialog onClose={() => (showFeedbackDialog = false)} />
   {/if}
 </div>
+
+<style>
+  .writing-surface {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+  }
+  .writing-hidden {
+    display: none;
+  }
+</style>

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { countWordsInHtml } from "../utils/wordCount";
   import { writing } from "../stores/writing.svelte";
-  import RevisionsPanel from "./RevisionsPanel.svelte";
   import type { SceneReview } from "../utils/revisions";
   import WritingStatusBar from "./WritingStatusBar.svelte";
   import {
@@ -48,12 +47,15 @@
   import TagSelector from "./TagSelector.svelte";
   import Tooltip from "./Tooltip.svelte";
 
-  let revisionsScene = $state<{
-    id: string;
-    projectId: string;
-    title: string;
-    locked: boolean;
-  } | null>(null);
+  let {
+    onOpenEditorial,
+  }: {
+    onOpenEditorial?: (
+      projectId: string,
+      sceneId: string,
+      cursor?: { sourceId: string; from: number; to: number }
+    ) => Promise<void>;
+  } = $props();
   let openingRevisions = $state(false);
   let revisionEditorVersion = $state(0);
   async function openRevisions() {
@@ -66,19 +68,28 @@
       if (proseSaves.draftsForRecovery(project.id).length)
         throw new Error("Save or recover unsaved prose before opening Revisions.");
       if (currentProject.currentScene?.id !== scene.id) return;
-      revisionsScene = {
-        id: scene.id,
-        projectId: project.id,
-        title: scene.title,
-        locked: isLocked,
-      };
+      const anchor = window
+        .getSelection()
+        ?.anchorNode?.parentElement?.closest<HTMLElement>("[data-source-id]");
+      const wrapper = anchor ?? document.querySelector<HTMLElement>("[data-source-id]");
+      const editorElement = wrapper?.querySelector<HTMLElement>(".tiptap") as
+        | (HTMLElement & { editor?: import("@tiptap/core").Editor })
+        | null;
+      const selection = editorElement?.editor?.state.selection;
+      await onOpenEditorial?.(
+        project.id,
+        scene.id,
+        selection && wrapper?.dataset.sourceId
+          ? { sourceId: wrapper.dataset.sourceId, from: selection.from, to: selection.to }
+          : undefined
+      );
     } catch (e) {
       ui.showError(String(e));
     } finally {
       openingRevisions = false;
     }
   }
-  function applyRevision(review: SceneReview) {
+  export function applyRevision(review: SceneReview) {
     if (currentProject.currentScene?.id !== review.scene_id) return;
     const prose = review.documents.find((d) => d.id === review.scene_id)?.html ?? "";
     currentProject.updateScene(review.scene_id, { prose, editor_mode: review.mode });
@@ -1359,7 +1370,7 @@
               projectId={currentProject.value?.id}
               sceneId={scene.id}
               content={pageProseContent}
-              readonly={isLocked || switchingMode || openingRevisions || !!revisionsScene}
+              readonly={isLocked || switchingMode || openingRevisions}
               saveStatus={pageProseSaveStatus}
               wordCount={getPageWordCount()}
               onUpdate={handlePageProseUpdate}
@@ -1373,7 +1384,7 @@
             <BeatView
               bind:this={beatViewRef}
               beats={currentProject.beats}
-              isLocked={isLocked || switchingMode || openingRevisions || !!revisionsScene}
+              isLocked={isLocked || switchingMode || openingRevisions}
             />
           {/key}
         {/if}
@@ -1419,16 +1430,5 @@
       doSwitchMode("beat");
     }}
     onCancel={() => (showSwitchToBeatConfirm = false)}
-  />
-{/if}
-
-{#if revisionsScene}
-  <RevisionsPanel
-    sceneId={revisionsScene.id}
-    projectId={revisionsScene.projectId}
-    title={revisionsScene.title}
-    locked={revisionsScene.locked}
-    onApplied={applyRevision}
-    onClose={() => (revisionsScene = null)}
   />
 {/if}

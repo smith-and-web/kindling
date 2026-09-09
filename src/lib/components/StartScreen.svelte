@@ -27,6 +27,7 @@
     onImportComplete?: (project: Project, type: ImportType) => void;
     onOpenQuickStart?: () => void;
     onNewProject?: () => void;
+    onOpenEditorial?: () => void;
   }
 
   let {
@@ -35,6 +36,7 @@
     onImportComplete,
     onOpenQuickStart,
     onNewProject,
+    onOpenEditorial,
   }: Props = $props();
 
   let deletingProjectId = $state<string | null>(null);
@@ -203,6 +205,10 @@
       {/if}
 
       <!-- Import Options (two-column grid) -->
+      {#if onOpenEditorial}<button
+          class="w-full p-3 text-left border-t border-press-border text-press-text"
+          onclick={onOpenEditorial}>Open a review or feedback package…</button
+        >{/if}
       <div data-testid="import-section" class="bg-press-surface rounded-lg p-4">
         <h2 class="text-press-base font-heading font-medium text-press-text mb-3">
           Import an Outline

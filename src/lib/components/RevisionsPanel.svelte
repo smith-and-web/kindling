@@ -1,19 +1,16 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import ReviewProse from "./ReviewProse.svelte";
+  import { ChevronDown, History, Plus, RotateCcw } from "lucide-svelte";
   import { proseText } from "../utils/proseSearch";
   import {
-    acceptSuggestions,
     activeDocuments,
     diffText,
     draftOf,
-    isAnchored,
     revisionStatuses,
     type SceneReview,
     type ReviewData,
     type ReviewDraft,
-    type Annotation,
     type RevisionOverview,
   } from "../utils/revisions";
   let {
@@ -36,43 +33,35 @@
   let overview = $state<RevisionOverview[]>([]);
   let busy = $state(false);
   let error = $state("");
-  let tab = $state<"review" | "history" | "overview">("review");
-  let documentId = $state("");
+  let tab = $state<"history" | "overview">("history");
   let name = $state("");
-  let author = $state("Writer");
-  let comment = $state("");
-  let replacement = $state("");
-  let reply = $state("");
-  let kind = $state<"comment" | "suggestion">("comment");
-  let selection = $state<{ from: number; to: number; quote: string } | null>(null);
-  let selectionIsExplicit = $state(false);
-  let navigationVersion = $state(0);
-  let selectedId = $state<string | null>(null);
   let before = $state(0);
   let after = $state(-1);
   let restoreIndex = $state<number | null>(null);
-  const documents = $derived(review ? activeDocuments(review) : []);
-  const source = $derived(documents.find((d) => d.id === documentId) ?? documents[0]);
-  const visibleAnnotations = $derived(
-    review?.data.annotations.filter((a) => documents.some((d) => d.id === a.document_id)) ?? []
-  );
-  const inactiveCount = $derived(
-    (review?.data.annotations.length ?? 0) - visibleAnnotations.length
-  );
-  const selected = $derived(visibleAnnotations.find((a) => a.id === selectedId));
-  const canReanchor = $derived(
-    selectionIsExplicit &&
-      !!selection &&
-      !!selected &&
-      (selected.from === selected.to
-        ? selection.from === selection.to
-        : selection.from < selection.to)
-  );
-  const pending = $derived(
-    visibleAnnotations.filter((a) => a.state === "open" && a.replacement !== null)
-  );
   const oldDraft = $derived(review?.data.drafts[before]);
   const newDraft = $derived(after < 0 ? review : review?.data.drafts[after]);
+  const comparison = $derived(
+    oldDraft && newDraft
+      ? diffText(
+          activeDocuments({ ...oldDraft, scene_id: sceneId })
+            .map((d) => proseText(d.html).trimEnd())
+            .join("\n"),
+          activeDocuments({ ...newDraft, scene_id: sceneId })
+            .map((d) => proseText(d.html).trimEnd())
+            .join("\n")
+        )
+      : []
+  );
+  const hasChanges = $derived(comparison.some((part) => part.kind !== "same"));
+  function dateLabel(value: string) {
+    return new Date(value).toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  }
 
   onMount(() => {
     dialog.showModal();
@@ -83,6 +72,7 @@
     error = "";
     try {
       review = await invoke<SceneReview>("get_scene_review", { sceneId });
+      before = Math.max(0, review.data.drafts.length - 1);
       overview = await invoke<RevisionOverview[]>("get_revision_overview", { projectId });
     } catch (e) {
       error = String(e);
@@ -97,7 +87,6 @@
     try {
       review = await invoke<SceneReview>("save_scene_review", { expected: review, data, next });
       if (next) {
-        selection = null;
         onApplied(review);
       }
       // Update the overview locally after the committed write, so a failed
@@ -132,76 +121,6 @@
   async function setStatus(status: string) {
     if (review) await save({ ...review.data, status });
   }
-  async function addAnnotation() {
-    if (!review || !source || !selection || !selectionIsExplicit || !author.trim()) return;
-    if (kind === "comment" && (!comment.trim() || selection.from === selection.to)) return;
-    if (kind === "suggestion" && !replacement && selection.from === selection.to) return;
-    const a: Annotation = {
-      id: window.crypto.randomUUID(),
-      document_id: source.id,
-      anchor_html: source.html,
-      ...selection,
-      replacement: kind === "suggestion" ? replacement : null,
-      state: "open",
-      messages: [
-        { author: author.trim(), text: comment.trim(), created_at: new Date().toISOString() },
-      ],
-    };
-    if (await save({ ...review.data, annotations: [...review.data.annotations, a] })) {
-      selectedId = a.id;
-      comment = "";
-      replacement = "";
-    }
-  }
-  async function changeAnnotations(ids: string[], state: Annotation["state"]) {
-    if (!review) return;
-    await save({
-      ...review.data,
-      annotations: review.data.annotations.map((a) => (ids.includes(a.id) ? { ...a, state } : a)),
-    });
-  }
-  async function accept(ids: string[]) {
-    if (!review) return;
-    try {
-      const { data, next } = acceptSuggestions(review, ids);
-      await save(data, next);
-    } catch (e) {
-      error = String(e);
-    }
-  }
-  async function addReply() {
-    if (!review || !selected || !reply.trim() || !author.trim()) return;
-    const data = window.structuredClone(review.data);
-    data.annotations
-      .find((a) => a.id === selectedId)!
-      .messages.push({
-        author: author.trim(),
-        text: reply.trim(),
-        created_at: new Date().toISOString(),
-      });
-    if (await save(data)) reply = "";
-  }
-  async function reanchor() {
-    if (!review || !source || !selected || !selection || !canReanchor) return;
-    const data = window.structuredClone(review.data);
-    Object.assign(data.annotations.find((a) => a.id === selectedId)!, selection, {
-      document_id: source.id,
-      anchor_html: source.html,
-    });
-    await save(data);
-  }
-  function selectAnnotation(a: Annotation) {
-    documentId = a.document_id;
-    selectedId = a.id;
-    navigationVersion++;
-    selection = null;
-    reply = "";
-  }
-  function step(direction: number) {
-    const i = pending.findIndex((a) => a.id === selectedId);
-    const a = pending[(i + direction + pending.length) % pending.length];
-    if (a) selectAnnotation(a);
-  }
 </script>
 
 <dialog
@@ -213,320 +132,453 @@
   }}
   onkeydown={(e) => e.stopPropagation()}
 >
-  <header class="flex items-center justify-between gap-4 border-b border-press-border pb-3">
-    <h2 id="revisions-title" class="font-heading text-press-h3">Revisions · {title}</h2>
-    <button type="button" disabled={busy} onclick={onClose}>Close</button>
+  <header class="history-header">
+    <div>
+      <span class="eyebrow">{title}</span>
+      <h2 id="revisions-title">Draft history</h2>
+    </div>
+    <div class="header-actions">
+      {#if review}<fieldset disabled={busy || locked}>
+          <label class="status-label"
+            >Revision status<span class="compact-select"
+              ><select value={review.data.status} onchange={(e) => setStatus(e.currentTarget.value)}
+                >{#each Object.entries(revisionStatuses) as [value, label]}<option {value}
+                    >{label}</option
+                  >{/each}</select
+              ><ChevronDown size={14} /></span
+            ></label
+          >
+        </fieldset>{/if}
+      <button type="button" disabled={busy} onclick={onClose}>Close</button>
+    </div>
   </header>
-  <nav aria-label="Revision views" class="flex gap-4 py-3">
-    <button aria-pressed={tab === "review"} onclick={() => (tab = "review")}
-      >Editorial review</button
-    >
+  <nav aria-label="Revision views" class="history-tabs">
     <button aria-pressed={tab === "history"} onclick={() => (tab = "history")}>Draft history</button
     >
     <button aria-pressed={tab === "overview"} onclick={() => (tab = "overview")}>All scenes</button>
   </nav>
-  {#if error}<p role="alert" class="text-press-error">{error}</p>{/if}
+  {#if error}<p role="alert" class="history-error">{error}</p>{/if}
   {#if !review}
-    <p>{busy ? "Loading revisions…" : "Could not load revisions."}</p>
-    {#if !busy}<button onclick={load}>Retry</button>{/if}
+    <div class="history-empty">
+      <p>{busy ? "Loading revisions…" : "Could not load revisions."}</p>
+      {#if !busy}<button onclick={load}>Retry</button>{/if}
+    </div>
   {:else}
-    {#if locked}<p class="text-press-muted">
-        This scene is locked. History and comments are read-only.
-      </p>{/if}
-    <fieldset disabled={busy || locked}>
-      <label
-        >Revision status
-        <select value={review.data.status} onchange={(e) => setStatus(e.currentTarget.value)}>
-          {#each Object.entries(revisionStatuses) as [value, label]}<option {value}>{label}</option
-            >{/each}
-        </select>
-      </label>
-    </fieldset>
+    {#if locked}<p class="locked-notice">This scene is locked. History is read-only.</p>{/if}
     {#if tab === "history"}
-      <fieldset disabled={busy || locked} class="flex gap-3 my-4">
-        <label>Draft name <input bind:value={name} placeholder="Post-editor pass" /></label>
-        <button disabled={!name.trim()} onclick={createDraft}>Save named draft</button>
-      </fieldset>
-      {#if review.data.drafts.length === 0}
-        <p>No saved drafts yet. Save a named draft to keep this scene’s current prose.</p>
-      {:else}
-        <div class="flex flex-wrap gap-3 my-4">
-          <label
-            >Compare from <select bind:value={before}
-              >{#each review.data.drafts as d, i}<option value={i}>Draft {i + 1} · {d.name}</option
-                >{/each}</select
-            ></label
-          >
-          <label
-            >Compare to <select bind:value={after}
-              ><option value={-1}>Current prose</option>{#each review.data.drafts as d, i}<option
-                  value={i}>Draft {i + 1} · {d.name}</option
-                >{/each}</select
-            ></label
-          >
-          <button disabled={busy || locked} onclick={() => (restoreIndex = before)}
-            >Restore selected draft</button
-          >
-        </div>
-        {#if restoreIndex !== null}
-          <div class="border-y border-press-border py-3">
-            <p>
-              Restore “{review.data.drafts[restoreIndex].name}”? Current prose will be preserved as
-              another draft. Beat structure must still match.
-            </p>
-            <button disabled={busy || locked} onclick={restore}
-              >Restore and preserve current prose</button
-            >
-            <button disabled={busy} onclick={() => (restoreIndex = null)}>Cancel restore</button>
-          </div>
-        {/if}
-        {#if oldDraft && newDraft}
-          <p class="text-press-muted my-3">
-            Deleted text is struck through; inserted text is underlined. This comparison shows prose
-            text, not formatting.
-          </p>
-          {#each [...new Set( [...oldDraft.documents.map((d) => d.id), ...newDraft.documents.map((d) => d.id)] )] as id}
-            {@const oldDoc = oldDraft.documents.find((d) => d.id === id)}
-            {@const newDoc = newDraft.documents.find((d) => d.id === id)}
-            <h3 class="font-heading text-press-body-lg mt-4">{newDoc?.label ?? oldDoc?.label}</h3>
-            <div class="diff-prose">
-              {#each diffText(proseText(oldDoc?.html ?? ""), proseText(newDoc?.html ?? "")) as part}{#if part.kind === "delete"}<del
-                    >{part.text}</del
-                  >{:else if part.kind === "insert"}<ins>{part.text}</ins
-                  >{:else}{part.text}{/if}{/each}
-            </div>
-          {/each}
-        {/if}
-      {/if}
-    {:else if tab === "overview"}
-      <table class="w-full my-4 text-left">
-        <thead
-          ><tr><th>Chapter</th><th>Scene</th><th>Revision status</th><th>Saved drafts</th></tr
-          ></thead
-        >
-        <tbody
-          >{#each overview as row}<tr
-              ><td>{row.chapter}</td><td>{row.title}</td><td
-                >{revisionStatuses[row.status as keyof typeof revisionStatuses]}</td
-              ><td>{row.drafts}</td></tr
-            >{/each}</tbody
-        >
-      </table>
-    {:else if source}
-      <p class="text-press-muted my-3">
-        Select prose to comment or suggest a deletion/replacement. Place the cursor to suggest an
-        insertion. Suggestions change the manuscript only when accepted.
-      </p>
-      <label
-        >Prose source <select
-          value={source.id}
-          onchange={(e) => {
-            documentId = e.currentTarget.value;
-            selection = null;
-            selectedId = null;
-          }}
-        >
-          {#each documents as doc}<option value={doc.id}>{doc.label}</option>{/each}
-        </select></label
-      >
-      <div class="review-columns mt-4">
-        <div>
-          {#key source.id}
-            <ReviewProse
-              {source}
-              annotations={visibleAnnotations}
-              {selectedId}
-              {navigationVersion}
-              onSelect={(from, to, quote, explicit) => {
-                selection = { from, to, quote };
-                selectionIsExplicit = explicit;
-              }}
-            />
-          {/key}
-          <fieldset disabled={busy || locked} class="mt-4 flex flex-col gap-3">
-            <label>Your name <input bind:value={author} /></label>
-            <label
-              >Annotation <select bind:value={kind}
-                ><option value="comment">Comment</option><option value="suggestion"
-                  >Suggest change</option
-                ></select
-              ></label
-            >
-            <p class="text-press-muted">
-              {selection
-                ? selection.quote || "Insertion at cursor"
-                : "Select text in the prose above."}
-            </p>
-            {#if kind === "suggestion"}<label
-                >Suggested text (leave empty to delete)<textarea bind:value={replacement}
-                ></textarea></label
-              >{/if}
-            <label
-              >{kind === "comment" ? "Comment" : "Reason (optional)"}<textarea bind:value={comment}
-              ></textarea></label
-            >
-            <button
-              disabled={!selection ||
-                !selectionIsExplicit ||
-                !author.trim() ||
-                (kind === "comment"
-                  ? !comment.trim() || selection.from === selection.to
-                  : !replacement && selection.from === selection.to)}
-              onclick={addAnnotation}>Add {kind === "comment" ? "comment" : "suggestion"}</button
+      <div class="history-layout">
+        <aside class="draft-list" aria-label="Saved drafts">
+          <h3>Saved drafts <span>{review.data.drafts.length}</span></h3>
+          <fieldset disabled={busy || locked} class="save-draft">
+            <label>Draft name<input bind:value={name} placeholder="Post-editor pass" /></label>
+            <button disabled={!name.trim()} onclick={createDraft}
+              ><Plus size={14} />Save named draft</button
             >
           </fieldset>
-        </div>
-        <aside aria-label="Comments and suggestions">
-          <div class="flex flex-wrap gap-3">
-            <button disabled={!pending.length} onclick={() => step(-1)}>Previous change</button>
-            <button disabled={!pending.length} onclick={() => step(1)}>Next change</button>
-            <button
-              disabled={busy || locked || !pending.length}
-              onclick={() => accept(pending.map((a) => a.id))}>Accept all</button
-            >
-            <button
-              disabled={busy || locked || !pending.length}
-              onclick={() =>
-                changeAnnotations(
-                  pending.map((a) => a.id),
-                  "rejected"
-                )}>Reject all</button
-            >
-          </div>
-          <p class="text-press-muted my-3">{pending.length} pending changes</p>
-          {#if inactiveCount}<p class="text-press-muted">
-              {inactiveCount}
-              {inactiveCount === 1 ? "annotation belongs" : "annotations belong"} to inactive prose. Return
-              to their original editing mode to review them.
-            </p>{/if}
-          {#each visibleAnnotations as a}
-            <div class="border-t border-press-border py-3">
+          <div class="draft-entries">
+            {#each review.data.drafts.map((draft, index) => ({ draft, index })).reverse() as item}
               <button
-                class="text-left"
-                aria-pressed={a.id === selectedId}
-                onclick={() => selectAnnotation(a)}
-                >{a.replacement === null ? "Comment" : "Suggestion"} · {a.state} · {a.quote ||
-                  "Insertion"}</button
+                class="draft-entry"
+                aria-pressed={before === item.index}
+                onclick={() => {
+                  before = item.index;
+                  restoreIndex = null;
+                }}
+                ><span class="draft-number">Draft {item.index + 1}</span><strong
+                  >{item.draft.name}</strong
+                ><time datetime={item.draft.created_at}>{dateLabel(item.draft.created_at)}</time
+                ></button
               >
-              {#if a.id === selectedId}
-                {#if a.replacement !== null}<p class="diff-prose">
-                    <del>{a.quote}</del> <ins>{a.replacement}</ins>
-                  </p>{/if}
-                {#if !isAnchored(a, review.documents) && a.state === "open"}
-                  <p class="text-press-warning">
-                    Outdated anchor: prose changed. Select the intended text and re-anchor before
-                    accepting.
-                  </p>
-                  <button disabled={busy || locked || !canReanchor} onclick={reanchor}
-                    >Re-anchor to selection</button
-                  >
-                {/if}
-                {#each a.messages as message}<p class="my-2">
-                    <strong>{message.author}</strong>
-                    <span class="text-press-muted"
-                      >{new Date(message.created_at).toLocaleDateString()}</span
-                    ><br />{message.text}
-                  </p>{/each}
-                <fieldset disabled={busy || locked} class="flex flex-col gap-2">
-                  <label>Reply <textarea bind:value={reply}></textarea></label>
-                  <button disabled={!reply.trim() || !author.trim()} onclick={addReply}
-                    >Reply to thread</button
-                  >
-                  {#if a.state === "open"}
-                    {#if a.replacement === null}<button
-                        onclick={() => changeAnnotations([a.id], "resolved")}>Resolve thread</button
-                      >
-                    {:else}
-                      <button
-                        disabled={!isAnchored(a, review.documents)}
-                        onclick={() => accept([a.id])}>Accept change</button
-                      >
-                      <button onclick={() => changeAnnotations([a.id], "rejected")}
-                        >Reject change</button
-                      >
-                    {/if}
-                  {:else if a.state === "resolved"}<button
-                      onclick={() => changeAnnotations([a.id], "open")}>Reopen thread</button
-                    >{/if}
-                </fieldset>
-              {/if}
-            </div>
-          {/each}
-          {#if !visibleAnnotations.length}<p>No comments or suggestions yet.</p>{/if}
+            {/each}
+          </div>
         </aside>
+        <section class="draft-detail" aria-label="Draft comparison">
+          {#if !review.data.drafts.length}
+            <div class="history-empty">
+              <History size={28} />
+              <h3>Keep a version of this scene</h3>
+              <p>No saved drafts yet. Save a named draft to keep this scene’s current prose.</p>
+            </div>
+          {:else if oldDraft && newDraft}
+            <div class="comparison-toolbar">
+              <label
+                >Compare with<span class="compact-select"
+                  ><select aria-label="Compare with" bind:value={after}
+                    ><option value={-1}>Current prose</option
+                    >{#each review.data.drafts as d, i}<option value={i}
+                        >Draft {i + 1} · {d.name}</option
+                      >{/each}</select
+                  ><ChevronDown size={14} /></span
+                ></label
+              >
+              <button disabled={busy || locked} onclick={() => (restoreIndex = before)}
+                ><RotateCcw size={14} />Restore selected draft</button
+              >
+            </div>
+            {#if restoreIndex !== null}
+              <div class="restore-confirm" role="region" aria-label="Confirm draft restore">
+                <p>
+                  Restore “{review.data.drafts[restoreIndex].name}”? Current prose will be preserved
+                  as another draft. Beat structure must still match.
+                </p>
+                <div class="restore-actions">
+                  <button disabled={busy || locked} onclick={restore}
+                    >Restore and preserve current prose</button
+                  ><button disabled={busy} onclick={() => (restoreIndex = null)}
+                    >Cancel restore</button
+                  >
+                </div>
+              </div>
+            {/if}
+            <p class="comparison-note">
+              {hasChanges
+                ? "Removed text is marked on the left; added text is marked on the right."
+                : "No prose text changes between these versions."} Formatting is not compared.
+            </p>
+            <div class="comparison-pages">
+              <section class="comparison-version" aria-label="Saved draft">
+                <header>
+                  <span class="version-kind"
+                    >Saved draft · {oldDraft.mode === "page" ? "Page prose" : "Beat prose"}</span
+                  >
+                  <h3>{oldDraft.name}</h3>
+                  <time datetime={oldDraft.created_at}>{dateLabel(oldDraft.created_at)}</time>
+                </header>
+                <div class="diff-prose">
+                  {#each comparison as part}{#if part.kind === "delete"}<del>{part.text}</del
+                      >{:else if part.kind !== "insert"}{part.text}{/if}{/each}
+                </div>
+              </section>
+              <section class="comparison-version" aria-label="Comparison version">
+                <header>
+                  <span class="version-kind"
+                    >{after < 0 ? "Working manuscript" : "Saved draft"} · {newDraft.mode === "page"
+                      ? "Page prose"
+                      : "Beat prose"}</span
+                  >
+                  <h3>{after < 0 ? "Current prose" : review.data.drafts[after].name}</h3>
+                  {#if after >= 0}<time datetime={review.data.drafts[after].created_at}
+                      >{dateLabel(review.data.drafts[after].created_at)}</time
+                    >{/if}
+                </header>
+                <div class="diff-prose">
+                  {#each comparison as part}{#if part.kind === "insert"}<ins>{part.text}</ins
+                      >{:else if part.kind !== "delete"}{part.text}{/if}{/each}
+                </div>
+              </section>
+            </div>
+          {/if}
+        </section>
+      </div>
+    {:else}
+      <div class="overview-scroll">
+        <table>
+          <thead
+            ><tr><th>Chapter</th><th>Scene</th><th>Revision status</th><th>Saved drafts</th></tr
+            ></thead
+          ><tbody
+            >{#each overview as row}<tr
+                ><td>{row.chapter}</td><td>{row.title}</td><td
+                  >{revisionStatuses[row.status as keyof typeof revisionStatuses]}</td
+                ><td>{row.drafts}</td></tr
+              >{/each}</tbody
+          >
+        </table>
       </div>
     {/if}
   {/if}
-  {#if busy}<p role="status">Saving or loading…</p>{/if}
+  {#if busy}<p role="status" class="busy-notice">Saving or loading…</p>{/if}
 </dialog>
 
 <style>
   dialog {
-    width: min(72rem, calc(100vw - var(--space-xl)));
+    width: min(80rem, calc(100vw - var(--space-xl)));
+    height: min(56rem, calc(100vh - var(--space-xl)));
     max-height: calc(100vh - var(--space-xl));
     margin: auto;
-    padding: var(--space-l);
+    padding: 0;
     background: var(--color-surface);
     color: var(--color-text);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-m);
     box-shadow: var(--shadow-overlay);
     font-family: var(--font-ui);
-    font-size: var(--text-ui);
-    overflow: auto;
+    font-size: var(--text-small);
+    overflow: hidden;
+  }
+  dialog[open] {
+    display: flex;
+    flex-direction: column;
   }
   dialog::backdrop {
     background: var(--color-overlay-scrim);
   }
-  .review-columns {
-    display: grid;
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-    gap: var(--space-l);
+  .history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-s);
+    padding: var(--space-m);
+    border-bottom: 1px solid var(--color-border);
+  }
+  h2 {
+    font-family: var(--font-display);
+    font-size: var(--text-h3);
+    margin: 0;
+  }
+  .eyebrow,
+  .version-kind,
+  time {
+    font-size: var(--text-eyebrow);
+    color: var(--color-text-muted);
+  }
+  .header-actions {
+    display: flex;
+    align-items: end;
+    gap: var(--space-s);
+  }
+  fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
   }
   label {
     display: flex;
     flex-direction: column;
-    gap: var(--space-xs);
+    gap: var(--space-2xs);
+    min-width: 0;
   }
-  button {
-    padding: var(--space-xs) var(--space-s);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-s);
-  }
-  button[aria-pressed="true"] {
-    background: var(--color-accent-wash);
-  }
-  button:disabled {
-    color: var(--color-disabled-text);
-    background: var(--color-disabled-bg);
+  .status-label {
+    font-size: var(--text-eyebrow);
+    color: var(--color-text-muted);
   }
   input,
-  select,
-  textarea {
-    font-size: var(--text-base);
+  select {
+    font-family: var(--font-ui);
+    font-size: var(--text-small);
+    line-height: var(--leading);
+    padding: var(--space-3xs) var(--space-2xs);
+    min-width: 0;
     max-width: 100%;
+  }
+  .compact-select {
+    display: grid;
+    align-items: center;
+    min-width: 0;
+  }
+  .compact-select select {
+    grid-area: 1 / 1;
+    appearance: none;
+    padding-right: var(--space-l);
+    width: 100%;
+  }
+  .compact-select :global(svg) {
+    grid-area: 1 / 1;
+    justify-self: end;
+    margin-right: var(--space-2xs);
+    pointer-events: none;
+    color: var(--color-text-muted);
+  }
+  button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2xs);
+    padding: var(--space-2xs) var(--space-xs);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-s);
+    cursor: pointer;
+  }
+  button:hover {
+    background: var(--color-surface-sunken);
+  }
+  .history-tabs {
+    display: flex;
+    gap: var(--space-m);
+    padding-inline: var(--space-m);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .history-tabs button {
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    padding: var(--space-xs) 0;
+  }
+  .history-tabs button[aria-pressed="true"] {
+    color: var(--color-accent-text);
+    border-bottom-color: var(--color-accent);
+  }
+  .history-layout {
+    display: grid;
+    grid-template-columns: 16rem minmax(0, 1fr);
+    min-height: 0;
+    flex: 1;
+  }
+  .draft-list {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-right: 1px solid var(--color-border);
+    background: var(--color-bg);
+  }
+  .draft-list h3 {
+    font-size: var(--text-small);
+    margin: var(--space-s);
+  }
+  .draft-list h3 span {
+    color: var(--color-text-muted);
+    margin-left: var(--space-2xs);
+    font-weight: 400;
+  }
+  .save-draft {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xs);
+    margin: 0 var(--space-s) var(--space-s);
+  }
+  .draft-entries {
+    overflow: auto;
+    min-height: 0;
+  }
+  .draft-entry {
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+    text-align: left;
+    width: 100%;
+    border: 0;
+    border-top: 1px solid var(--color-border);
+    border-left: 2px solid transparent;
+    border-radius: 0;
+    padding: var(--space-s);
+    overflow-wrap: anywhere;
+  }
+  .draft-entry[aria-pressed="true"] {
+    background: var(--color-accent-wash);
+    border-left-color: var(--color-accent);
+  }
+  .draft-number {
+    font-size: var(--text-eyebrow);
+    color: var(--color-text-muted);
+  }
+  .draft-entry strong {
+    font-weight: 500;
+  }
+  .draft-detail {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+  }
+  .comparison-toolbar {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-s);
+    padding: var(--space-s) var(--space-m);
+  }
+  .comparison-toolbar label {
+    flex: 1;
+    max-width: var(--measure);
+  }
+  .comparison-toolbar button {
+    flex-shrink: 0;
+  }
+  .comparison-note {
+    font-size: var(--text-eyebrow);
+    color: var(--color-text-muted);
+    margin: 0;
+    padding: 0 var(--space-m) var(--space-s);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .comparison-pages {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    min-height: 0;
+    overflow: auto;
+    flex: 1;
+  }
+  .comparison-version {
+    padding: var(--space-m);
+    min-width: 0;
+  }
+  .comparison-version + .comparison-version {
+    border-left: 1px solid var(--color-border);
+  }
+  .comparison-version header {
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-s);
+    margin-bottom: var(--space-m);
+  }
+  .comparison-version h3 {
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    margin: var(--space-2xs) 0;
+    overflow-wrap: anywhere;
   }
   .diff-prose {
     font-family: var(--font-body);
     font-size: var(--text-body);
+    line-height: var(--leading-relaxed);
     max-width: var(--measure);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
   del {
     color: var(--color-error);
+    background: var(--color-error-wash);
   }
   ins {
     color: var(--color-success);
+    background: var(--color-success-wash);
+  }
+  .restore-confirm {
+    padding: var(--space-s) var(--space-m);
+    background: var(--color-surface-sunken);
+    border-block: 1px solid var(--color-border);
+  }
+  .restore-confirm p {
+    margin: 0 0 var(--space-xs);
+  }
+  .restore-actions {
+    display: flex;
+    gap: var(--space-2xs);
+    flex-wrap: wrap;
+  }
+  .history-empty {
+    margin: auto;
+    padding: var(--space-l);
+    max-width: var(--measure);
+    color: var(--color-text-muted);
+  }
+  .history-empty h3 {
+    font-family: var(--font-display);
+    font-size: var(--text-h3);
+    color: var(--color-text);
+  }
+  .history-error {
+    color: var(--color-error);
+    padding-inline: var(--space-m);
+  }
+  .locked-notice,
+  .busy-notice {
+    color: var(--color-text-muted);
+    margin: 0;
+    padding: var(--space-xs) var(--space-m);
+  }
+  .overview-scroll {
+    overflow: auto;
+    min-height: 0;
+  }
+  table {
+    width: 100%;
+    text-align: left;
+    border-collapse: collapse;
   }
   td,
   th {
-    padding: var(--space-s);
+    padding: var(--space-s) var(--space-m);
     border-bottom: 1px solid var(--color-border);
-  }
-  @media (max-width: 800px) {
-    .review-columns {
-      grid-template-columns: minmax(0, 1fr);
-    }
   }
 </style>
