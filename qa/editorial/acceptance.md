@@ -322,3 +322,52 @@ the sidebar-state change was removed. Roundtrip tests cover both a package expor
 notice and a failed round-open alert, plus direct reopening after local review.
 Review-agent rechecked these fixes and again returned **No findings**.
 Claude's final focused follow-up also returned **No findings**.
+
+## Portable editor parity and stale file handler
+
+Follow-up base: `82ec96aa043fea1c340b2aaeb9d7130d35bed94a`.
+
+The local and portable entry points already render the same `EditorialWorkspace`,
+`EditorialManuscript`, `ReviewSidebar`, and `ContextMenu`. macOS was resolving
+actual review files to **Kindling Editorial UI QA.app**, built September 8 at
+12:32:56, before the recent shared UI fixes. That QA bundle had been left
+registered as an Owner of the editorial file types. The investigation confirmed
+the running executable and used `NSWorkspace.urlForApplication(toOpen:)` on an
+actual exported review file to identify the stale handler.
+
+The stale QA bundle was unregistered. The current `Kindling.app` was rebuilt and
+registered for both types. Actual exported review and feedback files now resolve
+to `src-tauri/target/release/bundle/macos/Kindling.app`. The local verification
+build disabled updater artifact creation through a command-line config override;
+it does not establish signed release/update behavior. The older running review
+and its data were left intact. The native checklist now requires cleanup after
+association tests so temporary QA bundles cannot retain these defaults.
+
+| Report | Implementation evidence | Validation | Gap |
+| --- | --- | --- | --- |
+| Paragraph gaps | Shared manuscript already uses writing paragraph margins; no portable renderer fork | Fresh exported package in current native dev: paragraph margin 0px | Intentional source blank paragraphs retained |
+| Menus stay open | Existing shared outside-pointer/menu behavior used in both entry points | Parameterized local/package regression; native portable outside event closes Review options | Physical pointer injection unavailable; event regression coverage applies |
+| Input padding | Shared compact controls | Native portable name field: 14px text, 4px/8px padding | None |
+| Branding and hierarchy | Shared `BrandWordmark` extracted from writer Sidebar; portable book/round/chapter/scene hierarchy and active scene | Native initial scene/header agree; light/dark captured-DOM renderings | None |
+| Required name | Required/invalid semantics, descriptive help and component-specific token error wash | Empty/whitespace/filled-name regression and native blank-name inspection | None |
+| Search | Shared search; replacement resets query/index/count; remount seeds current search without moving selection | Both entry points navigate and reset; local refresh preserves highlights; native Next shows 2 of 3 at scrollTop 1023 with bar y78 and search focus retained | None |
+| Duplicate maintenance | One workspace/prose/sidebar/menu path; removed unused `ReviewProse` | No remaining renderer call sites; shared entry-point tests | No separate editor UI introduced |
+
+The native package was exported from a new disposable sample and opened through
+the running application's file-open queue using the current debug executable.
+Reviewer name preference, theme and window size were restored after inspection.
+[Portable light](portable-review-light.png) and [portable dark](portable-review-dark.png)
+are browser renderings of captured native DOM, not native pixel screenshots.
+
+All 40 workspace tests passed. `check:all` and the current frontend/macOS app
+build passed with the existing warnings. Review-agent found initial scene focus
+missing when restoring position 1; explicit source focus initialization fixes
+the header and active navigation. Its final follow-up returned **No findings**.
+Claude high-effort session `1dc3adcb-5313-45c8-8293-a4b5d753dc5d` found search state
+lost on refresh, duplicated preview titles, redundant invalid-border styling,
+and missing local replacement test coverage. Those fixes are included above;
+the requested identity-field wash remains scoped to that component.
+The final focused review also clarified search behavior when selecting past
+rounds and separated book/chapter typography using existing sidebar tokens.
+Claude's final result: **No findings**. Review-agent rechecked these last deltas
+and also returned **No findings**.

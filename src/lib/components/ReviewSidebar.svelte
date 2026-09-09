@@ -130,7 +130,12 @@
         <summary aria-label="Review options"><MoreHorizontal size={18} /></summary>
         <div class="review-menu">
           <label class="menu-identity"
-            >Your name<input value={name} oninput={(e) => onName(e.currentTarget.value)} /></label
+            >Your name<input
+              required
+              aria-invalid={!name.trim()}
+              value={name}
+              oninput={(e) => onName(e.currentTarget.value)}
+            /></label
           >
           {@render options?.()}
         </div>
@@ -139,11 +144,17 @@
     {#if enteringName}<div class="identity">
         <label
           >Name shown with feedback<input
+            required
+            aria-invalid={!name.trim()}
+            aria-describedby="review-name-help"
             value={name}
             oninput={(e) => onName(e.currentTarget.value)}
             placeholder="Your name"
           /></label
         >
+        <p id="review-name-help" class="identity-hint">
+          Enter your name to add comments and export feedback.
+        </p>
         <button disabled={!name.trim()} onclick={() => (enteringName = false)}>Done</button>
       </div>{/if}
     <div class="threads">
@@ -503,6 +514,15 @@
   .identity,
   .compose {
     padding: var(--space-xs);
+  }
+  .identity-hint {
+    color: var(--color-text-muted);
+    font-size: var(--text-eyebrow);
+    margin: var(--space-2xs) 0;
+  }
+  .identity input[aria-invalid="true"],
+  .menu-identity input[aria-invalid="true"] {
+    background: var(--color-error-wash);
   }
   textarea,
   input,

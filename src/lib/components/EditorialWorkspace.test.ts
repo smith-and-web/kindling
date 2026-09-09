@@ -118,6 +118,98 @@ afterEach(() => {
 });
 
 describe("editorial workspace", () => {
+  it.each(["local", "package"])(
+    "shares controls and search through the %s entry point",
+    async (entry) => {
+      const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+      if (entry === "local") await view.component.openLocal("project", "s");
+      else await view.component.openFile("/review.kindling-review");
+      if (entry === "package") {
+        expect(
+          view
+            .getByRole("navigation", { name: "Manuscript navigation" })
+            .querySelector('[aria-current="location"]')?.textContent
+        ).toBe("The Letter");
+        expect(document.querySelector(".workspace-header h1")?.textContent?.trim()).toBe(
+          "The Letter"
+        );
+      }
+      await fireEvent.click(view.getByLabelText("Review options"));
+      const options = view.getByLabelText("Review options").closest("details")!;
+      expect(options.open).toBe(true);
+      await fireEvent.click(view.getByLabelText("Your name"));
+      expect(options.open).toBe(true);
+      const prose = document.querySelector<HTMLElement>(".editorial-prose")!;
+      prose.addEventListener("pointerdown", (e) => e.stopPropagation(), { once: true });
+      await fireEvent.pointerDown(prose);
+      expect(options.open).toBe(false);
+      await fireEvent.click(view.getByLabelText("Manuscript actions"));
+      expect(view.getByRole("menu")).toBeTruthy();
+      await fireEvent.click(prose);
+      expect(view.queryByRole("menu")).toBeNull();
+      await fireEvent.click(view.getByRole("button", { name: "Find in manuscript" }));
+      const search = view.getByRole("searchbox");
+      const pane = document.querySelector<HTMLElement>(".manuscript-column")!;
+      expect(pane.contains(search)).toBe(false);
+      vi.spyOn(pane, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 400 } as DOMRect);
+      vi.spyOn(editor().view, "coordsAtPos").mockReturnValue({
+        top: 1200,
+        bottom: 1220,
+        left: 0,
+        right: 10,
+      });
+      search.focus();
+      await fireEvent.input(search, { target: { value: "letter" } });
+      await waitFor(() => expect(pane.scrollTop).toBeGreaterThan(1000));
+      expect(document.activeElement).toBe(search);
+      expect(document.querySelector(".editorial-search-match")?.textContent).toBe("letter");
+      await fireEvent.click(view.getByRole("button", { name: "Next" }));
+      expect(view.getByText("1 of 1")).toBeTruthy();
+      if (entry === "local") {
+        const previousEditor = editor();
+        await fireEvent.click(view.getByLabelText("Review options"));
+        await fireEvent.click(view.getByRole("button", { name: "Refresh manuscript" }));
+        await waitFor(() => expect(editor()).not.toBe(previousEditor));
+        expect((view.getByRole("searchbox") as HTMLInputElement).value).toBe("letter");
+        expect(view.getByText("1 of 1")).toBeTruthy();
+        expect(document.querySelector(".editorial-search-match")?.textContent).toBe("letter");
+        await view.component.openLocal("project", "s");
+      } else await view.component.openFile("/review.kindling-review");
+      expect(view.queryByRole("searchbox")).toBeNull();
+      if (entry === "package") {
+        expect(document.querySelector('.scene-link[aria-current="location"]')?.textContent).toBe(
+          "The Letter"
+        );
+      }
+      await fireEvent.click(view.getByRole("button", { name: "Find in manuscript" }));
+      expect((view.getByRole("searchbox") as HTMLInputElement).value).toBe("");
+      expect((view.getByRole("button", { name: "Next" }) as HTMLButtonElement).disabled).toBe(true);
+      expect(document.querySelector(".editorial-search-match")).toBeNull();
+      await view.component.flush();
+    }
+  );
+
+  it("marks a missing reviewer name required and clears validation when supplied", async () => {
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openFile("/review.kindling-review");
+    const name = view.getByLabelText("Name shown with feedback") as HTMLInputElement;
+    expect(name.required).toBe(true);
+    expect(name.getAttribute("aria-invalid")).toBe("true");
+    expect(document.getElementById(name.getAttribute("aria-describedby")!)?.textContent).toContain(
+      "Enter your name"
+    );
+    await fireEvent.input(name, { target: { value: "   " } });
+    expect(name.getAttribute("aria-invalid")).toBe("true");
+    await fireEvent.input(name, { target: { value: "Rowan" } });
+    expect(name.getAttribute("aria-invalid")).toBe("false");
+    await fireEvent.click(view.getByRole("button", { name: "Done" }));
+    await fireEvent.click(view.getByLabelText("Manuscript actions"));
+    expect(
+      (view.getByRole("menuitem", { name: "Export feedback" }) as HTMLButtonElement).disabled
+    ).toBe(false);
+    await view.component.flush();
+  });
+
   it("keeps restored reading position ahead of a queued cursor reveal", async () => {
     const view = render(EditorialManuscript, {
       sources: [source],
@@ -465,6 +557,9 @@ describe("editorial workspace", () => {
     await fireEvent.click(view.getByRole("button", { name: "First review" }));
     await waitFor(() => expect(editor().isEditable).toBe(false));
     expect(view.queryByRole("button", { name: "Comment" })).toBeNull();
+    expect(document.querySelector('.scene-link[aria-current="location"]')?.textContent).toBe(
+      "The Letter"
+    );
   });
   it("opens local revisions in the editor, suggests with normal gestures and publishes only acknowledged saves", async () => {
     const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
@@ -789,6 +884,7 @@ describe("editorial workspace", () => {
     });
     const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
     await view.component.openFile("/feedback.kindling-feedback");
+    expect(document.querySelector(".workspace-header .eyebrow")).toBeNull();
     expect(invoke).not.toHaveBeenCalledWith("import_editorial_feedback", expect.anything());
     await fireEvent.click(view.getByText("Import and review feedback"));
     await waitFor(() =>

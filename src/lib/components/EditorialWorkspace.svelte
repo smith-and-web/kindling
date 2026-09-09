@@ -7,6 +7,7 @@
   import type { Mapping } from "@tiptap/pm/transform";
   import ContextMenu, { type MenuItem } from "./ContextMenu.svelte";
   import ReviewSidebar from "./ReviewSidebar.svelte";
+  import BrandWordmark from "./BrandWordmark.svelte";
   import RevisionsPanel from "./RevisionsPanel.svelte";
   import { localAnnotations, localSelection } from "../utils/localEditorial";
   import {
@@ -417,7 +418,7 @@
       screen = "feedback";
       filter = "open";
       selectedId = null;
-      search = "";
+      resetSearch();
       showComment = false;
       writerName = localStorage.getItem("kindling.editorial.name") || "Writer";
       manuscriptVersion++;
@@ -786,10 +787,11 @@
       }
       // Commit workspace state only after the complete incoming/recovered review validates.
       local = false;
+      focusedScene = "";
       packageReturn = null;
       sceneReviews = [];
       showComment = false;
-      search = "";
+      resetSearch();
       round = packageData.round;
       if (nextSession)
         restoreTracking(
@@ -811,6 +813,7 @@
       if (session) {
         prose?.select(session.position, session.position, false);
         prose?.restoreReadingPosition(session.reading_position ?? session.position);
+        focusSceneAt(session.position);
       }
     });
     if (error && !active) await show();
@@ -875,9 +878,9 @@
     session.document = doc.toJSON();
     stage();
   }
-  function updateSelection(from: number, to: number, explicit: boolean) {
-    selection = { from, to };
+  function focusSceneAt(from: number) {
     const doc = prose?.currentDocument();
+    focusedScene = sources[0]?.scene_id ?? "";
     if (doc) {
       const cursor = doc.resolve(Math.min(from, doc.content.size));
       for (let depth = cursor.depth; depth > 0; depth--) {
@@ -888,6 +891,10 @@
         }
       }
     }
+  }
+  function updateSelection(from: number, to: number, explicit: boolean) {
+    selection = { from, to };
+    focusSceneAt(from);
     reanchorReady = explicit;
     if (session) {
       session.position = from;
@@ -1048,6 +1055,8 @@
       manuscriptVersion++;
       selectedId = null;
       notice = "Feedback imported. Your manuscript has not changed. Review the suggestions below.";
+      await tick();
+      focusSceneAt(1);
     });
   }
   function restoreMappedView(
@@ -1084,6 +1093,7 @@
       selectedId = null;
       await tick();
       if (view && previous) restoreMappedView(view, previous);
+      focusSceneAt(prose?.captureView().from ?? 1);
     });
   }
   async function decide(entries: FeedbackEntry[], decision: string, reanchor = false) {
@@ -1123,6 +1133,12 @@
   function findNext(direction: number) {
     searchIndex += direction;
     searchCount = prose?.find(search, searchIndex) ?? 0;
+  }
+  function resetSearch() {
+    search = "";
+    searchIndex = 0;
+    searchCount = 0;
+    showSearch = false;
   }
 
   async function drainFiles() {
@@ -1206,13 +1222,13 @@
         onclick={back}><ChevronLeft size={18} /></button
       >
       <div>
-        <span class="eyebrow">{local ? round?.title : "kindling"}</span>
+        {#if round?.title && (screen === "export" || focusedSource?.scene)}
+          <span class="eyebrow">{round.title}</span>
+        {/if}
         <h1>
           {screen === "export"
             ? "Review packages"
-            : local
-              ? focusedSource?.scene || round?.title || "Revisions"
-              : round?.title || "Editorial review"}
+            : focusedSource?.scene || round?.title || "Editorial review"}
         </h1>
       </div>
     </div>
@@ -1406,14 +1422,17 @@
     <div class="workspace-layout">
       {#if !local && showNavigation}<nav class="manuscript-nav" aria-label="Manuscript navigation">
           <div class="nav-title">
-            <h2>Manuscript</h2>
+            <BrandWordmark />
             <button
               class="icon"
               aria-label="Hide manuscript navigation"
               onclick={() => (showNavigation = false)}><PanelLeftClose size={16} /></button
             >
           </div>
-          <p class="round-name">{round.name}</p>
+          <div class="nav-context">
+            <h2>{round.title}</h2>
+            <p class="round-name">{round.name}</p>
+          </div>
           {#if round.brief}<details>
               <summary>Writer’s brief</summary>
               <p class="brief">{round.brief}</p>
@@ -1423,6 +1442,7 @@
                 {source.chapter}
               </h3>{/if}<button
               class="scene-link"
+              aria-current={focusedScene === source.scene_id ? "location" : undefined}
               onclick={() => {
                 focusedScene = source.scene_id;
                 prose?.navigate(source.id);
@@ -1479,6 +1499,7 @@
               onComment={composeComment}
               onReadingPosition={updateReadingPosition}
               onSearchResults={(count) => (searchCount = count)}
+              initialSearch={{ query: showSearch ? search : "", index: searchIndex }}
               onError={(e) => (error = e)}
               onAnnotation={selectItem}
               onActivate={chooseAnnotation}
@@ -1740,13 +1761,13 @@
     min-width: 0;
   }
   .manuscript-nav {
-    width: 14rem;
+    width: 20rem;
     flex-shrink: 0;
     padding: var(--space-s);
     box-sizing: border-box;
     overflow: auto;
     border-right: 1px solid var(--color-border);
-    background: var(--color-surface-sunken);
+    background: var(--color-surface);
   }
   .nav-title {
     display: flex;
@@ -1759,6 +1780,37 @@
     text-align: left;
     border: 0;
     margin-block: var(--space-3xs);
+  }
+  .nav-context {
+    padding-block: var(--space-s);
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: var(--space-s);
+  }
+  .nav-context h2,
+  .manuscript-nav h3 {
+    font-family: var(--font-ui);
+    font-weight: 600;
+    font-size: var(--text-ui);
+    line-height: var(--leading-tight);
+    margin: 0;
+  }
+  .nav-context .round-name {
+    margin: var(--space-2xs) 0 0;
+  }
+  .nav-context h2 {
+    font-size: var(--text-base);
+  }
+  .manuscript-nav h3 {
+    margin-top: var(--space-m);
+    margin-bottom: var(--space-2xs);
+  }
+  .manuscript-nav .scene-link {
+    padding-left: var(--space-m);
+    color: var(--color-text-muted);
+  }
+  .manuscript-nav .scene-link[aria-current="location"] {
+    color: var(--color-accent-text);
+    background: var(--color-accent-wash);
   }
   .manuscript-region {
     flex: 1;

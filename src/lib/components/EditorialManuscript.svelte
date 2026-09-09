@@ -41,6 +41,7 @@
     canComment = true,
     lockSources,
     onSearchResults,
+    initialSearch,
   }: {
     sources: EditorialSource[];
     initial: ReturnType<Node["toJSON"]>;
@@ -61,6 +62,7 @@
     canComment?: boolean;
     lockSources?: EditorialSource[];
     onSearchResults?: (count: number) => void;
+    initialSearch?: { query: string; index: number };
   } = $props();
   let element: HTMLDivElement;
   let editor = $state.raw<Editor>();
@@ -279,6 +281,9 @@
       })
     );
     editor = instance;
+    searchQuery = initialSearch?.query ?? "";
+    searchIndex = initialSearch?.index ?? 0;
+    refreshSearch(instance.state.doc);
     const container = element.parentElement!;
     let readingTimer: ReturnType<typeof setTimeout>;
     const recordReading = () => {

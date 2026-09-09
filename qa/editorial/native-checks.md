@@ -3,6 +3,18 @@
 Use disposable app data and manuscript fixtures. Do not overwrite a writer's
 existing sample or register a test bundle under their production app identifier.
 
+Before investigating differences between in-app and file-manager opening,
+resolve the actual file handler and check that executable's build time. An old
+QA bundle can remain the default even while current source is running in dev.
+Ordinary UI checks should open files explicitly with the current test executable
+and isolated data, without registering another default application.
+
+Association checks must record the previous handlers. Immediately afterward,
+unregister temporary QA bundles and restore the intended current application for
+both `.kindling-review` and `.kindling-feedback`. Verify resolution using actual
+files of both types. Keep any open review session and its data intact while
+repairing registration; do not terminate a user's review to clean up a handler.
+
 1. Install a build without associations, then update it to the candidate build.
 2. Check both file extensions' type name, document icon and Open With identity.
 3. With Kindling closed, open a review file from the file manager. It must enter

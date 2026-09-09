@@ -33,6 +33,13 @@ Opening a package preserves any writing project you already have open.
 Enter the name you want shown with your feedback once. Kindling remembers it on
 this installation; change it under **Review options → Your name**. It is an
 attribution label, not an account or verified identity.
+An empty name is highlighted with a reminder; enter a name to add comments and
+export feedback. The manuscript navigator groups scenes under their chapters
+and highlights the current scene.
+
+Packages and in-project revisions use the same manuscript, search, menus, and
+feedback sidebar. Opening a package adds manuscript navigation so an editor can
+work without the writer's project.
 
 Read and edit the manuscript normally. Typing, deleting, replacing selections,
 pasting, and formatting create suggestions. Use the formatting toolbar and
@@ -132,6 +139,9 @@ Search highlights the active match and scrolls the manuscript to it, while the
 search field keeps focus. Its controls stay above the scrolling manuscript, with
 the formatting toolbar directly below. Previous/Next and Enter/Shift+Enter move through
 matches. Selecting a sidebar thread also brings its passage into view.
+Refreshing the manuscript or selecting a past round retains the search and
+updates its matches. Opening a review file or starting local revisions clears
+the previous search.
 Package setup, past rounds, and recovery exports also live under Manuscript actions.
 The revision status beside the scene title reflects the scene at the cursor.
 
