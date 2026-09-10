@@ -28,20 +28,23 @@ pub fn count_words(html: &str) -> i64 {
     text.split_whitespace().count() as i64
 }
 
+/// Scenes without beats expose scene prose as a read-only fallback in Beat View.
+pub fn uses_page_prose(scene: &crate::models::Scene, beats: &[crate::models::Beat]) -> bool {
+    scene.editor_mode == crate::models::EditorMode::Page || beats.is_empty()
+}
+
 pub fn scene_words(conn: &Connection, scene_id: &Uuid) -> Result<i64> {
     let scene =
         super::get_scene_by_id(conn, scene_id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
     let beats = super::get_beats(conn, scene_id)?;
-    Ok(
-        if scene.editor_mode == crate::models::EditorMode::Page || beats.is_empty() {
-            count_words(scene.prose.as_deref().unwrap_or(""))
-        } else {
-            beats
-                .iter()
-                .map(|b| count_words(b.prose.as_deref().unwrap_or("")))
-                .sum()
-        },
-    )
+    Ok(if uses_page_prose(&scene, &beats) {
+        count_words(scene.prose.as_deref().unwrap_or(""))
+    } else {
+        beats
+            .iter()
+            .map(|b| count_words(b.prose.as_deref().unwrap_or("")))
+            .sum()
+    })
 }
 
 pub fn daily_goal(conn: &Connection, project_id: &str) -> Result<i64> {

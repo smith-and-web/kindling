@@ -465,3 +465,21 @@ fn export_allows_os_metadata_but_rejects_hidden_user_content() {
         );
     }
 }
+
+#[test]
+fn export_scene_prose_fallback_without_beats() {
+    let (conn, project) = fixture();
+    conn.execute("DELETE FROM beats", []).unwrap();
+    conn.execute(
+        "UPDATE scenes SET editor_mode = 'beat', prose = '<p>Fallback manuscript</p>'",
+        [],
+    )
+    .unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    export_novelwriter_project(&conn, &project.id, dir.path(), &Default::default()).unwrap();
+    let parsed = parse_novelwriter_project(dir.path()).unwrap();
+    assert!(parsed.scenes.iter().all(|scene| scene
+        .prose
+        .as_deref()
+        .is_some_and(|text| text.contains("Fallback manuscript"))));
+}

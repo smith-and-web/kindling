@@ -7,8 +7,8 @@ use thiserror::Error;
 use walkdir::WalkDir;
 
 use crate::models::{
-    Beat, Chapter, Character, Location, Project, ReferenceItem, Scene, SceneStatus, SceneType,
-    SourceType,
+    Beat, Chapter, Character, EditorMode, Location, Project, ReferenceItem, Scene, SceneStatus,
+    SceneType, SourceType,
 };
 
 const LONGFORM_DEFAULT_CHAPTER_SOURCE_ID: &str = "longform:default";
@@ -113,6 +113,7 @@ struct BeatContent {
 }
 
 struct SceneContent {
+    editor_mode: EditorMode,
     synopsis: Option<String>,
     prose: Option<String>,
     scene_type: SceneType,
@@ -1290,6 +1291,7 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
 }
 
 fn parse_scene_body(content: &str) -> SceneContent {
+    let mut editor_mode = EditorMode::Beat;
     let mut scene_type = SceneType::Normal;
     let mut scene_status = SceneStatus::Draft;
     let mut synopsis = None;
@@ -1319,6 +1321,9 @@ fn parse_scene_body(content: &str) -> SceneContent {
 
         if !in_beats && !metadata_parsed {
             if let Some(meta) = parse_kindling_comment(trimmed) {
+                if let Some(value) = meta.get("editor_mode") {
+                    editor_mode = EditorMode::parse(value);
+                }
                 if let Some(value) = meta.get("scene_type") {
                     scene_type = SceneType::parse(value);
                 }
@@ -1390,6 +1395,7 @@ fn parse_scene_body(content: &str) -> SceneContent {
     let beats = parse_beats_block(&beat_lines.join("\n"));
 
     SceneContent {
+        editor_mode,
         synopsis,
         prose,
         scene_type,
@@ -2025,6 +2031,7 @@ fn add_scene_from_entry(
         scene_position,
     )
     .with_source_id(Some(scene_source_id));
+    scene.editor_mode = scene_content.editor_mode;
     scene.prose = scene_content.prose;
     scene.scene_type = scene_content.scene_type;
     scene.scene_status = scene_content.scene_status;

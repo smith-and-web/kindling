@@ -4,6 +4,7 @@
 
 use crate::commands::{load_app_settings, AppState};
 use crate::db;
+use crate::db::writing::uses_page_prose;
 use crate::models::{AppSettings, Beat, Chapter, Project, Scene, SnapshotTrigger};
 use chrono::Utc;
 use docx_rs::*;
@@ -1163,6 +1164,14 @@ fn generate_scene_markdown(scene: &Scene, beats: &[Beat], include_beat_markers: 
         }
     }
 
+    if uses_page_prose(scene, beats) {
+        let prose = strip_html(scene.prose.as_deref().unwrap_or(""));
+        if !prose.is_empty() {
+            content.push_str(&prose);
+            content.push_str("\n\n");
+        }
+    }
+
     // Beats
     for beat in beats {
         if include_beat_markers {
@@ -1170,7 +1179,11 @@ fn generate_scene_markdown(scene: &Scene, beats: &[Beat], include_beat_markers: 
         }
 
         // Beat prose
-        if let Some(ref prose) = beat.prose {
+        if let Some(prose) = beat
+            .prose
+            .as_ref()
+            .filter(|_| !uses_page_prose(scene, beats))
+        {
             let clean_prose = strip_html(prose);
             if !clean_prose.is_empty() {
                 content.push_str(&clean_prose);
@@ -1286,6 +1299,7 @@ fn generate_longform_scene_markdown(
     let mut meta_parts = vec![
         format!("scene_type={}", scene.scene_type.as_str()),
         format!("scene_status={}", scene.scene_status.as_str()),
+        format!("editor_mode={}", scene.editor_mode.as_str()),
     ];
 
     if let Some(ref synopsis) = scene.synopsis {
@@ -1299,7 +1313,11 @@ fn generate_longform_scene_markdown(
 
     content.push_str(&format!("<!-- kindling: {} -->\n\n", meta_parts.join(" ")));
 
-    if let Some(ref prose) = scene.prose {
+    if let Some(prose) = scene
+        .prose
+        .as_ref()
+        .filter(|_| uses_page_prose(scene, beats))
+    {
         let clean_prose = strip_html(prose);
         if !clean_prose.trim().is_empty() {
             content.push_str(clean_prose.trim());
@@ -1311,7 +1329,11 @@ fn generate_longform_scene_markdown(
         content.push_str("<!-- kindling: beats -->\n");
         for beat in beats {
             content.push_str(&format!("- {}\n", beat.content.trim()));
-            if let Some(ref prose) = beat.prose {
+            if let Some(prose) = beat
+                .prose
+                .as_ref()
+                .filter(|_| !uses_page_prose(scene, beats))
+            {
                 let clean_prose = strip_html(prose);
                 if !clean_prose.trim().is_empty() {
                     for line in clean_prose.lines() {
@@ -2672,6 +2694,14 @@ fn add_scene_to_docx(
     // or if it's after a scene break (no heading/synopsis shown)
     let mut is_first_para = is_first_in_chapter && !options.include_beat_markers;
 
+    if uses_page_prose(scene, beats) {
+        docx = add_prose_to_docx(docx, scene.prose.as_deref(), options, is_first_para).0;
+        for beat in beats {
+            docx = add_beat_marker_to_docx(docx, beat, options);
+        }
+        return docx;
+    }
+
     for beat in beats {
         let (new_docx, added_content) = add_beat_to_docx(docx, beat, options, is_first_para);
         docx = new_docx;
@@ -2696,8 +2726,17 @@ fn add_beat_to_docx(
     options: &DocxExportOptions,
     is_first_para_in_section: bool,
 ) -> (Docx, bool) {
+    let docx = add_beat_marker_to_docx(docx, beat, options);
+    add_prose_to_docx(
+        docx,
+        beat.prose.as_deref(),
+        options,
+        is_first_para_in_section,
+    )
+}
+
+fn add_beat_marker_to_docx(docx: Docx, beat: &Beat, options: &DocxExportOptions) -> Docx {
     let mut docx = docx;
-    let mut added_content = false;
     let font_name = options.font_family.as_str();
     let line_spacing_twips = options.line_spacing.as_twips();
     let line_spacing_u32 = options.line_spacing.as_twips_u32();
@@ -2724,8 +2763,21 @@ fn add_beat_to_docx(
         );
     }
 
-    // Beat prose - parse HTML and preserve formatting (bold, italic, blockquotes)
-    if let Some(ref prose) = beat.prose {
+    docx
+}
+
+/// Render page or beat prose with identical manuscript formatting.
+fn add_prose_to_docx(
+    mut docx: Docx,
+    prose: Option<&str>,
+    options: &DocxExportOptions,
+    is_first_para_in_section: bool,
+) -> (Docx, bool) {
+    let mut added_content = false;
+    let font_name = options.font_family.as_str();
+    let line_spacing_twips = options.line_spacing.as_twips();
+    // Parse HTML and preserve formatting (bold, italic, blockquotes).
+    if let Some(prose) = prose {
         let formatted_paragraphs = parse_html_to_paragraphs(prose);
 
         // Track the index of regular (non-blockquote) paragraphs for first-line indent logic
@@ -3237,46 +3289,11 @@ pub async fn export_to_epub(
                 );
             }
 
-            if options.include_beat_markers {
-                body.push_str(&format!(
-                    "\n  <h2 class=\"scene-title\">{}</h2>",
-                    escape_xml(&scene.title)
-                ));
-            }
-
-            if options.include_synopsis {
-                if let Some(ref synopsis) = scene.synopsis {
-                    if !synopsis.trim().is_empty() {
-                        let synopsis_text = escape_xml(&transform_text(synopsis));
-                        body.push_str(&format!("\n  <p class=\"synopsis\">{}</p>", synopsis_text));
-                    }
-                }
-            }
-
-            if let Some(ref prose) = scene.prose {
-                if !prose.trim().is_empty() {
-                    body.push('\n');
-                    body.push_str(&render_html_to_xhtml(prose));
-                }
-            }
-
             let beats = beats_by_scene
                 .get(&scene.id)
                 .map(Vec::as_slice)
                 .unwrap_or(&[]);
-            for beat in beats {
-                if options.include_beat_markers && !beat.content.trim().is_empty() {
-                    let beat_title = escape_xml(&transform_text(&beat.content));
-                    body.push_str(&format!("\n  <h3 class=\"beat-title\">{}</h3>", beat_title));
-                }
-
-                if let Some(ref prose) = beat.prose {
-                    if !prose.trim().is_empty() {
-                        body.push('\n');
-                        body.push_str(&render_html_to_xhtml(prose));
-                    }
-                }
-            }
+            append_scene_to_epub(&mut body, scene, beats, &options);
 
             is_first_scene = false;
         }
@@ -4178,30 +4195,71 @@ fn default_backup() -> bool {
     true
 }
 
-/// Gather beat prose for a scene, concatenated
-fn gather_scene_prose(conn: &rusqlite::Connection, scene: &Scene) -> Result<String, String> {
-    let beats = db::queries::get_beats(conn, &scene.id).map_err(|e| e.to_string())?;
-    let mut parts: Vec<String> = Vec::new();
-
-    if let Some(ref prose) = scene.prose {
-        if !prose.trim().is_empty() {
-            parts.push(prose.clone());
-        }
+/// Append only the active manuscript representation to an EPUB chapter.
+fn append_scene_to_epub(
+    body: &mut String,
+    scene: &Scene,
+    beats: &[Beat],
+    options: &EpubExportOptions,
+) {
+    if options.include_beat_markers {
+        body.push_str(&format!(
+            "\n  <h2 class=\"scene-title\">{}</h2>",
+            escape_xml(&scene.title)
+        ));
     }
 
-    for beat in &beats {
-        if let Some(ref prose) = beat.prose {
-            if !prose.trim().is_empty() {
-                parts.push(prose.clone());
+    if options.include_synopsis {
+        if let Some(ref synopsis) = scene.synopsis {
+            if !synopsis.trim().is_empty() {
+                let synopsis_text = escape_xml(&transform_text(synopsis));
+                body.push_str(&format!("\n  <p class=\"synopsis\">{}</p>", synopsis_text));
             }
         }
     }
 
-    if parts.is_empty() {
-        Ok(String::new())
-    } else {
-        Ok(parts.join("\n"))
+    if let Some(prose) = scene
+        .prose
+        .as_ref()
+        .filter(|_| uses_page_prose(scene, beats))
+    {
+        if !prose.trim().is_empty() {
+            body.push('\n');
+            body.push_str(&render_html_to_xhtml(prose));
+        }
     }
+
+    for beat in beats {
+        if options.include_beat_markers && !beat.content.trim().is_empty() {
+            let beat_title = escape_xml(&transform_text(&beat.content));
+            body.push_str(&format!("\n  <h3 class=\"beat-title\">{}</h3>", beat_title));
+        }
+
+        if let Some(prose) = beat
+            .prose
+            .as_ref()
+            .filter(|_| !uses_page_prose(scene, beats))
+        {
+            if !prose.trim().is_empty() {
+                body.push('\n');
+                body.push_str(&render_html_to_xhtml(prose));
+            }
+        }
+    }
+}
+
+/// Gather the active prose for a scene, excluding the inactive editor cache.
+fn gather_scene_prose(conn: &rusqlite::Connection, scene: &Scene) -> Result<String, String> {
+    let beats = db::queries::get_beats(conn, &scene.id).map_err(|e| e.to_string())?;
+    if uses_page_prose(scene, &beats) {
+        return Ok(scene.prose.clone().unwrap_or_default());
+    }
+    Ok(beats
+        .iter()
+        .filter_map(|beat| beat.prose.as_deref())
+        .filter(|prose| !prose.trim().is_empty())
+        .collect::<Vec<_>>()
+        .join("\n"))
 }
 
 /// Export project to a Scrivener .scriv bundle
@@ -5321,6 +5379,213 @@ mod tests {
     }
 
     #[test]
+    fn manuscript_exports_use_only_active_prose() {
+        use crate::models::{EditorMode, SourceType};
+        use std::io::Read;
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        let project = Project::new("Novel".into(), SourceType::Blank, None);
+        db::insert_project(&conn, &project).unwrap();
+        let chapter = Chapter::new(project.id, "Chapter".into(), 0);
+        db::insert_chapter(&conn, &chapter).unwrap();
+        let mut scene = Scene::new(chapter.id, "Scene".into(), None, 0);
+        db::insert_scene(&conn, &scene).unwrap();
+        let mut beat = Beat::new(scene.id, "Outline".into(), 0);
+        beat.prose = Some("<p><em>Beat active</em></p>".into());
+        let mut second = Beat::new(scene.id, "Next outline".into(), 1);
+        second.prose = Some("<p>Second beat</p>".into());
+        let epub_options = EpubExportOptions {
+            scope: ExportScope::Project,
+            include_beat_markers: false,
+            include_synopsis: false,
+            output_path: String::new(),
+            create_snapshot: false,
+            metadata: EpubMetadata {
+                title: "Novel".into(),
+                author: "Author".into(),
+                description: None,
+                language: "en".into(),
+            },
+            theme: EpubTheme::default(),
+            include_cover_image: false,
+            cover_image_path: None,
+        };
+        // Includes empty active page text and the legacy no-beats fallback.
+        for (mode, has_beats, page) in [
+            (
+                EditorMode::Page,
+                false,
+                "<p><strong>Page active</strong></p><p>Next paragraph</p>",
+            ),
+            (
+                EditorMode::Page,
+                true,
+                "<p><strong>Page active</strong></p><p>Next paragraph</p>",
+            ),
+            (EditorMode::Beat, true, "<p>Stale page</p>"),
+            (EditorMode::Beat, false, "<p>Page active</p>"),
+            (EditorMode::Page, true, ""),
+        ] {
+            scene.editor_mode = mode;
+            scene.prose = Some(page.into());
+            conn.execute(
+                "UPDATE scenes SET editor_mode = ?1, prose = ?2 WHERE id = ?3",
+                rusqlite::params![
+                    if mode == EditorMode::Page {
+                        "page"
+                    } else {
+                        "beat"
+                    },
+                    page,
+                    scene.id.to_string()
+                ],
+            )
+            .unwrap();
+            conn.execute("DELETE FROM beats", []).unwrap();
+            let beats = if has_beats {
+                vec![beat.clone(), second.clone()]
+            } else {
+                vec![]
+            };
+            for beat in &beats {
+                db::insert_beat(&conn, beat).unwrap();
+            }
+            let page_active = mode == EditorMode::Page || !has_beats;
+            let active = if page_active {
+                if page.is_empty() {
+                    ""
+                } else {
+                    "Page active"
+                }
+            } else {
+                "Beat active"
+            };
+            let inactive = if page_active {
+                "Beat active"
+            } else {
+                "Stale page"
+            };
+            for markers in [false, true] {
+                let mut options = default_test_options();
+                options.include_beat_markers = markers;
+                options.include_synopsis = false;
+                let mut buffer = std::io::Cursor::new(Vec::new());
+                add_scene_to_docx(Docx::new(), &scene, &beats, &options, true)
+                    .build()
+                    .pack(&mut buffer)
+                    .unwrap();
+                buffer.set_position(0);
+                let mut archive = zip::ZipArchive::new(buffer).unwrap();
+                let mut xml = String::new();
+                archive
+                    .by_name("word/document.xml")
+                    .unwrap()
+                    .read_to_string(&mut xml)
+                    .unwrap();
+                let mut epub = String::new();
+                let mut epub_options = epub_options.clone();
+                epub_options.include_beat_markers = markers;
+                append_scene_to_epub(&mut epub, &scene, &beats, &epub_options);
+                let markdown = generate_scene_markdown(&scene, &beats, markers);
+                for output in [&xml, &epub, &markdown] {
+                    assert_eq!(
+                        output.contains("Outline"),
+                        markers && has_beats,
+                        "Beat marker option lost in {output}"
+                    );
+                }
+                let scrivener = gather_scene_prose(&conn, &scene).unwrap();
+                for output in [
+                    xml.clone(),
+                    epub,
+                    scrivener.clone(),
+                    markdown,
+                    generate_longform_scene_markdown(
+                        &project,
+                        &scene,
+                        &beats,
+                        &[],
+                        None,
+                        &Default::default(),
+                    )
+                    .unwrap(),
+                ] {
+                    assert!(!output.contains(inactive), "Inactive copy in {output}");
+                    if !active.is_empty() {
+                        assert_eq!(
+                            output.matches(active).count(),
+                            1,
+                            "Missing or duplicate active prose in {output}"
+                        );
+                    }
+                    if !page_active {
+                        assert_eq!(output.matches("Second beat").count(), 1);
+                    }
+                }
+                assert_eq!(
+                    calculate_project_word_count(&conn, &project.id).unwrap() as i64,
+                    db::writing::count_words(&scrivener)
+                );
+                if page.contains("strong") {
+                    assert!(xml.contains("<w:b"), "Page formatting lost");
+                    assert!(xml.contains("Next paragraph"));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn longform_roundtrip_preserves_page_mode_with_outline_beats() {
+        use crate::models::{EditorMode, SourceType};
+        let project = Project::new("Novel".into(), SourceType::Blank, None);
+        let mut scene = Scene::new(Uuid::new_v4(), "Scene".into(), None, 0);
+        scene.editor_mode = EditorMode::Page;
+        scene.prose = Some("<p>Current page manuscript.</p>".into());
+        let mut beat = Beat::new(scene.id, "Outline prompt".into(), 0);
+        beat.prose = Some("<p>Stale beat manuscript.</p>".into());
+        let dir = tempfile::tempdir().unwrap();
+        let index = dir.path().join("Project.md");
+        fs::write(
+            &index,
+            generate_longform_frontmatter("Novel", ".", &["Scene".into()]).unwrap(),
+        )
+        .unwrap();
+        let scene_path = dir.path().join("Scene.md");
+        fs::write(
+            &scene_path,
+            generate_longform_scene_markdown(
+                &project,
+                &scene,
+                &[beat],
+                &[],
+                None,
+                &Default::default(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        for _ in 0..2 {
+            let parsed = crate::parsers::longform::parse_longform_index(&index).unwrap();
+            assert_eq!(parsed.scenes[0].editor_mode, EditorMode::Page);
+            assert_eq!(parsed.beats.len(), 1);
+            assert_eq!(parsed.beats[0].content, "Outline prompt");
+            assert!(parsed.beats[0].prose.is_none());
+            let markdown = generate_longform_scene_markdown(
+                &parsed.project,
+                &parsed.scenes[0],
+                &parsed.beats,
+                &[],
+                None,
+                &Default::default(),
+            )
+            .unwrap();
+            assert_eq!(markdown.matches("Current page manuscript.").count(), 1);
+            assert!(!markdown.contains("Stale beat manuscript."));
+            fs::write(&scene_path, markdown).unwrap();
+        }
+    }
+
+    #[test]
     fn title_page_word_count_matches_active_writing_prose() {
         use crate::models::{Beat, Chapter, EditorMode, Project, Scene, SourceType};
         let conn = rusqlite::Connection::open_in_memory().unwrap();
@@ -5998,7 +6263,7 @@ mod tests {
         assert!(markdown.contains("synopsis=\"Short synopsis\""));
         assert!(markdown.contains("# Scene Title"));
         assert!(markdown.contains("> Short synopsis"));
-        assert!(markdown.contains("Scene prose."));
+        assert!(!markdown.contains("Scene prose."));
         assert!(markdown.contains("<!-- kindling: beats -->"));
         assert!(markdown.contains("- Beat One"));
         assert!(markdown.contains("Beat prose."));

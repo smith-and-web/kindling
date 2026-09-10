@@ -1209,3 +1209,87 @@ it("preserves paste-as-plain-text and allows Quit from Settings when not recordi
   await fireEvent.keyDown(window, { key: "q", ctrlKey: true });
   await waitFor(() => expect(exit).toHaveBeenCalledWith(0));
 });
+
+it.each(["menu", "native"])(
+  "restores quit selection through both dismissal actions for %s",
+  async (path) => {
+    vi.useFakeTimers();
+    currentProject.setChapters(mockChapters);
+    render(App);
+    await vi.advanceTimersByTimeAsync(0);
+    await fireEvent.click(screen.getByRole("button", { name: "Edit synopsis" }));
+    const editor = screen.getByPlaceholderText(
+      "Write a brief synopsis for this scene..."
+    ) as HTMLTextAreaElement;
+    await fireEvent.input(editor, { target: { value: "My unsaved writing" } });
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === "save_scene_synopsis") throw new Error("disk full");
+      return [];
+    });
+    for (const action of ["button", "Escape", "cancel"]) {
+      editor.focus();
+      editor.setSelectionRange(3, 7, "backward");
+      if (path === "menu") await menu("quit");
+      else
+        await vi
+          .mocked(getCurrentWindow().onCloseRequested)
+          .mock.calls[0][0]({ preventDefault: vi.fn() } as never);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(document.activeElement?.closest("[data-quit-confirmation]")).toBeTruthy();
+      editor.setSelectionRange(0, 0);
+      if (action === "button")
+        await fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+      else if (action === "Escape") await fireEvent.keyDown(window, { key: "Escape" });
+      else
+        await fireEvent(
+          document.querySelector("[data-quit-confirmation]")!,
+          new Event("cancel", { cancelable: true })
+        );
+      await vi.advanceTimersByTimeAsync(0);
+      expect(document.activeElement).toBe(editor);
+      expect([editor.selectionStart, editor.selectionEnd, editor.selectionDirection]).toEqual([
+        3,
+        7,
+        "backward",
+      ]);
+      expect(editor.value).toBe("My unsaved writing");
+    }
+  }
+);
+
+it.each(["scene", "project", "other control", "unmount"])(
+  "does not restore quit focus after %s changes",
+  async (target) => {
+    vi.useFakeTimers();
+    currentProject.setChapters(mockChapters);
+    const app = render(App);
+    await vi.advanceTimersByTimeAsync(0);
+    await fireEvent.click(screen.getByRole("button", { name: "Edit synopsis" }));
+    const editor = screen.getByPlaceholderText(
+      "Write a brief synopsis for this scene..."
+    ) as HTMLTextAreaElement;
+    await fireEvent.input(editor, { target: { value: "My unsaved writing" } });
+    editor.focus();
+    editor.setSelectionRange(3, 7);
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === "save_scene_synopsis") throw new Error("disk full");
+      return [];
+    });
+    await menu("quit");
+    await vi.advanceTimersByTimeAsync(0);
+    const other = document.createElement("button");
+    if (target === "scene")
+      currentProject.setCurrentScene({ ...mockScenes[1], planning_status: "undefined" });
+    if (target === "project") currentProject.setProject(null);
+    if (target === "other control") {
+      document.body.append(other);
+      other.focus();
+      other.blur();
+    }
+    if (target === "unmount") app.unmount();
+    else await fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(document.activeElement).not.toBe(editor);
+    other.remove();
+  }
+);

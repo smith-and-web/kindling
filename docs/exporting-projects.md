@@ -2,6 +2,14 @@
 
 Kindling exports your work to multiple formats so you can move between outlining, drafting, and publishing workflows.
 
+Manuscript exports (DOCX, Markdown, Longform, EPUB, Scrivener, and novelWriter) use each scene's
+active writing view: Page View prose or Beat View prose, exactly once. Cached prose
+from the other view is excluded. Scenes without beats use Page View prose. DOCX
+body text and its manuscript word count follow this same rule. Longform retains
+beat outline prompts and the active editor mode for roundtripping, but excludes
+inactive beat prose. When beat markers are requested for a Page View scene, its
+outline headings follow the page prose; they do not imply paragraph boundaries.
+
 ## Export Dialog
 
 Open **Export** from the project toolbar or menu, then choose a format and scope.

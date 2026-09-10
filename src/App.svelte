@@ -185,6 +185,32 @@
 
   let quitConfirmation: HTMLDialogElement | undefined = $state();
 
+  let finishQuitFocus: ((restore: boolean) => void) | undefined;
+
+  function captureCurrentWritingFocus(isTemporaryFocus?: (target: Event["target"]) => boolean) {
+    const projectId = currentProject.value?.id;
+    const sceneId = currentProject.currentScene?.id;
+    return captureWritingFocus(
+      () => currentProject.value?.id === projectId && currentProject.currentScene?.id === sceneId,
+      isTemporaryFocus
+    );
+  }
+
+  async function keepEditing() {
+    if (closePending) return;
+    const finish = finishQuitFocus;
+    finishQuitFocus = undefined;
+    quitConfirmation?.close();
+    discardQuitDrafts = null;
+    await tick();
+    finish?.(true);
+  }
+
+  function releaseQuitFocus() {
+    finishQuitFocus?.(false);
+    finishQuitFocus = undefined;
+  }
+
   function focusQuitConfirmation(node: HTMLDialogElement) {
     node.showModal();
     node.querySelector<HTMLElement>("button")?.focus();
@@ -219,7 +245,7 @@
       }
       event.preventDefault();
       event.stopImmediatePropagation();
-      if (event.key === "Escape" && !closePending && !updatePending) discardQuitDrafts = null;
+      if (event.key === "Escape" && !closePending && !updatePending) void keepEditing();
     };
     window.addEventListener("keydown", guardKeyboard, true);
     return () => window.removeEventListener("keydown", guardKeyboard, true);
@@ -228,10 +254,14 @@
   function flushBeforeClose() {
     if (discardQuitDrafts || updatePending) return Promise.resolve(false);
     if (closeRequest) return closeRequest;
+    finishQuitFocus = captureCurrentWritingFocus(
+      (target) => target instanceof Node && !!quitConfirmation?.contains(target)
+    );
     closePending = true;
     closeRequest = saveBeforeClose().finally(() => {
       closePending = false;
       closeRequest = null;
+      if (!discardQuitDrafts) releaseQuitFocus();
     });
     return closeRequest;
   }
@@ -289,6 +319,7 @@
   async function quitAndDiscard() {
     const approved = discardQuitDrafts;
     if (!approved || closePending) return;
+    releaseQuitFocus();
     closePending = true;
     try {
       if (editorialQuitFailed) editorial?.discardForQuit();
@@ -313,6 +344,7 @@
       if (!(await flushBeforeClose())) event.preventDefault();
     });
     return () => {
+      releaseQuitFocus();
       void unlisten.then((stop) => stop());
     };
   });
@@ -545,13 +577,7 @@
   disabled={closePending || discardQuitDrafts !== null}
   bind:restarting={updatePending}
   prepare={flushProseBeforeExit}
-  captureFocus={() => {
-    const projectId = currentProject.value?.id;
-    const sceneId = currentProject.currentScene?.id;
-    return captureWritingFocus(
-      () => currentProject.value?.id === projectId && currentProject.currentScene?.id === sceneId
-    );
-  }}
+  captureFocus={() => captureCurrentWritingFocus()}
 />
 
 {#if discardQuitDrafts}
@@ -560,7 +586,10 @@
     aria-labelledby="quit-confirmation-title"
     bind:this={quitConfirmation}
     use:focusQuitConfirmation
-    oncancel={(event) => event.preventDefault()}
+    oncancel={(event) => {
+      event.preventDefault();
+      void keepEditing();
+    }}
     class="border-0 p-0 max-w-none max-h-none backdrop:bg-transparent"
   >
     <ConfirmDialog
@@ -579,9 +608,7 @@
       confirmLabel="Quit and discard"
       cancelLabel="Keep editing"
       onConfirm={quitAndDiscard}
-      onCancel={() => {
-        if (!closePending) discardQuitDrafts = null;
-      }}
+      onCancel={keepEditing}
     />
     {@render errorToast()}
   </dialog>
