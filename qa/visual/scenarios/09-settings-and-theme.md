@@ -1,86 +1,17 @@
-# 09 Settings dialogs and the real theme toggle
+# 09 Unified settings and themes
 
-No e2e counterpart. Exercises the Project Settings dialog and the Kindling
-Settings dialog, and switches theme through the actual radio control so the
-`theme.ts` path is what gets verified, not the harness shortcut.
-Budget: 4 screenshots, about 9 tool calls.
+Use a disposable project database and save/restore `kindling:*` preferences with the harness.
 
-Precondition: editor view.
+1. Open **File → Settings** (or send `q.key(",", { metaKey: true })`). Verify a single native dialog titled Settings, a left navigation sidebar, and right-hand controls. The sidebar, References panel, and start screen should have no separate settings gears.
+2. Select **Author & Contact**. Confirm loaded values and edit a draft. Navigate to Appearance and back; the draft should survive. Close Settings, choose Keep editing, then close and discard. Verify reopening loads the saved values.
+3. Select **Project Details**. Verify the selector lists all fixture projects and defaults to the open project. Change the word target and daily goal; save, close, reopen, and verify persistence.
+4. Switch to a second fixture project. Edit and save its genre. Verify the editor's project and scene stay unchanged, and that the first project's metadata has not changed.
+5. Edit a draft, switch projects, and exercise both Keep editing and Discard changes. Repeat with a tag draft and a custom-field draft. Navigate between areas to verify drafts survive.
+6. Select **Reference Types**, change enabled types, and save. Confirm the selected project's References panel refreshes; disabled types retain their existing entries.
+7. Select **Tags** and **Custom Fields** and exercise create/edit/delete using disposable entries. Check the target project IDs and that the editor sees updates for the open project.
+8. Select **Appearance & Guidance**, click the Dark radio, and capture `09-01-unified-settings-dark`. Inspect computed dialog/sidebar/control colors. Click Light, inspect again, and capture `09-02-unified-settings-light`.
+9. Capture Project Details at 1600×1000 and at a narrow viewport. Verify the left navigation stays visible, controls scroll vertically, and there is no horizontal overflow.
+10. Close the project and reopen Settings from File. Project navigation and shared preferences must remain available. With no projects, show an empty state without disabling shared settings.
+11. Restore preferences and delete only the fixtures created during this run.
 
-## Call 1: project settings (screenshot 09-01)
-
-```js
-const q = window.__qa;
-q.key("Escape");
-q.click("settings-button");
-q.shot("09-01-project-settings");
-return JSON.stringify(q.preflight());
-```
-
-`wait_for` selector `#settings-dialog-title`, then screenshot.
-
-**Expect**: dialog with project name, author, genre, description and word
-target fields, Fraunces or Inter heading per Press, Save primary and Cancel.
-Then `q.click("project-settings-close")`.
-
-## Call 2: Kindling settings from the start screen (screenshot 09-02)
-
-```js
-const q = window.__qa;
-q.clickSel('[aria-label="Close project"]');
-return "start";
-```
-
-`wait_for` `[data-testid="import-section"]`, then
-
-```js
-const q = window.__qa;
-q.click("kindling-settings-button");
-q.shot("09-02-kindling-settings");
-return JSON.stringify(q.preflight());
-```
-
-`wait_for` text `Appearance`, then screenshot.
-
-**Expect**: dialog with an Appearance section showing Dark, Light and System
-as three equal segments, the current one outlined in accent, plus author
-details fields below.
-
-## Call 3: switch to dark through the radio (screenshot 09-03)
-
-```js
-const q = window.__qa;
-q.click("theme-option-dark");
-return q.settle("theme-ui");
-```
-
-`wait_for` `#qa-settled-theme-ui` attached, then
-
-```js
-const q = window.__qa;
-q.shot("09-03-dark-via-settings");
-return JSON.stringify({ ...q.diagTheme(), pf: q.preflight() });
-```
-
-Then screenshot.
-
-**Expect**: the whole window including the start screen behind the dialog is
-dark on the first capture, the Dark segment is the outlined one, and
-`diagTheme` reports dark surfaces. A light frame here means the
-`theme-switching` flush in `theme.ts` is not doing its job.
-
-## Call 4: back to light, close, reopen the fixture
-
-```js
-const q = window.__qa;
-q.click("theme-option-light");
-q.click("kindling-settings-close");
-q.shot("09-04-light-restored");
-return q.settle("theme-ui2");
-```
-
-`wait_for` `#qa-settled-theme-ui2` attached, then screenshot, then
-`q.click("project-card", "Simple Story")` and `wait_for` text `Act 1`.
-
-**Expect**: start screen back in light, no dialog residue. The stored
-preference is whatever it was before; this scenario toggles twice.
+Automated regression tests cover rejected list/author loads, retries, rejected saves, and navigation guards during writes. Record desktop IPC checks and screenshot observations separately in the acceptance report.

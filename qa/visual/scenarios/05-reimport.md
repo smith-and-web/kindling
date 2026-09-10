@@ -33,7 +33,7 @@ exists or the text says "All synced".
 **Expect**: a centred dialog with a Fraunces title, a close (X) control at
 top right, and either an "All synced" state with a check icon or grouped
 lists of New Items / Changes with checkboxes. No loading spinner left behind.
-The sync button itself sits in the sidebar header beside Project settings,
+The sync button itself sits in the sidebar header beside More actions,
 same size as its neighbours.
 
 ## Call 2: prose survives a sync (DOM only, 05-04)

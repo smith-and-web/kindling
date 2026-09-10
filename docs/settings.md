@@ -1,37 +1,22 @@
 # Settings in Kindling
 
-Kindling has two layers of settings: app-wide settings that apply to every project, and project-specific settings for individual manuscripts.
+Open **File → Settings…** or press **Cmd+,** on macOS / **Ctrl+,** on Windows and Linux. The command palette also has a single **Settings** command. The same window is available from the start screen and while a manuscript is open.
 
-## App Settings (Kindling Settings)
+Use the left sidebar to choose an area; its controls appear on the right:
 
-App settings control your author and contact information, which is used on exported title pages.
+- **Appearance & Guidance**: Light, Dark, or System theme and contextual guidance tips. These preferences apply immediately across Kindling.
+- **Author & Contact**: Author name, address, phone, and email used on exported manuscript title pages. Choose **Save author details** to apply changes.
+- **Project Details**: Pen name, genre, description, word target, and daily writing goal. A pen name overrides the shared author name for that project's byline. A daily goal of 0 turns off the goal.
+- **Reference Types**: Choose which reference categories appear in the selected project's References panel. Disabling a category keeps its existing entries.
+- **Tags**: Create, edit, and organize project tags.
+- **Custom Fields**: Define typed fields for the project's enabled reference categories.
 
-- Author name
-- Contact address (two lines)
-- Phone
-- Email
+## Choosing a project
 
-![Screenshot: Kindling settings](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/kindling-settings.png)
+In any project area, use the **Project** selector above the controls to choose from all your projects. The open manuscript and selected scene stay in place while you configure another project. If you have no projects yet, create or import one first; shared preferences remain available.
 
-## Project Settings
+Choose **Save project changes** to save project details and reference types. Tags and custom fields save through their own add, edit, and delete controls. Drafts remain while you navigate settings areas. Before switching projects or closing Settings with unsaved changes, Kindling asks whether to discard them or keep editing.
 
-Project settings customize metadata for a single project:
+## Export impact
 
-- Pen name (overrides app-level author name for this project)
-- Genre
-- Project description
-- Word target
-
-![Screenshot: Project settings](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/project-settings.png)
-
-## Reference Type Settings
-
-Reference types are managed from the References panel settings cog. You can enable or disable reference types per project (characters, locations, items, objectives, organizations).
-
-## Export Impact
-
-Settings influence exports in several places:
-
-- Title pages use app settings and project pen name
-- Genre and description appear in exported metadata
-- Word target helps track progress during drafting
+Author and contact details populate manuscript title pages. Project pen names, genre, and descriptions supply project-specific export metadata. Word targets and daily goals help track drafting progress.

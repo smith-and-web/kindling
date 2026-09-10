@@ -33,7 +33,6 @@
     Lock,
     Unlock,
     Download,
-    Settings,
     BookOpen,
     StickyNote,
     CheckSquare,
@@ -56,10 +55,8 @@
     SyncPreview,
     ReimportSummary,
     ExportResult,
-    Project,
   } from "../types";
   import ArchivePanel from "./ArchivePanel.svelte";
-  import ProjectSettingsDialog from "./ProjectSettingsDialog.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import PartDeleteDialog from "./PartDeleteDialog.svelte";
   import ContextMenu from "./ContextMenu.svelte";
@@ -413,9 +410,6 @@
     saveChapterSynopsis(chapterId);
     editingChapterSynopsisId = null;
   }
-
-  // Project settings dialog state
-  let showSettingsDialog = $state(false);
 
   // Export dialog state
   let exportDialog: {
@@ -1337,16 +1331,6 @@
         </div>
         <!-- Action icons (primary only; secondary behind more menu) -->
         <div class="flex items-center gap-0.5 shrink-0">
-          <Tooltip text="Project settings" position="bottom">
-            <button
-              data-testid="settings-button"
-              onclick={() => (showSettingsDialog = true)}
-              class="p-1.5 text-press-muted hover:text-press-text hover:bg-press-sunken rounded transition-colors"
-              aria-label="Project settings"
-            >
-              <Settings class="w-4 h-4" />
-            </button>
-          </Tooltip>
           {#if currentProject.value.source_path && supportsSync(currentProject.value.source_type)}
             <Tooltip text="Sync from source" position="bottom">
               <button
@@ -2240,15 +2224,4 @@
 <!-- Export Success Dialog -->
 {#if exportResult}
   <ExportSuccessDialog result={exportResult} onClose={() => (exportResult = null)} />
-{/if}
-
-<!-- Project Settings Dialog -->
-{#if showSettingsDialog}
-  <ProjectSettingsDialog
-    onClose={() => (showSettingsDialog = false)}
-    onSave={(updatedProject: Project) => {
-      currentProject.setProject(updatedProject);
-      showSettingsDialog = false;
-    }}
-  />
 {/if}

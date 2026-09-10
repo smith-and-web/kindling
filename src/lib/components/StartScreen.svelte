@@ -7,7 +7,6 @@
     Kanban,
     Trash2,
     Loader2,
-    Settings,
     PenTool,
     BookOpen,
     FilePlus,
@@ -18,7 +17,6 @@
   import type { Project } from "../types";
   import Tooltip from "./Tooltip.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
-  import KindlingSettingsDialog from "./KindlingSettingsDialog.svelte";
   import BrandMark from "./BrandMark.svelte";
 
   interface Props {
@@ -42,7 +40,6 @@
   let deletingProjectId = $state<string | null>(null);
   let hoveredProjectId = $state<string | null>(null);
   let projectToDelete = $state<Project | null>(null);
-  let showSettingsDialog = $state(false);
   let showAllProjects = $state(false);
 
   async function handleImport(type: ImportType) {
@@ -149,16 +146,6 @@
         </button>
       </Tooltip>
     {/if}
-    <Tooltip text="Kindling Settings" position="left">
-      <button
-        onclick={() => (showSettingsDialog = true)}
-        class="p-2 text-press-muted hover:text-press-text hover:bg-press-sunken rounded-lg transition-colors"
-        aria-label="Kindling Settings"
-        data-testid="kindling-settings-button"
-      >
-        <Settings class="w-5 h-5" />
-      </button>
-    </Tooltip>
   </div>
 
   <div class="w-full max-w-6xl flex flex-col lg:flex-row gap-8 lg:gap-12 flex-1 min-h-0 min-w-0">
@@ -365,13 +352,5 @@
     confirmLabel="Delete Project"
     onConfirm={confirmDeleteProject}
     onCancel={cancelDeleteProject}
-  />
-{/if}
-
-<!-- Kindling Settings Dialog -->
-{#if showSettingsDialog}
-  <KindlingSettingsDialog
-    onClose={() => (showSettingsDialog = false)}
-    onSave={() => (showSettingsDialog = false)}
   />
 {/if}

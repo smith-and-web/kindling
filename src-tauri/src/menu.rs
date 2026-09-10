@@ -5,8 +5,7 @@
 //! - Import (Longform)
 //! - Export
 //! - Close Project
-//! - Project Settings
-//! - Kindling Settings
+//! - Settings
 
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
@@ -24,8 +23,7 @@ pub mod menu_ids {
     pub const IMPORT_SCRIVENER: &str = "import_scrivener";
     pub const EXPORT: &str = "export";
     pub const CLOSE_PROJECT: &str = "close_project";
-    pub const PROJECT_SETTINGS: &str = "project_settings";
-    pub const KINDLING_SETTINGS: &str = "kindling_settings";
+    pub const SETTINGS: &str = "settings";
     pub const QUICK_START: &str = "quick_start";
     pub const TOGGLE_SIDEBAR: &str = "toggle_sidebar";
     pub const TOGGLE_REFERENCES: &str = "toggle_references";
@@ -89,14 +87,9 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .accelerator("CmdOrCtrl+W")
         .build(app)?;
 
-    // Settings menu items
-    let project_settings = MenuItemBuilder::new("Project Settings...")
-        .id(menu_ids::PROJECT_SETTINGS)
-        .accelerator("CmdOrCtrl+Shift+P")
-        .build(app)?;
-
-    let kindling_settings = MenuItemBuilder::new("Kindling Settings...")
-        .id(menu_ids::KINDLING_SETTINGS)
+    // Unified settings
+    let settings = MenuItemBuilder::new("Settings...")
+        .id(menu_ids::SETTINGS)
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
 
@@ -130,8 +123,7 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .separator()
         .item(&close_project)
         .separator()
-        .item(&project_settings)
-        .item(&kindling_settings)
+        .item(&settings)
         .separator()
         .item(&quit)
         .build()?;

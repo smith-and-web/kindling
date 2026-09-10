@@ -64,6 +64,9 @@ beforeEach(async () => {
   // Drain the real debounce timer before individual tests install fake timers or flush spies.
   await session.flush();
   HTMLElement.prototype.scrollIntoView = vi.fn();
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute("open");
+  };
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute("open", "");
   };
@@ -1020,4 +1023,16 @@ it("attempts writing saves and offers explicit recovery when an editorial save b
   await fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
   expect(localStorage.getItem("kindling.editorial.recovery.quit-review")).toContain("Rowan");
   localStorage.removeItem("kindling.editorial.recovery.quit-review");
+});
+
+it("opens one settings window from the menu and reserves native project commands until it closes", async () => {
+  render(App);
+  await menu("settings");
+  expect(await screen.findByRole("dialog", { name: "Settings" })).toBeTruthy();
+  await menu("settings");
+  expect(screen.getAllByRole("dialog", { name: "Settings" })).toHaveLength(1);
+  await menu("new_project");
+  expect(screen.queryByText("Create New Project")).toBeNull();
+  await menu("close_project");
+  expect(currentProject.value?.id).toBe(mockProject.id);
 });

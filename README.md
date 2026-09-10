@@ -170,7 +170,7 @@ bar for total words, a chapter breakdown, scenes with prose versus empty scenes,
 average words per scene (including empty scenes). Counts use the active Page or Beat
 View prose and exclude archived content and outline prompts.
 
-Set a **Daily writing goal** in **Project Settings** (default: 500 words; 0 turns the
+Set a **Daily writing goal** in **File → Settings → Project Details** (default: 500 words; 0 turns the
 goal off). Daily and session totals measure net words added by saved edits, including
 Find and Replace; deleting words reduces these totals, which can be negative.
 Imports, duplication, reorganization, draft restoration and accepted editorial suggestions do not earn or remove writing credit. If you restore an earlier draft and write the text again, those new saved edits count as new writing activity.
