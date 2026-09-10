@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { tick } from "svelte";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -1047,50 +1047,58 @@ it("opens the shared settings window from the pinned project sidebar footer", as
   expect(screen.getAllByRole("dialog", { name: "Settings" })).toHaveLength(1);
 });
 
-it("keeps Settings visible and reachable from every entry point during local editorial review", async () => {
-  const source = {
-    id: mockScenes[0].id,
-    scene_id: mockScenes[0].id,
-    chapter_id: mockScenes[0].chapter_id,
-    chapter: "Chapter",
-    scene: "Scene",
-    mode: "page",
-    html: "<p>Manuscript for settings navigation.</p>",
-    locked: false,
-  };
-  const round = {
-    id: "settings-review",
-    project_id: mockProject.id,
-    title: "Settings test",
-    name: "Local review",
-    brief: "",
-    created_at: "2026-09-09",
-    sources: [source],
-  };
-  vi.mocked(invoke).mockImplementation(async (command) => {
-    if (command === "open_local_editorial_review")
-      return { format: "kindling-editorial", version: 1, kind: "review", round, session: null };
-    if (command === "get_editorial_feedback")
-      return { round, sources: [source], entries: [], version: 1 };
-    if (command === "editorial_sources") return [source];
-    return [];
-  });
-  Range.prototype.getClientRects = vi.fn().mockReturnValue([]);
-  Range.prototype.getBoundingClientRect = vi.fn().mockReturnValue(new DOMRect());
-  render(App);
-  await fireEvent.click(await screen.findByRole("button", { name: "Revisions" }));
-  await screen.findByRole("button", { name: "Return to writing" });
-  const footer = screen.getByTestId("sidebar-settings-button");
-  await fireEvent.click(footer);
-  let settings = await screen.findByRole("dialog", { name: "Settings" });
-  expect(settings.closest("[hidden]")).toBeNull();
-  await fireEvent.click(screen.getByRole("button", { name: "Close settings" }));
-  await menu("settings");
-  settings = await screen.findByRole("dialog", { name: "Settings" });
-  expect(settings.closest("[hidden]")).toBeNull();
-  await fireEvent.click(screen.getByRole("button", { name: "Close settings" }));
-  await fireEvent.keyDown(window, { key: ",", metaKey: true });
-  settings = await screen.findByRole("dialog", { name: "Settings" });
-  expect(settings.closest("[hidden]")).toBeNull();
-  expect(currentProject.value?.id).toBe(mockProject.id);
-});
+it.each(["sidebar", "menu", "keyboard"])(
+  "keeps Settings visible and reachable from the %s during local editorial review",
+  async (entryPoint) => {
+    const source = {
+      id: mockScenes[0].id,
+      scene_id: mockScenes[0].id,
+      chapter_id: mockScenes[0].chapter_id,
+      chapter: "Chapter",
+      scene: "Scene",
+      mode: "page",
+      html: "<p>Manuscript for settings navigation.</p>",
+      locked: false,
+    };
+    const round = {
+      id: "settings-review",
+      project_id: mockProject.id,
+      title: "Settings test",
+      name: "Local review",
+      brief: "",
+      created_at: "2026-09-09",
+      sources: [source],
+    };
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "open_local_editorial_review")
+        return { format: "kindling-editorial", version: 1, kind: "review", round, session: null };
+      if (command === "get_editorial_feedback")
+        return { round, sources: [source], entries: [], version: 1 };
+      if (command === "editorial_sources") return [source];
+      return [];
+    });
+    Range.prototype.getClientRects = vi.fn().mockReturnValue([]);
+    Range.prototype.getBoundingClientRect = vi.fn().mockReturnValue(new DOMRect());
+    render(App);
+    // Scope button queries so accessibility checks do not traverse both full workspaces.
+    const scene = within(screen.getByTestId("scene-panel"));
+    await fireEvent.click(scene.getByRole("button", { name: "Revisions" }));
+    const editorial = await screen.findByRole("region", { name: "Editorial workspace" });
+    expect(within(editorial).getByRole("button", { name: "Return to writing" })).toBeTruthy();
+
+    if (entryPoint === "sidebar") {
+      await fireEvent.click(screen.getByTestId("sidebar-settings-button"));
+    } else if (entryPoint === "menu") {
+      await menu("settings");
+    } else {
+      await fireEvent.keyDown(window, { key: ",", metaKey: true });
+    }
+
+    const settings = await screen.findByRole("dialog", { name: "Settings" });
+    expect(settings.closest("[hidden]")).toBeNull();
+    expect(currentProject.value?.id).toBe(mockProject.id);
+    await fireEvent.click(within(settings).getByRole("button", { name: "Close settings" }));
+    expect(screen.queryByRole("dialog", { name: "Settings" })).toBeNull();
+    expect(within(editorial).getByRole("button", { name: "Return to writing" })).toBeTruthy();
+  }
+);
