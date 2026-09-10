@@ -37,7 +37,8 @@
     "prepare": "git config core.hooksPath .githooks",
     "tauri:qa": "KINDLING_DATA_DIR=$PWD/qa/visual/data npm run tauri dev",
     "tauri:demo": "KINDLING_DATA_DIR=$PWD/qa/demo/data npm run tauri dev",
-    "seed:demo": "node qa/demo/seed.mjs"
+    "seed:demo": "node qa/demo/seed.mjs",
+    "test:startup": "node qa/visual/startup.mjs"
   },
   "license": "MIT",
   "dependencies": {

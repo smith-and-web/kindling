@@ -1,9 +1,3 @@
-// MCP plugin guest JS — must run before any framework mounts (dev only)
-if (import.meta.env.DEV) {
-  const { setupPluginListeners } = await import("tauri-plugin-mcp");
-  await setupPluginListeners();
-}
-
 import "./app.css";
 import App from "./App.svelte";
 import { mount } from "svelte";
@@ -13,14 +7,17 @@ import { currentProject } from "./lib/stores/project.svelte";
 import { ui } from "./lib/stores/ui.svelte";
 import type { Project, Chapter } from "./lib/types";
 
+let contentReady!: () => void;
+const initialContent = new Promise<void>((resolve) => (contentReady = resolve));
 const app = mount(App, {
   target: document.getElementById("app")!,
+  props: { onReady: contentReady },
 });
 
-// Keep the HTML loading screen through module loading and Svelte's first render.
-// It lives outside #app because mount appends rather than replacing its contents.
-await tick();
-document.getElementById("startup-loading")?.remove();
+// The bootstrap keeps its overlay until initial content has settled and Svelte
+// has flushed it, then waits for fonts, images and a paint opportunity.
+export const ready = initialContent.then(() => tick());
+export const focusAfterStartup = app.focusAfterStartup;
 
 import { IMPORT_COMMANDS, isImportType, type ImportType } from "./lib/importFormats";
 

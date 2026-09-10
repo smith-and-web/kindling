@@ -38,8 +38,19 @@
   import type { ProseDocument } from "./lib/utils/proseSearch";
   import type { Project, ExportResult, Chapter, Scene, Beat } from "./lib/types";
 
+  let { onReady }: { onReady?: () => void } = $props();
+  let initialProjectsLoaded = $state(false);
+  let initialEditorialLoaded = $state(false);
+
+  $effect(() => {
+    if (initialProjectsLoaded && initialEditorialLoaded) onReady?.();
+  });
+
   let scenePanel: ReturnType<typeof ScenePanel> | undefined = $state();
   let editorial: ReturnType<typeof EditorialWorkspace> | undefined = $state();
+  export function focusAfterStartup() {
+    editorial?.focusIfOpen();
+  }
   let searchDialog: ReturnType<typeof FindReplaceDialog> | undefined = $state();
   let search = $state<{ projectId: string; scope: "scene" | "project"; replace: boolean } | null>(
     null
@@ -99,6 +110,8 @@
     } catch (e) {
       console.error("Failed to load recent projects:", e);
       recentProjects = [];
+    } finally {
+      initialProjectsLoaded = true;
     }
   }
 
@@ -677,6 +690,7 @@
 
   <EditorialWorkspace
     bind:this={editorial}
+    onReady={() => (initialEditorialLoaded = true)}
     prepareWriting={async () => {
       await scenePanel?.prepareForSearch();
       await proseSaves.flush();

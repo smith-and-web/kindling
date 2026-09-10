@@ -14,6 +14,11 @@ body {
   background: var(--color-bg);
 }
 
+/* Keep every app layer beneath the startup overlay while it renders. */
+#app[aria-busy="true"] {
+  isolation: isolate;
+}
+
 #startup-loading {
   position: fixed;
   inset: 0;
@@ -38,8 +43,23 @@ body {
   pointer-events: none;
 }
 
-#startup-loading > span {
+#startup-loading > span,
+#startup-retry {
   position: relative;
+}
+
+#startup-retry {
+  padding: var(--space-2xs) var(--space-s);
+  border: var(--border-hair);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+#startup-retry:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .startup-spinner {

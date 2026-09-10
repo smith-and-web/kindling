@@ -66,9 +66,10 @@ Or grab the latest directly from the [Releases page](https://github.com/smith-an
 
 ## Features
 
-On launch, a theme-matched loading indicator appears while the interface starts.
-It respects your system's reduced-motion setting and disappears as soon as the
-interface is rendered, without adding a startup delay.
+On launch, the window opens with a theme-matched loading overlay before the main
+interface loads. It respects your system's reduced-motion setting and stays until
+initial content, fonts and images are ready and the interface has had a chance to
+paint. There is no minimum display timer.
 
 | Feature | Description |
 |---------|-------------|

@@ -18,11 +18,12 @@
     </script>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app" inert aria-busy="true"></div>
     <div id="startup-loading" role="status" aria-live="polite">
       <span class="startup-spinner" aria-hidden="true"></span>
-      <span>Starting Kindling…</span>
+      <span id="startup-message">Starting Kindling…</span>
+      <button id="startup-retry" type="button" hidden>Try again</button>
     </div>
-    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="/src/startup.ts"></script>
   </body>
 </html>

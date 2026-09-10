@@ -64,10 +64,12 @@
     prepareWriting,
     onManuscriptChanged,
     references,
+    onReady,
   }: {
     prepareWriting: () => Promise<void>;
     onManuscriptChanged: () => Promise<void>;
     references?: Snippet<[string]>;
+    onReady?: () => void;
   } = $props();
   let dialog: HTMLElement;
   let local = $state(false);
@@ -699,11 +701,14 @@
       void flush().catch(() => {});
     }, 350);
   }
+  export function focusIfOpen() {
+    if (active) dialog.focus();
+  }
   async function show() {
     const alreadyOpen = active;
     active = true;
     await tick();
-    if (!alreadyOpen) dialog.focus();
+    if (!alreadyOpen) focusIfOpen();
   }
   async function close() {
     try {
@@ -1165,6 +1170,10 @@
       if (drainAgain) {
         drainAgain = false;
         void drainFiles();
+      } else if (!incoming.length) {
+        // A native open event can begin draining before listen() resolves.
+        // Signal readiness only from the drain that actually emptied the queue.
+        onReady?.();
       }
     }
   }
@@ -1177,6 +1186,7 @@
       .then(() => drainFiles())
       .catch((e) => {
         error = String(e);
+        onReady?.();
       });
     return () => {
       clearTimeout(timer);
