@@ -6,7 +6,7 @@
 -->
 <script lang="ts">
   import { shortcuts } from "../stores/shortcuts.svelte";
-  import { Command, Search } from "lucide-svelte";
+  import { Keyboard, Search } from "lucide-svelte";
   import { fuzzyMatch, fuzzyScore, type CommandDef } from "../commands";
 
   interface CommandWithAction extends CommandDef {
@@ -158,7 +158,7 @@
               : 'hover:bg-press-accent-wash'}"
           >
             <div class="flex items-center gap-3 min-w-0">
-              <Command class="w-4 h-4 shrink-0 text-press-muted" />
+              <Keyboard class="w-4 h-4 shrink-0 text-press-muted" />
               <span class="truncate text-press-text">{cmd.label}</span>
             </div>
             <kbd
