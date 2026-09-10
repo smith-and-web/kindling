@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { invoke } from "@tauri-apps/api/core";
 import SettingsDialog from "./SettingsDialog.svelte";
 import { currentProject } from "../stores/project.svelte";
@@ -229,4 +229,28 @@ it("protects custom field drafts when their reference type is disabled", async (
   await fireEvent.click(screen.getByRole("button", { name: "Reference Types" }));
   await fireEvent.click(screen.getByRole("button", { name: "Save project changes" }));
   await screen.findByText("Project changes saved.");
+});
+
+it("groups navigation by scope and keeps the project selector in the sidebar across areas", async () => {
+  render(SettingsDialog, { onClose: vi.fn() });
+  const nav = screen.getByRole("navigation", { name: "Settings areas" });
+  const shared = within(nav).getByRole("region", { name: "Kindling" });
+  const projectGroup = within(nav).getByRole("region", { name: "Projects" });
+  expect(within(shared).getByRole("heading", { name: "Preferences" })).toBeTruthy();
+  expect(within(projectGroup).getByRole("heading", { name: "Manuscript" })).toBeTruthy();
+  expect(within(projectGroup).getByRole("heading", { name: "Reference Library" })).toBeTruthy();
+  const selector = await within(projectGroup).findByRole("combobox", { name: "Project" });
+  expect(screen.getAllByRole("combobox", { name: "Project" })).toHaveLength(1);
+  expect(screen.getByTestId("settings-location").textContent).toContain("Kindling / Preferences");
+  await fireEvent.change(selector, { target: { value: second.id } });
+  expect(screen.getByRole("button", { name: "Project Details" }).getAttribute("aria-current")).toBe(
+    "page"
+  );
+  expect(screen.getByTestId("settings-location").textContent?.trim()).toBe(
+    "Projects / Second manuscript / Manuscript"
+  );
+  await fireEvent.click(screen.getByRole("button", { name: "Custom Fields" }));
+  expect(screen.getByTestId("settings-location").textContent).toContain("Reference Library");
+  expect(within(projectGroup).getByRole("combobox", { name: "Project" })).toBe(selector);
+  expect(currentProject.value?.id).toBe(mockProject.id);
 });

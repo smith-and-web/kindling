@@ -40,6 +40,7 @@
     CircleDot,
     CircleDashed,
     Filter,
+    Settings,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { session } from "../stores/session.svelte";
@@ -84,8 +85,12 @@
   let {
     prepareWritingReset,
     beforeCloseProject,
-  }: { prepareWritingReset?: () => Promise<void>; beforeCloseProject?: () => Promise<void> } =
-    $props();
+    onOpenSettings,
+  }: {
+    prepareWritingReset?: () => Promise<void>;
+    beforeCloseProject?: () => Promise<void>;
+    onOpenSettings?: () => void;
+  } = $props();
 
   let loading = $state(false);
   let chaptersRequestId = 0;
@@ -2124,6 +2129,19 @@
       </nav>
     {/if}
   </div>
+  {#if onOpenSettings}
+    <footer class="shrink-0 border-t border-press-border px-3 py-2" inert={ui.sidebarCollapsed}>
+      <button
+        type="button"
+        data-testid="sidebar-settings-button"
+        onclick={onOpenSettings}
+        class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-press-ui text-press-muted hover:bg-press-sunken hover:text-press-text transition-colors"
+      >
+        <Settings class="w-4 h-4" />
+        Settings
+      </button>
+    </footer>
+  {/if}
 </aside>
 
 <!-- Collapsed sidebar toggle -->

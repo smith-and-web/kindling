@@ -330,6 +330,10 @@
       if (interactionBlocked) return;
       const menuId = event.payload;
       if (showSettings && menuId !== "quit") return;
+      if (menuId === "settings") {
+        showSettings = true;
+        return;
+      }
       if (menuId === "editorial_open" || menuId === "editorial_project") {
         runCommand(menuId);
         return;
@@ -357,9 +361,6 @@
           break;
         case "close_project":
           closeProject();
-          break;
-        case "settings":
-          showSettings = true;
           break;
         case "command_palette":
           showCommandPalette = true;
@@ -489,12 +490,13 @@
 
   // Global keyboard shortcuts
   function handleKeydown(event: KeyboardEvent) {
-    if (showSettings || editorial?.isOpen()) return;
+    if (showSettings) return;
     if ((event.metaKey || event.ctrlKey) && event.key === ",") {
       event.preventDefault();
       showSettings = true;
       return;
     }
+    if (editorial?.isOpen()) return;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
       if (!currentProject.value) return;
       event.preventDefault();
@@ -622,6 +624,13 @@
   </div>
 {/if}
 
+<!-- Settings is shared by the writing and local editorial workspaces. -->
+<div inert={interactionBlocked} hidden={interactionBlocked}>
+  {#if showSettings}
+    <SettingsDialog onClose={() => (showSettings = false)} />
+  {/if}
+</div>
+
 <main
   inert={interactionBlocked}
   aria-busy={closePending || updatePending}
@@ -629,6 +638,7 @@
 >
   {#if currentProject.value && (!editorial?.isOpen() || editorial?.isLocal())}
     <Sidebar
+      onOpenSettings={() => (showSettings = true)}
       beforeCloseProject={async () => {
         if (editorial?.isLocal()) {
           await editorial.closeWorkspace();
@@ -732,11 +742,6 @@
   <!-- Quick Start Dialog (triggered by Help menu) -->
   {#if showQuickStart}
     <QuickStartDialog onClose={() => (showQuickStart = false)} />
-  {/if}
-
-  <!-- One settings window for app preferences and every project. -->
-  {#if showSettings}
-    <SettingsDialog onClose={() => (showSettings = false)} />
   {/if}
 
   <!-- Export Dialog (triggered by menu) -->

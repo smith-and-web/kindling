@@ -2,9 +2,9 @@
 
 Use a disposable project database and save/restore `kindling:*` preferences with the harness.
 
-1. Open **File → Settings** (or send `q.key(",", { metaKey: true })`). Verify a single native dialog titled Settings, a left navigation sidebar, and right-hand controls. The sidebar, References panel, and start screen should have no separate settings gears.
+1. Open **File → Settings** (or send `q.key(",", { metaKey: true })`). Verify a single native dialog titled Settings, a left navigation sidebar, and right-hand controls. Verify the project sidebar has a fixed bottom Settings link opening this same window. References and start screen have no separate settings gears.
 2. Select **Author & Contact**. Confirm loaded values and edit a draft. Navigate to Appearance and back; the draft should survive. Close Settings, choose Keep editing, then close and discard. Verify reopening loads the saved values.
-3. Select **Project Details**. Verify the selector lists all fixture projects and defaults to the open project. Change the word target and daily goal; save, close, reopen, and verify persistence.
+3. Select **Project Details**. Verify the sidebar selector under Projects lists all fixture projects and defaults to the open project. It stays in the sidebar when moving between areas; the right side shows the scope/project location. Verify Kindling → Preferences and Projects → Manuscript / Reference Library headings. Change the word target and daily goal; save, close, reopen, and verify persistence.
 4. Switch to a second fixture project. Edit and save its genre. Verify the editor's project and scene stay unchanged, and that the first project's metadata has not changed.
 5. Edit a draft, switch projects, and exercise both Keep editing and Discard changes. Repeat with a tag draft and a custom-field draft. Navigate between areas to verify drafts survive.
 6. Select **Reference Types**, change enabled types, and save. Confirm the selected project's References panel refreshes; disabled types retain their existing entries.

@@ -9,13 +9,41 @@
   import ProjectSettings from "./ProjectSettings.svelte";
 
   let { onClose }: { onClose: () => void } = $props();
-  const areas = [
-    { id: "appearance", label: "Appearance & Guidance" },
-    { id: "author", label: "Author & Contact" },
-    { id: "details", label: "Project Details" },
-    { id: "references", label: "Reference Types" },
-    { id: "tags", label: "Tags" },
-    { id: "fields", label: "Custom Fields" },
+  const groups = [
+    {
+      id: "kindling",
+      label: "Kindling",
+      sections: [
+        {
+          id: "preferences",
+          label: "Preferences",
+          areas: [
+            { id: "appearance", label: "Appearance & Guidance" },
+            { id: "author", label: "Author & Contact" },
+          ],
+        },
+      ],
+    },
+    {
+      id: "projects",
+      label: "Projects",
+      sections: [
+        {
+          id: "manuscript",
+          label: "Manuscript",
+          areas: [{ id: "details", label: "Project Details" }],
+        },
+        {
+          id: "reference-library",
+          label: "Reference Library",
+          areas: [
+            { id: "references", label: "Reference Types" },
+            { id: "tags", label: "Tags" },
+            { id: "fields", label: "Custom Fields" },
+          ],
+        },
+      ],
+    },
   ];
   let area = $state("appearance");
   let projects = $state<Project[]>([]);
@@ -29,7 +57,22 @@
   let pending = $state<{ projectId: string } | { close: true } | null>(null);
   const busy = $derived(authorBusy || projectBusy);
   const selected = $derived(projects.find((project) => project.id === selectedId));
-  const isProjectArea = $derived(!["appearance", "author"].includes(area));
+  const activeGroup = $derived(
+    groups.find((group) =>
+      group.sections.some((section) => section.areas.some((item) => item.id === area))
+    ) ?? groups[0]
+  );
+  const activeSection = $derived(
+    activeGroup.sections.find((section) => section.areas.some((item) => item.id === area)) ??
+      activeGroup.sections[0]
+  );
+  const activeArea = $derived(activeSection.areas.find((item) => item.id === area));
+  const isProjectArea = $derived(activeGroup.id === "projects");
+  const locationLabel = $derived(
+    [activeGroup.label, isProjectArea ? selected?.name : undefined, activeSection.label]
+      .filter(Boolean)
+      .join(" / ")
+  );
 
   onMount(() => {
     void loadProjects();
@@ -55,7 +98,12 @@
     select.value = selectedId;
     if (id === selectedId || busy) return;
     if (projectDirty) pending = { projectId: id };
-    else selectedId = id;
+    else applyProjectSelection(id);
+  }
+
+  function applyProjectSelection(id: string) {
+    selectedId = id;
+    if (!isProjectArea) area = "details";
   }
 
   function requestClose() {
@@ -68,7 +116,7 @@
     if (!pending || busy) return;
     if ("close" in pending) onClose();
     else {
-      selectedId = pending.projectId;
+      applyProjectSelection(pending.projectId);
       projectDirty = false;
     }
     pending = null;
@@ -148,72 +196,104 @@
     <div class="flex min-h-0 flex-1" inert={pending !== null}>
       <nav
         aria-label="Settings areas"
-        class="w-48 sm:w-60 shrink-0 p-3 border-r border-press-border bg-press-sunken overflow-y-auto space-y-1"
+        class="w-56 sm:w-72 shrink-0 p-4 border-r border-press-border bg-press-sunken overflow-y-auto space-y-6"
       >
-        {#each areas as item (item.id)}
-          {#if item.id === "details"}<p
-              class="px-3 pt-6 pb-2 text-press-eyebrow text-press-muted uppercase tracking-wide"
+        {#each groups as group (group.id)}
+          <section aria-labelledby={`settings-${group.id}-heading`} class="space-y-3">
+            <h3
+              id={`settings-${group.id}-heading`}
+              class="text-press-ui font-semibold text-press-text"
             >
-              Projects
-            </p>{/if}
-          <button
-            type="button"
-            onclick={() => (area = item.id)}
-            disabled={busy}
-            aria-current={area === item.id ? "page" : undefined}
-            class="w-full text-left px-3 py-2 rounded text-press-ui {area === item.id
-              ? 'bg-press-accent-wash text-press-accent-text font-medium'
-              : 'text-press-muted hover:text-press-text hover:bg-press-surface'}"
-            >{item.label}</button
-          >
+              {group.label}
+            </h3>
+            {#if group.id === "projects"}
+              {#if loading}
+                <p role="status" class="text-press-ui text-press-muted">Loading projects…</p>
+              {:else if error}
+                <p role="alert" class="text-press-ui text-press-error">{error}</p>
+                <button
+                  type="button"
+                  onclick={loadProjects}
+                  class="text-press-ui text-press-accent-text underline"
+                  >Retry loading projects</button
+                >
+              {:else if projects.length === 0}
+                <p class="text-press-ui text-press-muted">No projects available.</p>
+              {:else}
+                <div>
+                  <label
+                    for="settings-project"
+                    class="block text-press-eyebrow text-press-muted mb-1">Project</label
+                  >
+                  <select
+                    id="settings-project"
+                    value={selectedId}
+                    onchange={selectProject}
+                    disabled={busy}
+                    title={selected?.name}
+                    aria-describedby="settings-project-help"
+                    class="w-full min-w-0 bg-press-surface border border-press-border rounded-lg px-2 py-2 text-press-text"
+                  >
+                    {#each projects as project (project.id)}<option value={project.id}
+                        >{project.name}</option
+                      >{/each}
+                  </select>
+                  <p id="settings-project-help" class="text-press-eyebrow text-press-muted mt-2">
+                    Settings for this project. Your open manuscript stays in place.
+                  </p>
+                </div>
+              {/if}
+            {:else}
+              <p class="text-press-eyebrow text-press-muted">Applies to all projects.</p>
+            {/if}
+            {#each group.sections as section (section.id)}
+              <div class="space-y-1">
+                <h4 class="text-press-eyebrow font-medium text-press-muted">{section.label}</h4>
+                <ul class="ml-1 border-l border-press-border pl-2 space-y-1">
+                  {#each section.areas as item (item.id)}
+                    <li>
+                      <button
+                        type="button"
+                        onclick={() => (area = item.id)}
+                        disabled={busy}
+                        aria-current={area === item.id ? "page" : undefined}
+                        class="w-full text-left px-2 py-2 rounded text-press-ui {area === item.id
+                          ? 'bg-press-accent-wash text-press-accent-text font-medium'
+                          : 'text-press-muted hover:text-press-text hover:bg-press-surface'}"
+                        >{item.label}</button
+                      >
+                    </li>
+                  {/each}
+                </ul>
+              </div>
+            {/each}
+          </section>
         {/each}
       </nav>
       <div class="flex-1 min-w-0 overflow-y-auto p-6 space-y-5">
-        <h3 class="font-heading text-press-body-lg">
-          {areas.find((item) => item.id === area)?.label}
-        </h3>
+        <header class="space-y-2">
+          <p class="text-press-eyebrow text-press-muted" data-testid="settings-location">
+            {locationLabel}
+          </p>
+          <h3 class="font-heading text-press-body-lg">{activeArea?.label}</h3>
+        </header>
         <div hidden={area !== "appearance"}><AppearanceSettings /></div>
         <div hidden={area !== "author"}>
           <AuthorSettings bind:dirty={authorDirty} bind:busy={authorBusy} />
         </div>
         <div hidden={!isProjectArea} class="space-y-5">
-          {#if loading}<p role="status" class="text-press-ui text-press-muted">Loading projects…</p>
-          {:else if error}
-            <p role="alert" class="text-press-ui text-press-error">{error}</p>
-            <button type="button" onclick={loadProjects}>Retry loading projects</button>
-          {:else if projects.length === 0}
+          {#if !loading && !error && projects.length === 0}
             <p class="text-press-ui text-press-muted">
               No projects yet. Create or import a project to configure its settings.
             </p>
-          {:else}
-            <div>
-              <label for="settings-project" class="block text-press-ui text-press-muted mb-2"
-                >Project</label
-              >
-              <select
-                id="settings-project"
-                value={selectedId}
-                onchange={selectProject}
-                disabled={busy}
-                class="w-full bg-press-sunken border border-press-border rounded-lg px-3 py-2 text-press-text"
-              >
-                {#each projects as project (project.id)}<option value={project.id}
-                    >{project.name}</option
-                  >{/each}
-              </select>
-              <p class="text-press-eyebrow text-press-muted mt-2">
-                Choose any project without changing the manuscript open in your editor.
-              </p>
-            </div>
-            {#if selected}
-              {#key selected.id}<ProjectSettings
-                  project={selected}
-                  section={area}
-                  onSave={projectSaved}
-                  bind:dirty={projectDirty}
-                  bind:busy={projectBusy}
-                />{/key}
-            {/if}
+          {:else if selected}
+            {#key selected.id}<ProjectSettings
+                project={selected}
+                section={area}
+                onSave={projectSaved}
+                bind:dirty={projectDirty}
+                bind:busy={projectBusy}
+              />{/key}
           {/if}
         </div>
       </div>

@@ -1,8 +1,8 @@
 # Settings in Kindling
 
-Open **File → Settings…** or press **Cmd+,** on macOS / **Ctrl+,** on Windows and Linux. The command palette also has a single **Settings** command. The same window is available from the start screen and while a manuscript is open.
+In project view, use **Settings** in the bar at the bottom of the project sidebar. You can also open **File → Settings…** or press **Cmd+,** on macOS / **Ctrl+,** on Windows and Linux. The command palette also has a single **Settings** command. The same window is available from the start screen and while a manuscript is open.
 
-Use the left sidebar to choose an area; its controls appear on the right:
+The Settings sidebar groups **Kindling → Preferences** and **Projects → Manuscript / Reference Library**. Choose an area to display its controls on the right. A location label above the controls identifies the current group and project:
 
 - **Appearance & Guidance**: Light, Dark, or System theme and contextual guidance tips. These preferences apply immediately across Kindling.
 - **Author & Contact**: Author name, address, phone, and email used on exported manuscript title pages. Choose **Save author details** to apply changes.
@@ -13,7 +13,7 @@ Use the left sidebar to choose an area; its controls appear on the right:
 
 ## Choosing a project
 
-In any project area, use the **Project** selector above the controls to choose from all your projects. The open manuscript and selected scene stay in place while you configure another project. If you have no projects yet, create or import one first; shared preferences remain available.
+Use the **Project** selector under **Projects** in the Settings sidebar to choose from all your projects. The selector remains available as you navigate settings areas. Choosing another project from a shared settings area opens Project Details. The open manuscript and selected scene stay in place while you configure another project. If you have no projects yet, create or import one first; shared preferences remain available.
 
 Choose **Save project changes** to save project details and reference types. Tags and custom fields save through their own add, edit, and delete controls. Drafts remain while you navigate settings areas. Before switching projects or closing Settings with unsaved changes, Kindling asks whether to discard them or keep editing.
 
