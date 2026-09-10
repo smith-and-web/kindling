@@ -2,10 +2,11 @@
   CommandPalette.svelte - Cmd+K command palette (US-1.1-5)
 
   Fuzzy-searchable list of commands with keyboard shortcuts.
-  Each command has an accompanying shortcut; palette opens with ⌘K.
+  Displays the current configured bindings.
 -->
 <script lang="ts">
-  import { Command, Search } from "lucide-svelte";
+  import { shortcuts } from "../stores/shortcuts.svelte";
+  import { Keyboard, Search } from "lucide-svelte";
   import { fuzzyMatch, fuzzyScore, type CommandDef } from "../commands";
 
   interface CommandWithAction extends CommandDef {
@@ -135,10 +136,10 @@
         class="flex-1 bg-transparent text-press-text placeholder:text-press-muted focus:outline-none"
         autofocus
       />
-      <kbd
-        class="rounded border border-press-border px-2 py-0.5 text-press-eyebrow text-press-muted"
-        >⌘K</kbd
-      >
+      {#if shortcuts.label("command_palette")}<kbd
+          class="rounded border border-press-border px-2 py-0.5 text-press-eyebrow text-press-muted"
+          >{shortcuts.label("command_palette")}</kbd
+        >{/if}
     </div>
 
     <!-- Command list -->
@@ -157,7 +158,7 @@
               : 'hover:bg-press-accent-wash'}"
           >
             <div class="flex items-center gap-3 min-w-0">
-              <Command class="w-4 h-4 shrink-0 text-press-muted" />
+              <Keyboard class="w-4 h-4 shrink-0 text-press-muted" />
               <span class="truncate text-press-text">{cmd.label}</span>
             </div>
             <kbd

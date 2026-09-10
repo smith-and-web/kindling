@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shortcuts } from "../stores/shortcuts.svelte";
   import type { Snippet } from "svelte";
   import type { Editor } from "@tiptap/core";
   import {
@@ -46,21 +47,21 @@
   {#if !readonly}
     <div class="group">
       <button
-        title="Bold (Ctrl+B)"
+        title={`Bold ${shortcuts.label("bold")}`.trim()}
         aria-label="Bold"
         aria-pressed={!!active.bold}
         onmousedown={(e) => e.preventDefault()}
         onclick={() => editor?.chain().focus().toggleBold().run()}><Bold size={16} /></button
       >
       <button
-        title="Italic (Ctrl+I)"
+        title={`Italic ${shortcuts.label("italic")}`.trim()}
         aria-label="Italic"
         aria-pressed={!!active.italic}
         onmousedown={(e) => e.preventDefault()}
         onclick={() => editor?.chain().focus().toggleItalic().run()}><Italic size={16} /></button
       >
       <button
-        title="Underline (Ctrl+U)"
+        title={`Underline ${shortcuts.label("underline")}`.trim()}
         aria-label="Underline"
         aria-pressed={!!active.underline}
         onmousedown={(e) => e.preventDefault()}
@@ -68,7 +69,7 @@
         ><Underline size={16} /></button
       >
       <button
-        title="Monospace"
+        title={`Monospace ${shortcuts.label("code")}`.trim()}
         aria-label="Monospace"
         aria-pressed={!!active.code}
         onmousedown={(e) => e.preventDefault()}
@@ -78,7 +79,7 @@
     <div class="group separated">
       {#each [{ id: "left", icon: AlignLeft }, { id: "center", icon: AlignCenter }, { id: "right", icon: AlignRight }, { id: "justify", icon: AlignJustify }] as alignment}
         <button
-          title={`Align ${alignment.id}`}
+          title={`Align ${alignment.id} ${shortcuts.label(`align_${alignment.id}`)}`.trim()}
           aria-label={`Align ${alignment.id}`}
           aria-pressed={!!active[alignment.id as "left" | "center" | "right" | "justify"]}
           onmousedown={(e) => e.preventDefault()}
@@ -87,7 +88,7 @@
         >
       {/each}
       <button
-        title="Blockquote"
+        title={`Blockquote ${shortcuts.label("blockquote")}`.trim()}
         aria-label="Blockquote"
         aria-pressed={!!active.blockquote}
         onmousedown={(e) => e.preventDefault()}

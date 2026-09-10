@@ -4,6 +4,7 @@
   import { X } from "lucide-svelte";
   import type { Project } from "../types";
   import { currentProject } from "../stores/project.svelte";
+  import KeyboardSettings from "./KeyboardSettings.svelte";
   import AppearanceSettings from "./AppearanceSettings.svelte";
   import AuthorSettings from "./AuthorSettings.svelte";
   import ProjectSettings from "./ProjectSettings.svelte";
@@ -20,6 +21,7 @@
           areas: [
             { id: "appearance", label: "Appearance & Guidance" },
             { id: "author", label: "Author & Contact" },
+            { id: "keyboard", label: "Keyboard Shortcuts" },
           ],
         },
       ],
@@ -52,10 +54,11 @@
   let error = $state<string | null>(null);
   let authorDirty = $state(false);
   let projectDirty = $state(false);
+  let keyboardBusy = $state(false);
   let authorBusy = $state(false);
   let projectBusy = $state(false);
   let pending = $state<{ projectId: string } | { close: true } | null>(null);
-  const busy = $derived(authorBusy || projectBusy);
+  const busy = $derived(authorBusy || projectBusy || keyboardBusy);
   const selected = $derived(projects.find((project) => project.id === selectedId));
   const activeGroup = $derived(
     groups.find((group) =>
@@ -277,6 +280,7 @@
           </p>
           <h3 class="font-heading text-press-body-lg">{activeArea?.label}</h3>
         </header>
+        {#if area === "keyboard"}<KeyboardSettings bind:busy={keyboardBusy} />{/if}
         <div hidden={area !== "appearance"}><AppearanceSettings /></div>
         <div hidden={area !== "author"}>
           <AuthorSettings bind:dirty={authorDirty} bind:busy={authorBusy} />

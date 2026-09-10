@@ -1,147 +1,45 @@
-//! Application Menu Setup
-//!
-//! Creates the native application menu with File menu items for:
-//! - Import (Plottr, Markdown)
-//! - Import (Longform)
-//! - Export
-//! - Close Project
-//! - Settings
-
+//! Native menus use the same bindings as the frontend command registry.
+use std::collections::BTreeMap;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
     AppHandle, Emitter, Manager, Wry,
 };
 
-/// Menu item IDs for event handling
-pub mod menu_ids {
-    pub const NEW_PROJECT: &str = "new_project";
-    pub const IMPORT_PLOTTR: &str = "import_plottr";
-    pub const IMPORT_YWRITER: &str = "import_ywriter";
-    pub const IMPORT_MARKDOWN: &str = "import_markdown";
-    pub const IMPORT_LONGFORM: &str = "import_longform";
-    pub const IMPORT_NOVELWRITER: &str = "import_novelwriter";
-    pub const IMPORT_SCRIVENER: &str = "import_scrivener";
-    pub const EXPORT: &str = "export";
-    pub const CLOSE_PROJECT: &str = "close_project";
-    pub const SETTINGS: &str = "settings";
-    pub const QUICK_START: &str = "quick_start";
-    pub const TOGGLE_SIDEBAR: &str = "toggle_sidebar";
-    pub const TOGGLE_REFERENCES: &str = "toggle_references";
-    pub const SYNC: &str = "sync";
-    pub const COMMAND_PALETTE: &str = "command_palette";
-    pub const ABOUT: &str = "about";
-    pub const SEND_FEEDBACK: &str = "send_feedback";
-    pub const QUIT: &str = "quit";
-}
-
-/// Create the application menu
-pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error>> {
-    // Import submenu
-    let import_plottr = MenuItemBuilder::new("Plottr (.pltr)")
-        .id(menu_ids::IMPORT_PLOTTR)
-        .accelerator("CmdOrCtrl+Shift+O")
-        .build(app)?;
-
-    let import_ywriter = MenuItemBuilder::new("yWriter 7 (.yw7)")
-        .id(menu_ids::IMPORT_YWRITER)
-        .accelerator("CmdOrCtrl+Shift+Y")
-        .build(app)?;
-
-    let import_markdown = MenuItemBuilder::new("Markdown (.md)")
-        .id(menu_ids::IMPORT_MARKDOWN)
-        .accelerator("CmdOrCtrl+Shift+M")
-        .build(app)?;
-
-    let import_longform = MenuItemBuilder::new("Longform (Index or Vault...)")
-        .id(menu_ids::IMPORT_LONGFORM)
-        .accelerator("CmdOrCtrl+Shift+L")
-        .build(app)?;
-
-    let import_scrivener = MenuItemBuilder::new("Scrivener 3 (.scriv)")
-        .id(menu_ids::IMPORT_SCRIVENER)
-        .accelerator("CmdOrCtrl+Shift+I")
-        .build(app)?;
-
-    let import_novelwriter = MenuItemBuilder::new("novelWriter (Project Folder)")
-        .id(menu_ids::IMPORT_NOVELWRITER)
-        .build(app)?;
-
+/// Build a fresh menu: muda 0.17 on macOS does not clear the native key
+/// equivalent when set_accelerator(None) is called on an existing item.
+pub fn create_menu(app: &AppHandle<Wry>, bindings: &BTreeMap<String, String>) -> tauri::Result<()> {
+    let command = |id: &str, label: &str| {
+        let mut item = MenuItemBuilder::new(label).id(id);
+        if let Some(binding) = bindings.get(id).filter(|value| !value.is_empty()) {
+            item = item.accelerator(binding.replace("Mod+", "CmdOrCtrl+"));
+        }
+        item.build(app)
+    };
     let import_submenu = SubmenuBuilder::new(app, "Import")
-        .item(&import_plottr)
-        .item(&import_ywriter)
-        .item(&import_markdown)
-        .item(&import_longform)
-        .item(&import_scrivener)
-        .item(&import_novelwriter)
+        .item(&command("import_plottr", "Plottr (.pltr)")?)
+        .item(&command("import_ywriter", "yWriter 7 (.yw7)")?)
+        .item(&command("import_markdown", "Markdown (.md)")?)
+        .item(&command("import_longform", "Longform (Index or Vault...)")?)
+        .item(&command("import_scrivener", "Scrivener 3 (.scriv)")?)
+        .item(&command(
+            "import_novelwriter",
+            "novelWriter (Project Folder)",
+        )?)
         .build()?;
-
-    // Export menu item
-    let export = MenuItemBuilder::new("Export...")
-        .id(menu_ids::EXPORT)
-        .accelerator("CmdOrCtrl+E")
-        .build(app)?;
-
-    // Close Project menu item
-    let close_project = MenuItemBuilder::new("Close Project")
-        .id(menu_ids::CLOSE_PROJECT)
-        .accelerator("CmdOrCtrl+W")
-        .build(app)?;
-
-    // Unified settings
-    let settings = MenuItemBuilder::new("Settings...")
-        .id(menu_ids::SETTINGS)
-        .accelerator("CmdOrCtrl+,")
-        .build(app)?;
-
-    let new_project = MenuItemBuilder::new("New Project")
-        .id(menu_ids::NEW_PROJECT)
-        .accelerator("CmdOrCtrl+N")
-        .build(app)?;
-
-    let quit = MenuItemBuilder::new("Quit Kindling")
-        .id(menu_ids::QUIT)
-        .accelerator("CmdOrCtrl+Q")
-        .build(app)?;
-
-    // Build File submenu
     let file_submenu = SubmenuBuilder::new(app, "File")
-        .item(&new_project)
-        .item(
-            &MenuItemBuilder::new("Open Review or Feedback File…")
-                .id("editorial_open")
-                .accelerator("CmdOrCtrl+O")
-                .build(app)?,
-        )
-        .item(
-            &MenuItemBuilder::new("Editorial Review…")
-                .id("editorial_project")
-                .build(app)?,
-        )
+        .item(&command("new_project", "New Project")?)
+        .item(&command("editorial_open", "Open Review or Feedback File…")?)
+        .item(&command("editorial_project", "Editorial Review…")?)
         .separator()
-        .items(&[&import_submenu])
-        .item(&export)
+        .item(&import_submenu)
+        .item(&command("export", "Export...")?)
         .separator()
-        .item(&close_project)
+        .item(&command("close_project", "Close Project")?)
         .separator()
-        .item(&settings)
+        .item(&command("settings", "Settings...")?)
         .separator()
-        .item(&quit)
+        .item(&command("quit", "Quit Kindling")?)
         .build()?;
-
-    let find = MenuItemBuilder::new("Find in Scene…")
-        .id("find")
-        .accelerator("CmdOrCtrl+F")
-        .build(app)?;
-    let find_replace = MenuItemBuilder::new("Find and Replace…")
-        .id("find_replace")
-        .accelerator("CmdOrCtrl+Alt+F")
-        .build(app)?;
-    let find_project = MenuItemBuilder::new("Find and Replace in Project…")
-        .id("find_project")
-        .accelerator("CmdOrCtrl+Shift+F")
-        .build(app)?;
-
-    // Build Edit submenu with standard items
     let edit_submenu = SubmenuBuilder::new(app, "Edit")
         .undo()
         .redo()
@@ -151,67 +49,28 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
         .paste()
         .select_all()
         .separator()
-        .items(&[&find, &find_replace, &find_project])
+        .item(&command("find", "Find in Scene…")?)
+        .item(&command("find_replace", "Find and Replace…")?)
+        .item(&command("find_project", "Find and Replace in Project…")?)
         .build()?;
-
-    // Build Window submenu with standard items
+    // Close Project owns Mod+W; a second predefined Close Window item would
+    // retain that accelerator after the user's Close Project binding changes.
     let window_submenu = SubmenuBuilder::new(app, "Window")
         .minimize()
         .maximize()
-        .separator()
-        .close_window()
         .build()?;
-
-    // View submenu
-    let toggle_sidebar = MenuItemBuilder::new("Toggle Sidebar")
-        .id(menu_ids::TOGGLE_SIDEBAR)
-        .accelerator("CmdOrCtrl+Backslash")
-        .build(app)?;
-
-    let toggle_references = MenuItemBuilder::new("Toggle References Panel")
-        .id(menu_ids::TOGGLE_REFERENCES)
-        .accelerator("CmdOrCtrl+Shift+R")
-        .build(app)?;
-
-    let sync = MenuItemBuilder::new("Sync from Source")
-        .id(menu_ids::SYNC)
-        .accelerator("CmdOrCtrl+Shift+S")
-        .build(app)?;
-
     let view_submenu = SubmenuBuilder::new(app, "View")
-        .item(&toggle_sidebar)
-        .item(&toggle_references)
-        .item(&sync)
+        .item(&command("toggle_sidebar", "Toggle Sidebar")?)
+        .item(&command("toggle_references", "Toggle References Panel")?)
+        .item(&command("sync", "Sync from Source")?)
         .build()?;
-
-    // Help submenu
-    let about = MenuItemBuilder::new("About Kindling...")
-        .id(menu_ids::ABOUT)
-        .build(app)?;
-
-    let command_palette = MenuItemBuilder::new("Command Palette...")
-        .id(menu_ids::COMMAND_PALETTE)
-        .accelerator("CmdOrCtrl+K")
-        .build(app)?;
-
-    let quick_start = MenuItemBuilder::new("Quick Start")
-        .id(menu_ids::QUICK_START)
-        .accelerator("CmdOrCtrl+Shift+H")
-        .build(app)?;
-
-    let send_feedback = MenuItemBuilder::new("Send Feedback...")
-        .id(menu_ids::SEND_FEEDBACK)
-        .build(app)?;
-
     let help_submenu = SubmenuBuilder::new(app, "Help")
-        .item(&about)
-        .item(&send_feedback)
+        .item(&command("about", "About Kindling...")?)
+        .item(&command("send_feedback", "Send Feedback...")?)
         .separator()
-        .item(&command_palette)
-        .item(&quick_start)
+        .item(&command("command_palette", "Command Palette...")?)
+        .item(&command("quick_start", "Quick Start")?)
         .build()?;
-
-    // Build the full menu
     let menu = MenuBuilder::new(app)
         .items(&[
             &file_submenu,
@@ -221,22 +80,15 @@ pub fn create_menu(app: &AppHandle<Wry>) -> Result<(), Box<dyn std::error::Error
             &help_submenu,
         ])
         .build()?;
-
     app.set_menu(menu)?;
-
     Ok(())
 }
 
-/// Set up menu event handling
 pub fn setup_menu_events(app: &AppHandle<Wry>) {
     let app_handle = app.clone();
-
     app.on_menu_event(move |_app, event| {
-        let id = event.id().0.as_str();
-
-        // Emit event to frontend for handling
         if let Some(window) = app_handle.get_webview_window("main") {
-            let _ = window.emit("menu-event", id);
+            let _ = window.emit("menu-event", event.id().0.as_str());
         }
     });
 }

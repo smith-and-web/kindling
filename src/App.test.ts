@@ -15,6 +15,8 @@ import { runImport } from "./lib/utils/import";
 import { currentProject } from "./lib/stores/project.svelte";
 import { mockProject, mockScenes, mockChapters } from "./dev/mock-data";
 import App from "./App.svelte";
+import { shortcuts } from "./lib/stores/shortcuts.svelte";
+import { defaultBindings } from "./lib/utils/keyboardShortcuts";
 import { EditorialSaves } from "./lib/utils/editorialSaves";
 
 vi.hoisted(() => {
@@ -49,6 +51,8 @@ const doc = {
   locked: false,
 };
 beforeEach(async () => {
+  shortcuts.bindings = { ...defaultBindings };
+  shortcuts.recording = false;
   ui.clearToast();
   vi.mocked(invoke).mockReset();
   vi.mocked(invoke).mockImplementation(async (cmd) =>
@@ -921,6 +925,7 @@ it("keeps errors visible and dismissable within the active quit modal", async ()
     screen.getByText("Still relevant after cancelling").closest("[data-quit-confirmation]")
   ).toBeNull();
   expect(screen.getAllByRole("button", { name: "Dismiss error" })).toHaveLength(1);
+  shortcuts.bindings = { ...defaultBindings };
   ui.clearToast();
 });
 
@@ -1091,7 +1096,7 @@ it.each(["sidebar", "menu", "keyboard"])(
     } else if (entryPoint === "menu") {
       await menu("settings");
     } else {
-      await fireEvent.keyDown(window, { key: ",", metaKey: true });
+      await fireEvent.keyDown(window, { key: ",", ctrlKey: true });
     }
 
     const settings = await screen.findByRole("dialog", { name: "Settings" });
@@ -1160,4 +1165,47 @@ it("waits for a native file drain that starts before the listener handshake fini
   } finally {
     vi.mocked(listen).mockResolvedValue(() => {});
   }
+});
+
+it("dispatches remapped commands once, drops old bindings, and ignores extra modifiers", async () => {
+  currentProject.setProject(null);
+  render(App);
+  await tick();
+  shortcuts.bindings.command_palette = "Mod+Alt+P";
+  await fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+  expect(screen.queryByPlaceholderText("Type a command or search...")).toBeNull();
+  await fireEvent.keyDown(window, { key: "p", ctrlKey: true, altKey: true, shiftKey: true });
+  expect(screen.queryByPlaceholderText("Type a command or search...")).toBeNull();
+  await fireEvent.keyDown(window, { key: "p", ctrlKey: true, altKey: true });
+  expect(screen.getByPlaceholderText("Type a command or search...")).toBeTruthy();
+});
+
+it("blocks project commands and recording keys in Settings but keeps explicit Quit available", async () => {
+  render(App);
+  await menu("settings");
+  await fireEvent.click(screen.getByRole("button", { name: "Keyboard Shortcuts" }));
+  await menu("new_project");
+  shortcuts.recording = true;
+  await fireEvent.keyDown(window, { key: "q", ctrlKey: true });
+  expect(exit).not.toHaveBeenCalled();
+  expect(screen.getByTestId("settings-dialog")).toBeTruthy();
+  expect(invoke).toHaveBeenCalledWith("suspend_keyboard_shortcuts", { suspended: true });
+  await menu("quit");
+  await waitFor(() => expect(exit).toHaveBeenCalledWith(0));
+});
+
+it("preserves paste-as-plain-text and allows Quit from Settings when not recording", async () => {
+  render(App);
+  const event = new KeyboardEvent("keydown", {
+    key: "V",
+    ctrlKey: true,
+    shiftKey: true,
+    bubbles: true,
+    cancelable: true,
+  });
+  window.dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(false);
+  await menu("settings");
+  await fireEvent.keyDown(window, { key: "q", ctrlKey: true });
+  await waitFor(() => expect(exit).toHaveBeenCalledWith(0));
 });

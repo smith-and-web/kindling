@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shortcuts } from "../stores/shortcuts.svelte";
   import { countWordsInHtml } from "../utils/wordCount";
   import { writing } from "../stores/writing.svelte";
   import type { SceneReview } from "../utils/revisions";
@@ -338,11 +339,6 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === "d" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      discoveryNotesVisible = !discoveryNotesVisible;
-      return;
-    }
     if (e.key === "Escape") {
       if (ui.expandedBeatId) {
         beatViewRef?.flushOnSceneChange();
@@ -1229,7 +1225,7 @@
           </section>
         {/if}
 
-        <!-- Discovery Notes (Fixed only, Cmd/Ctrl+D) -->
+        <!-- Discovery Notes (Fixed only) -->
         {#if (scene.planning_status ?? "fixed") === "fixed"}
           <section class="mb-8">
             <button
@@ -1243,7 +1239,8 @@
                 Discovery Notes
               </h2>
               <span class="text-press-eyebrow text-press-muted">
-                {discoveryNotesVisible ? "Hide" : "Show"} (⌘D)
+                {discoveryNotesVisible ? "Hide" : "Show"}
+                {shortcuts.label("toggle_discovery_notes")}
               </span>
             </button>
             {#if discoveryNotesVisible}

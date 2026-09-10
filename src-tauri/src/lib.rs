@@ -25,6 +25,7 @@ mod editorial_files;
 pub mod menu;
 pub mod models;
 pub mod parsers;
+pub mod shortcuts;
 
 use commands::AppState;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -153,8 +154,8 @@ pub fn run() {
 
             // Set up application menu
             let app_handle = app.handle();
-            menu::create_menu(app_handle).expect("Failed to create menu");
             menu::setup_menu_events(app_handle);
+            shortcuts::initialize(app_handle).expect("Failed to create menu");
 
             Ok(())
         })
@@ -284,6 +285,9 @@ pub fn run() {
             commands::delete_snapshot,
             commands::restore_snapshot,
             commands::preview_snapshot,
+            shortcuts::get_keyboard_shortcuts,
+            shortcuts::set_keyboard_shortcuts,
+            shortcuts::suspend_keyboard_shortcuts,
             // App settings commands
             commands::get_app_settings,
             commands::update_app_settings,

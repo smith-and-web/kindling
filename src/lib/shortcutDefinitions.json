@@ -1,0 +1,287 @@
+[
+  {
+    "id": "editorial_open",
+    "label": "Open review or feedback file",
+    "category": "File",
+    "keywords": ["editor", "package"],
+    "binding": "Mod+O"
+  },
+  {
+    "id": "editorial_project",
+    "label": "Editorial review and packages",
+    "category": "Project",
+    "requiresProject": true,
+    "keywords": ["editor", "feedback", "revisions"],
+    "binding": ""
+  },
+  {
+    "id": "find",
+    "label": "Find in scene",
+    "category": "Edit",
+    "requiresProject": true,
+    "keywords": ["search", "prose"],
+    "binding": "Mod+F"
+  },
+  {
+    "id": "find_replace",
+    "label": "Find and replace",
+    "category": "Edit",
+    "requiresProject": true,
+    "keywords": ["search", "replace", "prose"],
+    "binding": "Mod+Alt+F"
+  },
+  {
+    "id": "find_project",
+    "label": "Find and replace in project",
+    "category": "Edit",
+    "requiresProject": true,
+    "keywords": ["search", "replace", "all"],
+    "binding": "Mod+Shift+F"
+  },
+  {
+    "id": "export",
+    "label": "Export project",
+    "category": "File",
+    "requiresProject": true,
+    "keywords": ["export", "docx", "manuscript"],
+    "binding": "Mod+E"
+  },
+  {
+    "id": "close_project",
+    "label": "Close project",
+    "category": "File",
+    "requiresProject": true,
+    "keywords": ["close"],
+    "binding": "Mod+W"
+  },
+  {
+    "id": "quit",
+    "label": "Quit Kindling",
+    "category": "File",
+    "requiresProject": false,
+    "keywords": ["quit", "exit"],
+    "binding": "Mod+Q"
+  },
+  {
+    "id": "import_plottr",
+    "label": "Import Plottr (.pltr)",
+    "category": "File",
+    "requiresProject": false,
+    "keywords": ["import", "plottr"],
+    "binding": "Mod+Shift+O"
+  },
+  {
+    "id": "import_markdown",
+    "label": "Import Markdown (.md)",
+    "category": "File",
+    "requiresProject": false,
+    "keywords": ["import", "markdown", "md"],
+    "binding": "Mod+Shift+M"
+  },
+  {
+    "id": "import_longform",
+    "label": "Import Longform",
+    "category": "File",
+    "requiresProject": false,
+    "keywords": ["import", "longform", "obsidian"],
+    "binding": "Mod+Shift+L"
+  },
+  {
+    "id": "import_ywriter",
+    "label": "Import yWriter 7 (.yw7)",
+    "category": "File",
+    "requiresProject": false,
+    "keywords": ["import", "ywriter", "yw7"],
+    "binding": "Mod+Shift+Y"
+  },
+  {
+    "id": "import_scrivener",
+    "label": "Import Scrivener 3 (.scriv)",
+    "category": "File",
+    "requiresProject": false,
+    "keywords": ["import", "scrivener", "scriv"],
+    "binding": "Mod+Shift+I"
+  },
+  {
+    "id": "import_novelwriter",
+    "label": "Import novelWriter",
+    "category": "File",
+    "requiresProject": false,
+    "keywords": ["import", "novelwriter", "nwx"],
+    "binding": ""
+  },
+  {
+    "id": "sync",
+    "label": "Sync from source",
+    "category": "Project",
+    "requiresProject": true,
+    "requiresSourcePath": true,
+    "keywords": ["sync", "reimport", "refresh", "reload"],
+    "binding": "Mod+Shift+S"
+  },
+  {
+    "id": "toggle_sidebar",
+    "label": "Toggle sidebar",
+    "category": "View",
+    "requiresProject": true,
+    "keywords": ["sidebar", "outline", "collapse", "expand"],
+    "binding": "Mod+Backslash"
+  },
+  {
+    "id": "toggle_references",
+    "label": "Toggle references panel",
+    "category": "View",
+    "requiresProject": true,
+    "keywords": ["references", "characters", "panel", "collapse", "expand"],
+    "binding": "Mod+Shift+R"
+  },
+  {
+    "id": "toggle_discovery_notes",
+    "label": "Toggle discovery notes",
+    "category": "View",
+    "requiresProject": true,
+    "keywords": ["discovery", "notes", "draft"],
+    "binding": "Mod+D"
+  },
+  {
+    "id": "toggle_editor_mode",
+    "label": "Toggle beat/page view",
+    "category": "View",
+    "requiresProject": true,
+    "keywords": ["page", "beat", "view", "mode", "prose", "editor"],
+    "binding": "Mod+Alt+V"
+  },
+  {
+    "id": "detect_references",
+    "label": "Detect references in scene",
+    "category": "Project",
+    "requiresProject": true,
+    "keywords": ["detect", "references", "scan", "suggest", "smart"],
+    "binding": ""
+  },
+  {
+    "id": "detect_all_references",
+    "label": "Detect references in all scenes",
+    "category": "Project",
+    "requiresProject": true,
+    "keywords": ["detect", "all", "references", "scan", "suggest", "bulk"],
+    "binding": ""
+  },
+  {
+    "id": "about",
+    "label": "About Kindling",
+    "category": "Help",
+    "requiresProject": false,
+    "keywords": ["about", "version", "info"],
+    "binding": ""
+  },
+  {
+    "id": "quick_start",
+    "label": "Quick start guide",
+    "category": "Help",
+    "requiresProject": false,
+    "keywords": ["help", "quick", "start", "guide", "docs"],
+    "binding": "Mod+Shift+H"
+  },
+  {
+    "id": "settings",
+    "label": "Settings",
+    "category": "Help",
+    "requiresProject": false,
+    "keywords": [
+      "settings",
+      "kindling",
+      "preferences",
+      "author",
+      "project",
+      "theme",
+      "tags",
+      "fields"
+    ],
+    "binding": "Mod+Comma"
+  },
+  {
+    "id": "new_project",
+    "label": "New project",
+    "binding": "Mod+N",
+    "category": "File"
+  },
+  {
+    "id": "command_palette",
+    "label": "Command palette",
+    "binding": "Mod+K",
+    "category": "Help"
+  },
+  {
+    "id": "send_feedback",
+    "label": "Send feedback",
+    "binding": "",
+    "category": "Help"
+  },
+  {
+    "id": "editorial_comment",
+    "label": "Add editorial comment",
+    "binding": "Mod+Alt+M",
+    "category": "Editor"
+  },
+  {
+    "id": "bold",
+    "label": "Bold",
+    "binding": "Mod+B",
+    "category": "Editor"
+  },
+  {
+    "id": "italic",
+    "label": "Italic",
+    "binding": "Mod+I",
+    "category": "Editor"
+  },
+  {
+    "id": "underline",
+    "label": "Underline",
+    "binding": "Mod+U",
+    "category": "Editor"
+  },
+  {
+    "id": "strike",
+    "label": "Strikethrough",
+    "binding": "Mod+Shift+X",
+    "category": "Editor"
+  },
+  {
+    "id": "code",
+    "label": "Monospace",
+    "binding": "",
+    "category": "Editor"
+  },
+  {
+    "id": "blockquote",
+    "label": "Blockquote",
+    "binding": "Mod+Shift+B",
+    "category": "Editor"
+  },
+  {
+    "id": "align_left",
+    "label": "Align left",
+    "binding": "",
+    "category": "Editor"
+  },
+  {
+    "id": "align_center",
+    "label": "Align center",
+    "binding": "Mod+Shift+E",
+    "category": "Editor"
+  },
+  {
+    "id": "align_right",
+    "label": "Align right",
+    "binding": "",
+    "category": "Editor"
+  },
+  {
+    "id": "align_justify",
+    "label": "Justify",
+    "binding": "Mod+Shift+J",
+    "category": "Editor"
+  }
+]

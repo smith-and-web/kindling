@@ -1211,10 +1211,6 @@
       menuPosition = null;
       menuTrigger?.focus();
     }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
-      e.preventDefault();
-      focusSearch();
-    }
     e.stopPropagation();
   }}
 >

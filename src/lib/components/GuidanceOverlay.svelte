@@ -23,7 +23,7 @@
       position: "left",
     },
     scenePanel: {
-      message: "Edit beats and scenes here. Add discovery notes with ⌘D.",
+      message: "Edit beats and scenes here. Capture ideas in Discovery Notes.",
       position: "center",
     },
     references: {
