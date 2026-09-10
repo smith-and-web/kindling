@@ -261,3 +261,21 @@ covered once by `99-dark-sweep.md` and narrow widths by `98-narrow-sweep.md`;
 add a screen there only if it introduces a surface the sweeps do not show.
 When a control has no test id, add one in the component and list it in
 `e2e/README.md` rather than matching on text.
+
+## Startup overlay regression
+
+Run `npm run build && npm run test:startup` with a Playwright Chromium browser
+installed (`npx playwright install chromium`). To use an existing Chrome binary,
+set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to its executable path.
+
+The test serves production assets, withholds the application bundle and initial
+project response, and checks first paint before the bundle request, overlay
+stacking, disabled background interaction, light/dark/system themes, reduced
+motion, ready-state handoff, and retry after a failed bundle request. It uses an
+isolated browser context and a minimal IPC fixture; no project data is changed.
+Screenshots are saved under `qa/visual/results/startup/`.
+
+Also smoke-test a native cold launch: the first visible window should contain the
+loading overlay and then uncover the start screen (or a document opened at launch).
+Reload should not steal focus. Browsers provide rendering opportunities through
+animation frames, not a portable guarantee that pixels reached the display.

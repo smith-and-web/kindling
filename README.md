@@ -66,6 +66,11 @@ Or grab the latest directly from the [Releases page](https://github.com/smith-an
 
 ## Features
 
+On launch, the window opens with a theme-matched loading overlay before the main
+interface loads. It respects your system's reduced-motion setting and stays until
+initial content, fonts and images are ready and the interface has had a chance to
+paint. There is no minimum display timer.
+
 | Feature | Description |
 |---------|-------------|
 | **Import from popular tools** | Scrivener 3 (`.scriv`), Plottr (`.pltr`), Markdown (`.md`), yWriter (`.yw7`), and Longform/Obsidian |

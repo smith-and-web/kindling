@@ -27,6 +27,7 @@ pub mod models;
 pub mod parsers;
 
 use commands::AppState;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Manager;
 
 /// Returns `Some((key, value))` when the WebKitGTK DMABUF renderer workaround
@@ -84,7 +85,25 @@ pub fn run() {
         std::env::set_var(key, val);
     }
 
+    let initial_page_loaded = AtomicBool::new(false);
     let builder = tauri::Builder::default()
+        .on_page_load(move |webview, payload| {
+            // Show the small loading shell as soon as its document finishes
+            // loading, even if its JavaScript failed. The bootstrap waits for
+            // a visible frame before requesting the full application bundle.
+            // A reload must not steal focus or re-show a hidden window.
+            if webview.label() == "main"
+                && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished)
+                && !initial_page_loaded.swap(true, Ordering::Relaxed)
+            {
+                let window = webview.window();
+                if let Err(error) = window.show() {
+                    eprintln!("Failed to show startup window: {error}");
+                } else if let Err(error) = window.set_focus() {
+                    eprintln!("Failed to focus startup window: {error}");
+                }
+            }
+        })
         .manage(editorial_files::PendingEditorialFiles::default())
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             editorial_files::enqueue(

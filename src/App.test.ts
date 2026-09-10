@@ -1102,3 +1102,62 @@ it.each(["sidebar", "menu", "keyboard"])(
     expect(within(editorial).getByRole("button", { name: "Return to writing" })).toBeTruthy();
   }
 );
+
+it.each(["projects", "editorial"])(
+  "waits for both initial content requests when %s finishes first",
+  async (first) => {
+    currentProject.setProject(null);
+    let projectsReady!: () => void;
+    let editorialReady!: () => void;
+    const projects = new Promise<never[]>((resolve) => (projectsReady = () => resolve([])));
+    const editorial = new Promise<never[]>((resolve) => (editorialReady = () => resolve([])));
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "get_recent_projects") return projects;
+      if (command === "take_editorial_open_files") return editorial;
+      return [];
+    });
+    const onReady = vi.fn();
+    render(App, { onReady });
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("take_editorial_open_files"));
+    expect(onReady).not.toHaveBeenCalled();
+    (first === "projects" ? projectsReady : editorialReady)();
+    await tick();
+    expect(onReady).not.toHaveBeenCalled();
+    (first === "projects" ? editorialReady : projectsReady)();
+    await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+  }
+);
+
+it("settles startup even if initial content requests fail", async () => {
+  currentProject.setProject(null);
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.mocked(invoke).mockRejectedValue(new Error("Database unavailable"));
+  const onReady = vi.fn();
+  render(App, { onReady });
+  await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+  expect(screen.getByText("Your projects will appear here")).toBeTruthy();
+});
+
+it("waits for a native file drain that starts before the listener handshake finishes", async () => {
+  currentProject.setProject(null);
+  let finish!: () => void;
+  const pending = new Promise<never[]>((resolve) => (finish = () => resolve([])));
+  vi.mocked(invoke).mockImplementation(async (command) =>
+    command === "take_editorial_open_files" ? pending : []
+  );
+  vi.mocked(listen).mockImplementation(async (event, callback) => {
+    if (event === "editorial-open") callback({ event, id: 1, payload: undefined });
+    return () => {};
+  });
+  try {
+    const onReady = vi.fn();
+    render(App, { onReady });
+    await tick();
+    expect(invoke).toHaveBeenCalledWith("take_editorial_open_files");
+    expect(onReady).not.toHaveBeenCalled();
+    finish();
+    await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+  } finally {
+    vi.mocked(listen).mockResolvedValue(() => {});
+  }
+});

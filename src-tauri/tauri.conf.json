@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "Kindling",
+        "visible": false,
         "width": 1600,
         "height": 1000,
         "minWidth": 1360,
