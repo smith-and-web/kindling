@@ -10,6 +10,7 @@
     PenTool,
     BookOpen,
     FilePlus,
+    FolderOpen,
     Scroll,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
@@ -131,7 +132,7 @@
 </script>
 
 <div
-  class="flex-1 flex flex-col items-center justify-center p-10 lg:p-14 relative overflow-y-auto overflow-x-hidden"
+  class="flex-1 flex flex-col items-center p-8 lg:px-14 lg:py-10 relative overflow-y-auto overflow-x-hidden"
 >
   <!-- Settings and Help buttons in corner -->
   <div class="absolute top-4 right-4 flex items-center gap-1 z-press-raised">
@@ -148,9 +149,9 @@
     {/if}
   </div>
 
-  <div class="w-full max-w-6xl flex flex-col lg:flex-row gap-8 lg:gap-12 flex-1 min-h-0 min-w-0">
+  <div class="w-full max-w-6xl flex flex-col lg:flex-row gap-8 lg:gap-12 grow shrink-0 min-w-0">
     <!-- Left column: branding + actions (golden ratio: ~38.2%) -->
-    <div class="flex flex-col gap-6 lg:w-[38.2%] lg:min-w-0 lg:shrink-0">
+    <div class="flex flex-col gap-5 lg:w-[38.2%] lg:min-w-0 lg:shrink-0">
       <!-- Logo & Tagline (compact) -->
       <div class="text-center lg:text-left lg:pr-4">
         <div class="flex justify-center lg:justify-start mb-2">
@@ -164,46 +165,56 @@
         <p class="text-press-muted text-press-ui lg:text-press-base">Spark your draft</p>
       </div>
 
-      <!-- New Project + Sample (stacked on lg) -->
-      {#if onNewProject}
+      <!-- Project and review actions -->
+      {#if onNewProject || onOpenEditorial}
         <div class="bg-press-surface rounded-lg p-5 space-y-4">
-          <button
-            data-testid="new-project-button"
-            onclick={onNewProject}
-            class="w-full flex items-center gap-3 p-3 bg-press-accent-wash border-2 border-press-accent rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
-          >
-            <FilePlus class="w-8 h-8 text-press-accent-text shrink-0" />
-            <div class="text-left">
-              <span class="text-press-text font-medium block">New Project</span>
-              <span class="text-press-muted text-press-ui">Start from scratch</span>
-            </div>
-          </button>
-          <button
-            onclick={trySampleProject}
-            class="w-full flex items-center gap-3 p-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
-          >
-            <BookOpen class="w-8 h-8 text-press-accent-text shrink-0" />
-            <div class="text-left">
-              <span class="text-press-text font-medium block">Sample Project</span>
-              <span class="text-press-muted text-press-ui">Explore Kindling first</span>
-            </div>
-          </button>
+          {#if onNewProject}
+            <button
+              data-testid="new-project-button"
+              onclick={onNewProject}
+              class="w-full flex items-center gap-3 p-3 bg-press-accent-wash border-2 border-press-accent rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
+            >
+              <FilePlus class="w-8 h-8 text-press-accent-text shrink-0" />
+              <div class="text-left">
+                <span class="text-press-text font-medium block">New Project</span>
+                <span class="text-press-muted text-press-ui">Start from scratch</span>
+              </div>
+            </button>
+            <button
+              onclick={trySampleProject}
+              class="w-full flex items-center gap-3 p-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
+            >
+              <BookOpen class="w-8 h-8 text-press-accent-text shrink-0" />
+              <div class="text-left">
+                <span class="text-press-text font-medium block">Sample Project</span>
+                <span class="text-press-muted text-press-ui">Explore Kindling first</span>
+              </div>
+            </button>
+          {/if}
+          {#if onOpenEditorial}
+            <button
+              onclick={onOpenEditorial}
+              class="w-full flex items-center gap-3 p-3 bg-press-sunken rounded-lg hover:bg-press-accent-wash transition-colors cursor-pointer"
+            >
+              <FolderOpen class="w-8 h-8 text-press-accent-text shrink-0" />
+              <div class="text-left">
+                <span class="text-press-text font-medium block">Open Review Package</span>
+                <span class="text-press-muted text-press-ui">Open a review or feedback file</span>
+              </div>
+            </button>
+          {/if}
         </div>
       {/if}
 
       <!-- Import Options (two-column grid) -->
-      {#if onOpenEditorial}<button
-          class="w-full p-3 text-left border-t border-press-border text-press-text"
-          onclick={onOpenEditorial}>Open a review or feedback package…</button
-        >{/if}
-      <div data-testid="import-section" class="bg-press-surface rounded-lg p-4">
+      <div data-testid="import-section" class="bg-press-surface rounded-lg p-4 lg:mt-auto">
         <h2 class="text-press-base font-heading font-medium text-press-text mb-3">
           Import an Outline
         </h2>
         <div class="grid grid-cols-2 gap-2">
           <button
             onclick={importPlottr}
-            class="flex flex-col items-center p-4 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
+            class="flex flex-col items-center px-4 py-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
           >
             <Kanban class="w-8 h-8 text-press-accent-text mb-1" />
             <span class="text-press-text text-press-ui font-medium">Plottr</span>
@@ -211,7 +222,7 @@
           </button>
           <button
             onclick={importYWriter}
-            class="flex flex-col items-center p-4 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
+            class="flex flex-col items-center px-4 py-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
           >
             <PenTool class="w-8 h-8 text-press-accent-text mb-1" />
             <span class="text-press-text text-press-ui font-medium">yWriter</span>
@@ -219,7 +230,7 @@
           </button>
           <button
             onclick={importMarkdown}
-            class="flex flex-col items-center p-4 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
+            class="flex flex-col items-center px-4 py-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
           >
             <FileText class="w-8 h-8 text-press-accent-text mb-1" />
             <span class="text-press-text text-press-ui font-medium">Markdown</span>
@@ -227,7 +238,7 @@
           </button>
           <button
             onclick={handleLongformImport}
-            class="flex flex-col items-center p-4 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
+            class="flex flex-col items-center px-4 py-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
           >
             <BookOpen class="w-8 h-8 text-press-accent-text mb-1" />
             <span class="text-press-text text-press-ui font-medium">Longform</span>
@@ -235,7 +246,7 @@
           </button>
           <button
             onclick={importScrivener}
-            class="flex flex-col items-center p-4 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
+            class="flex flex-col items-center px-4 py-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
           >
             <Scroll class="w-8 h-8 text-press-accent-text mb-1" />
             <span class="text-press-text text-press-ui font-medium">Scrivener</span>
@@ -243,7 +254,7 @@
           </button>
           <button
             onclick={importNovelWriter}
-            class="flex flex-col items-center p-4 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
+            class="flex flex-col items-center px-4 py-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
           >
             <Scroll class="w-8 h-8 text-press-accent-text mb-1" />
             <span class="text-press-text text-press-ui font-medium">novelWriter</span>
@@ -254,7 +265,9 @@
     </div>
 
     <!-- Right column: project list (golden ratio: ~61.8%) -->
-    <div class="flex-1 flex flex-col min-h-0 min-w-0 bg-press-surface rounded-lg p-6 lg:p-8">
+    <div
+      class="flex-1 flex flex-col min-h-0 min-w-0 lg:[contain:size] bg-press-surface rounded-lg p-6 lg:p-8"
+    >
       {#if recentProjects.length > 0}
         <div data-testid="recent-projects" class="flex flex-col flex-1 min-h-0">
           <div class="flex items-center justify-between mb-4 shrink-0">
