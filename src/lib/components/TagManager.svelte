@@ -334,8 +334,8 @@
         />
       </div>
 
-      <div>
-        <label class="block text-press-eyebrow text-press-muted mb-1">Color</label>
+      <fieldset>
+        <legend class="block text-press-eyebrow text-press-muted mb-1">Color</legend>
         <div class="flex flex-wrap gap-1.5">
           <button
             onclick={() => {
@@ -369,7 +369,7 @@
             </button>
           {/each}
         </div>
-      </div>
+      </fieldset>
 
       <div class="flex justify-end gap-2">
         <button

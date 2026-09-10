@@ -316,7 +316,7 @@ pub fn export_novelwriter_project(
                 .filter(|beat| beat.scene_id == scene.id)
                 .collect();
             scene_beats.sort_by_key(|beat| beat.position);
-            if scene.editor_mode == EditorMode::Page {
+            if scene.editor_mode == EditorMode::Page || scene_beats.is_empty() {
                 // Page prose has no defensible beat boundaries.
                 body.push_str(&format!(
                     "\n{}\n",

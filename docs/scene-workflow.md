@@ -37,3 +37,16 @@ These controls influence scene filters in the sidebar and are used in exports.
 ## Scene Locking
 
 Locked scenes (or scenes inside locked chapters) are read-only. Unlock the scene to edit beats, prose, or metadata.
+
+## Cancelling quit after a save failure
+
+If saving fails while quitting, choose **Keep editing** or press **Escape** to
+return to the same writing editor and selection. Kindling restores the caret only
+while that editor still belongs to the same scene and project and you have not
+moved focus to another control outside the quit prompt.
+
+## Snapshot independence
+
+Each newly created project snapshot has its own backing file, including snapshots
+created in rapid succession. Deleting one leaves the others available to preview
+and restore.

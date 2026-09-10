@@ -1,5 +1,8 @@
 /** Preserve a live writing selection while an exit attempt temporarily makes it inert. */
-export function captureWritingFocus(isCurrent: () => boolean): (restore: boolean) => void {
+export function captureWritingFocus(
+  isCurrent: () => boolean,
+  isTemporaryFocus: (target: EventTarget | null) => boolean = () => false
+): (restore: boolean) => void {
   const editor = document.activeElement;
   if (
     !(editor instanceof HTMLElement) ||
@@ -21,7 +24,12 @@ export function captureWritingFocus(isCurrent: () => boolean): (restore: boolean
     !textarea && domSelection?.rangeCount ? domSelection.getRangeAt(0).cloneRange() : null;
   let movedFocus = false;
   const trackFocus = (event: FocusEvent) => {
-    if (event.target !== editor && event.target !== document.body) movedFocus = true;
+    if (
+      event.target !== editor &&
+      event.target !== document.body &&
+      !isTemporaryFocus(event.target)
+    )
+      movedFocus = true;
   };
   document.addEventListener("focusin", trackFocus, true);
 

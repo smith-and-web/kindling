@@ -38,7 +38,7 @@ fn get_snapshots_dir(app_handle: &AppHandle, project_id: &Uuid) -> Result<PathBu
 fn generate_snapshot_filename(trigger: &SnapshotTrigger) -> String {
     let timestamp = chrono::Utc::now().format("%Y-%m-%d_%H%M%S");
     let trigger_str = trigger.as_str();
-    format!("{}_{}.json.gz", timestamp, trigger_str)
+    format!("{}_{}_{}.json.gz", timestamp, Uuid::new_v4(), trigger_str)
 }
 
 /// Collect all project data for snapshotting
@@ -103,7 +103,7 @@ fn serialize_and_compress(data: &SnapshotData, file_path: &PathBuf) -> Result<(i
     let json = serde_json::to_string(data).map_err(|e| e.to_string())?;
     let uncompressed_size = json.len() as i64;
 
-    let file = File::create(file_path).map_err(|e| e.to_string())?;
+    let file = File::create_new(file_path).map_err(|e| e.to_string())?;
     let mut encoder = GzEncoder::new(file, Compression::default());
     encoder
         .write_all(json.as_bytes())
@@ -660,8 +660,46 @@ mod tests {
         let filename = generate_snapshot_filename(&SnapshotTrigger::Manual);
         assert!(filename.ends_with("_manual.json.gz"));
         let parts: Vec<&str> = filename.split('_').collect();
-        assert_eq!(parts.len(), 3);
-        assert_eq!(parts[2], "manual.json.gz");
+        assert_eq!(parts.len(), 4);
+        assert!(Uuid::parse_str(parts[2]).is_ok());
+        assert_eq!(parts[3], "manual.json.gz");
+    }
+
+    #[test]
+    fn rapid_snapshots_keep_independent_content_and_survive_deletion() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        let project = Project::new("First content".into(), SourceType::Blank, None);
+        db::insert_project(&conn, &project).unwrap();
+        let mut data = collect_project_data(&conn, &project.id).unwrap();
+        let dir = tempdir().unwrap();
+        for trigger in [SnapshotTrigger::Manual, SnapshotTrigger::Export] {
+            // No sleeps: both names may be generated during the same clock tick.
+            let first = dir.path().join(generate_snapshot_filename(&trigger));
+            let second = dir.path().join(generate_snapshot_filename(&trigger));
+            assert_ne!(first, second);
+            data.project.name = "First content".into();
+            serialize_and_compress(&data, &first).unwrap();
+            data.project.name = "Second content".into();
+            serialize_and_compress(&data, &second).unwrap();
+            assert!(
+                serialize_and_compress(&data, &first).is_err(),
+                "Existing files must never be truncated"
+            );
+            assert_eq!(
+                decompress_and_deserialize(&first).unwrap().project.name,
+                "First content"
+            );
+            assert_eq!(
+                decompress_and_deserialize(&second).unwrap().project.name,
+                "Second content"
+            );
+            fs::remove_file(first).unwrap();
+            assert_eq!(
+                decompress_and_deserialize(&second).unwrap().project.name,
+                "Second content"
+            );
+        }
     }
 
     #[test]

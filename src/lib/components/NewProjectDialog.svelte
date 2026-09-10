@@ -127,8 +127,8 @@
     </div>
 
     <div class="p-4 space-y-4">
-      <div>
-        <label class="block text-press-ui font-medium text-press-muted mb-2">Project type</label>
+      <fieldset>
+        <legend class="block text-press-ui font-medium text-press-muted mb-2">Project type</legend>
         <div class="flex gap-2">
           <button
             type="button"
@@ -153,7 +153,7 @@
             <span class="text-press-text font-medium">Screenplay</span>
           </button>
         </div>
-      </div>
+      </fieldset>
 
       <div>
         <label for="new-project-name" class="block text-press-ui font-medium text-press-muted mb-2">
@@ -183,9 +183,9 @@
         </div>
       {/if}
 
-      <div>
-        <label class="block text-press-ui font-medium text-press-muted mb-2"
-          >Structure template</label
+      <fieldset>
+        <legend class="block text-press-ui font-medium text-press-muted mb-2"
+          >Structure template</legend
         >
         {#if selectedTemplate}
           <div
@@ -214,7 +214,7 @@
             Browse templates...
           </button>
         {/if}
-      </div>
+      </fieldset>
 
       {#if error}
         <p class="text-press-ui text-press-error">{error}</p>

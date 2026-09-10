@@ -50,10 +50,10 @@ fn prose(value: Option<&str>) -> String {
     html_to_nw(value.unwrap_or_default())
 }
 fn scene_prose(scene: &Scene, beats: &[Beat]) -> String {
-    if scene.editor_mode == EditorMode::Page {
+    let mut ordered: Vec<_> = beats.iter().filter(|b| b.scene_id == scene.id).collect();
+    if scene.editor_mode == EditorMode::Page || ordered.is_empty() {
         return prose(scene.prose.as_deref());
     }
-    let mut ordered: Vec<_> = beats.iter().filter(|b| b.scene_id == scene.id).collect();
     ordered.sort_by_key(|b| b.position);
     ordered
         .iter()
@@ -361,6 +361,19 @@ mod tests {
         super::super::import::insert_novelwriter(&conn, &parsed).unwrap();
         (conn, parsed.project, temp)
     }
+    #[test]
+    fn no_beats_use_scene_prose_even_when_other_scenes_have_beats() {
+        let mut scene = Scene::new(Uuid::new_v4(), "Scene".into(), None, 0);
+        scene.prose = Some("<p>Fallback manuscript</p>".into());
+        let unrelated = Beat::new(Uuid::new_v4(), "Other scene".into(), 0);
+        assert_eq!(scene_prose(&scene, &[unrelated]), "Fallback manuscript");
+        let mut beat = Beat::new(scene.id, "Outline".into(), 0);
+        beat.prose = Some("<p>Beat manuscript</p>".into());
+        assert_eq!(scene_prose(&scene, &[beat.clone()]), "Beat manuscript");
+        scene.editor_mode = EditorMode::Page;
+        assert_eq!(scene_prose(&scene, &[beat]), "Fallback manuscript");
+    }
+
     #[test]
     fn selective_prose_sync_and_locks() {
         let (conn, project, _temp) = imported();
