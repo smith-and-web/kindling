@@ -136,14 +136,6 @@ export const COMMAND_DEFS: CommandDef[] = [
   },
   // Project
   {
-    id: "project_settings",
-    label: "Project settings",
-    shortcut: "⌘⇧P",
-    category: "Project",
-    keywords: ["settings", "project", "configure"],
-    requiresProject: true,
-  },
-  {
     id: "sync",
     label: "Sync from source",
     shortcut: "⌘⇧S",
@@ -220,11 +212,20 @@ export const COMMAND_DEFS: CommandDef[] = [
     requiresProject: false,
   },
   {
-    id: "kindling_settings",
-    label: "Kindling settings",
+    id: "settings",
+    label: "Settings",
     shortcut: "⌘,",
     category: "Help",
-    keywords: ["settings", "kindling", "preferences", "author"],
+    keywords: [
+      "settings",
+      "kindling",
+      "preferences",
+      "author",
+      "project",
+      "theme",
+      "tags",
+      "fields",
+    ],
     requiresProject: false,
   },
 ];

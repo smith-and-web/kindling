@@ -108,3 +108,15 @@ describe("fuzzyScore", () => {
     expect(fuzzyScore("exz", "export")).toBe(-1);
   });
 });
+
+it("exposes one shared settings command without requiring an open project", () => {
+  const settings = COMMAND_DEFS.filter((command) => command.id.includes("settings"));
+  expect(settings).toEqual([
+    expect.objectContaining({
+      id: "settings",
+      label: "Settings",
+      requiresProject: false,
+      shortcut: "⌘,",
+    }),
+  ]);
+});

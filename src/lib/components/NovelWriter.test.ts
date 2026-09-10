@@ -229,7 +229,7 @@ describe("prose sync UI", () => {
 });
 
 // Reference categories introduced by novelWriter must work throughout the UI.
-import ProjectSettingsDialog from "./ProjectSettingsDialog.svelte";
+import ProjectSettings from "./ProjectSettings.svelte";
 import ReferenceEditDialog from "./ReferenceEditDialog.svelte";
 import ReferenceClassificationDialog from "./ReferenceClassificationDialog.svelte";
 import ScenePanel from "./ScenePanel.svelte";
@@ -267,7 +267,7 @@ describe("timeline and custom references", () => {
 
   it("offers custom field definitions for both types in project settings", async () => {
     currentProject.setProject({ ...project, reference_types: ["timelines", "custom"] });
-    render(ProjectSettingsDialog, { onClose: vi.fn(), onSave: vi.fn() });
+    render(ProjectSettings, { project: currentProject.value!, section: "fields", onSave: vi.fn() });
     await waitFor(() => {
       for (const entityType of ["timeline", "custom"])
         expect(invoke).toHaveBeenCalledWith("get_field_definitions", {

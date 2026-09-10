@@ -56,11 +56,11 @@ return q.run([
 `wait_for` `#qa-done-11` attached (timeout 8000), then screenshot.
 
 Asserts: `11-02-state.sync === false` (no source path, so no sync button),
-`settings === true`, `title === true`, `view === "editor"`, `chapters`
+`settings === false`, `title === true`, `view === "editor"`, `chapters`
 equals `["Chapter 1"]` (a blank project starts with one default chapter).
 
 **Expect**: the editor shell with the new project's name in the sidebar
-header, no sync icon between Project settings and More actions, a single
+header, no sync icon beside More actions, a single
 `Chapter 1` expanded with the undefined-planning hint and a "Switch to
 Flexible" affordance, the New Chapter button, and the scene panel empty state.
 

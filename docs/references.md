@@ -42,9 +42,8 @@ Each reference includes:
 
 ## Reference Type Settings
 
-Use the settings cog in the References panel to enable or disable reference types per project.
+Open **File → Settings → Reference Types**, then choose a project to enable or disable its reference types.
 
-![Screenshot: Reference type settings](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/reference-types.png)
 
 ## Copying References Between Projects
 

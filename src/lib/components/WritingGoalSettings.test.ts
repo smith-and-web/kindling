@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { invoke } from "@tauri-apps/api/core";
-import ProjectSettingsDialog from "./ProjectSettingsDialog.svelte";
+import ProjectSettings from "./ProjectSettings.svelte";
 import { currentProject } from "../stores/project.svelte";
 import { mockProject } from "../../dev/mock-data";
 
@@ -21,12 +21,12 @@ afterEach(() => {
 
 it("saves the loaded daily goal with metadata in one command", async () => {
   const onSave = vi.fn();
-  render(ProjectSettingsDialog, { onClose: vi.fn(), onSave });
+  render(ProjectSettings, { project: mockProject, section: "details", onSave });
   await waitFor(() =>
     expect((screen.getByLabelText("Daily writing goal") as HTMLInputElement).value).toBe("500")
   );
   await fireEvent.input(screen.getByLabelText("Daily writing goal"), { target: { value: "750" } });
-  await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await fireEvent.click(screen.getByRole("button", { name: "Save project changes" }));
   expect(invoke).toHaveBeenCalledWith("update_project_settings", {
     projectId: mockProject.id,
     settings: expect.objectContaining({ daily_writing_goal: 750 }),
@@ -47,10 +47,10 @@ it.each(["pending", "failed"])(
       return [];
     });
     const onSave = vi.fn();
-    render(ProjectSettingsDialog, { onClose: vi.fn(), onSave });
+    render(ProjectSettings, { project: mockProject, section: "details", onSave });
     if (state === "failed") await screen.findByText(/Could not load daily goal/);
     expect((screen.getByLabelText("Daily writing goal") as HTMLInputElement).disabled).toBe(true);
-    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save project changes" }));
     expect(onSave).toHaveBeenCalledWith(mockProject);
     const save = vi
       .mocked(invoke)
@@ -63,12 +63,12 @@ it.each(["pending", "failed"])(
 );
 
 it("rejects a fractional goal after loading without saving metadata", async () => {
-  render(ProjectSettingsDialog, { onClose: vi.fn(), onSave: vi.fn() });
+  render(ProjectSettings, { project: mockProject, section: "details", onSave: vi.fn() });
   await waitFor(() =>
     expect((screen.getByLabelText("Daily writing goal") as HTMLInputElement).disabled).toBe(false)
   );
   await fireEvent.input(screen.getByLabelText("Daily writing goal"), { target: { value: "1.5" } });
-  await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await fireEvent.click(screen.getByRole("button", { name: "Save project changes" }));
   expect(screen.getByText(/Daily goal must be a whole number/)).toBeTruthy();
   expect(invoke).not.toHaveBeenCalledWith("update_project_settings", expect.anything());
 });

@@ -33,7 +33,6 @@
     Lock,
     Unlock,
     Download,
-    Settings,
     BookOpen,
     StickyNote,
     CheckSquare,
@@ -41,6 +40,7 @@
     CircleDot,
     CircleDashed,
     Filter,
+    Settings,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { session } from "../stores/session.svelte";
@@ -56,10 +56,8 @@
     SyncPreview,
     ReimportSummary,
     ExportResult,
-    Project,
   } from "../types";
   import ArchivePanel from "./ArchivePanel.svelte";
-  import ProjectSettingsDialog from "./ProjectSettingsDialog.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import PartDeleteDialog from "./PartDeleteDialog.svelte";
   import ContextMenu from "./ContextMenu.svelte";
@@ -87,8 +85,12 @@
   let {
     prepareWritingReset,
     beforeCloseProject,
-  }: { prepareWritingReset?: () => Promise<void>; beforeCloseProject?: () => Promise<void> } =
-    $props();
+    onOpenSettings,
+  }: {
+    prepareWritingReset?: () => Promise<void>;
+    beforeCloseProject?: () => Promise<void>;
+    onOpenSettings?: () => void;
+  } = $props();
 
   let loading = $state(false);
   let chaptersRequestId = 0;
@@ -413,9 +415,6 @@
     saveChapterSynopsis(chapterId);
     editingChapterSynopsisId = null;
   }
-
-  // Project settings dialog state
-  let showSettingsDialog = $state(false);
 
   // Export dialog state
   let exportDialog: {
@@ -1337,16 +1336,6 @@
         </div>
         <!-- Action icons (primary only; secondary behind more menu) -->
         <div class="flex items-center gap-0.5 shrink-0">
-          <Tooltip text="Project settings" position="bottom">
-            <button
-              data-testid="settings-button"
-              onclick={() => (showSettingsDialog = true)}
-              class="p-1.5 text-press-muted hover:text-press-text hover:bg-press-sunken rounded transition-colors"
-              aria-label="Project settings"
-            >
-              <Settings class="w-4 h-4" />
-            </button>
-          </Tooltip>
           {#if currentProject.value.source_path && supportsSync(currentProject.value.source_type)}
             <Tooltip text="Sync from source" position="bottom">
               <button
@@ -2140,6 +2129,19 @@
       </nav>
     {/if}
   </div>
+  {#if onOpenSettings}
+    <footer class="shrink-0 border-t border-press-border px-3 py-2" inert={ui.sidebarCollapsed}>
+      <button
+        type="button"
+        data-testid="sidebar-settings-button"
+        onclick={onOpenSettings}
+        class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-press-ui text-press-muted hover:bg-press-sunken hover:text-press-text transition-colors"
+      >
+        <Settings class="w-4 h-4" />
+        Settings
+      </button>
+    </footer>
+  {/if}
 </aside>
 
 <!-- Collapsed sidebar toggle -->
@@ -2240,15 +2242,4 @@
 <!-- Export Success Dialog -->
 {#if exportResult}
   <ExportSuccessDialog result={exportResult} onClose={() => (exportResult = null)} />
-{/if}
-
-<!-- Project Settings Dialog -->
-{#if showSettingsDialog}
-  <ProjectSettingsDialog
-    onClose={() => (showSettingsDialog = false)}
-    onSave={(updatedProject: Project) => {
-      currentProject.setProject(updatedProject);
-      showSettingsDialog = false;
-    }}
-  />
 {/if}

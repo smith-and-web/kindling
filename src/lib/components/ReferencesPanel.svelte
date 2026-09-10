@@ -14,7 +14,6 @@
     GripVertical,
     Link2,
     ListChevronsDownUp,
-    Settings,
     Pencil,
     Plus,
     Trash2,
@@ -85,10 +84,6 @@
   let sceneReferenceRequestId = 0;
   let loadReferencesRequestId = 0;
   let suggestionsRequestId = 0;
-  let showReferenceTypeSettings = $state(false);
-  let referenceTypeSelection = $state<ReferenceTypeId[]>([]);
-  let referenceTypeSaving = $state(false);
-  let referenceTypeError = $state<string | null>(null);
   let isResizing = $state(false);
   let draggedId = $state<string | null>(null);
   let dragOverId = $state<string | null>(null);
@@ -258,48 +253,6 @@
       if (requestId === loadReferencesRequestId) {
         loading = false;
       }
-    }
-  }
-
-  function openReferenceTypeSettings() {
-    referenceTypeSelection = normalizeReferenceTypes(
-      currentProject.value?.reference_types ?? DEFAULT_REFERENCE_TYPES
-    );
-    referenceTypeError = null;
-    showReferenceTypeSettings = true;
-  }
-
-  function closeReferenceTypeSettings() {
-    showReferenceTypeSettings = false;
-  }
-
-  function toggleReferenceType(typeId: ReferenceTypeId) {
-    if (referenceTypeSelection.includes(typeId)) {
-      referenceTypeSelection = referenceTypeSelection.filter((type) => type !== typeId);
-    } else {
-      referenceTypeSelection = [...referenceTypeSelection, typeId];
-    }
-  }
-
-  async function saveReferenceTypeSettings() {
-    if (!currentProject.value) return;
-    referenceTypeSaving = true;
-    referenceTypeError = null;
-    try {
-      const updatedProject = await invoke<Project>("update_project_settings", {
-        projectId: currentProject.value.id,
-        settings: {
-          reference_types: referenceTypeSelection,
-        },
-      });
-      currentProject.setProject(updatedProject);
-      await loadReferences();
-      showReferenceTypeSettings = false;
-    } catch (e) {
-      console.error("Failed to update reference types:", e);
-      referenceTypeError = e instanceof Error ? e.message : "Failed to update reference types";
-    } finally {
-      referenceTypeSaving = false;
     }
   }
 
@@ -919,16 +872,6 @@
             <Plus class="w-4 h-4" />
           </button>
         </Tooltip>
-        <!-- Reference Types settings -->
-        <Tooltip text="Reference types" position="bottom">
-          <button
-            onclick={openReferenceTypeSettings}
-            class="text-press-muted hover:text-press-text p-1"
-            aria-label="Reference types settings"
-          >
-            <Settings class="w-4 h-4" />
-          </button>
-        </Tooltip>
         <!-- Collapse All button -->
         <Tooltip text="Collapse all" position="bottom">
           <button
@@ -1044,7 +987,7 @@
     {:else if !activeTab}
       <div class="flex items-center justify-center p-4">
         <span class="text-press-muted text-press-ui">
-          No reference types enabled. Use the settings cog to enable them.
+          No reference types enabled. Enable them in File → Settings → Reference Types.
         </span>
       </div>
     {:else if activeItems.length === 0}
@@ -1314,76 +1257,6 @@
     onConfirm={handleDeleteReference}
     onCancel={() => (deleteTarget = null)}
   />
-{/if}
-
-{#if showReferenceTypeSettings}
-  <div
-    class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="reference-types-title"
-    tabindex="-1"
-  >
-    <div
-      class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-md mx-4 overflow-hidden"
-    >
-      <div class="flex items-center justify-between px-4 py-3 border-b border-press-border">
-        <h2 id="reference-types-title" class="text-press-body-lg font-medium text-press-text">
-          Reference Types
-        </h2>
-        <Tooltip text="Close" position="left">
-          <button
-            type="button"
-            onclick={closeReferenceTypeSettings}
-            class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
-            aria-label="Close"
-          >
-            <ChevronsRight class="w-4 h-4" />
-          </button>
-        </Tooltip>
-      </div>
-      <div class="p-4 space-y-3">
-        <p class="text-press-ui text-press-muted">
-          Choose which reference types appear in this project’s References panel.
-        </p>
-        <div class="space-y-2">
-          {#each REFERENCE_TYPE_OPTIONS as option (option.id)}
-            <label class="flex items-center gap-2 text-press-ui text-press-text">
-              <input
-                type="checkbox"
-                class="accent-accent"
-                checked={referenceTypeSelection.includes(option.id)}
-                disabled={referenceTypeSaving}
-                onclick={() => toggleReferenceType(option.id)}
-              />
-              <span>{option.label}</span>
-            </label>
-          {/each}
-        </div>
-        {#if referenceTypeError}
-          <p class="text-press-ui text-press-error">{referenceTypeError}</p>
-        {/if}
-      </div>
-      <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-press-border">
-        <button
-          type="button"
-          onclick={closeReferenceTypeSettings}
-          class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors"
-          disabled={referenceTypeSaving}
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onclick={saveReferenceTypeSettings}
-          class="px-4 py-2 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors"
-          disabled={referenceTypeSaving}
-        >
-          {referenceTypeSaving ? "Saving..." : "Save"}
-        </button>
-      </div>
-    </div>
-  </div>
 {/if}
 
 {#if copyDestination && currentProject.value?.id === copyDestination.id}

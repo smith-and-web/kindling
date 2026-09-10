@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { GripVertical, Pencil, Plus, Trash2, X, Loader2, Check } from "lucide-svelte";
   import type { FieldDefinition, FieldType, FieldEntityType } from "../types";
@@ -6,10 +7,14 @@
 
   let {
     projectId,
+    onState,
+    onChange,
     entityType,
     entityLabel,
   }: {
     projectId: string;
+    onState?: (state: { dirty: boolean; busy: boolean }) => void;
+    onChange?: () => void;
     entityType: FieldEntityType;
     entityLabel: string;
   } = $props();
@@ -21,6 +26,11 @@
   let editingDef = $state<Partial<FieldDefinition> | null>(null);
   let editMode = $state<"create" | "edit">("create");
   let saving = $state(false);
+  $effect(() => {
+    const state = { dirty: editingDef !== null, busy: saving };
+    untrack(() => onState?.(state));
+  });
+  onDestroy(() => onState?.({ dirty: false, busy: false }));
 
   const FIELD_TYPES: { value: FieldType; label: string }[] = [
     { value: "text", label: "Text" },
@@ -111,6 +121,7 @@
       }
       editingDef = null;
       await loadDefinitions();
+      onChange?.();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -119,11 +130,16 @@
   }
 
   async function deleteDefinition(id: string) {
+    if (saving) return;
+    saving = true;
     try {
       await invoke("delete_field_definition", { projectId, definitionId: id });
       await loadDefinitions();
+      onChange?.();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+    } finally {
+      saving = false;
     }
   }
 

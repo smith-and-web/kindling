@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { Loader2, Pencil, Plus, Trash2, X, Check } from "lucide-svelte";
   import pressTokens from "../../styles/press/tokens.json";
@@ -7,8 +8,12 @@
 
   let {
     projectId,
+    onState,
+    onChange,
   }: {
     projectId: string;
+    onState?: (state: { dirty: boolean; busy: boolean }) => void;
+    onChange?: () => void;
   } = $props();
 
   let tags = $state<Tag[]>([]);
@@ -18,6 +23,11 @@
   let editingTag = $state<Partial<Tag> | null>(null);
   let editMode = $state<"create" | "edit">("create");
   let saving = $state(false);
+  $effect(() => {
+    const state = { dirty: editingTag !== null, busy: saving };
+    untrack(() => onState?.(state));
+  });
+  onDestroy(() => onState?.({ dirty: false, busy: false }));
 
   const PRESET_COLOR_TOKENS: Array<[string, keyof typeof pressTokens.light]> = [
     ["Red", "--tag-red"],
@@ -103,6 +113,7 @@
       }
       editingTag = null;
       await loadTags();
+      onChange?.();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -111,11 +122,16 @@
   }
 
   async function deleteTag(id: string) {
+    if (saving) return;
+    saving = true;
     try {
       await invoke("delete_tag", { tagId: id });
       await loadTags();
+      onChange?.();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+    } finally {
+      saving = false;
     }
   }
 

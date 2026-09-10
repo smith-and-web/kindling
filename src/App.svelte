@@ -15,8 +15,7 @@
   import ScenePanel from "./lib/components/ScenePanel.svelte";
   import Sidebar from "./lib/components/Sidebar.svelte";
   import StartScreen from "./lib/components/StartScreen.svelte";
-  import KindlingSettingsDialog from "./lib/components/KindlingSettingsDialog.svelte";
-  import ProjectSettingsDialog from "./lib/components/ProjectSettingsDialog.svelte";
+  import SettingsDialog from "./lib/components/SettingsDialog.svelte";
   import ExportDialog from "./lib/components/ExportDialog.svelte";
   import ExportSuccessDialog from "./lib/components/ExportSuccessDialog.svelte";
   import ErrorToast from "./lib/components/ErrorToast.svelte";
@@ -82,8 +81,7 @@
   let recentProjects = $state<Project[]>([]);
 
   // Dialog states triggered by menu
-  let showKindlingSettings = $state(false);
-  let showProjectSettings = $state(false);
+  let showSettings = $state(false);
   let showExportDialog = $state(false);
   let exportResult = $state<ExportResult | null>(null);
   let showLongformImportDialog = $state(false);
@@ -331,6 +329,11 @@
     const unlisten = listen<string>("menu-event", (event) => {
       if (interactionBlocked) return;
       const menuId = event.payload;
+      if (showSettings && menuId !== "quit") return;
+      if (menuId === "settings") {
+        showSettings = true;
+        return;
+      }
       if (menuId === "editorial_open" || menuId === "editorial_project") {
         runCommand(menuId);
         return;
@@ -358,14 +361,6 @@
           break;
         case "close_project":
           closeProject();
-          break;
-        case "project_settings":
-          if (currentProject.value) {
-            showProjectSettings = true;
-          }
-          break;
-        case "kindling_settings":
-          showKindlingSettings = true;
           break;
         case "command_palette":
           showCommandPalette = true;
@@ -436,9 +431,6 @@
       case "close_project":
         closeProject();
         break;
-      case "project_settings":
-        if (currentProject.value) showProjectSettings = true;
-        break;
       case "sync":
         window.dispatchEvent(new CustomEvent("kindling:sync"));
         break;
@@ -463,8 +455,8 @@
       case "quick_start":
         showQuickStart = true;
         break;
-      case "kindling_settings":
-        showKindlingSettings = true;
+      case "settings":
+        showSettings = true;
         break;
       case "about":
         showAboutDialog = true;
@@ -498,6 +490,12 @@
 
   // Global keyboard shortcuts
   function handleKeydown(event: KeyboardEvent) {
+    if (showSettings) return;
+    if ((event.metaKey || event.ctrlKey) && event.key === ",") {
+      event.preventDefault();
+      showSettings = true;
+      return;
+    }
     if (editorial?.isOpen()) return;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
       if (!currentProject.value) return;
@@ -626,6 +624,13 @@
   </div>
 {/if}
 
+<!-- Settings is shared by the writing and local editorial workspaces. -->
+<div inert={interactionBlocked} hidden={interactionBlocked}>
+  {#if showSettings}
+    <SettingsDialog onClose={() => (showSettings = false)} />
+  {/if}
+</div>
+
 <main
   inert={interactionBlocked}
   aria-busy={closePending || updatePending}
@@ -633,6 +638,7 @@
 >
   {#if currentProject.value && (!editorial?.isOpen() || editorial?.isLocal())}
     <Sidebar
+      onOpenSettings={() => (showSettings = true)}
       beforeCloseProject={async () => {
         if (editorial?.isLocal()) {
           await editorial.closeWorkspace();
@@ -736,25 +742,6 @@
   <!-- Quick Start Dialog (triggered by Help menu) -->
   {#if showQuickStart}
     <QuickStartDialog onClose={() => (showQuickStart = false)} />
-  {/if}
-
-  <!-- Kindling Settings Dialog (triggered by menu) -->
-  {#if showKindlingSettings}
-    <KindlingSettingsDialog
-      onClose={() => (showKindlingSettings = false)}
-      onSave={() => (showKindlingSettings = false)}
-    />
-  {/if}
-
-  <!-- Project Settings Dialog (triggered by menu) -->
-  {#if showProjectSettings && currentProject.value}
-    <ProjectSettingsDialog
-      onClose={() => (showProjectSettings = false)}
-      onSave={(project) => {
-        currentProject.setProject(project);
-        showProjectSettings = false;
-      }}
-    />
   {/if}
 
   <!-- Export Dialog (triggered by menu) -->
