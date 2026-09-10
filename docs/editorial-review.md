@@ -47,12 +47,12 @@ normal undo/redo shortcuts. Selecting across beats or scenes is one editorial
 action. Chapter and scene records remain intact: a replacement belongs to the
 first surviving source, and consumed prose is removed from subsequent sources.
 
-Click **Comment**, or use **Cmd/Ctrl+Alt+M**, to comment on a selection. With a
+Click **Comment**, or use the default **Cmd/Ctrl+Alt+M** shortcut, to comment on a selection. With a
 cursor and no selected text, the comment records broader feedback at that
 reading position. Threads support replies, resolution, and reopening. Refine
 your suggestions by editing them in the manuscript, or select **Withdraw**.
 
-Use **Find in manuscript** or **Cmd/Ctrl+F**, chapter navigation, and previous/next
+Use **Find in manuscript** or the default **Cmd/Ctrl+F** shortcut, chapter navigation, and previous/next
 annotation controls to move through the work. **Simple markup** keeps the prose
 readable and shows paragraph-margin indicators. Click an indicator or a sidebar
 thread to inspect that change beside its passage. Choose **All markup** to show

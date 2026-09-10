@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { shortcuts } from "../stores/shortcuts.svelte";
+  import { KeyboardFormatting } from "../utils/keyboardFormatting";
   import { onMount, tick } from "svelte";
   import ProseToolbar from "./ProseToolbar.svelte";
   import { MessageSquare } from "lucide-svelte";
@@ -202,7 +204,7 @@
   onMount(() => {
     const instance = new Editor({
       element,
-      extensions: editorialExtensions,
+      extensions: [...editorialExtensions, KeyboardFormatting],
       content: initial,
       editable: !readonly,
       editorProps: {
@@ -225,12 +227,7 @@
           spellcheck: "true",
         },
         handleKeyDown: (_view, event) => {
-          if (
-            canComment &&
-            (event.metaKey || event.ctrlKey) &&
-            event.altKey &&
-            event.key.toLowerCase() === "m"
-          ) {
+          if (canComment && shortcuts.match(event) === "editorial_comment") {
             event.preventDefault();
             onComment();
             return true;

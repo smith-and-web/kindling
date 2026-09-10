@@ -29,6 +29,7 @@
   import { captureWritingFocus } from "./lib/utils/writingFocus";
   import { checkForUpdate } from "./lib/updater";
   import NewProjectDialog from "./lib/components/NewProjectDialog.svelte";
+  import { shortcuts } from "./lib/stores/shortcuts.svelte";
   import { COMMAND_DEFS } from "./lib/commands";
   import { currentProject } from "./lib/stores/project.svelte";
   import { session } from "./lib/stores/session.svelte";
@@ -340,66 +341,7 @@
   // Handle menu events from Tauri
   onMount(() => {
     const unlisten = listen<string>("menu-event", (event) => {
-      if (interactionBlocked) return;
-      const menuId = event.payload;
-      if (showSettings && menuId !== "quit") return;
-      if (menuId === "settings") {
-        showSettings = true;
-        return;
-      }
-      if (menuId === "editorial_open" || menuId === "editorial_project") {
-        runCommand(menuId);
-        return;
-      }
-      if (editorial?.isOpen() && menuId !== "quit") {
-        if (menuId === "close_project") void editorial.closeWorkspace();
-        if (["find", "find_project", "find_replace"].includes(menuId)) editorial.focusSearch();
-        if (menuId === "export") void editorial.exportFeedback();
-        return;
-      }
-
-      if (handleImportCommand(menuId)) return;
-      if (["find", "find_replace", "find_project"].includes(menuId)) {
-        runCommand(menuId);
-        return;
-      }
-      switch (menuId) {
-        case "new_project":
-          showNewProjectDialog = true;
-          break;
-        case "export":
-          if (currentProject.value) {
-            showExportDialog = true;
-          }
-          break;
-        case "close_project":
-          closeProject();
-          break;
-        case "command_palette":
-          showCommandPalette = true;
-          break;
-        case "quick_start":
-          showQuickStart = true;
-          break;
-        case "toggle_sidebar":
-          ui.toggleSidebar();
-          break;
-        case "toggle_references":
-          ui.toggleReferencesPanel();
-          break;
-        case "sync":
-          window.dispatchEvent(new CustomEvent("kindling:sync"));
-          break;
-        case "about":
-          showAboutDialog = true;
-          break;
-        case "send_feedback":
-          showFeedbackDialog = true;
-          break;
-        case "quit":
-          void quit();
-          break;
-      }
+      if (!showSettings || event.payload === "quit") runCommand(event.payload);
     });
 
     return () => {
@@ -415,14 +357,36 @@
       return true;
     }).map((def) => ({
       ...def,
+      shortcut: shortcuts.label(def.id),
       action: () => runCommand(def.id),
     }))
   );
 
   function runCommand(id: string) {
-    if (interactionBlocked) return;
+    if (interactionBlocked || (showSettings && id !== "quit")) return;
+    if (
+      editorial?.isOpen() &&
+      !["settings", "quit", "editorial_open", "editorial_project"].includes(id)
+    ) {
+      if (id === "close_project") void editorial.closeWorkspace();
+      if (["find", "find_project", "find_replace"].includes(id)) editorial.focusSearch();
+      if (id === "export") void editorial.exportFeedback();
+      return;
+    }
+    const def = COMMAND_DEFS.find((item) => item.id === id);
+    if (def?.requiresProject && !currentProject.value) return;
+    if (def?.requiresSourcePath && !currentProject.value?.source_path) return;
     if (handleImportCommand(id)) return;
     switch (id) {
+      case "new_project":
+        showNewProjectDialog = true;
+        break;
+      case "command_palette":
+        showCommandPalette = true;
+        break;
+      case "send_feedback":
+        showFeedbackDialog = true;
+        break;
       case "editorial_open":
         void editorial?.openFile();
         break;
@@ -501,45 +465,47 @@
       });
   });
 
-  // Global keyboard shortcuts
+  // Capture application bindings before TipTap/browser keymaps consume them.
+  onMount(() => {
+    void shortcuts.load();
+    window.addEventListener("keydown", handleKeydown, true);
+    return () => window.removeEventListener("keydown", handleKeydown, true);
+  });
+
+  $effect(() => {
+    void shortcuts.suspend(showSettings).then(() => {
+      if (shortcuts.error) ui.showError(shortcuts.error);
+    });
+  });
+
   function handleKeydown(event: KeyboardEvent) {
-    if (showSettings) return;
-    if ((event.metaKey || event.ctrlKey) && event.key === ",") {
-      event.preventDefault();
-      showSettings = true;
-      return;
-    }
-    if (editorial?.isOpen()) return;
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
-      if (!currentProject.value) return;
-      event.preventDefault();
-      openSearch(event.shiftKey ? "project" : "scene", event.altKey || event.shiftKey);
-      return;
-    }
-    // Cmd/Ctrl+K: Open command palette
-    if ((event.metaKey || event.ctrlKey) && event.key === "k") {
-      event.preventDefault();
-      showCommandPalette = true;
-      return;
-    }
-    // Cmd/Ctrl+E: Open export dialog
-    if ((event.metaKey || event.ctrlKey) && event.key === "e") {
-      event.preventDefault();
-      if (currentProject.value && !showExportDialog) {
-        showExportDialog = true;
+    if (interactionBlocked || event.defaultPrevented || event.isComposing) return;
+    const id = shortcuts.match(event);
+    if (showSettings) {
+      if (id === "quit" && !shortcuts.recording) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!event.repeat) runCommand(id);
       }
       return;
     }
-    // Cmd/Ctrl+Shift+H: Open Quick Start
-    if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === "H") {
-      event.preventDefault();
-      showQuickStart = true;
+    if (
+      showCommandPalette ||
+      (event.target instanceof Element &&
+        event.target.closest('[role="dialog"], dialog') &&
+        !(
+          event.target.closest('dialog[aria-labelledby="find-title"]') &&
+          id &&
+          ["find", "find_replace", "find_project"].includes(id)
+        ))
+    )
       return;
-    }
+    if (!id || !COMMAND_DEFS.some((def) => def.id === id)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (!event.repeat) runCommand(id);
   }
 </script>
-
-<svelte:window onkeydown={handleKeydown} />
 
 {#snippet errorToast()}
   {#if ui.toast}
@@ -720,7 +686,7 @@
   inert={interactionBlocked || editorial?.isOpen()}
   hidden={interactionBlocked || editorial?.isOpen()}
 >
-  <!-- Command palette (⌘K) -->
+  <!-- Command palette -->
   <CommandPalette
     bind:open={showCommandPalette}
     commands={paletteCommands}

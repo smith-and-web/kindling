@@ -1,3 +1,4 @@
+import { formatShortcut } from "./utils/keyboardShortcuts";
 import { describe, it, expect } from "vitest";
 import { COMMAND_DEFS, fuzzyMatch, fuzzyScore } from "./commands";
 
@@ -116,7 +117,7 @@ it("exposes one shared settings command without requiring an open project", () =
       id: "settings",
       label: "Settings",
       requiresProject: false,
-      shortcut: "⌘,",
+      shortcut: formatShortcut("Mod+Comma"),
     }),
   ]);
 });

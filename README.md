@@ -52,6 +52,20 @@
 - **No AI. No subscription. No cloud.** Every word is yours. Your projects are local SQLite files. Works completely offline.
 - **Free and open source.** MIT licensed. Inspect the code, contribute, or fork it. Your tools should be as permanent as your writing.
 
+## Keyboard shortcuts
+
+Open **Settings → Kindling → Preferences → Keyboard Shortcuts** to customize
+Kindling commands and prose formatting. Filter by command name, select a binding,
+and press Command (macOS) or Ctrl (Windows/Linux) with a letter, number,
+punctuation key, or function key. Escape cancels recording; Tab moves on.
+
+Changes apply immediately, update native menus and shortcut hints, and persist
+locally across launches. A conflicting or reserved combination is rejected with
+an explanation. Clear an existing binding before giving its keys to another
+command. **Clear** disables a shortcut; **Reset all to defaults** restores every
+binding. Standard text editing, system controls, and dialog navigation retain
+their usual keys (including copy, paste, undo, Tab, Enter, and Escape).
+
 ## Download
 
 Get Kindling for free at **[kindlingwriter.com/download](https://kindlingwriter.com/download/)**

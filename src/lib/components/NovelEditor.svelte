@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { KeyboardFormatting } from "../utils/keyboardFormatting";
   import { onMount, onDestroy, untrack } from "svelte";
   import { Editor } from "@tiptap/core";
   import StarterKit from "@tiptap/starter-kit";
@@ -74,6 +75,7 @@
     editor = new Editor({
       element: editorElement,
       extensions: [
+        KeyboardFormatting,
         StarterKit.configure({
           heading: false,
           bulletList: false,

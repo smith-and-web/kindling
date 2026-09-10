@@ -2,7 +2,7 @@
  * Command registry for the command palette (US-1.1-5)
  *
  * Each command has an id, label, shortcut, category, and optional keywords for search.
- * Shortcuts use format "Mod+Key" where Mod = Cmd on Mac, Ctrl on Windows/Linux.
+ * Shortcuts here are formatted defaults; the shortcut store supplies live bindings.
  * Actions are bound at runtime by App.svelte.
  */
 
@@ -21,214 +21,16 @@ export interface CommandDef {
   requiresSourcePath?: boolean;
 }
 
-export const COMMAND_DEFS: CommandDef[] = [
-  {
-    id: "editorial_open",
-    label: "Open review or feedback file",
-    shortcut: "⌘O",
-    category: "File",
-    keywords: ["editor", "package"],
-  },
-  {
-    id: "editorial_project",
-    label: "Editorial review and packages",
-    shortcut: "",
-    category: "Project",
-    requiresProject: true,
-    keywords: ["editor", "feedback", "revisions"],
-  },
-  {
-    id: "find",
-    label: "Find in scene",
-    shortcut: "⌘F",
-    category: "Edit",
-    keywords: ["search", "prose"],
-    requiresProject: true,
-  },
-  {
-    id: "find_replace",
-    label: "Find and replace",
-    shortcut: "⌘⌥F",
-    category: "Edit",
-    keywords: ["search", "replace", "prose"],
-    requiresProject: true,
-  },
-  {
-    id: "find_project",
-    label: "Find and replace in project",
-    shortcut: "⌘⇧F",
-    category: "Edit",
-    keywords: ["search", "replace", "all"],
-    requiresProject: true,
-  },
-  // File
-  {
-    id: "export",
-    label: "Export project",
-    shortcut: "⌘E",
-    category: "File",
-    keywords: ["export", "docx", "manuscript"],
-    requiresProject: true,
-  },
-  {
-    id: "close_project",
-    label: "Close project",
-    shortcut: "⌘W",
-    category: "File",
-    keywords: ["close"],
-    requiresProject: true,
-  },
-  {
-    id: "quit",
-    label: "Quit Kindling",
-    shortcut: "⌘Q",
-    category: "File",
-    keywords: ["quit", "exit"],
-    requiresProject: false,
-  },
-  {
-    id: "import_plottr",
-    label: "Import Plottr (.pltr)",
-    shortcut: "⌘⇧O",
-    category: "File",
-    keywords: ["import", "plottr"],
-    requiresProject: false,
-  },
-  {
-    id: "import_markdown",
-    label: "Import Markdown (.md)",
-    shortcut: "⌘⇧M",
-    category: "File",
-    keywords: ["import", "markdown", "md"],
-    requiresProject: false,
-  },
-  {
-    id: "import_longform",
-    label: "Import Longform",
-    shortcut: "⌘⇧L",
-    category: "File",
-    keywords: ["import", "longform", "obsidian"],
-    requiresProject: false,
-  },
-  {
-    id: "import_ywriter",
-    label: "Import yWriter 7 (.yw7)",
-    shortcut: "⌘⇧Y",
-    category: "File",
-    keywords: ["import", "ywriter", "yw7"],
-    requiresProject: false,
-  },
-  {
-    id: "import_scrivener",
-    label: "Import Scrivener 3 (.scriv)",
-    shortcut: "⌘⇧I",
-    category: "File",
-    keywords: ["import", "scrivener", "scriv"],
-    requiresProject: false,
-  },
-  {
-    id: "import_novelwriter",
-    label: "Import novelWriter",
-    shortcut: "",
-    category: "File",
-    keywords: ["import", "novelwriter", "nwx"],
-    requiresProject: false,
-  },
-  // Project
-  {
-    id: "sync",
-    label: "Sync from source",
-    shortcut: "⌘⇧S",
-    category: "Project",
-    keywords: ["sync", "reimport", "refresh", "reload"],
-    requiresProject: true,
-    requiresSourcePath: true,
-  },
-  // View
-  {
-    id: "toggle_sidebar",
-    label: "Toggle sidebar",
-    shortcut: "⌘\\",
-    category: "View",
-    keywords: ["sidebar", "outline", "collapse", "expand"],
-    requiresProject: true,
-  },
-  {
-    id: "toggle_references",
-    label: "Toggle references panel",
-    shortcut: "⌘⇧R",
-    category: "View",
-    keywords: ["references", "characters", "panel", "collapse", "expand"],
-    requiresProject: true,
-  },
-  {
-    id: "toggle_discovery_notes",
-    label: "Toggle discovery notes",
-    shortcut: "⌘D",
-    category: "View",
-    keywords: ["discovery", "notes", "draft"],
-    requiresProject: true,
-  },
-  {
-    id: "toggle_editor_mode",
-    label: "Toggle beat/page view",
-    shortcut: "⌘⇧V",
-    category: "View",
-    keywords: ["page", "beat", "view", "mode", "prose", "editor"],
-    requiresProject: true,
-  },
-  // Project - Detection
-  {
-    id: "detect_references",
-    label: "Detect references in scene",
-    shortcut: "",
-    category: "Project",
-    keywords: ["detect", "references", "scan", "suggest", "smart"],
-    requiresProject: true,
-  },
-  {
-    id: "detect_all_references",
-    label: "Detect references in all scenes",
-    shortcut: "",
-    category: "Project",
-    keywords: ["detect", "all", "references", "scan", "suggest", "bulk"],
-    requiresProject: true,
-  },
-  // Help
-  {
-    id: "about",
-    label: "About Kindling",
-    shortcut: "",
-    category: "Help",
-    keywords: ["about", "version", "info"],
-    requiresProject: false,
-  },
-  {
-    id: "quick_start",
-    label: "Quick start guide",
-    shortcut: "⌘⇧H",
-    category: "Help",
-    keywords: ["help", "quick", "start", "guide", "docs"],
-    requiresProject: false,
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    shortcut: "⌘,",
-    category: "Help",
-    keywords: [
-      "settings",
-      "kindling",
-      "preferences",
-      "author",
-      "project",
-      "theme",
-      "tags",
-      "fields",
-    ],
-    requiresProject: false,
-  },
-];
+import definitions from "./shortcutDefinitions.json";
+import { formatShortcut } from "./utils/keyboardShortcuts";
+
+export const COMMAND_DEFS: CommandDef[] = definitions
+  .filter((def) => def.category !== "Editor")
+  .map((def) => ({
+    ...def,
+    category: def.category as CommandCategory,
+    shortcut: formatShortcut(def.binding),
+  }));
 
 /** Simple fuzzy match: query chars must appear in order in the text */
 export function fuzzyMatch(query: string, text: string): boolean {

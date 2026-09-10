@@ -8,6 +8,7 @@
   - References panel
 -->
 <script lang="ts">
+  import { shortcuts } from "../stores/shortcuts.svelte";
   import {
     BookOpen,
     ChevronDown,
@@ -153,8 +154,10 @@
           <li class="flex items-start gap-2">
             <span class="text-press-accent-text shrink-0">•</span>
             <span
-              ><strong class="text-press-text">Discovery Notes</strong> (⌘D) — Capture ideas as you write;
-              promote to beats when ready</span
+              ><strong class="text-press-text">Discovery Notes</strong
+              >{#if shortcuts.label("toggle_discovery_notes")}
+                ({shortcuts.label("toggle_discovery_notes")}){/if} — Capture ideas as you write; promote
+              to beats when ready</span
             >
           </li>
         </ul>
@@ -195,9 +198,14 @@
           Tips
         </h3>
         <ul class="space-y-2 text-press-ui text-press-muted">
-          <li><strong class="text-press-text">⌘E</strong> — Export your project</li>
           <li>
-            <strong class="text-press-text">⌘D</strong> — Toggle Discovery Notes in the scene panel
+            <strong class="text-press-text">{shortcuts.label("export") || "Export"}</strong> — Export
+            your project
+          </li>
+          <li>
+            <strong class="text-press-text"
+              >{shortcuts.label("toggle_discovery_notes") || "Discovery Notes"}</strong
+            > — Toggle Discovery Notes in the scene panel
           </li>
           <li>
             <strong class="text-press-text">Snapshots</strong> — Create version checkpoints before big
