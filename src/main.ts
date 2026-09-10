@@ -17,6 +17,11 @@ const app = mount(App, {
   target: document.getElementById("app")!,
 });
 
+// Keep the HTML loading screen through module loading and Svelte's first render.
+// It lives outside #app because mount appends rather than replacing its contents.
+await tick();
+document.getElementById("startup-loading")?.remove();
+
 import { IMPORT_COMMANDS, isImportType, type ImportType } from "./lib/importFormats";
 
 // Expose Tauri invoke and store helpers for E2E testing

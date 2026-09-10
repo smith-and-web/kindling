@@ -5,6 +5,8 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kindling</title>
+    <!-- Render startup feedback before the application module is available. -->
+    <link rel="stylesheet" href="/src/startup.css" />
     <script>
       // Apply theme before first paint to prevent flash
       (function () {
@@ -17,6 +19,10 @@
   </head>
   <body>
     <div id="app"></div>
+    <div id="startup-loading" role="status" aria-live="polite">
+      <span class="startup-spinner" aria-hidden="true"></span>
+      <span>Starting Kindling…</span>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

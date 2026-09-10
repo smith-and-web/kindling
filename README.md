@@ -66,6 +66,10 @@ Or grab the latest directly from the [Releases page](https://github.com/smith-an
 
 ## Features
 
+On launch, a theme-matched loading indicator appears while the interface starts.
+It respects your system's reduced-motion setting and disappears as soon as the
+interface is rendered, without adding a startup delay.
+
 | Feature | Description |
 |---------|-------------|
 | **Import from popular tools** | Scrivener 3 (`.scriv`), Plottr (`.pltr`), Markdown (`.md`), yWriter (`.yw7`), and Longform/Obsidian |
