@@ -121,7 +121,9 @@
           aria-describedby={`shortcut-binding-${def.id}`}
           aria-pressed={recording === def.id}
           disabled={busy || !shortcuts.ready || !shortcuts.suspended}
-          onclick={() => {
+          onclick={(event) => {
+            // WebKit on macOS does not focus buttons when they are clicked.
+            event.currentTarget.focus();
             recording = def.id;
             error = "";
             message = "";

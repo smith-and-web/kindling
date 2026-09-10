@@ -15,7 +15,28 @@ beforeEach(() => {
     async (_cmd, args) => (args as { bindings: unknown })?.bindings
   );
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+it.each([
+  ["MacIntel", { metaKey: true }],
+  ["Win32", { ctrlKey: true }],
+  ["Linux x86_64", { ctrlKey: true }],
+])("focuses the clicked recorder and captures keys on %s", async (platform, modifier) => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+  render(KeyboardSettings);
+  const filter = screen.getByRole("searchbox");
+  filter.focus();
+  const button = screen.getByRole("button", { name: "Shortcut for Settings" });
+  // WebKit on macOS does not focus buttons on pointer clicks. fireEvent likewise
+  // leaves focus alone, so this exercises the component's own focus handling.
+  await fireEvent.click(button.querySelector("span")!);
+  expect(document.activeElement).toBe(button);
+  await fireEvent.keyDown(document.activeElement!, { key: "p", altKey: true, ...modifier });
+  await screen.findByText("Keyboard shortcuts saved.");
+  expect(shortcuts.bindings.settings).toBe("Mod+Alt+P");
+});
 it("records, rejects conflicts, clears, and resets shortcuts", async () => {
   render(KeyboardSettings);
   const button = screen.getByRole("button", { name: "Shortcut for Settings" });
