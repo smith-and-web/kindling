@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DialogHeader from "./DialogHeader.svelte";
   interface Props {
     title: string;
     titleId?: string;
@@ -39,32 +40,32 @@
   tabindex="-1"
 >
   <div
-    class="app-dialog-surface bg-press-surface rounded-lg p-6 max-w-md w-full mx-4 shadow-press-overlay"
+    class="app-dialog-surface bg-press-surface rounded-lg overflow-hidden max-w-md w-full mx-4 shadow-press-overlay"
   >
-    <h3 id={titleId} class="text-press-body-lg font-heading font-medium text-press-text mb-4">
-      {title}
-    </h3>
-    <p
-      data-testid="dialog-message"
-      class="font-prose text-press-text text-press-body mb-6 max-w-press-measure"
-    >
-      {message}
-    </p>
-    <div class="flex gap-3 justify-end">
-      <button
-        data-testid="dialog-cancel"
-        onclick={onCancel}
-        class="px-4 py-2 bg-press-sunken rounded hover:bg-press-sunken transition-colors text-press-text"
+    <DialogHeader {title} {titleId} onClose={onCancel} closeLabel="Close confirmation" />
+    <div class="p-6">
+      <p
+        data-testid="dialog-message"
+        class="font-prose text-press-text text-press-body mb-6 max-w-press-measure"
       >
-        {cancelLabel}
-      </button>
-      <button
-        data-testid="dialog-confirm"
-        onclick={onConfirm}
-        class="px-4 py-2 bg-press-error text-press-on-accent rounded hover:bg-press-error transition-colors"
-      >
-        {confirmLabel}
-      </button>
+        {message}
+      </p>
+      <div class="flex gap-3 justify-end">
+        <button
+          data-testid="dialog-cancel"
+          onclick={onCancel}
+          class="px-4 py-2 bg-press-sunken rounded hover:bg-press-sunken transition-colors text-press-text"
+        >
+          {cancelLabel}
+        </button>
+        <button
+          data-testid="dialog-confirm"
+          onclick={onConfirm}
+          class="px-4 py-2 bg-press-error text-press-on-accent rounded hover:bg-press-error transition-colors"
+        >
+          {confirmLabel}
+        </button>
+      </div>
     </div>
   </div>
 </div>

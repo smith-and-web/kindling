@@ -1319,6 +1319,18 @@
       </Tooltip>
     </div>
     {#if currentProject.value}
+      <button
+        type="button"
+        data-testid="sidebar-home"
+        onclick={goHome}
+        class="mt-3 mb-3 w-full flex items-center gap-2 px-3 py-2 text-press-ui text-press-text bg-press-sunken hover:bg-press-accent-wash rounded-md transition-colors"
+        aria-label="Home — all projects"
+        title="Return home to all projects"
+      >
+        <Home class="w-4 h-4 text-press-accent-text" />
+        <span class="font-medium">Home</span>
+        <span class="ml-auto text-press-eyebrow text-press-muted">All projects</span>
+      </button>
       <!-- Project name with action icons -->
       <div class="flex items-center justify-between mt-2 gap-2">
         <div class="flex items-center gap-2 min-w-0 flex-1">
@@ -1409,14 +1421,6 @@
         </div>
       </div>
       <WritingProgress prepareReset={prepareWritingReset} />
-      <button
-        onclick={goHome}
-        class="mt-3 w-full flex items-center gap-2 px-3 py-1.5 text-press-eyebrow text-press-muted hover:text-press-text rounded-md hover:bg-press-sunken transition-colors"
-        aria-label="Close project"
-      >
-        <Home class="w-3.5 h-3.5" />
-        All Projects
-      </button>
     {/if}
   </div>
 

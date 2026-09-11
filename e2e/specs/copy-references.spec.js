@@ -8,7 +8,7 @@ async function invoke(command, args = {}) {
   return response.value;
 }
 async function openProject(name) {
-  const close = await $('[aria-label="Close project"]');
+  const close = await $('[data-testid="sidebar-home"]');
   if (await close.isExisting()) await close.click();
   await $('[data-testid="recent-projects"]').waitForDisplayed();
   const cards = await $$('[data-testid="project-card"]');
@@ -18,7 +18,7 @@ async function openProject(name) {
 describe("independent reference transfers", () => {
   const projects = [];
   after(async () => {
-    const close = await $('[aria-label="Close project"]');
+    const close = await $('[data-testid="sidebar-home"]');
     if (await close.isExisting()) await close.click();
     for (const project of projects) await invoke("delete_project", {projectId:project.id});
   });

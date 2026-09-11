@@ -735,6 +735,10 @@ it.each(["quit", "update"])(
           screen.getByRole("button", { name: "Quit and discard" })
         );
         await fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+        expect(document.activeElement).toBe(
+          screen.getByRole("button", { name: "Close confirmation" })
+        );
+        await fireEvent.keyDown(document.activeElement!, { key: "Tab" });
         expect(document.activeElement).toBe(screen.getByRole("button", { name: "Keep editing" }));
       }
       for (const key of ["e", "k", "f", "H"]) {

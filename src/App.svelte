@@ -213,7 +213,7 @@
 
   function focusQuitConfirmation(node: HTMLDialogElement) {
     node.showModal();
-    node.querySelector<HTMLElement>("button")?.focus();
+    node.querySelector<HTMLElement>('[data-testid="dialog-cancel"]')?.focus();
   }
 
   // Capture before any child/window shortcut handler can act on the same event.

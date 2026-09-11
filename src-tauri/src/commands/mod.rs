@@ -21,6 +21,7 @@ mod crud;
 mod demo_fixture;
 mod detect;
 mod export;
+mod export_prototype;
 pub mod feedback;
 mod fields;
 mod import;
@@ -38,6 +39,7 @@ mod state;
 mod sync;
 mod tags;
 mod templates;
+mod workspace_export;
 
 // Re-export everything for backwards compatibility with lib.rs
 pub use archive::*;
@@ -47,6 +49,7 @@ pub use crud::*;
 pub use demo_fixture::*;
 pub use detect::*;
 pub use export::*;
+pub use export_prototype::*;
 pub use feedback::*;
 pub use fields::*;
 pub use import::*;
@@ -62,6 +65,7 @@ pub use state::*;
 pub use sync::*;
 pub use tags::*;
 pub use templates::*;
+pub use workspace_export::*;
 
 mod writing;
 pub use writing::*;

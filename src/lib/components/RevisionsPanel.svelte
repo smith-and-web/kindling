@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DialogHeader from "./DialogHeader.svelte";
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { ChevronDown, History, Plus, RotateCcw } from "lucide-svelte";
@@ -132,26 +133,25 @@
   }}
   onkeydown={(e) => e.stopPropagation()}
 >
-  <header class="history-header">
-    <div>
-      <span class="eyebrow">{title}</span>
-      <h2 id="revisions-title">Draft history</h2>
-    </div>
-    <div class="header-actions">
-      {#if review}<fieldset disabled={busy || locked}>
-          <label class="status-label"
-            >Revision status<span class="compact-select"
-              ><select value={review.data.status} onchange={(e) => setStatus(e.currentTarget.value)}
-                >{#each Object.entries(revisionStatuses) as [value, label]}<option {value}
-                    >{label}</option
-                  >{/each}</select
-              ><ChevronDown size={14} /></span
-            ></label
-          >
-        </fieldset>{/if}
-      <button type="button" disabled={busy} onclick={onClose}>Close</button>
-    </div>
-  </header>
+  <DialogHeader
+    title="Draft history"
+    titleId="revisions-title"
+    subtitle={title}
+    {onClose}
+    disabled={busy}
+  >
+    {#if review}<fieldset disabled={busy || locked}>
+        <label class="status-label"
+          >Revision status<span class="compact-select"
+            ><select value={review.data.status} onchange={(e) => setStatus(e.currentTarget.value)}
+              >{#each Object.entries(revisionStatuses) as [value, label]}<option {value}
+                  >{label}</option
+                >{/each}</select
+            ><ChevronDown size={14} /></span
+          ></label
+        >
+      </fieldset>{/if}
+  </DialogHeader>
   <nav aria-label="Revision views" class="history-tabs">
     <button aria-pressed={tab === "history"} onclick={() => (tab = "history")}>Draft history</button
     >
@@ -313,30 +313,13 @@
   dialog::backdrop {
     background: var(--color-overlay-scrim);
   }
-  .history-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--space-s);
-    padding: var(--space-m);
-    border-bottom: 1px solid var(--color-border);
-  }
-  h2 {
-    font-family: var(--font-display);
-    font-size: var(--text-h3);
-    margin: 0;
-  }
-  .eyebrow,
+
   .version-kind,
   time {
     font-size: var(--text-eyebrow);
     color: var(--color-text-muted);
   }
-  .header-actions {
-    display: flex;
-    align-items: end;
-    gap: var(--space-s);
-  }
+
   fieldset {
     border: 0;
     padding: 0;
