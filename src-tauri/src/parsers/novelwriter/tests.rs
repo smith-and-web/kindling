@@ -483,3 +483,44 @@ fn export_scene_prose_fallback_without_beats() {
         .as_deref()
         .is_some_and(|text| text.contains("Fallback manuscript"))));
 }
+
+#[test]
+fn heading_free_h0_prose_is_a_reachable_scene() {
+    let (conn, project) = fixture();
+    let temp = tempfile::tempdir().unwrap();
+    export_novelwriter_project(&conn, &project.id, temp.path(), &Default::default()).unwrap();
+    let index = temp.path().join("nwProject.nwx");
+    let mut doc = read_nwx(&std::fs::read_to_string(&index).unwrap()).unwrap();
+    let item = doc
+        .items
+        .iter_mut()
+        .find(|i| i.heading == "H1" && i.class == "NOVEL")
+        .unwrap();
+    item.heading = "H0".into();
+    let handle = item.handle.clone();
+    std::fs::write(&index, write_nwx(&doc)).unwrap();
+    std::fs::write(
+        temp.path().join("content").join(format!("{handle}.md")),
+        "Heading-free H0 sentinel.\n",
+    )
+    .unwrap();
+    let parsed = parse_novelwriter_project(temp.path()).unwrap();
+    let beat = parsed
+        .beats
+        .iter()
+        .find(|b| {
+            b.prose
+                .as_deref()
+                .is_some_and(|p| p.contains("Heading-free H0 sentinel"))
+        })
+        .unwrap();
+    let scene = parsed
+        .scenes
+        .iter()
+        .find(|s| s.id == beat.scene_id)
+        .unwrap();
+    assert!(parsed.chapters.iter().any(|c| c.id == scene.chapter_id));
+    let target = Connection::open_in_memory().unwrap();
+    db::initialize_schema(&target).unwrap();
+    insert_novelwriter(&target, &parsed).unwrap();
+}
