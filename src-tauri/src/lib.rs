@@ -25,6 +25,8 @@ mod editorial_files;
 pub mod menu;
 pub mod models;
 pub mod parsers;
+#[cfg(all(debug_assertions, target_os = "macos"))]
+mod qa;
 pub mod shortcuts;
 
 use commands::AppState;
@@ -72,6 +74,28 @@ fn resolve_data_dir(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(all(debug_assertions, target_os = "macos"))]
+    let qa_background = qa::enabled();
+    #[cfg(not(all(debug_assertions, target_os = "macos")))]
+    let qa_background = false;
+    let mut context = tauri::generate_context!();
+    if qa_background {
+        // Separate app settings, browser storage and socket from the user's app.
+        // No display sizing, foreground activation or desktop capture is needed.
+        context.config_mut().identifier = "com.kindlingwriter.app.visual-qa".into();
+        for window in &mut context.config_mut().app.windows {
+            window.visible = false;
+            window.focus = false;
+            window.decorations = false;
+            window.width = 1600.0;
+            window.height = 968.0;
+            window.min_width = None;
+            window.min_height = None;
+            window.background_throttling =
+                Some(tauri::utils::config::BackgroundThrottlingPolicy::Disabled);
+            window.data_store_identifier = Some(*b"KindlingVisualQA");
+        }
+    }
     // Apply the WebKitGTK DMABUF renderer workaround on Linux to prevent a white
     // screen on startup (https://github.com/tauri-apps/tauri/issues/9304).
     // Must be set before the Tauri builder is constructed so that WebKitGTK picks
@@ -94,6 +118,7 @@ pub fn run() {
             // a visible frame before requesting the full application bundle.
             // A reload must not steal focus or re-show a hidden window.
             if webview.label() == "main"
+                && !qa_background
                 && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished)
                 && !initial_page_loaded.swap(true, Ordering::Relaxed)
             {
@@ -106,7 +131,19 @@ pub fn run() {
             }
         })
         .manage(editorial_files::PendingEditorialFiles::default())
-        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_os::init());
+
+    let builder = if qa_background {
+        builder.plugin(tauri::plugin::Builder::<tauri::Wry>::new("visual-qa")
+            .js_init_script("Object.defineProperty(window, '__KINDLING_QA_BACKGROUND__', {value:true});")
+            .build())
+            .plugin(tauri_plugin_single_instance::init(|_, _, _| {}))
+    } else {
+        builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             editorial_files::enqueue(
                 app,
                 args.into_iter()
@@ -114,22 +151,36 @@ pub fn run() {
                     .map(|p| std::path::Path::new(&cwd).join(p)),
             );
         }))
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_os::init());
+    };
 
     // MCP plugin for QA automation — only in dev builds
     #[cfg(debug_assertions)]
-    let builder = builder.plugin(tauri_plugin_mcp::init_with_config(
-        tauri_plugin_mcp::PluginConfig::new("Kindling".to_string())
+    let builder = {
+        let mut config = tauri_plugin_mcp::PluginConfig::new("Kindling".to_string())
             .start_socket_server(true)
-            .socket_path("/tmp/kindling-mcp.sock".into()),
-    ));
+            .socket_path(
+                if qa_background {
+                    "/tmp/kindling-qa.sock"
+                } else {
+                    "/tmp/kindling-mcp.sock"
+                }
+                .into(),
+            );
+        if qa_background {
+            config = config.auth_token(uuid::Uuid::new_v4().to_string());
+        }
+        builder.plugin(tauri_plugin_mcp::init_with_config(config))
+    };
 
     builder
-        .setup(|app| {
+        .setup(move |app| {
+            if qa_background {
+                #[cfg(target_os = "macos")]
+                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                if let Some(window) = app.get_webview_window("main") {
+                    window.set_ignore_cursor_events(true)?;
+                }
+            }
             // Get the app data directory. Debug builds honour KINDLING_DATA_DIR so
             // QA runs can use a scratch database instead of the user's real one.
             let default_dir = app
@@ -160,6 +211,12 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            #[cfg(all(debug_assertions, target_os = "macos"))]
+            qa::qa_capabilities,
+            #[cfg(all(debug_assertions, target_os = "macos"))]
+            qa::qa_set_viewport,
+            #[cfg(all(debug_assertions, target_os = "macos"))]
+            qa::qa_snapshot,
             commands::import_plottr,
             commands::import_ywriter,
             commands::import_markdown,
@@ -331,7 +388,7 @@ pub fn run() {
             // Feedback commands
             commands::submit_feedback,
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(|app, event| {
             #[cfg(target_os = "macos")]

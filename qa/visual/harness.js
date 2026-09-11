@@ -183,20 +183,36 @@
       !["create_blank_project", "create_screenplay_project"].includes(command)
     )
       throw new Error("Unsupported QA creation command");
+    const record = (cmd, project) => {
+      if (cmd !== command) return;
+      if (!project?.id) throw new Error("Creation returned no project ID");
+      const projects = owned();
+      if (!projects.some((p) => p.id === project.id)) {
+        projects.push({ id: project.id, name: project.name, fixture: fixtureCommands.has(cmd) });
+        sessionStorage.setItem(ownedKey, JSON.stringify(projects));
+      }
+      if (fixtureCommands.has(cmd)) qa.done("fixture-created");
+    };
+    const hook = window.__KINDLING_TEST__;
+    if (hook?.creationObserverVersion === 1) {
+      const previous = hook.onProjectCreated;
+      hook.onProjectCreated = record;
+      try {
+        return action();
+      } finally {
+        hook.onProjectCreated = previous;
+      }
+    }
     const ipc = window.__TAURI_INTERNALS__;
     if (!ipc?.invoke) throw new Error("Tauri IPC missing; cannot track QA project ownership");
+    if (Object.getOwnPropertyDescriptor(ipc, "invoke")?.writable === false)
+      throw new Error("Reload the updated app: frozen Tauri IPC requires the creation observer");
     const original = ipc.invoke;
     ipc.invoke = function (cmd, ...args) {
       const result = original.call(this, cmd, ...args);
       if (cmd !== command) return result;
       return Promise.resolve(result).then((project) => {
-        if (!project?.id) throw new Error("Creation returned no project ID");
-        const projects = owned();
-        if (!projects.some((p) => p.id === project.id)) {
-          projects.push({ id: project.id, name: project.name, fixture: fixtureCommands.has(cmd) });
-          sessionStorage.setItem(ownedKey, JSON.stringify(projects));
-        }
-        if (fixtureCommands.has(cmd)) qa.done("fixture-created");
+        record(cmd, project);
         return project;
       });
     };
@@ -270,10 +286,23 @@
   // ---------------------------------------------------------------- theme
   qa.repaint = () => {
     const h = document.documentElement;
+    if (window.__KINDLING_QA_BACKGROUND__) {
+      // WKWebView snapshots render the document directly; hiding it would only
+      // disturb scroll/focus state and is unnecessary for this capture engine.
+      void h.offsetHeight;
+      return true;
+    }
+    // WebKit can reset nested scroll offsets while the document is hidden.
+    // Preserve them explicitly, including the editor's own scroll container.
+    const scrolled = [...document.querySelectorAll("*")]
+      .filter((el) => el.scrollTop || el.scrollLeft)
+      .map((el) => ({ el, top: el.scrollTop, left: el.scrollLeft }));
+    const display = h.style.display;
     h.style.display = "none";
     void h.offsetHeight;
-    h.style.display = "";
+    h.style.display = display;
     void h.offsetHeight;
+    for (const { el, top, left } of scrolled) el.scrollTo({ top, left, behavior: "instant" });
     return true;
   };
   qa.originalTheme =
@@ -285,14 +314,15 @@
     return theme;
   };
   /**
-   * Append `#qa-settled-<id>` only after two animation frames have run, i.e.
-   * after at least one frame has actually been presented. wait_for on it
-   * (state attached) before a screenshot that follows a whole-window repaint.
+   * Append a marker after two frame callbacks (timer-driven in hidden QA, native
+   * in foreground manual QA). Native snapshots supply the hidden render
+   * boundary; neither timer turns nor rAF alone prove pixels were presented.
    */
   qa.settle = (id = "x") => {
     document.getElementById(`qa-settled-${id}`)?.remove();
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
+    const frame = requestAnimationFrame;
+    frame(() =>
+      frame(() => {
         const d = document.createElement("div");
         d.id = `qa-settled-${id}`;
         d.hidden = true;
@@ -334,7 +364,7 @@
 
   /** Cheap gate before a screenshot batch. Stop the run if `ok` is false. */
   qa.preflight = () => ({
-    ok: document.visibilityState === "visible",
+    ok: window.__KINDLING_QA_BACKGROUND__ === true || document.visibilityState === "visible",
     vis: document.visibilityState,
     w: innerWidth,
     h: innerHeight,
@@ -347,14 +377,14 @@
     return name;
   };
   /** Announce the screenshot you are about to take, so rename.mjs can name the file. */
-  /** Disable CSS transitions and animations so a capture never lands mid-transition. Default on at load. */
+  /** Freeze transitions/animations and hide blinking carets during QA; focus outlines remain. */
   qa.noMotion = (on = true) => {
     let st = document.getElementById("qa-no-motion");
     if (on && !st) {
       st = document.createElement("style");
       st.id = "qa-no-motion";
       st.textContent =
-        "*, *::before, *::after { transition: none !important; animation: none !important; }";
+        "*, *::before, *::after { transition: none !important; animation: none !important; caret-color: transparent !important; }";
       document.head.append(st);
     } else if (!on && st) st.remove();
     return on;
@@ -366,7 +396,7 @@
     qa.shots.push({ name, t: Date.now() });
     sessionStorage.setItem("__qa_shots", JSON.stringify(qa.shots));
     // Two frames later the action that preceded this call has been presented;
-    // the runner waits for #qa-settled-<name> before take_screenshot.
+    // the runner waits for #qa-settled-<name> before capturing.
     qa.settle(name);
     return name;
   };
@@ -557,7 +587,7 @@
         for (const r of rs) {
           if (r.cssRules && !r.selectorText) walk(r.cssRules);
           if (r.style)
-            for (const p of r.style)
+            for (const p of Array.from(r.style))
               if (
                 p.startsWith("--color-") ||
                 p.startsWith("--paper") ||
@@ -597,7 +627,7 @@
       contrastFails = [],
       untokened = new Map();
     const tokens = tokenColours();
-    const els = [...root.querySelectorAll("body *")].filter(
+    const els = [...root.querySelectorAll(root === document ? "body *" : "*")].filter(
       (el) =>
         ![
           "SCRIPT",
@@ -626,8 +656,8 @@
         if (fg && fg.a > 0.9) {
           const ratio = contrast(fg, bg);
           const large =
-            parseFloat(s.fontSize) >= 18.66 ||
-            (parseFloat(s.fontSize) >= 14 && parseInt(s.fontWeight) >= 700);
+            parseFloat(s.fontSize) >= 24 ||
+            (parseFloat(s.fontSize) >= 18.66 && parseInt(s.fontWeight) >= 700);
           if (ratio < (large ? 3 : 4.5))
             contrastFails.push({
               text: el.textContent.trim().slice(0, 40),
@@ -760,7 +790,11 @@
    * `mismatch` is the share of pixels differing by more than `tolerance` per
    * channel (JPEG noise is ~10-20); `changed` flags mismatch above `threshold`.
    */
-  qa.diff = (runDir, pairs, { tolerance = 24, threshold = 0.004 } = {}) => {
+  qa.diff = (
+    runDir,
+    pairs,
+    { tolerance = 24, threshold = 0.004, baselineDir = qa.repoRoot + "/qa/visual/baselines" } = {}
+  ) => {
     document.getElementById("qa-diff-done")?.remove();
     qa.diffResult = { status: "pending", results: [] };
     const load = (src) =>
@@ -777,19 +811,19 @@
       c.getContext("2d").drawImage(img, 0, 0);
       return c;
     };
-    const one = async ({ name, file }) => {
-      const base = "/@fs/" + qa.repoRoot + "/qa/visual/baselines/" + name + ".jpg";
+    const one = async ({ name, file, baseline = name + ".jpg" }) => {
+      const base = "/@fs" + baselineDir + "/" + baseline;
       const cur = "/@fs" + runDir + "/" + file;
       let a, b;
-      try {
-        a = await load(base);
-      } catch {
-        return { name, status: "no-baseline" };
-      }
       try {
         b = await load(cur);
       } catch {
         return { name, status: "missing-capture" };
+      }
+      try {
+        a = await load(base);
+      } catch {
+        return { name, status: "no-baseline" };
       }
       if (a.naturalWidth !== b.naturalWidth || a.naturalHeight !== b.naturalHeight)
         return {
@@ -826,7 +860,11 @@
       return {
         name,
         status: "compared",
-        mismatch: +mismatch.toFixed(5),
+        tolerance,
+        threshold,
+        differingPixels: bad,
+        totalPixels: A.length / 4,
+        mismatch,
         changed: mismatch > threshold,
         box: bad ? [minX, minY, maxX, maxY] : null,
       };

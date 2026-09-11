@@ -57,6 +57,7 @@ afterEach(() => {
   document.body.innerHTML = "";
   if (originalFonts) Object.defineProperty(document, "fonts", originalFonts);
   else Reflect.deleteProperty(document, "fonts");
+  delete window.__KINDLING_QA_BACKGROUND__;
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -182,4 +183,16 @@ it("waits for reported contentful paint when the browser supports paint timing",
   frame();
   await startup;
   expect(mocks.focus).toHaveBeenCalledOnce();
+});
+
+it("starts hidden QA without waiting for visible animation frames", async () => {
+  window.__KINDLING_QA_BACKGROUND__ = true;
+  const { startup } = await import("./startup");
+  await vi.waitFor(() => expect(mocks.loadMain).toHaveBeenCalledOnce());
+  expect(frames).toHaveLength(0);
+  content.resolve();
+  fonts.resolve();
+  await startup;
+  expect(document.getElementById("startup-loading")).toBeNull();
+  expect(frames).toHaveLength(0);
 });

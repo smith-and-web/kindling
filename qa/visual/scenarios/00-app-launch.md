@@ -41,10 +41,9 @@ e2e: _should show the start screen on initial launch_, _should show import optio
 - Screenshot `00-03-start-screen`.
 - Assert: `__qa.state().view === "start"`.
 
-**Expect**: the "Import an Outline" card with a 2 x 2 grid of import options
-(Plottr, Markdown, yWriter, Scrivener/Longform), each with an icon and label,
-none truncated. Brand mark and product name top-left. Quick-start entry point
-visible if offered. Text uses Inter; the heading uses Fraunces.
+**Expect**: the "Import an Outline" card with six import options
+(Plottr, Markdown, yWriter, Longform, Scrivener and novelWriter), each with an icon and label,
+none truncated. Brand mark and product name top-left. New Project, Sample Project and Open Review Package entry points align. Text uses Inter; the heading uses Fraunces.
 
 ### 00-04 recent projects
 

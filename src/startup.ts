@@ -1,16 +1,23 @@
 // Keep this entry point small: no Svelte, app stores or editor imports before
 // the loading screen has had a chance to paint.
 import { isTauri } from "@tauri-apps/api/core";
+import { backgroundQA, installBackgroundFrames } from "./lib/qaMode";
+
+installBackgroundFrames();
 
 function paintOpportunity(): Promise<void> {
   // rAF runs BEFORE paint. Two frames leave a rendering opportunity between
   // them; browsers do not expose a portable "pixels presented" event.
   return new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
   });
 }
 
 async function loadingPaint() {
+  if (backgroundQA()) {
+    await document.fonts.ready;
+    return;
+  }
   if (
     typeof PerformanceObserver !== "undefined" &&
     PerformanceObserver.supportedEntryTypes.includes("paint")

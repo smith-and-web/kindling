@@ -6,6 +6,7 @@ import { tick } from "svelte";
 import { currentProject } from "./lib/stores/project.svelte";
 import { ui } from "./lib/stores/ui.svelte";
 import type { Project, Chapter } from "./lib/types";
+import { backgroundQA } from "./lib/qaMode";
 
 let contentReady!: () => void;
 const initialContent = new Promise<void>((resolve) => (contentReady = resolve));
@@ -30,6 +31,17 @@ declare global {
       importCommands: typeof IMPORT_COMMANDS;
       importProject: (path: string, format?: ImportType) => Promise<Project>;
       disableGuidance: () => void;
+      visualPreferences: () => {
+        guidanceEnabled: boolean;
+        referencesPanelWidth: number;
+        sidebarCollapsed: boolean;
+        referencesPanelCollapsed: boolean;
+      };
+      setVisualPreferences: (
+        value: ReturnType<NonNullable<Window["__KINDLING_TEST__"]>["visualPreferences"]>
+      ) => void;
+      creationObserverVersion: 1;
+      onProjectCreated?: (command: string, project: Project) => void;
     };
   }
 }
@@ -42,11 +54,14 @@ async function importProject(
 ): Promise<
   Project & { _debug?: { chapterCount: number; storeChapterCount: number; hasProject: boolean } }
 > {
+  // Capture the observer synchronously for this action, before any async work.
+  const onCreated = window.__KINDLING_TEST__?.onProjectCreated;
   ui.startImport();
   try {
     const command = isImportType(format) ? IMPORT_COMMANDS[format] : undefined;
     if (!command) throw new Error(`Unsupported test import format: ${format}`);
     const project = await invoke<Project>(command, { path });
+    onCreated?.(command, project);
     currentProject.setProject(project);
 
     // Load and set chapters directly for E2E testing
@@ -62,7 +77,8 @@ async function importProject(
     // This ensures E2E tests can find the rendered chapter elements
     // Multiple ticks and RAF needed for Svelte 5 reactivity to fully propagate
     await tick();
-    await new Promise((r) => requestAnimationFrame(r));
+    if (backgroundQA()) await new Promise((r) => setTimeout(r, 0));
+    else await new Promise((r) => requestAnimationFrame(r));
     await tick();
 
     // Add debug info - verify chapters are in the store, not just the local variable
@@ -81,10 +97,23 @@ async function importProject(
 
 // Always expose for E2E testing - the test helper checks for this
 window.__KINDLING_TEST__ = {
+  creationObserverVersion: 1,
   invoke,
   importCommands: IMPORT_COMMANDS,
   importProject,
   disableGuidance: () => ui.setGuidanceEnabled(false),
+  visualPreferences: () => ({
+    guidanceEnabled: ui.guidanceEnabled,
+    referencesPanelWidth: ui.referencesPanelWidth,
+    sidebarCollapsed: ui.sidebarCollapsed,
+    referencesPanelCollapsed: ui.referencesPanelCollapsed,
+  }),
+  setVisualPreferences: (value) => {
+    ui.sidebarCollapsed = value.sidebarCollapsed;
+    ui.referencesPanelCollapsed = value.referencesPanelCollapsed;
+    ui.setReferencesPanelWidth(value.referencesPanelWidth);
+    ui.setGuidanceEnabled(value.guidanceEnabled);
+  },
 };
 
 export default app;

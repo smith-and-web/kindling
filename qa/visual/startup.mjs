@@ -194,7 +194,7 @@ try {
   const workspace = reviewPage.getByRole("region", { name: "Editorial workspace" });
   assert(await workspace.isVisible());
   assert(await workspace.evaluate((el) => document.activeElement === el));
-  await reviewPage.keyboard.press("Control+f");
+  await reviewPage.keyboard.press("ControlOrMeta+f");
   const search = reviewPage.getByRole("searchbox", { name: "Find in manuscript" });
   await search.waitFor();
   assert(await search.evaluate((el) => document.activeElement === el));
