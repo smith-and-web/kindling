@@ -1,0 +1,1232 @@
+{
+  "version": 1,
+  "profile": "wkwebview-snapshot-2x-png-v1",
+  "fixtureProfile": "empty-library-default-panels-v1",
+  "acceptedAt": "2026-09-11T02:52:45.576Z",
+  "revision": "11d60ac0514282154dfff4977168a9666869e6a5 plus isolated QA working-tree changes",
+  "environment": {
+    "os": "macOS 26.6.2",
+    "engine": "WKWebView.takeSnapshot",
+    "windowVisible": false,
+    "windowFocused": false,
+    "backingDpr": 1,
+    "scale": 2,
+    "sessionLocked": true
+  },
+  "reviewMethod": "All 120 candidates reviewed against their Expect text using previews and PNG detail as needed. Byte-identical PNGs reuse an earlier visual review, verified by SHA-256. Full 120-pair calibration was exact. Legacy desktop masters archived locally before migration.",
+  "comparison": {
+    "channelTolerance": 24,
+    "maxDifferingPixelFraction": 0.004
+  },
+  "entries": [
+    {
+      "name": "00-03-start-screen-dark-2x",
+      "file": "00-03-start-screen-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "7f49215cd94507ae00b2dce18bdb0857394af4fbaada96d44e3f4e9e5a648f20",
+      "expect": "Aligned project/review entry points and empty-library placeholder; six import formats are available in the scrollable start screen.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/00-03-start-screen-dark-2x.png"
+    },
+    {
+      "name": "00-03-start-screen-light-2x",
+      "file": "00-03-start-screen-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "b372e740537070cbfb285a5d8c583e8306211386dca3614b817c5c2db27213dc",
+      "expect": "Aligned project/review entry points and empty-library placeholder; six import formats are available in the scrollable start screen.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-31-35-621Z-socket/00-03-start-screen-light-2x.png"
+    },
+    {
+      "name": "00-03-start-screen-narrow-2x",
+      "file": "00-03-start-screen-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "bacdde74e73a5c8b8706733cb9ab9aca9e9a7701fb4239945addb87ad9e04f8f",
+      "expect": "Aligned project/review entry points and empty-library placeholder; six import formats are available in the scrollable start screen.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/00-03-start-screen-narrow-2x.png"
+    },
+    {
+      "name": "00-05-new-project-dark-2x",
+      "file": "00-05-new-project-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "3b479abdd44ca92f4a4b9103d54a86fefa40f29a358a53aa38c8f2e190a27569",
+      "expect": "Novel/screenplay choices, template selection and project name fit the dialog.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/00-05-new-project-dark-2x.png"
+    },
+    {
+      "name": "00-05-new-project-light-2x",
+      "file": "00-05-new-project-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "7e8b993a77baec7292d8ddfe623a5bd641e1a71d8e0a28124756067be143f3af",
+      "expect": "Novel/screenplay choices, template selection and project name fit the dialog.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-31-35-621Z-socket/00-05-new-project-light-2x.png"
+    },
+    {
+      "name": "00-05-new-project-narrow-2x",
+      "file": "00-05-new-project-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "9a9e164c7641b0f26ce0a9a0ab28a21bd85452d470c640e20c4317857f772452",
+      "expect": "Novel/screenplay choices, template selection and project name fit the dialog.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/00-05-new-project-narrow-2x.png"
+    },
+    {
+      "name": "01-01-chapter-input-dark-2x",
+      "file": "01-01-chapter-input-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "408aae9e10da71e4d7a7c40a0d8fd4eea1f9ec72a2c2663574c152df632b38ca",
+      "expect": "Inline new chapter input aligns with the outline and has visible focus.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/01-01-chapter-input-dark-2x.png"
+    },
+    {
+      "name": "01-01-chapter-input-light-2x",
+      "file": "01-01-chapter-input-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "1d746bfff9f5da8724a6c88743e281be4d2673653763420950f5add45b37ac73",
+      "expect": "Inline new chapter input aligns with the outline and has visible focus.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-31-35-621Z-socket/01-01-chapter-input-light-2x.png"
+    },
+    {
+      "name": "01-01-chapter-input-narrow-2x",
+      "file": "01-01-chapter-input-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "51f3eb28686d67cd7fb997d7f5d4b1b39ca9dd70a005632f8142cd6e3bdc59f6",
+      "expect": "Inline new chapter input aligns with the outline and has visible focus.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/01-01-chapter-input-narrow-2x.png"
+    },
+    {
+      "name": "01-02-chapter-created-dark-2x",
+      "file": "01-02-chapter-created-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "841f9198503be638d1b3bfc9d3fe7631bbc0868b404e2d97d3beff9b645615fd",
+      "expect": "New chapter appears in manuscript order, selected with empty-scene creation actions.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/01-02-chapter-created-dark-2x.png"
+    },
+    {
+      "name": "01-02-chapter-created-light-2x",
+      "file": "01-02-chapter-created-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "c16a47b946da1705be7400b930afb6638710286c4de5f1ad0c60b145190b93f2",
+      "expect": "New chapter appears in manuscript order, selected with empty-scene creation actions.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-31-35-621Z-socket/01-02-chapter-created-light-2x.png"
+    },
+    {
+      "name": "01-02-chapter-created-narrow-2x",
+      "file": "01-02-chapter-created-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "5f5a4934e821a7d3f879790d66a751f4657860d6edc4ca198cf736ef4add2c83",
+      "expect": "New chapter appears in manuscript order, selected with empty-scene creation actions.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/01-02-chapter-created-narrow-2x.png"
+    },
+    {
+      "name": "01-09-scene-selected-dark-2x",
+      "file": "01-09-scene-selected-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "63436c71a72b6467d93b74338df0c344d6f7b11466515dd2710fa6687e08357b",
+      "expect": "Outline, synopsis, scene tools, beats, references and writing status are all readable.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/01-09-scene-selected-dark-2x.png"
+    },
+    {
+      "name": "01-09-scene-selected-light-2x",
+      "file": "01-09-scene-selected-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "67994c5d77c0c84393d9a59ce11db9eedc5e35834b16e7165b8a5ac784b3e068",
+      "expect": "Outline, synopsis, scene tools, beats, references and writing status are all readable.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-31-35-621Z-socket/01-09-scene-selected-light-2x.png"
+    },
+    {
+      "name": "01-09-scene-selected-narrow-2x",
+      "file": "01-09-scene-selected-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "a4a3373136ef8b8830ae217cbe49fd282da67657c82a6fb8c17a1659f603a46e",
+      "expect": "Outline, synopsis, scene tools, beats, references and writing status are all readable.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/01-09-scene-selected-narrow-2x.png"
+    },
+    {
+      "name": "07-00-beat-prose-dark-2x",
+      "file": "07-00-beat-prose-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "4b4844cb55e24bcf1944b8435ec62dd45af65345a319c94cb2e52c15cb2c9419",
+      "expect": "Newsreader prose, formatting toolbar, beat prompt and word count fit the writing column.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/07-00-beat-prose-dark-2x.png"
+    },
+    {
+      "name": "07-00-beat-prose-light-2x",
+      "file": "07-00-beat-prose-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "f7ab9822eafa5da46a8be4e6e2847d77488260f0001a2effc0119f125f80f9d6",
+      "expect": "Newsreader prose, formatting toolbar, beat prompt and word count fit the writing column.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-31-35-621Z-socket/07-00-beat-prose-light-2x.png"
+    },
+    {
+      "name": "07-00-beat-prose-narrow-2x",
+      "file": "07-00-beat-prose-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "4f8f71071c75c6927897bc98f83e58ceaf5d548dd39049eff44d6c11e51bf8bf",
+      "expect": "Newsreader prose, formatting toolbar, beat prompt and word count fit the writing column.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/07-00-beat-prose-narrow-2x.png"
+    },
+    {
+      "name": "07-01-page-view-dark-2x",
+      "file": "07-01-page-view-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "8ddf08ac397f382d181f43e362b44d8185a5244e41e4491599d489621abafaa0",
+      "expect": "Page writing surface and toolbar use the correct theme and prose measure.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/07-01-page-view-dark-2x.png"
+    },
+    {
+      "name": "07-01-page-view-light-2x",
+      "file": "07-01-page-view-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "c58bdb0e09c705782ab07fa47cadde025575dfeee6299c3ed9bd09c351e132e2",
+      "expect": "Page writing surface and toolbar use the correct theme and prose measure.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-31-35-621Z-socket/07-01-page-view-light-2x.png"
+    },
+    {
+      "name": "07-01-page-view-narrow-2x",
+      "file": "07-01-page-view-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "6ac07e0ee49942e4f09a40a6f414636e681040db2d576887a2df80c152278404",
+      "expect": "Page writing surface and toolbar use the correct theme and prose measure.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/07-01-page-view-narrow-2x.png"
+    },
+    {
+      "name": "07-02-switch-confirm-dark-2x",
+      "file": "07-02-switch-confirm-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "10bbf077e5967adb271edefd8f8ac0f225d4dbd30ecb3bcccf7783f88a04a1e6",
+      "expect": "Switch-back warning clearly describes what happens to Page prose.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/07-02-switch-confirm-dark-2x.png"
+    },
+    {
+      "name": "07-02-switch-confirm-light-2x",
+      "file": "07-02-switch-confirm-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "01c70f9e435082cfa0e11f7edd0fe7e05390c8c8a6bd3ea52c2d144dddcd1ad7",
+      "expect": "Switch-back warning clearly describes what happens to Page prose.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-31-35-621Z-socket/07-02-switch-confirm-light-2x.png"
+    },
+    {
+      "name": "07-02-switch-confirm-narrow-2x",
+      "file": "07-02-switch-confirm-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "432bf0f0cd50d34a0a803b1654ebdde5f4649d1acf05b83235ab6d80b9cd113c",
+      "expect": "Switch-back warning clearly describes what happens to Page prose.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/07-02-switch-confirm-narrow-2x.png"
+    },
+    {
+      "name": "08-01-reference-dialog-dark-2x",
+      "file": "08-01-reference-dialog-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "b123693f30332cee0288a53ea493d4774dba0e97eb396c478622da227f79e17d",
+      "expect": "Name, description, notes and attributes are readable; Save is disabled for an empty name.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/08-01-reference-dialog-dark-2x.png"
+    },
+    {
+      "name": "08-01-reference-dialog-light-2x",
+      "file": "08-01-reference-dialog-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "7e791d4ecd4d2ec6e4f031006e603065c0cbdb24edcdc418ef55664ab19de3ea",
+      "expect": "Name, description, notes and attributes are readable; Save is disabled for an empty name.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-00-439Z-socket/08-01-reference-dialog-light-2x.png"
+    },
+    {
+      "name": "08-01-reference-dialog-narrow-2x",
+      "file": "08-01-reference-dialog-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "30845360f37c55a8ff6a3ec5de7114ae529b931f36accfb1552b62b22c758f4a",
+      "expect": "Name, description, notes and attributes are readable; Save is disabled for an empty name.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/08-01-reference-dialog-narrow-2x.png"
+    },
+    {
+      "name": "08-02-reference-listed-dark-2x",
+      "file": "08-02-reference-listed-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "4f19bce6960961ac1b0ab2ec8a44ee24b986f70e2dd617bffee3ee98f88a168c",
+      "expect": "Created character is listed with edit/link controls and an updated category count.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/08-02-reference-listed-dark-2x.png",
+      "knownFindings": [
+        "Critical axe aria-required-parent on ReferencesPanel div[role=listitem]; remains a failing audit, not waived by visual baseline acceptance."
+      ]
+    },
+    {
+      "name": "08-02-reference-listed-light-2x",
+      "file": "08-02-reference-listed-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "b00949349af1461dea276ed8ee83d0c1bf1c8838e00b9fbdecbbc2d2665d4f02",
+      "expect": "Created character is listed with edit/link controls and an updated category count.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-00-439Z-socket/08-02-reference-listed-light-2x.png",
+      "knownFindings": [
+        "Critical axe aria-required-parent on ReferencesPanel div[role=listitem]; remains a failing audit, not waived by visual baseline acceptance."
+      ]
+    },
+    {
+      "name": "08-02-reference-listed-narrow-2x",
+      "file": "08-02-reference-listed-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "d02b50c62b83bd0a3352c4f1774c06fc3a3e7196dc815f97844135557820041a",
+      "expect": "Created character is listed with edit/link controls and an updated category count.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/08-02-reference-listed-narrow-2x.png",
+      "knownFindings": [
+        "Critical axe aria-required-parent on ReferencesPanel div[role=listitem]; remains a failing audit, not waived by visual baseline acceptance."
+      ]
+    },
+    {
+      "name": "08-03-copy-references-dark-2x",
+      "file": "08-03-copy-references-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "91efc1b76647b188805355aae75cdc267fee8006ec1eabde1850d6451f98609e",
+      "expect": "Source selector, category selection, search and copy summary fit within the scrolling dialog.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/08-03-copy-references-dark-2x.png"
+    },
+    {
+      "name": "08-03-copy-references-light-2x",
+      "file": "08-03-copy-references-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "c8c0c1144b9822976b6c9d8f5037eedbd70cadaf28761c709c75cb9d3d9be047",
+      "expect": "Source selector, category selection, search and copy summary fit within the scrolling dialog.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/08-03-copy-references-light-2x.png"
+    },
+    {
+      "name": "08-03-copy-references-narrow-2x",
+      "file": "08-03-copy-references-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "0acca6da9d1245dc84ff9e7a26fcf85f63f58fe04c30dce51e05ede909d82921",
+      "expect": "Source selector, category selection, search and copy summary fit within the scrolling dialog.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/08-03-copy-references-narrow-2x.png"
+    },
+    {
+      "name": "08-04-copy-filter-empty-dark-2x",
+      "file": "08-04-copy-filter-empty-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "0bd0d5e7f85872af02f8a10e9a062cc190d56c588267a362aa3c2bd71b1ebd07",
+      "expect": "An empty filtered library leaves source selection and footer actions reachable.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/08-04-copy-filter-empty-dark-2x.png"
+    },
+    {
+      "name": "08-04-copy-filter-empty-light-2x",
+      "file": "08-04-copy-filter-empty-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "d0d85611eb7301ef6a0602e931fc55d4bd663e0085e3350092824dc9b658a529",
+      "expect": "An empty filtered library leaves source selection and footer actions reachable.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/08-04-copy-filter-empty-light-2x.png"
+    },
+    {
+      "name": "08-04-copy-filter-empty-narrow-2x",
+      "file": "08-04-copy-filter-empty-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "d0cb37b0b502ee66c0b8f953d6fe175e57a39910d6183d32cb47eb34fc1a03e9",
+      "expect": "An empty filtered library leaves source selection and footer actions reachable.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/08-04-copy-filter-empty-narrow-2x.png"
+    },
+    {
+      "name": "09-01-appearance-guidance-dark-2x",
+      "file": "09-01-appearance-guidance-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "72052947d58be181d486c2c1885e0446893cb7a2b6fa53290d7cefd7aefc4579",
+      "expect": "Appearance & Guidance: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/09-01-appearance-guidance-dark-2x.png"
+    },
+    {
+      "name": "09-01-appearance-guidance-light-2x",
+      "file": "09-01-appearance-guidance-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "682b4b7164be5fe208315b13a61bc1b3d45715fd58935d9375cbb0e9a0966521",
+      "expect": "Appearance & Guidance: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/09-01-appearance-guidance-light-2x.png"
+    },
+    {
+      "name": "09-01-appearance-guidance-narrow-2x",
+      "file": "09-01-appearance-guidance-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "deff4e97de2e19a463d10ab816c681541b33fc9183a5a4d69577844a06ac5c9a",
+      "expect": "Appearance & Guidance: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/09-01-appearance-guidance-narrow-2x.png"
+    },
+    {
+      "name": "09-02-author-contact-dark-2x",
+      "file": "09-02-author-contact-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "a3fd0844641fa38846a0cde8040718dd05153cc0375f659384c5c9708abe3214",
+      "expect": "Author & Contact: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/09-02-author-contact-dark-2x.png"
+    },
+    {
+      "name": "09-02-author-contact-light-2x",
+      "file": "09-02-author-contact-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "e35056d09d9aa8174490fe78bd61c6b54addba021c9dc3abd92e94782084e34a",
+      "expect": "Author & Contact: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/09-02-author-contact-light-2x.png"
+    },
+    {
+      "name": "09-02-author-contact-narrow-2x",
+      "file": "09-02-author-contact-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "5016f8c9682de02c8e874e069c8d018206f1c83825bb0e0b8b4e439b2e3aaac1",
+      "expect": "Author & Contact: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/09-02-author-contact-narrow-2x.png"
+    },
+    {
+      "name": "09-03-project-details-dark-2x",
+      "file": "09-03-project-details-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "334de54c6e9b7eb6626421c017640ab5ff44239d89d6f0450439378e2e23b8c7",
+      "expect": "Project Details: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/09-03-project-details-dark-2x.png"
+    },
+    {
+      "name": "09-03-project-details-light-2x",
+      "file": "09-03-project-details-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "aabdec62269a37f95be68a55ab5947d797ebd5bb568804befce2a9561d7dea0b",
+      "expect": "Project Details: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/09-03-project-details-light-2x.png"
+    },
+    {
+      "name": "09-03-project-details-narrow-2x",
+      "file": "09-03-project-details-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "aef35d7f969df100cd4f18b29cc5b350705cc7ae8913e57b6924f8a0837dccee",
+      "expect": "Project Details: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/09-03-project-details-narrow-2x.png"
+    },
+    {
+      "name": "09-04-reference-types-dark-2x",
+      "file": "09-04-reference-types-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "90519deb2c9d509e1f8972e405f8bcc0dc30358878efa536371e0b03bce2ab69",
+      "expect": "Reference Types: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/09-04-reference-types-dark-2x.png"
+    },
+    {
+      "name": "09-04-reference-types-light-2x",
+      "file": "09-04-reference-types-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "6101a3a59dc590c8bee80ec63c91dce8b7607dc715e064438037d946bcaabb3a",
+      "expect": "Reference Types: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/09-04-reference-types-light-2x.png"
+    },
+    {
+      "name": "09-04-reference-types-narrow-2x",
+      "file": "09-04-reference-types-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "ddb738980143bbcf2d1ff63c06048286c15fed4c060ce48023e36cd6b39f6b94",
+      "expect": "Reference Types: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/09-04-reference-types-narrow-2x.png"
+    },
+    {
+      "name": "09-05-tags-dark-2x",
+      "file": "09-05-tags-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "99db6a0aa4b321c31114925f04589faf6e36204d6278032053b10c2545c5af2e",
+      "expect": "Tags: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/09-05-tags-dark-2x.png"
+    },
+    {
+      "name": "09-05-tags-light-2x",
+      "file": "09-05-tags-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "88c931b6b81f3fd593d4c421c399412e1e7d2f8bdabc6d8eb35038d10a8770b4",
+      "expect": "Tags: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/09-05-tags-light-2x.png"
+    },
+    {
+      "name": "09-05-tags-narrow-2x",
+      "file": "09-05-tags-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "b2979e5fc2edac166dd747c27b20d79e7e727bf35cef21e3e615d6fdb51f6701",
+      "expect": "Tags: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/09-05-tags-narrow-2x.png"
+    },
+    {
+      "name": "09-06-custom-fields-dark-2x",
+      "file": "09-06-custom-fields-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "1a898840fb236665208efb0e774104ebb9b5b824450849ca4851943ba2e6721a",
+      "expect": "Custom Fields: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/09-06-custom-fields-dark-2x.png"
+    },
+    {
+      "name": "09-06-custom-fields-light-2x",
+      "file": "09-06-custom-fields-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "33490451c2e7a916acbb9074e9e0c543b194927050cafbb113dd1e5544801b1b",
+      "expect": "Custom Fields: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/09-06-custom-fields-light-2x.png"
+    },
+    {
+      "name": "09-06-custom-fields-narrow-2x",
+      "file": "09-06-custom-fields-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "c0de6536c6e0f9ae227a3e4e028df0a7fa123401156f6d137822879b35ebe3d5",
+      "expect": "Custom Fields: left navigation and project selector stay visible; right-hand controls scroll without horizontal overflow.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/09-06-custom-fields-narrow-2x.png"
+    },
+    {
+      "name": "10-01-export-dialog-dark-2x",
+      "file": "10-01-export-dialog-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "89448156c93174e58bf1267c03dde1f9a6bbf772a653b8e8d3c82fe7286d6535",
+      "expect": "Export format choices, scope and output controls are readable, including novelWriter options.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/10-01-export-dialog-dark-2x.png"
+    },
+    {
+      "name": "10-01-export-dialog-light-2x",
+      "file": "10-01-export-dialog-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "94ddd34276a4d0a8281229dfa59b4e2c84cd4aee851fc521c956a7345fb72748",
+      "expect": "Export format choices, scope and output controls are readable, including novelWriter options.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/10-01-export-dialog-light-2x.png"
+    },
+    {
+      "name": "10-01-export-dialog-narrow-2x",
+      "file": "10-01-export-dialog-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "aab04e78e3698ea364d145adaead168b755ddfa910efb73f9cce3d3dc6d26400",
+      "expect": "Export format choices, scope and output controls are readable, including novelWriter options.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/10-01-export-dialog-narrow-2x.png"
+    },
+    {
+      "name": "10-02-snapshots-empty-dark-2x",
+      "file": "10-02-snapshots-empty-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "6b8129aaf0f135f94c6ff9991e635ef7cf31a2af4d2f035830b193df03226d13",
+      "expect": "Snapshots empty state and Create Snapshot action are visible.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/10-02-snapshots-empty-dark-2x.png"
+    },
+    {
+      "name": "10-02-snapshots-empty-light-2x",
+      "file": "10-02-snapshots-empty-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "cbb16dcbb2197ec415ec03778895de1251e9b88f5d6165f47e895fd4242502df",
+      "expect": "Snapshots empty state and Create Snapshot action are visible.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/10-02-snapshots-empty-light-2x.png"
+    },
+    {
+      "name": "10-02-snapshots-empty-narrow-2x",
+      "file": "10-02-snapshots-empty-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "ed5b922260ddeec4b9f452b9aa1938fb698dd9a92df1e3b6341bc5acb6cdea4b",
+      "expect": "Snapshots empty state and Create Snapshot action are visible.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/10-02-snapshots-empty-narrow-2x.png"
+    },
+    {
+      "name": "10-03-snapshot-created-dark-2x",
+      "file": "10-03-snapshot-created-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "fa982748dd9f1e0df7c7aa51298c0df5e5b58a499bddcbd40dd64d0e74330d6c",
+      "expect": "Snapshot name, date, restore and delete controls align in the panel.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/10-03-snapshot-created-dark-2x.png"
+    },
+    {
+      "name": "10-03-snapshot-created-light-2x",
+      "file": "10-03-snapshot-created-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "3a37a19ef126392dd4cf5eb18cede777d80d3edfc7024b792b129571a1e63ab2",
+      "expect": "Snapshot name, date, restore and delete controls align in the panel.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/10-03-snapshot-created-light-2x.png"
+    },
+    {
+      "name": "10-03-snapshot-created-narrow-2x",
+      "file": "10-03-snapshot-created-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "833c33f6ca4fddb75a8d1dba7d8d0038f1266b2bc9b6338a3e56896800e27e2d",
+      "expect": "Snapshot name, date, restore and delete controls align in the panel.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/10-03-snapshot-created-narrow-2x.png"
+    },
+    {
+      "name": "10-04-command-palette-dark-2x",
+      "file": "10-04-command-palette-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "66230564fe17b1bb26ac0d8aea90b93eb719961fd0617f71065c89587efdeb68",
+      "expect": "Search input and commands show readable current shortcut hints.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/10-04-command-palette-dark-2x.png"
+    },
+    {
+      "name": "10-04-command-palette-light-2x",
+      "file": "10-04-command-palette-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "ce2a00b9e4774b064850b450bab1b5f5dc41ee9b7b48be6e6c021afb194609d3",
+      "expect": "Search input and commands show readable current shortcut hints.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/10-04-command-palette-light-2x.png"
+    },
+    {
+      "name": "10-04-command-palette-narrow-2x",
+      "file": "10-04-command-palette-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "41af5729c915a0afa893d8393ec54fa139572559f6c819c8bc0610f41fb3e640",
+      "expect": "Search input and commands show readable current shortcut hints.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/10-04-command-palette-narrow-2x.png"
+    },
+    {
+      "name": "15-01-project-results-dark-2x",
+      "file": "15-01-project-results-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "e9d2f5f84410aeac13c21455cccec4a3bcd128b285253164a9ed3215726b95ee",
+      "expect": "Result path, highlighted match, scope and replacement actions remain readable.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/15-01-project-results-dark-2x.png"
+    },
+    {
+      "name": "15-01-project-results-light-2x",
+      "file": "15-01-project-results-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "6eda19499aab53b764a688a6de41b2c0b67b2fd18ee9a060156d99136dfcf10d",
+      "expect": "Result path, highlighted match, scope and replacement actions remain readable.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/15-01-project-results-light-2x.png"
+    },
+    {
+      "name": "15-01-project-results-narrow-2x",
+      "file": "15-01-project-results-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "143c0a955729638cae53e7323e5495b286b32e35bc1b6fbea292205cd78c5bdb",
+      "expect": "Result path, highlighted match, scope and replacement actions remain readable.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/15-01-project-results-narrow-2x.png"
+    },
+    {
+      "name": "15-02-no-results-dark-2x",
+      "file": "15-02-no-results-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "6e3cde43b7a8e334893c220db6b9883a9754d0572b63531ed65a3a11dff2b8ec",
+      "expect": "No-match message is legible and replacement buttons are disabled.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/15-02-no-results-dark-2x.png"
+    },
+    {
+      "name": "15-02-no-results-light-2x",
+      "file": "15-02-no-results-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "6b8301d8f949d924128ca937d09ba815783654f7156adcd45d582f5ffad2747f",
+      "expect": "No-match message is legible and replacement buttons are disabled.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/15-02-no-results-light-2x.png"
+    },
+    {
+      "name": "15-02-no-results-narrow-2x",
+      "file": "15-02-no-results-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "d2432b650da93df46b44d12b81beb5a81bb1bafb5a35715153ae4a23b4488b88",
+      "expect": "No-match message is legible and replacement buttons are disabled.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/15-02-no-results-narrow-2x.png"
+    },
+    {
+      "name": "15-03-replace-confirm-dark-2x",
+      "file": "15-03-replace-confirm-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "1f567ab880a8e717889a94f47b03ddf82f115d47d5ef40833c5fbb621d3c86bd",
+      "expect": "Confirmation names scope and count, explains skipped locked/draft matches and provides Cancel.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/15-03-replace-confirm-dark-2x.png"
+    },
+    {
+      "name": "15-03-replace-confirm-light-2x",
+      "file": "15-03-replace-confirm-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "ee2efd3aa484b0829c437c6505c58dc6174f8038f52719e9806056036c100924",
+      "expect": "Confirmation names scope and count, explains skipped locked/draft matches and provides Cancel.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/15-03-replace-confirm-light-2x.png"
+    },
+    {
+      "name": "15-03-replace-confirm-narrow-2x",
+      "file": "15-03-replace-confirm-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "6281027abbf4f23e2db8b93a156c13c52aa8d027dd02ee51145823d07d75b05e",
+      "expect": "Confirmation names scope and count, explains skipped locked/draft matches and provides Cancel.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/15-03-replace-confirm-narrow-2x.png"
+    },
+    {
+      "name": "15-04-undo-dark-2x",
+      "file": "15-04-undo-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "696fd801b4e7bab10054e0fb0c14e8d9d868388f5fbe5cd5dbe9105cdd8ac13b",
+      "expect": "Undo restores highlighted original prose and leaves the dialog usable.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/15-04-undo-dark-2x.png"
+    },
+    {
+      "name": "15-04-undo-light-2x",
+      "file": "15-04-undo-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "9ad03f4d79ab77501c04fb755ddbb3e7c4003569d3602fbc1309362f62f0c926",
+      "expect": "Undo restores highlighted original prose and leaves the dialog usable.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/15-04-undo-light-2x.png"
+    },
+    {
+      "name": "15-04-undo-narrow-2x",
+      "file": "15-04-undo-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "b6b52e9ece66312bdf531e33b45a282219857acd1bcb9a2bcdfa0745b4ac49e2",
+      "expect": "Undo restores highlighted original prose and leaves the dialog usable.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/15-04-undo-narrow-2x.png"
+    },
+    {
+      "name": "16-01-previously-dark-2x",
+      "file": "16-01-previously-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "eff1b9f9fbc1ce1e42471f9fe6eda7f0d4328464311c31e59e91938fc595aa14",
+      "expect": "Previously and Revisions share a scene-tools row; predecessor title, synopsis and excerpt use readable prose measure.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/16-01-previously-dark-2x.png"
+    },
+    {
+      "name": "16-01-previously-light-2x",
+      "file": "16-01-previously-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "c4ee13c1df373b8089126aa02c102172ab432ff1f0d3045e1e0d68fb62bb44f3",
+      "expect": "Previously and Revisions share a scene-tools row; predecessor title, synopsis and excerpt use readable prose measure.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/16-01-previously-light-2x.png"
+    },
+    {
+      "name": "16-01-previously-narrow-2x",
+      "file": "16-01-previously-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "e9ee60509b49168ea1b6abdf0748e14d89c9580dddd89065f7f3f5cd0f5228d1",
+      "expect": "Previously and Revisions share a scene-tools row; predecessor title, synopsis and excerpt use readable prose measure.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/16-01-previously-narrow-2x.png"
+    },
+    {
+      "name": "16-02-previously-collapsed-dark-2x",
+      "file": "16-02-previously-collapsed-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "6aac07b92e51af1f49b6e9debab59ebcfbb430497a12ea204390250785838291",
+      "expect": "Collapsed context leaves scene tools aligned and avoids a large blank gap.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/16-02-previously-collapsed-dark-2x.png"
+    },
+    {
+      "name": "16-02-previously-collapsed-light-2x",
+      "file": "16-02-previously-collapsed-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "bf506123edac1d7cc8ac2e84a761a76e49570ae82abff2106c93069364207886",
+      "expect": "Collapsed context leaves scene tools aligned and avoids a large blank gap.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/16-02-previously-collapsed-light-2x.png"
+    },
+    {
+      "name": "16-02-previously-collapsed-narrow-2x",
+      "file": "16-02-previously-collapsed-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "f54af55463d478c333223434a7c37f98999b628aebc6d5eac1d283fbb3d85e66",
+      "expect": "Collapsed context leaves scene tools aligned and avoids a large blank gap.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/16-02-previously-collapsed-narrow-2x.png"
+    },
+    {
+      "name": "16-03-writing-statistics-dark-2x",
+      "file": "16-03-writing-statistics-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "0fd0b229413e78a86c5058306b033ff1efdcbd89be1b251e2d7bb9e56c6270b8",
+      "expect": "Scene/chapter/project/session totals, chapter breakdown and empty/prose scene counts fit the panel.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/16-03-writing-statistics-dark-2x.png"
+    },
+    {
+      "name": "16-03-writing-statistics-light-2x",
+      "file": "16-03-writing-statistics-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "4e04d41c88aef20dc5e7c125387efaf01d080d9b882a0fd5241f67c5d919af29",
+      "expect": "Scene/chapter/project/session totals, chapter breakdown and empty/prose scene counts fit the panel.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/16-03-writing-statistics-light-2x.png"
+    },
+    {
+      "name": "16-03-writing-statistics-narrow-2x",
+      "file": "16-03-writing-statistics-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "cbcf5606186f91bc5b0b70dadf817895b0c155ab0542c0251df9fec7ba95af1d",
+      "expect": "Scene/chapter/project/session totals, chapter breakdown and empty/prose scene counts fit the panel.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/16-03-writing-statistics-narrow-2x.png"
+    },
+    {
+      "name": "16-04-collapsed-sidebar-statistics-dark-2x",
+      "file": "16-04-collapsed-sidebar-statistics-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "fbae4fb64828acedd481858208a940551cb626012b4f6d50f34062f91aa859cf",
+      "expect": "Writing statistics and status totals remain usable with the outline collapsed.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/16-04-collapsed-sidebar-statistics-dark-2x.png"
+    },
+    {
+      "name": "16-04-collapsed-sidebar-statistics-light-2x",
+      "file": "16-04-collapsed-sidebar-statistics-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "74cade36b938a498221444386f10752ff3a986d1b37428055d1c4fd38098f841",
+      "expect": "Writing statistics and status totals remain usable with the outline collapsed.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/16-04-collapsed-sidebar-statistics-light-2x.png"
+    },
+    {
+      "name": "16-04-collapsed-sidebar-statistics-narrow-2x",
+      "file": "16-04-collapsed-sidebar-statistics-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "d845c7139c5f0c29fc9b79580c91d139eca7451498f33f9c91abccc9f3f3f0b0",
+      "expect": "Writing statistics and status totals remain usable with the outline collapsed.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/16-04-collapsed-sidebar-statistics-narrow-2x.png"
+    },
+    {
+      "name": "17-01-editorial-workspace-dark-2x",
+      "file": "17-01-editorial-workspace-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "f060448099e3b04b06780b3181f4efd97f43599bc9ed3aa2ca3cd9b3002fcbd6",
+      "expect": "Manuscript, revision status, mode controls and feedback sidebar fit together.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/17-01-editorial-workspace-dark-2x.png"
+    },
+    {
+      "name": "17-01-editorial-workspace-light-2x",
+      "file": "17-01-editorial-workspace-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "ddfe3190571d163b47f185801afd63a9169a88a674f9daa96efbf36cff6d0763",
+      "expect": "Manuscript, revision status, mode controls and feedback sidebar fit together.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/17-01-editorial-workspace-light-2x.png"
+    },
+    {
+      "name": "17-01-editorial-workspace-narrow-2x",
+      "file": "17-01-editorial-workspace-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "67b2600de53cfaf2b81c82bf650d05f8402b80a4b4b6d52061e90f7853e7b816",
+      "expect": "Manuscript, revision status, mode controls and feedback sidebar fit together.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/17-01-editorial-workspace-narrow-2x.png"
+    },
+    {
+      "name": "17-02-manuscript-menu-dark-2x",
+      "file": "17-02-manuscript-menu-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "de14b7c02651c6b32461fa2c4172a20edf25d42a35cff6be4bfb49e43a9691f9",
+      "expect": "Manuscript menu is inside the viewport with readable actions and icons.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/17-02-manuscript-menu-dark-2x.png"
+    },
+    {
+      "name": "17-02-manuscript-menu-light-2x",
+      "file": "17-02-manuscript-menu-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "0bc5914c6f5f6bfcf1ffca1fb54ebb3ccf48aa4789a4a64be484ed717865d514",
+      "expect": "Manuscript menu is inside the viewport with readable actions and icons.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/17-02-manuscript-menu-light-2x.png"
+    },
+    {
+      "name": "17-02-manuscript-menu-narrow-2x",
+      "file": "17-02-manuscript-menu-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "7cbdc5baf38b41d1c45c01452f0eed2cdaa620b19d89f6a3a8274928fb512540",
+      "expect": "Manuscript menu is inside the viewport with readable actions and icons.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-41-52-943Z-socket/17-02-manuscript-menu-narrow-2x.png"
+    },
+    {
+      "name": "17-03-draft-history-dark-2x",
+      "file": "17-03-draft-history-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "83a586c5e0ccc71069bdd554ce42756be8f20e33e0e5d195eab0f62bd5844086",
+      "expect": "Saved draft list, comparison pane, status and All scenes navigation fit the dialog.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/17-03-draft-history-dark-2x.png"
+    },
+    {
+      "name": "17-03-draft-history-light-2x",
+      "file": "17-03-draft-history-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "d5e2cff7218cd8ca25a312e0eda0ea2dd58c9d1286c5add18ee047cd38ecbdad",
+      "expect": "Saved draft list, comparison pane, status and All scenes navigation fit the dialog.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/17-03-draft-history-light-2x.png"
+    },
+    {
+      "name": "17-03-draft-history-narrow-2x",
+      "file": "17-03-draft-history-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "6b48875802af0a6c9dc3b0c238885022f9d363b89d9cb05eb26f7f41685794c3",
+      "expect": "Saved draft list, comparison pane, status and All scenes navigation fit the dialog.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/17-03-draft-history-narrow-2x.png"
+    },
+    {
+      "name": "17-04-all-scenes-dark-2x",
+      "file": "17-04-all-scenes-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "e655d25d9ebc739c858b2abf0415e186b9c71a830600eae41a7915635b44e465",
+      "expect": "Revision overview lists manuscript scenes and statuses without clipping.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/17-04-all-scenes-dark-2x.png"
+    },
+    {
+      "name": "17-04-all-scenes-light-2x",
+      "file": "17-04-all-scenes-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "1ebdb77778159adf5aec5266fe2df99643ec2dfb0be6882af81a58bca91ad3dc",
+      "expect": "Revision overview lists manuscript scenes and statuses without clipping.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/17-04-all-scenes-light-2x.png"
+    },
+    {
+      "name": "17-04-all-scenes-narrow-2x",
+      "file": "17-04-all-scenes-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "bacc220fc8312a47e8d7ad166a3bcfe8e67df69f2177e8396c83fffd54def117",
+      "expect": "Revision overview lists manuscript scenes and statuses without clipping.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/17-04-all-scenes-narrow-2x.png"
+    },
+    {
+      "name": "17-05-review-package-dark-2x",
+      "file": "17-05-review-package-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "22e1cbb7230d62ea085719f41bd4bd33ed0ee0928e5b2bbafcc9c91a92b62d44",
+      "expect": "Review package setup shows the round name, editor brief, manuscript scope and round history in a balanced layout.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/17-05-review-package-dark-2x.png"
+    },
+    {
+      "name": "17-05-review-package-light-2x",
+      "file": "17-05-review-package-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "275e270317b5dc94830c44a5dc18266cd9a5abea89b8fde49a50ea5b3ce4f95a",
+      "expect": "Review package setup shows the round name, editor brief, manuscript scope and round history in a balanced layout.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/17-05-review-package-light-2x.png"
+    },
+    {
+      "name": "17-05-review-package-narrow-2x",
+      "file": "17-05-review-package-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "13b4d786d7bc5a7eee86602f7ffb488b403831ff6b4568d19a1674dd229b2d86",
+      "expect": "Review package setup shows the round name, editor brief, manuscript scope and round history in a balanced layout.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/17-05-review-package-narrow-2x.png"
+    },
+    {
+      "name": "18-01-about-dark-2x",
+      "file": "18-01-about-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "8f564bbcfbbd746344e0e71b8e02b85d4ab44690f9534856d1fd63ac48366c6a",
+      "expect": "About shows app version and the Send Feedback action with readable links.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/18-01-about-dark-2x.png"
+    },
+    {
+      "name": "18-01-about-light-2x",
+      "file": "18-01-about-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "b58d11c2e74e6acab2ad3eb7c1436537796de40018268fe3f425ef37f369a2f3",
+      "expect": "About shows app version and the Send Feedback action with readable links.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/18-01-about-light-2x.png"
+    },
+    {
+      "name": "18-01-about-narrow-2x",
+      "file": "18-01-about-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "1b0d409d43a9fd0f50c25a5893427c3edfc096222838814f9a83efd2fd059cc1",
+      "expect": "About shows app version and the Send Feedback action with readable links.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/18-01-about-narrow-2x.png"
+    },
+    {
+      "name": "18-02-feedback-dark-2x",
+      "file": "18-02-feedback-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "b119e81db9fcfe8d4b662372b8bca076f245ecc35182c64546d1a6ac0af82135",
+      "expect": "Feedback categories, optional summary, message and send action fit the form. No feedback is submitted.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/18-02-feedback-dark-2x.png"
+    },
+    {
+      "name": "18-02-feedback-light-2x",
+      "file": "18-02-feedback-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "a8da4115079086597446aa5d26e3486fcd4012c092062a470d9f90c3de4d6734",
+      "expect": "Feedback categories, optional summary, message and send action fit the form. No feedback is submitted.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/18-02-feedback-light-2x.png"
+    },
+    {
+      "name": "18-02-feedback-narrow-2x",
+      "file": "18-02-feedback-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "5adf42d0f2a614a5adb126e4982749ded1ed8cafb90b6bb6a1071a8feb0ace86",
+      "expect": "Feedback categories, optional summary, message and send action fit the form. No feedback is submitted.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/18-02-feedback-narrow-2x.png"
+    },
+    {
+      "name": "20-01-shortcut-filter-dark-2x",
+      "file": "20-01-shortcut-filter-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "77f1838b6d106fdcb55f9b147c04d2650b774557d65b87a3f5300a1c84c55484",
+      "expect": "Filtered command bindings, Clear controls and reset action align and wrap cleanly.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/20-01-shortcut-filter-dark-2x.png"
+    },
+    {
+      "name": "20-01-shortcut-filter-light-2x",
+      "file": "20-01-shortcut-filter-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "8f153755c3f0aa8ac79a696d51e3bba3fa890be993fecd999f76c6c600c2d373",
+      "expect": "Filtered command bindings, Clear controls and reset action align and wrap cleanly.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/20-01-shortcut-filter-light-2x.png"
+    },
+    {
+      "name": "20-01-shortcut-filter-narrow-2x",
+      "file": "20-01-shortcut-filter-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "c3e45e6372ebb90dff9e8871340c574f04fdfab999d1c521e83c53d2d30d8c7d",
+      "expect": "Filtered command bindings, Clear controls and reset action align and wrap cleanly.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/20-01-shortcut-filter-narrow-2x.png"
+    },
+    {
+      "name": "20-02-shortcut-recording-dark-2x",
+      "file": "20-02-shortcut-recording-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "e7870beb5ad711d23dd05b0e989946fb045a10c3c0249cefc211e471aadbf398",
+      "expect": "Recording state clearly requests a key combination and explains Escape/Tab.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/20-02-shortcut-recording-dark-2x.png"
+    },
+    {
+      "name": "20-02-shortcut-recording-light-2x",
+      "file": "20-02-shortcut-recording-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "0e3408ade1aa41b77a069a0f163d086716a58717113b84ba6f88b942e6dcd6d6",
+      "expect": "Recording state clearly requests a key combination and explains Escape/Tab.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/20-02-shortcut-recording-light-2x.png"
+    },
+    {
+      "name": "20-02-shortcut-recording-narrow-2x",
+      "file": "20-02-shortcut-recording-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "ebfcb3add6c9cf8a81883aa66d20cfbc121673b30622cf4c7c4106c204a1ae10",
+      "expect": "Recording state clearly requests a key combination and explains Escape/Tab.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/20-02-shortcut-recording-narrow-2x.png"
+    },
+    {
+      "name": "20-03-shortcut-reserved-dark-2x",
+      "file": "20-03-shortcut-reserved-dark-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "df5db85ed84be9715aa5132ac5683fc3019de60fe3ad287bfc2ceeecf5132aac",
+      "expect": "Rejected reserved binding has a readable explanation and leaves the recorder usable.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/20-03-shortcut-reserved-dark-2x.png"
+    },
+    {
+      "name": "20-03-shortcut-reserved-light-2x",
+      "file": "20-03-shortcut-reserved-light-2x.png",
+      "pixels": [3200, 1936],
+      "sha256": "1e597ee4bd84bba81475178b248bc83927fd55bd60494271649512c345749808",
+      "expect": "Rejected reserved binding has a readable explanation and leaves the recorder usable.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-33-57-145Z-socket/20-03-shortcut-reserved-light-2x.png"
+    },
+    {
+      "name": "20-03-shortcut-reserved-narrow-2x",
+      "file": "20-03-shortcut-reserved-narrow-2x.png",
+      "pixels": [2200, 1336],
+      "sha256": "9a2b0140d287218e02e38df5baac5fcd9d8fe801e63f61a15eae7842bada83c8",
+      "expect": "Rejected reserved binding has a readable explanation and leaves the recorder usable.",
+      "sourceRun": "results/2026-09-11T02-45-01-566Z-socket",
+      "review": "Visually inspected against Expect in the isolated WKWebView capture profile; identical previously inspected masters verified by SHA-256. Native foreground focus appearance and scrolled content follow this profile.",
+      "reviewSource": "results/2026-09-11T02-45-01-566Z-socket/20-03-shortcut-reserved-narrow-2x.png"
+    }
+  ]
+}

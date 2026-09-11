@@ -45,6 +45,7 @@
 
     saving = true;
     error = null;
+    const onCreated = window.__KINDLING_TEST__?.onProjectCreated;
 
     try {
       let project: Project;
@@ -56,6 +57,11 @@
       } else {
         project = await invoke<Project>("create_blank_project", { name: trimmedName });
       }
+
+      onCreated?.(
+        projectType === "screenplay" ? "create_screenplay_project" : "create_blank_project",
+        project
+      );
 
       if (selectedTemplate) {
         await invoke("apply_template", {

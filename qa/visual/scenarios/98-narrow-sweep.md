@@ -1,8 +1,9 @@
 # 98 Narrow window sweep
 
-Runs once per full run, before the dark sweep. Resizes the window to 1100 x
-700 and captures three screens where clipping and overflow show up first.
-Budget: 3 screenshots, about 8 tool calls.
+Legacy supplemental checklist. The socket runner now repeats every executable
+checkpoint at 1100×700; these three screens alone are not complete narrow
+coverage. Also run the new 15–21 checklists for manual surfaces and include
+selective-sync/prose-diff and destructive confirmations.
 
 Precondition: editor view with the fixture, a scene selected.
 

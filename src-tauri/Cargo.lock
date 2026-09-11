@@ -2221,6 +2221,7 @@ dependencies = [
 name = "kindling"
 version = "1.2.0"
 dependencies = [
+ "cc",
  "chrono",
  "docx-rs",
  "encoding_rs",

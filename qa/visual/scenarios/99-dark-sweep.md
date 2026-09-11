@@ -1,8 +1,9 @@
 # 99 Dark theme sweep
 
-Runs once at the end of a full run instead of a dark pass per scenario. Four
-screens cover every surface the light pass exercised: sidebar with an inline
-input, an open prose editor, a modal dialog, and the start screen.
+Legacy supplemental checklist. The socket runner now repeats every executable
+checkpoint in dark theme. These four screens do not cover the v1.3 settings,
+search, statistics, copy, shortcut or editorial surfaces; see COVERAGE.md and
+the new 15–21 checklists for remaining manual surfaces.
 
 Precondition: editor view, fixture loaded, no dialogs open.
 `q.setTheme("dark")` (forces a repaint). Restore with `q.restoreTheme()` at
@@ -33,9 +34,10 @@ invalidation bug from run 2026-09-04-1729 and a regression.
   `q.clickNth("beat-header", 0)`, `q.shot("99-02-dark-editor")`. Screenshot.
 - Next call: `q.key("Escape")`.
 
-**Expect**: the prose card is the paper reading surface with dark ink
-(intentional; `--color-prose-bg` has no dark override), the toolbar icons are
-legible, the beat header and card border follow the dark tokens.
+**Expect**: the prose card follows the current Press reading-surface tokens;
+text, selection and toolbar icons remain legible. Verify computed colors rather
+than assuming the old cream card is still intentional. The beat header and
+card border follow the dark theme.
 
 ### 99-03 confirm dialog
 
