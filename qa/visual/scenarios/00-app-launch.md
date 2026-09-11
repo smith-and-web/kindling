@@ -4,8 +4,8 @@ Mirrors `e2e/specs/app-launch.spec.js`. Smoke test: the shell renders, the
 start screen shows import options, onboarding can be dismissed.
 
 Precondition: harness installed. No fixture needed. If a project is open,
-`__qa.click` the "All Projects" button (`aria-label="Close project"`) via
-`__qa.clickSel('[aria-label="Close project"]')` to return to the start screen.
+`__qa.click` the "Home — all projects" button (`data-testid="sidebar-home"`) via
+`__qa.clickSel('[data-testid="sidebar-home"]')` to return to the start screen.
 
 ## Steps
 

@@ -54,7 +54,7 @@ scrolling internally if needed; the format grid reflows to fewer columns.
 
 ```js
 const q = window.__qa;
-q.clickSel('[aria-label="Close project"]');
+q.clickSel('[data-testid="sidebar-home"]');
 q.shot("98-03-narrow-start");
 return "start";
 ```

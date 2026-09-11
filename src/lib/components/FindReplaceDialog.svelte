@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DialogHeader from "./DialogHeader.svelte";
   import { onMount, tick } from "svelte";
   import { proseSaves, type ProseSave } from "../utils/proseSaves";
   import { invoke } from "@tauri-apps/api/core";
@@ -249,180 +250,183 @@
     event.stopPropagation();
   }}
 >
-  <div class="flex items-center justify-between gap-4 mb-4">
-    <h2 id="find-title" class="font-heading text-press-h2">Find and Replace</h2>
-    <button type="button" onclick={onClose} disabled={busy} aria-label="Close Find and Replace"
-      >Close</button
-    >
-  </div>
-  <fieldset disabled={busy || loadFailed} class="flex flex-col gap-3">
-    <label class="flex flex-col gap-1"
-      >Find
-      <input
-        bind:this={findInput}
-        bind:value={query}
-        oninput={reset}
-        onkeydown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            navigate(event.shiftKey ? -1 : 1);
-          }
-        }}
-        type="text"
-      />
-    </label>
-    <div class="flex flex-wrap items-center gap-4">
-      <label
-        >Search in
-        <select bind:value={scope} onchange={reset}>
-          <option value="scene" disabled={!sceneId}>Current scene</option>
-          <option value="project">Entire project</option>
-        </select>
-      </label>
-      <label
-        ><input type="checkbox" bind:checked={caseSensitive} onchange={reset} /> Match case</label
-      >
-      <label><input type="checkbox" bind:checked={wholeWord} onchange={reset} /> Whole words</label>
-      <label><input type="checkbox" bind:checked={replacing} /> Replace</label>
-    </div>
-    {#if replacing}
+  <DialogHeader title="Find and Replace" titleId="find-title" {onClose} disabled={busy} />
+  <div class="find-content">
+    <fieldset disabled={busy || loadFailed} class="flex flex-col gap-3">
       <label class="flex flex-col gap-1"
-        >Replace with
-        <input type="text" bind:value={replacement} oninput={() => (confirming = false)} />
+        >Find
+        <input
+          bind:this={findInput}
+          bind:value={query}
+          oninput={reset}
+          onkeydown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              navigate(event.shiftKey ? -1 : 1);
+            }
+          }}
+          type="text"
+        />
       </label>
-    {/if}
-    <p class="text-press-muted text-press-small">
-      Searches visible prose in Fixed scenes. Flexible, Undefined and archived scenes are excluded;
-      locked scenes are searchable but cannot be replaced.
-    </p>
-    <div class="flex items-center gap-3">
-      <p role="status" class="flex-1">
-        {busy
-          ? "Loading prose…"
-          : query
-            ? `${results.length} ${results.length === 1 ? "match" : "matches"}`
-            : "Enter text to find."}
-      </p>
-      <button type="button" disabled={!results.length} onclick={() => navigate(-1)}>Previous</button
-      >
-      <button type="button" disabled={!results.length} onclick={() => navigate(1)}>Next</button>
-    </div>
-    {#if active}
-      <div class="result-preview">
-        {#if onOpenScene}<button type="button" onclick={openScene} class="mb-3">Open scene</button
-          >{/if}
-        <p class="text-press-small text-press-muted mb-2">
-          {Math.min(selected + 1, results.length)} of {results.length} · {active.doc.chapter_title} /
-          {active.doc.scene_title}{active.doc.beat_title !== null
-            ? ` / ${active.doc.beat_title}`
-            : ""}{active.doc.locked ? " · Locked" : active.readOnly ? " · Unsaved draft" : ""}
-        </p>
-        <p class="font-prose text-press-body whitespace-pre-wrap break-words">
-          {active.match.from > 100 ? "…" : ""}{active.text.slice(
-            Math.max(0, active.match.from - 100),
-            active.match.from
-          )}<mark>{active.text.slice(active.match.from, active.match.to)}</mark>{active.text.slice(
-            active.match.to,
-            active.match.to + 160
-          )}{active.text.length > active.match.to + 160 ? "…" : ""}
-        </p>
+      <div class="flex flex-wrap items-center gap-4">
+        <label
+          >Search in
+          <select bind:value={scope} onchange={reset}>
+            <option value="scene" disabled={!sceneId}>Current scene</option>
+            <option value="project">Entire project</option>
+          </select>
+        </label>
+        <label
+          ><input type="checkbox" bind:checked={caseSensitive} onchange={reset} /> Match case</label
+        >
+        <label
+          ><input type="checkbox" bind:checked={wholeWord} onchange={reset} /> Whole words</label
+        >
+        <label><input type="checkbox" bind:checked={replacing} /> Replace</label>
       </div>
-    {:else if query && !busy && !error}
-      <p>
-        {results.length
-          ? "No more matches ahead. Use Next or Previous to continue."
-          : "No matches found."}
-      </p>
-    {/if}
-    {#if replacing}
-      <div class="flex flex-wrap gap-3">
-        <button type="button" disabled={!active || active.readOnly} onclick={() => replace(false)}
-          >Replace match</button
-        >
-        <button type="button" disabled={!editableCount} onclick={() => (confirming = true)}
-          >Replace all</button
-        >
-        <button
-          type="button"
-          disabled={!undo.length}
-          onclick={() => apply(undo[undo.length - 1], true)}>Undo replacement</button
-        >
-      </div>
-      {#if confirming}
-        <div class="result-preview">
-          <p>
-            Replace {editableCount} matches in {scope === "project"
-              ? "the entire project"
-              : "the current scene"}? {results.length - editableCount} locked or unsaved matches will
-            be skipped.
-          </p>
-          <div class="flex gap-3 mt-3">
-            <button type="button" onclick={() => replace(true)}>Confirm replace all</button>
-            <button type="button" onclick={() => (confirming = false)}>Cancel</button>
-          </div>
-        </div>
+      {#if replacing}
+        <label class="flex flex-col gap-1"
+          >Replace with
+          <input type="text" bind:value={replacement} oninput={() => (confirming = false)} />
+        </label>
       {/if}
-    {/if}
-  </fieldset>
-  {#if message}<p role="status" class="mt-3">{message}</p>{/if}
-  {#if error}<p role="alert" class="text-press-error mt-3">{error}</p>{/if}
-  {#if loadFailed || pendingDrafts.length}
-    <div class="mt-3 flex flex-col gap-3">
-      <button type="button" disabled={busy} onclick={() => load(true)}
-        >{loadFailed ? "Retry loading" : "Retry saving drafts"}</button
-      >
-      {#if pendingDrafts.length}
-        <p>
-          Unsaved drafts are retained for this session, including after closing the project. Locked
-          or missing documents and unrecognized save errors are not retried automatically and do not
-          block other scenes. You can retry after resolving the save error, or copy these drafts
-          before discarding them. Matches in documents with unsaved drafts cannot be replaced.
+      <p class="text-press-muted text-press-small">
+        Searches visible prose in Fixed scenes. Flexible, Undefined and archived scenes are
+        excluded; locked scenes are searchable but cannot be replaced.
+      </p>
+      <div class="flex items-center gap-3">
+        <p role="status" class="flex-1">
+          {busy
+            ? "Loading prose…"
+            : query
+              ? `${results.length} ${results.length === 1 ? "match" : "matches"}`
+              : "Enter text to find."}
         </p>
-        {#each pendingDrafts as draft, index}
-          <details>
-            <summary>Unsaved {draft.kind === "beat" ? "beat" : "scene"} {index + 1}</summary>
-            <label class="flex flex-col gap-1 mt-3"
-              >Draft text (select to copy)
-              <textarea
-                readonly
-                rows="5"
-                class="w-full bg-press-sunken text-press-text p-3"
-                value={proseText(draft.prose)}
-              ></textarea>
-            </label>
-          </details>
-        {/each}
-        {#if onDiscardDrafts}
-          {#if confirmingDiscard}
+        <button type="button" disabled={!results.length} onclick={() => navigate(-1)}
+          >Previous</button
+        >
+        <button type="button" disabled={!results.length} onclick={() => navigate(1)}>Next</button>
+      </div>
+      {#if active}
+        <div class="result-preview">
+          {#if onOpenScene}<button type="button" onclick={openScene} class="mb-3">Open scene</button
+            >{/if}
+          <p class="text-press-small text-press-muted mb-2">
+            {Math.min(selected + 1, results.length)} of {results.length} · {active.doc
+              .chapter_title} /
+            {active.doc.scene_title}{active.doc.beat_title !== null
+              ? ` / ${active.doc.beat_title}`
+              : ""}{active.doc.locked ? " · Locked" : active.readOnly ? " · Unsaved draft" : ""}
+          </p>
+          <p class="font-prose text-press-body whitespace-pre-wrap break-words">
+            {active.match.from > 100 ? "…" : ""}{active.text.slice(
+              Math.max(0, active.match.from - 100),
+              active.match.from
+            )}<mark>{active.text.slice(active.match.from, active.match.to)}</mark
+            >{active.text.slice(active.match.to, active.match.to + 160)}{active.text.length >
+            active.match.to + 160
+              ? "…"
+              : ""}
+          </p>
+        </div>
+      {:else if query && !busy && !error}
+        <p>
+          {results.length
+            ? "No more matches ahead. Use Next or Previous to continue."
+            : "No matches found."}
+        </p>
+      {/if}
+      {#if replacing}
+        <div class="flex flex-wrap gap-3">
+          <button type="button" disabled={!active || active.readOnly} onclick={() => replace(false)}
+            >Replace match</button
+          >
+          <button type="button" disabled={!editableCount} onclick={() => (confirming = true)}
+            >Replace all</button
+          >
+          <button
+            type="button"
+            disabled={!undo.length}
+            onclick={() => apply(undo[undo.length - 1], true)}>Undo replacement</button
+          >
+        </div>
+        {#if confirming}
+          <div class="result-preview">
             <p>
-              Discard these unsaved drafts? Their changes will be lost. Copy any text you want to
-              keep first.
+              Replace {editableCount} matches in {scope === "project"
+                ? "the entire project"
+                : "the current scene"}? {results.length - editableCount} locked or unsaved matches will
+              be skipped.
             </p>
-            <div class="flex gap-3">
-              <button type="button" disabled={busy} onclick={discardDrafts}
-                >Confirm discard drafts</button
-              >
-              <button type="button" disabled={busy} onclick={() => (confirmingDiscard = false)}
-                >Keep drafts</button
-              >
+            <div class="flex gap-3 mt-3">
+              <button type="button" onclick={() => replace(true)}>Confirm replace all</button>
+              <button type="button" onclick={() => (confirming = false)}>Cancel</button>
             </div>
-          {:else}
-            <button type="button" disabled={busy} onclick={() => (confirmingDiscard = true)}
-              >Discard unsaved drafts…</button
-            >
-          {/if}
+          </div>
         {/if}
       {/if}
-    </div>
-  {/if}
+    </fieldset>
+    {#if message}<p role="status" class="mt-3">{message}</p>{/if}
+    {#if error}<p role="alert" class="text-press-error mt-3">{error}</p>{/if}
+    {#if loadFailed || pendingDrafts.length}
+      <div class="mt-3 flex flex-col gap-3">
+        <button type="button" disabled={busy} onclick={() => load(true)}
+          >{loadFailed ? "Retry loading" : "Retry saving drafts"}</button
+        >
+        {#if pendingDrafts.length}
+          <p>
+            Unsaved drafts are retained for this session, including after closing the project.
+            Locked or missing documents and unrecognized save errors are not retried automatically
+            and do not block other scenes. You can retry after resolving the save error, or copy
+            these drafts before discarding them. Matches in documents with unsaved drafts cannot be
+            replaced.
+          </p>
+          {#each pendingDrafts as draft, index}
+            <details>
+              <summary>Unsaved {draft.kind === "beat" ? "beat" : "scene"} {index + 1}</summary>
+              <label class="flex flex-col gap-1 mt-3"
+                >Draft text (select to copy)
+                <textarea
+                  readonly
+                  rows="5"
+                  class="w-full bg-press-sunken text-press-text p-3"
+                  value={proseText(draft.prose)}
+                ></textarea>
+              </label>
+            </details>
+          {/each}
+          {#if onDiscardDrafts}
+            {#if confirmingDiscard}
+              <p>
+                Discard these unsaved drafts? Their changes will be lost. Copy any text you want to
+                keep first.
+              </p>
+              <div class="flex gap-3">
+                <button type="button" disabled={busy} onclick={discardDrafts}
+                  >Confirm discard drafts</button
+                >
+                <button type="button" disabled={busy} onclick={() => (confirmingDiscard = false)}
+                  >Keep drafts</button
+                >
+              </div>
+            {:else}
+              <button type="button" disabled={busy} onclick={() => (confirmingDiscard = true)}
+                >Discard unsaved drafts…</button
+              >
+            {/if}
+          {/if}
+        {/if}
+      </div>
+    {/if}
+  </div>
 </dialog>
 
 <style>
   .find-dialog {
     width: min(46rem, calc(100vw - var(--space-l)));
     max-height: calc(100vh - var(--space-l));
-    overflow: auto;
-    padding: var(--space-l);
+    overflow: hidden;
+    padding: 0;
     color: var(--color-text);
     background: var(--color-surface);
     border: 1px solid var(--color-border);
@@ -430,6 +434,15 @@
     font-family: var(--font-ui);
     font-size: var(--text-ui);
     margin: auto;
+  }
+  .find-dialog[open] {
+    display: flex;
+    flex-direction: column;
+  }
+  .find-content {
+    padding: var(--space-l);
+    overflow-y: auto;
+    min-height: 0;
   }
   .find-dialog::backdrop {
     background: var(--color-overlay-scrim);

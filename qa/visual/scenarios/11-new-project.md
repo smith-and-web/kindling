@@ -6,7 +6,7 @@ start screen, checks the editor, then deletes it. Budget: 2 screenshots,
 about 8 tool calls.
 
 Precondition: start screen (close the fixture first with
-`q.clickSel('[aria-label="Close project"]')`).
+`q.clickSel('[data-testid="sidebar-home"]')`).
 
 ## Call 1: new project dialog (screenshot 11-01)
 
@@ -69,7 +69,7 @@ Flexible" affordance, the New Chapter button, and the scene panel empty state.
 ```js
 const q = window.__qa;
 const out = q.flush();
-q.clickSel('[aria-label="Close project"]');
+q.clickSel('[data-testid="sidebar-home"]');
 q.cleanupNamed("QA Blank Project");
 return JSON.stringify(out);
 ```

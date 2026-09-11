@@ -627,7 +627,7 @@ describe("editorial workspace", () => {
     });
     await fireEvent.click(view.getByRole("button", { name: "Save named draft" }));
     await waitFor(() => expect(localReview.version).toBe(1));
-    await fireEvent.click(view.getByRole("button", { name: "Close" }));
+    await fireEvent.click(view.getByRole("button", { name: "Close Draft history" }));
     await waitFor(() => expect(view.queryByRole("dialog")).toBeNull());
     fail = true;
     await fireEvent.click(view.getByRole("button", { name: /Rowan.*Whose letter/ }));

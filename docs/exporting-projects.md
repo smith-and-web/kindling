@@ -1,97 +1,122 @@
 # Exporting Projects from Kindling
 
-Kindling exports your work to multiple formats so you can move between outlining, drafting, and publishing workflows.
+Export your writing for a submission, a reading copy, a website, or another
+writing app. Choose a standard format for a quick export, or use **Custom** to
+save your own export profiles and adjust settings beside a live preview.
 
-Manuscript exports (DOCX, Markdown, Longform, EPUB, Scrivener, and novelWriter) use each scene's
-active writing view: Page View prose or Beat View prose, exactly once. Cached prose
-from the other view is excluded. Scenes without beats use Page View prose. DOCX
-body text and its manuscript word count follow this same rule. Longform retains
-beat outline prompts and the active editor mode for roundtripping, but excludes
-inactive beat prose. When beat markers are requested for a Page View scene, its
-outline headings follow the page prose; they do not imply paragraph boundaries.
+Exporting leaves your writing in Kindling unchanged. Prose exports use the
+writing from each scene's selected view—Page View or Beat View—so the same
+prose is not included twice. Scenes without beats use their Page View prose.
 
-## Export Dialog
+## Make an export
 
-Open **Export** from the project toolbar or menu, then choose a format and scope.
+1. Open your project and choose **File → Export**.
+2. Select a format, such as **Word**, **ePub**, or **Markdown**.
+3. Adjust the options shown for that format and choose a destination.
+4. Select **Export**.
 
-![Screenshot: Export dialog](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/export-dialog.png)
+To export a particular chapter or scene, use **Export** in its sidebar menu.
+Check the scope shown in the dialog; some project formats always include the
+whole project.
 
-## Supported Formats
+## Save custom settings
 
-| Format            | Output                | Best For                               |
-| ----------------- | --------------------- | -------------------------------------- |
-| DOCX              | `.docx` file          | Standard Manuscript Format submissions |
-| Markdown          | Folder of `.md` files | Plain text workflows or backups        |
-| Longform/Obsidian | Index + scene files   | Roundtrip with Obsidian                |
-| EPUB              | `.epub` file          | E-readers and ebook previews           |
+Select the **Custom** tile, choose a profile, and select **Open workspace**.
+The workspace includes starting profiles for agent submissions, writing groups,
+and website chapters. You can duplicate a profile, change its settings, and
+save it for your next export.
 
-## Export Scopes
+Once you choose Custom, it becomes the remembered choice for that project, along
+with your last selected profile. You can still select another format for an
+individual export.
 
-| Scope   | What It Includes          |
-| ------- | ------------------------- |
-| Project | All chapters and scenes   |
-| Chapter | Only the selected chapter |
-| Scene   | Only the selected scene   |
+See [Customize exports with profiles](export-workspace.md) for the full guide to
+content selection, typography, book details, HTML, and saved settings.
 
-## DOCX (Standard Manuscript Format)
+## Choose an output format
 
-DOCX exports are designed for manuscript submissions and include formatting options for:
+| Format                  | Output                                                                     | Useful for                                               |
+| ----------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------- |
+| **Word**                | `.docx` file                                                               | Manuscript submissions and word processors               |
+| **ePub**                | `.epub` file                                                               | E-readers and reading copies                             |
+| **Markdown**            | Separate scene files in the standard dialog; one manuscript file in Custom | Text-based writing tools                                 |
+| **HTML**                | One `.html` document or fragment, through Custom                           | Websites and publishing tools                            |
+| **Plain text**          | One `.txt` manuscript, through Custom                                      | Unformatted text                                         |
+| **Longform / Obsidian** | Index, scene files, and reference notes                                    | Working in Obsidian with Longform                        |
+| **Scrivener**           | `.scriv` project                                                           | Moving work to Scrivener or updating an existing project |
+| **novelWriter**         | Project folder                                                             | Moving prose projects to novelWriter                     |
+| **Treatment**           | `.docx` or `.txt` file                                                     | Sharing an outline or story summary                      |
 
-- Title page (uses app settings and project pen name)
-- Chapter heading style and page breaks
-- Scene break markers
-- Font family and line spacing
-- Optional beat markers and scene synopses
+## Word manuscripts
 
-## Markdown
+The standard Word export offers manuscript formatting options for a title page,
+chapter headings, page breaks, scene separators, font, and line spacing. You can
+also include beat headings and scene synopses.
 
-Markdown exports create a folder structure like:
+Use Custom for additional control over font size, paragraph spacing and
+indentation, margins, paper size, running headers, and contents. Save a profile
+for each recipient's submission requirements.
 
-```
+## EPUB reading copies
+
+In the standard dialog, set the book title, author, description, and language,
+choose a theme, and optionally add a cover image. Beat headings and scene
+synopses can also be included.
+
+Use Custom to save these book details with your content selection and typography
+preferences. Ebook readers may override font and spacing settings, so check the
+export in your intended reading app.
+
+## Markdown and plain text
+
+Standard Markdown export creates a folder for the selected chapters and scenes:
+
+```text
 My Project/
   01 - Chapter One/
     01 - Scene One.md
     02 - Scene Two.md
 ```
 
-- Beat markers can be included as headings
-- You can delete an existing export folder before writing new files
+You can include beat headings. If you select the option to delete an existing
+export folder, its contents will be removed before the new files are written.
+Use a separate destination to keep an earlier copy.
 
-## Longform/Obsidian
+Custom Markdown and plain-text exports each produce a single manuscript file.
+Markdown retains supported formatting such as emphasis and headings; plain text
+removes rich-text formatting. Both show the generated text in the workspace.
 
-Longform exports are optimized for Obsidian + Longform workflows.
+## Longform / Obsidian
 
-**Output layout:**
+Longform exports create an index file, individual scene files, and reference
+notes grouped into folders for characters, locations, items, objectives, and
+organizations. Scene files include titles, synopses, and details used to preserve
+your project's structure when you bring changes back into Kindling.
 
-```
-My Project/
-  My Project.md          # Longform index
-  Scene One.md
-  Scene Two.md
-  characters/
-  locations/
-  items/
-  objectives/
-  organizations/
-```
+Keep the generated index and scene files together when moving the export.
+See [Sync & Reimport](sync-and-reimport.md) for working with a linked source.
 
-**Scene files include:**
+## Scrivener and novelWriter
 
-- YAML frontmatter (`type`, `project`, `status`, `characters`, `setting`, `synopsis`)
-- Scene title heading and synopsis block
-- `<!-- kindling: ... -->` metadata and beats marker
+Choose Scrivener to create a new project. To update an existing Scrivener project,
+use its options in the standard export dialog, review the scene matches, and
+choose whether to make a backup. The Custom workspace creates new Scrivener
+projects only.
 
-Reference notes are written into folders for characters, locations, items, objectives, and organizations.
+novelWriter export creates a project folder with options for reference notes and
+beat comments. Keep beat comments enabled if you want to preserve beat boundaries
+for later sync. novelWriter export supports prose projects, not screenplays.
 
-## EPUB
+Within Custom, Longform, Scrivener, and novelWriter always export the whole
+project. Manuscript chapter selections and typography settings do not apply to
+these project formats.
 
-EPUB exports include:
+## Treatments
 
-- Metadata (title, author, description, language)
-- Theme selection (classic, modern, minimal)
-- Optional cover image
-- Optional beat markers and scene synopses
+A treatment summarizes the whole project's outline, synopses, and beats. Choose
+an overview, key-scene summary, or full scene-and-beat treatment, then export it
+as Word or plain text. The one-page and five-page choices describe the level of
+detail; actual page counts depend on your content.
 
----
-
-For importing or syncing exported content, see [Importing Projects](importing-projects.md) and [Sync & Reimport](sync-and-reimport.md).
+For importing or syncing exported content, see [Importing Projects](importing-projects.md)
+and [Sync & Reimport](sync-and-reimport.md).

@@ -6,6 +6,51 @@ const find = 'dialog[aria-labelledby="find-title"]';
 
 export const suites = [
   {
+    id: "23",
+    title: "Remembered custom export profiles",
+    async run(r) {
+      await r.seedProse();
+      await r.scene();
+      await r.command("export");
+      await r.wait(el('[data-testid="export-format-custom"]'));
+      await r.check(`${el('input[name="format"][value="docx"]')}.checked`, "New projects keep the standard Word default");
+      await r.js(`document.querySelector('[data-testid="export-format-custom"]').click();`);
+      await r.wait(el('#custom-export-profile'));
+      await r.fill('#custom-export-profile', 'website');
+      await r.click('[data-testid="export-close"]');
+      await r.command('export');
+      await r.wait(`${el('[data-testid="export-format-custom"]')}?.checked && ${el('#custom-export-profile')}?.value === 'website'`);
+      await r.check(`!document.querySelector('#epub-title')`, 'Custom profiles must not show standard EPUB settings');
+      await r.shot('23-01-custom-profile-default', 'Custom profiles is a selected format tile, with the remembered profile and an Open workspace action.');
+      await r.click('[data-testid="export-confirm"]');
+      await r.wait(`${el('#export-profile')}?.value === 'website'`);
+      await r.fill('#export-profile', 'readers');
+      await r.wait(`${el('#export-format')}?.value === 'epub'`);
+      await r.text('Back to export');
+      await r.wait(`${el('#custom-export-profile')}?.value === 'readers'`);
+      // A new selection in the standard dialog must win over a different workspace draft.
+      await r.fill('#custom-export-profile', 'website');
+      await r.click('[data-testid="export-confirm"]');
+      await r.wait(`${el('#export-profile')}?.value === 'website'`);
+      await r.click('[aria-label="Duplicate profile"]');
+      await r.fill('#export-name', 'My submission profile');
+      await r.text('Save profile');
+      const profileId = await r.js(`return document.querySelector('#export-profile').value;`);
+      await r.click('[aria-label="Close export workspace"]');
+      await r.command('export');
+      await r.wait(`${el('#custom-export-profile')}?.value === ${JSON.stringify(profileId)}`);
+      await r.check(`${el('#custom-export-profile')}.selectedOptions[0].textContent === 'My submission profile'`);
+      await r.shot('23-02-custom-profile-restored', 'A profile created in the workspace is remembered in the standard export dialog.');
+      // Choosing a standard format for one export does not discard the custom default.
+      await r.js(`document.querySelector('input[name="format"][value="docx"]').click();`);
+      await r.click('[data-testid="export-close"]');
+      await r.command('export');
+      await r.wait(`${el('[data-testid="export-format-custom"]')}?.checked && ${el('#custom-export-profile')}?.value === ${JSON.stringify(profileId)}`);
+      await r.click('[data-testid="export-close"]');
+      await r.js(`localStorage.removeItem(${JSON.stringify(`kindling:export-prototype:v1:${r.project.id}`)}); localStorage.removeItem(${JSON.stringify(`kindling:custom-export:${r.project.id}`)});`);
+    },
+  },
+  {
     id: "00",
     title: "Start screen and project creation dialog",
     fixture: false,
@@ -120,7 +165,7 @@ export const suites = [
       await r.fixture();
       await r.scene();
       await r.click('[aria-label="Copy references from project…"]');
-      await r.wait(el("#copy-source"));
+      await r.wait(`${el("#copy-source")} && !${el("#copy-source")}.disabled`);
       await r.fill("#copy-source", source.id);
       await r.wait(
         "document.querySelector('#copy-search') && document.querySelector('dialog[open]').textContent.includes('QA Mara')"
@@ -256,6 +301,7 @@ export const suites = [
       await r.command("find_project");
       await r.wait(el(find));
       await r.wait(`!${el(find)}.querySelector('fieldset').disabled`);
+      await r.check(`${el(find)}.querySelector('header button[aria-label="Close Find and Replace"] svg')`, "Find uses the shared header and X close button");
       await r.fill(`${find} input[type="text"]`, "lantern");
       await r.wait(`${el(find)}.querySelector('mark')`);
       await r.js(`${el(find)}.querySelector('mark').scrollIntoView({block:'center'});`);
@@ -409,6 +455,110 @@ export const suites = [
         el('[data-testid="feedback-submit"]')
       );
       await r.click('[data-testid="feedback-dialog"] [aria-label="Close"]');
+    },
+  },
+  {
+    id: "19",
+    title: "Export workspace prototype",
+    async run(r) {
+      await r.seedProse();
+      await r.scene();
+      await r.command("export");
+      await r.wait(el('[data-testid="export-format-custom"]'));
+      await r.js(`document.querySelector('[data-testid="export-format-custom"]').click();`);
+      await r.click('[data-testid="export-confirm"]');
+      await r.wait(el('[data-testid="export-workspace"]'));
+      await r.wait(`!document.querySelector('[aria-label="Refresh saved manuscript"]').disabled`);
+      await r.check(`!document.querySelector('[data-testid="export-workspace"] [role="alert"]')`);
+      await r.check(`!document.querySelector('.preview-tabs')`, "Word preview must not expose HTML source");
+      await r.check(`!document.querySelector('[data-testid="export-workspace"]').textContent.includes('Prototype')`, "Workspace must not show prototype badges");
+      await r.check(`(() => { const a=document.querySelector('#export-profile').getBoundingClientRect(); const b=document.querySelector('#export-format').getBoundingClientRect(); const c=document.querySelector('[aria-label="Duplicate profile"]').getBoundingClientRect(); return Math.abs(a.top-b.top)<1 && a.height===b.height && a.height===c.height; })()`, "Profile and format controls must align and share a height");
+      await r.shot("19-01-export-overview", "Export profiles, configuration categories, manuscript preview and format options are readable.", `${el('iframe[title="Export layout preview"]')}.srcdoc.includes('lantern')`);
+      await r.fill('[aria-label="Find an export setting"]', "double spaced");
+      await r.text("Line spacing");
+      await r.wait(el("#export-spacing"));
+      await r.fill("#export-font", "Georgia");
+      await r.fill("#export-spacing", "1.5");
+      await r.shot("19-02-export-typography", "Typography and page controls sit beside a responsive layout approximation.", `${el('iframe[title="Export layout preview"]')}.srcdoc.includes('Georgia')`);
+      await r.text("Save profile");
+      await r.click('[aria-label="Close export workspace"]');
+      await r.command("export");
+      await r.wait(el('[data-testid="export-format-custom"]'));
+      await r.js(`document.querySelector('[data-testid="export-format-custom"]').click();`);
+      await r.click('[data-testid="export-confirm"]');
+      await r.wait(el('[data-testid="export-workspace"]'));
+      await r.fill('[aria-label="Find an export setting"]', "double spaced");
+      await r.text("Line spacing");
+      await r.check(`${el('#export-font')}.value === 'Georgia' && ${el('#export-spacing')}.value === '1.5'`, "Saved profile must survive closing and reopening");
+      await r.fill("#export-format", "html");
+      await r.fill('[aria-label="Find an export setting"]', "fragment");
+      await r.text("HTML structure and styling");
+      await r.fill("#export-html-mode", "fragment");
+      await r.text("HTML", 'document.querySelector(".preview-tabs")');
+      await r.shot("19-03-export-html", "HTML fragment settings, filename tokens and generated source are inspectable.", `${el('.source-preview')}.value.includes('<main') && !${el('.source-preview')}.value.includes('<!doctype')`);
+      await r.fill('[aria-label="Find an export setting"]', "Included chapters");
+      await r.text("Included chapters");
+      await r.fill("#export-scope", "selected");
+      await r.js(`document.querySelectorAll('.chapter-row input:checked').forEach(input => input.click());`);
+      await r.wait(`document.querySelector('.empty-preview')`);
+      await r.check(`[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Export HTML')).disabled`, "Empty selection must disable preview export");
+      await r.shot("19-04-export-selection", "Explicit chapter selection and its empty-preview state explain why export is unavailable.");
+      await r.click('[aria-label="Close export workspace"]');
+      await r.js(`localStorage.removeItem(${JSON.stringify(`kindling:export-prototype:v1:${r.project.id}`)}); localStorage.removeItem(${JSON.stringify(`kindling:custom-export:${r.project.id}`)});`);
+    },
+  },
+  {
+    id: "22",
+    title: "Export workspace formats and generated files",
+    async run(r) {
+      await r.seedProse();
+      await r.scene();
+      await r.command("export");
+      await r.wait(el('[data-testid="export-format-custom"]'));
+      await r.js(`document.querySelector('[data-testid="export-format-custom"]').click();`);
+      await r.click('[data-testid="export-confirm"]');
+      await r.wait(`${el('[data-testid="export-workspace"]')} && !${el('[aria-label="Refresh saved manuscript"]')}.disabled`);
+      await r.fill("#export-format", "epub");
+      await r.check(`!document.querySelector('.preview-tabs')`, "EPUB preview must not expose HTML source");
+      await r.js(`document.querySelectorAll('nav[aria-label="Export settings"] button').forEach(b => { if(b.textContent.includes('Book details')) b.click(); });`);
+      await r.wait(el("#export-description"));
+      await r.fill("#export-description", "A journey through the city & beyond.");
+      await r.js(`document.querySelector('#export-description').scrollIntoView({block:'center'});`);
+      await r.shot("22-01-export-epub", "Ebook metadata and optional cover controls accompany the manuscript preview.");
+      for (const format of ["markdown", "txt"]) {
+        await r.fill("#export-format", format);
+        await r.wait(`${el('.source-preview')}?.value.includes('lantern')`);
+        await r.check(`!${el('.source-preview')}.value.includes('<p>')`, "Text formats should show their actual output");
+      }
+      await r.fill("#export-format", "novelwriter");
+      await r.js(`document.querySelectorAll('nav[aria-label="Export settings"] button').forEach(b => { if(b.textContent.includes('Files & format')) b.click(); });`);
+      await r.wait(`document.querySelector('.settings-panel')?.textContent.includes('Reference notes')`);
+      await r.shot("22-02-export-project", "Project export exposes notes and beat comments while explaining its whole-project scope.");
+      await r.fill("#export-format", "treatment");
+      await r.wait(el("#export-treatment-level"));
+      await r.fill("#export-treatment-level", "full");
+      await r.fill("#export-treatment-format", "txt");
+      await r.shot("22-03-export-treatment", "Treatment detail and file type replace manuscript typography controls.");
+      const chapters = await r.app.invoke("get_export_prototype_document", { projectId: r.project.id });
+      await r.js(`import('/src/lib/utils/exportPrototype.ts').then(m => window.__workspaceExportModule=m);`);
+      await r.wait("window.__workspaceExportModule");
+      for (const format of ["docx", "epub", "markdown", "txt", "html"]) {
+        const payload = await r.js(`const m=window.__workspaceExportModule; const p=m.starterProfiles('QA Export Book','QA Author')[0]; p.format=${JSON.stringify(format)}; p.contents=true; p.font='Georgia'; return {document:m.compileWorkspaceDocument(${JSON.stringify(chapters)},p),html:m.renderPreview(${JSON.stringify(chapters)},p).output};`);
+        const path = `${r.output}/${r.variant}-workspace-${format}.${format === "markdown" ? "md" : format}`;
+        if (format === "html") await r.app.invoke("save_export_prototype_html", { path, html: payload.html });
+        else await r.app.invoke("export_workspace_document", { path, format, document: payload.document });
+      }
+      for (const format of ["longform", "scrivener", "novelwriter", "treatment"]) {
+        const path = `${r.output}/${r.variant}-workspace-${format}${format === "scrivener" ? ".scriv" : format === "treatment" ? ".txt" : ""}`;
+        await r.app.invoke("export_workspace_exchange", { projectId: r.project.id, path, format, options: { includeNotes: true, includeBeatComments: true, treatmentLevel: "full", treatmentFormat: "txt" } });
+        if (format !== "treatment") {
+          const preview = await r.app.invoke("preview_import", { path, format });
+          if (preview.scene_count < 2 || preview.chapter_count < 1) throw new Error(`${format} round-trip preview lost project structure`);
+        }
+      }
+      await r.app.invoke("export_workspace_exchange", { projectId: r.project.id, path: `${r.output}/${r.variant}-workspace-treatment.docx`, format: "treatment", options: { includeNotes: true, includeBeatComments: true, treatmentLevel: "five_page", treatmentFormat: "docx" } });
+      await r.click('[aria-label="Close export workspace"]');
+      await r.js(`localStorage.removeItem(${JSON.stringify(`kindling:export-prototype:v1:${r.project.id}`)}); localStorage.removeItem(${JSON.stringify(`kindling:custom-export:${r.project.id}`)}); delete window.__workspaceExportModule;`);
     },
   },
   {

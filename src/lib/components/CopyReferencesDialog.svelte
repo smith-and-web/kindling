@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DialogHeader from "./DialogHeader.svelte";
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
@@ -184,10 +185,13 @@
   class="bg-press-surface text-press-text border border-press-border rounded-lg shadow-press-overlay p-0 w-full max-w-2xl max-h-[90vh] overflow-hidden m-auto backdrop:bg-press-overlay"
 >
   <div class="flex flex-col max-h-[90vh]">
+    <DialogHeader
+      title="Copy references from project…"
+      titleId="copy-references-title"
+      onClose={close}
+      disabled={saving || refreshing}
+    />
     <div class="p-6 space-y-4 overflow-y-auto min-h-0">
-      <h2 id="copy-references-title" class="font-heading text-press-h3">
-        Copy references from project…
-      </h2>
       <p class="text-press-ui">Destination: <strong>{destination.name}</strong></p>
       <p class="text-press-small text-press-muted">
         These are independent copies. Changes won't update other projects. Scene links are not

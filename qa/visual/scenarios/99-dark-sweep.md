@@ -51,7 +51,7 @@ the danger action with legible contrast, Cancel as secondary.
 
 ### 99-04 start screen
 
-- `q.clickSel('[aria-label="Close project"]')`, `q.shot("99-04-dark-start")`.
+- `q.clickSel('[data-testid="sidebar-home"]')`, `q.shot("99-04-dark-start")`.
   Screenshot.
 - Next call: `q.click("project-card")` to reopen the fixture, `wait_for` text
   `Act 1`.

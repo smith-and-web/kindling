@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DialogHeader from "./DialogHeader.svelte";
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
@@ -130,87 +131,90 @@
   tabindex="-1"
 >
   <div
-    class="app-dialog-surface bg-press-surface rounded-lg p-6 max-w-3xl w-full mx-4 shadow-press-overlay"
+    class="app-dialog-surface bg-press-surface rounded-lg overflow-hidden max-w-3xl w-full mx-4 shadow-press-overlay"
   >
-    <h3
-      id="reference-classification-title"
-      class="text-press-body-lg font-heading font-medium text-press-text mb-2"
-    >
-      Review Reference Types
-    </h3>
-    <p class="text-press-muted text-press-ui mb-4">
-      We found some references during import. Tweak their type now, or skip to keep our best guess.
-    </p>
+    <DialogHeader
+      title="Review Reference Types"
+      titleId="reference-classification-title"
+      {onClose}
+      disabled={saving}
+    />
+    <div class="p-6">
+      <p class="text-press-muted text-press-ui mb-4">
+        We found some references during import. Tweak their type now, or skip to keep our best
+        guess.
+      </p>
 
-    {#if loading}
-      <div class="text-press-ui text-press-muted py-6 text-center">Loading references…</div>
-    {:else if error}
-      <div class="text-press-ui text-press-error py-6 text-center">{error}</div>
-    {:else if references.length === 0}
-      <div class="text-press-ui text-press-muted py-6 text-center">
-        No references detected for this project.
-      </div>
-    {:else}
-      <div class="max-h-[60vh] overflow-y-auto border border-press-border rounded-lg">
-        <table class="w-full text-press-ui">
-          <thead class="sticky top-0 bg-press-surface">
-            <tr class="text-left text-press-muted">
-              <th class="px-4 py-3 font-medium">Reference</th>
-              <th class="px-4 py-3 font-medium w-48">Type</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each references as reference (reference.id)}
-              <tr class="border-t border-press-border">
-                <td class="px-4 py-3 align-top">
-                  <div class="text-press-text font-medium wrap-break-word">
-                    {reference.name}
-                  </div>
-                  {#if reference.description}
-                    <div
-                      class="text-press-eyebrow text-press-muted mt-1 leading-relaxed wrap-break-word [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
-                    >
-                      <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-                      {@html reference.description}
-                    </div>
-                  {/if}
-                </td>
-                <td class="px-4 py-3">
-                  <select
-                    class="w-full bg-press-sunken border border-press-border rounded-md px-2 py-1 text-press-ui text-press-text"
-                    bind:value={reference.reference_type}
-                    onchange={(event) =>
-                      updateReferenceType(
-                        reference.id,
-                        (event.currentTarget as HTMLSelectElement).value as ReferenceTypeId
-                      )}
-                  >
-                    {#each typeOptions as option (option.id)}
-                      <option value={option.id}>{option.label}</option>
-                    {/each}
-                  </select>
-                </td>
+      {#if loading}
+        <div class="text-press-ui text-press-muted py-6 text-center">Loading references…</div>
+      {:else if error}
+        <div class="text-press-ui text-press-error py-6 text-center">{error}</div>
+      {:else if references.length === 0}
+        <div class="text-press-ui text-press-muted py-6 text-center">
+          No references detected for this project.
+        </div>
+      {:else}
+        <div class="max-h-[60vh] overflow-y-auto border border-press-border rounded-lg">
+          <table class="w-full text-press-ui">
+            <thead class="sticky top-0 bg-press-surface">
+              <tr class="text-left text-press-muted">
+                <th class="px-4 py-3 font-medium">Reference</th>
+                <th class="px-4 py-3 font-medium w-48">Type</th>
               </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    {/if}
+            </thead>
+            <tbody>
+              {#each references as reference (reference.id)}
+                <tr class="border-t border-press-border">
+                  <td class="px-4 py-3 align-top">
+                    <div class="text-press-text font-medium wrap-break-word">
+                      {reference.name}
+                    </div>
+                    {#if reference.description}
+                      <div
+                        class="text-press-eyebrow text-press-muted mt-1 leading-relaxed wrap-break-word [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
+                      >
+                        <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+                        {@html reference.description}
+                      </div>
+                    {/if}
+                  </td>
+                  <td class="px-4 py-3">
+                    <select
+                      class="w-full bg-press-sunken border border-press-border rounded-md px-2 py-1 text-press-ui text-press-text"
+                      bind:value={reference.reference_type}
+                      onchange={(event) =>
+                        updateReferenceType(
+                          reference.id,
+                          (event.currentTarget as HTMLSelectElement).value as ReferenceTypeId
+                        )}
+                    >
+                      {#each typeOptions as option (option.id)}
+                        <option value={option.id}>{option.label}</option>
+                      {/each}
+                    </select>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
 
-    <div class="flex items-center justify-between mt-6">
-      <button
-        onclick={onClose}
-        class="px-4 py-2 rounded bg-press-sunken text-press-text hover:bg-press-sunken transition-colors"
-      >
-        Skip for now
-      </button>
-      <button
-        onclick={saveChanges}
-        class="px-4 py-2 rounded bg-press-accent text-press-on-accent hover:bg-press-accent-text transition-colors"
-        disabled={saving || loading || references.length === 0}
-      >
-        {saving ? "Saving…" : "Apply changes"}
-      </button>
+      <div class="flex items-center justify-between mt-6">
+        <button
+          onclick={onClose}
+          class="px-4 py-2 rounded bg-press-sunken text-press-text hover:bg-press-sunken transition-colors"
+        >
+          Skip for now
+        </button>
+        <button
+          onclick={saveChanges}
+          class="px-4 py-2 rounded bg-press-accent text-press-on-accent hover:bg-press-accent-text transition-colors"
+          disabled={saving || loading || references.length === 0}
+        >
+          {saving ? "Saving…" : "Apply changes"}
+        </button>
+      </div>
     </div>
   </div>
 </div>
