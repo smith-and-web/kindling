@@ -21,6 +21,7 @@ export const suites = [
       await r.command('export');
       await r.wait(`${el('[data-testid="export-format-custom"]')}?.checked && ${el('#custom-export-profile')}?.value === 'website'`);
       await r.check(`!document.querySelector('#epub-title')`, 'Custom profiles must not show standard EPUB settings');
+      if (r.variant === "narrow") await r.js(`document.querySelector('#custom-export-profile').scrollIntoView({block:'center'});`);
       await r.shot('23-01-custom-profile-default', 'Custom profiles is a selected format tile, with the remembered profile and an Open workspace action.');
       await r.click('[data-testid="export-confirm"]');
       await r.wait(`${el('#export-profile')}?.value === 'website'`);
@@ -40,6 +41,7 @@ export const suites = [
       await r.command('export');
       await r.wait(`${el('#custom-export-profile')}?.value === ${JSON.stringify(profileId)}`);
       await r.check(`${el('#custom-export-profile')}.selectedOptions[0].textContent === 'My submission profile'`);
+      if (r.variant === "narrow") await r.js(`document.querySelector('#custom-export-profile').scrollIntoView({block:'center'});`);
       await r.shot('23-02-custom-profile-restored', 'A profile created in the workspace is remembered in the standard export dialog.');
       // Choosing a standard format for one export does not discard the custom default.
       await r.js(`document.querySelector('input[name="format"][value="docx"]').click();`);
@@ -266,6 +268,7 @@ export const suites = [
       await r.wait(el('[data-testid="snapshots-button"]'));
       await r.click('[data-testid="snapshots-button"]');
       await r.wait(el("#snapshots-panel-title"));
+      await r.wait("document.body.textContent.includes('No snapshots yet')");
       await r.shot(
         "10-02-snapshots-empty",
         "Snapshots empty state and Create Snapshot action are visible.",

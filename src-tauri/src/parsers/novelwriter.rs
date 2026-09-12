@@ -116,7 +116,7 @@ pub fn parse_novelwriter_project(path: &Path) -> Result<ParsedNovelWriter, Novel
                     item.name.clone(),
                 )
             });
-            if level <= 2 {
+            if (1..=2).contains(&level) {
                 let ch = Chapter::new(parsed.project.id, title, parsed.chapters.len() as i32)
                     .with_source_id(Some(item.handle.clone()))
                     .with_is_part(level == 1);

@@ -1,11 +1,51 @@
 # Background visual QA validation — 2026-09-11
 
+## Baseline refresh and preflight context — 2026-09-12 UTC
+
+The accepted set now contains **147 reviewed PNG masters**, covering all 14
+executable suites in light, dark and narrow (42 suite executions). The refresh
+accepts the existing Home/sidebar relocation and export redesign and adds the
+nine newer export checkpoints in all three variants. Every selected image was
+inspected against Expect, including the corrected narrow custom-profile captures.
+Source runs, checksums, dimensions, capture profile, revision and review reasons
+are recorded in the manifest. Known References findings were preserved.
+
+A fresh full comparison completed in **281 seconds (4m41s)**:
+
+- **147/147 images matched**, zero changed, missing-baseline or incomplete images.
+- **144 checkpoints passed; 3 failed** the existing critical References
+  `aria-required-parent` audit. Exit **1** remains correct; image acceptance does
+  not waive an accessibility finding.
+- All 42 suite executions completed, owned fixtures were deleted, and preferences
+  restored. No assertions, console errors, Press font/contrast/measure failures,
+  document overflow, run errors or cleanup failures occurred.
+- Overflow candidates are hidden collapsed-sidebar content and screen-reader-only
+  export labels, previously visually reviewed. All captures remained hidden,
+  unfocused and rendered at 2×.
+
+[Full comparison](results/2026-09-12T00-29-36-037Z-socket/report.md) ·
+[Preflight context](results/2026-09-12T00-29-36-037Z-socket/context.md) ·
+[Source visual review](results/2026-09-11T21-54-41-332Z-socket/review.md).
+
+The runner now collects Git and baseline context before connecting to the app:
+revision/branch, commits and changed files since acceptance, working-tree changes,
+selected baseline counts, optional operator notes and recorded findings. Unknown
+provenance is reported explicitly. Before this refresh, the preflight correctly
+identified suites 19, 22 and 23 as having no references in any variant. Context is
+advisory and does not alter image thresholds or checkpoint verdicts. Reports now
+show image-match and checkpoint counts separately. **32 harness tests pass**,
+including real temporary Git repositories for change/provenance coverage.
+
+Native/manual release checks remain separate and were not rerun for this update.
+The historical migration/calibration evidence below describes the earlier
+120-image set.
+
 The socket runner now captures a hidden, isolated WKWebView as lossless 2× PNGs.
 It was validated while macOS was **locked**, with the normal Kindling debug app
 still running separately. No desktop screenshots, focus, pointer movement,
 display-mode changes or DND changes were used.
 
-## Current baselines and normal verification
+## Original baselines and normal verification
 
 **120 reviewed PNG masters** (23.7 MiB) use capture profile
 `wkwebview-snapshot-2x-png-v1`. Their dimensions, SHA-256, Expect text, review

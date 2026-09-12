@@ -22,7 +22,7 @@
     "format:rust:check": "cd src-tauri && cargo fmt --all -- --check",
     "format:all": "npm run format && npm run format:rust",
     "test": "vitest run",
-    "test:qa-harness": "node --test qa/visual/harness.test.mjs qa/visual/socket.test.mjs qa/visual/capture.test.mjs qa/visual/baselines.test.mjs",
+    "test:qa-harness": "node --test qa/visual/harness.test.mjs qa/visual/socket.test.mjs qa/visual/capture.test.mjs qa/visual/baselines.test.mjs qa/visual/context.test.mjs",
     "qa:visual": "node qa/visual/run.mjs",
     "qa:baselines:check": "node qa/visual/baselines.mjs",
     "test:demo-seed": "node --test qa/demo/seed.test.mjs",

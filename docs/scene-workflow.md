@@ -50,3 +50,17 @@ moved focus to another control outside the quit prompt.
 Each newly created project snapshot has its own backing file, including snapshots
 created in rapid succession. Deleting one leaves the others available to preview
 and restore.
+
+## Prose preservation
+
+Switching from Beat mode to Page mode and back preserves empty beat positions.
+Splitting a beat before a paragraph also works with curly quotes, accented text,
+CJK characters, and emoji in earlier paragraphs.
+
+Deleting a beat merges its prose into the previous beat when one exists. For
+the first beat, the confirmation explicitly warns that its prose will be
+permanently deleted. Copy any prose you want to keep before confirming.
+
+Restoring a snapshot waits for pending prose and synopsis saves before replacing
+project content. If a draft cannot be saved, restore stops so you can save or
+recover it first; an older queued save cannot overwrite the restored content.

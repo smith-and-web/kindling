@@ -8,6 +8,7 @@ import { SocketClient } from "./socket.mjs";
 import { suites } from "./suites.mjs";
 import { SocketCapture, CAPTURE_PROFILE } from "./capture.mjs";
 import { loadBaselines, missingCheckpoints } from "./baselines.mjs";
+import { collectContext, contextMarkdown } from "./context.mjs";
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const quote = JSON.stringify;
@@ -243,6 +244,17 @@ export class Runner {
     writeFileSync(join(this.output, `${name}-FAIL.json`), JSON.stringify(state, null, 2));
   }
   report() {
+    const imageCounts = { matched: 0, changed: 0, missingBaseline: 0, incomplete: 0 };
+    const checkpointCounts = {};
+    for (const row of this.rows) {
+      const status = verdict(row);
+      checkpointCounts[status] = (checkpointCounts[status] || 0) + 1;
+      if (!row.capture) imageCounts.incomplete++;
+      else if (row.diff?.status === "compared")
+        imageCounts[row.diff.changed ? "changed" : "matched"]++;
+      else if (row.diff?.status === "no-baseline") imageCounts.missingBaseline++;
+      else imageCounts.incomplete++;
+    }
     writeFileSync(
       join(this.output, "results.json"),
       JSON.stringify(
@@ -250,6 +262,8 @@ export class Runner {
           profile: CAPTURE_PROFILE,
           fixtureProfile: "empty-library-default-panels-v1",
           capabilities: this.capabilities,
+          context: this.context,
+          summary: { images: imageCounts, checkpoints: checkpointCounts },
           rows: this.rows,
           suites: this.executions,
           fatal: this.fatal,
@@ -282,12 +296,19 @@ export class Runner {
         "",
         `- Cost: 0 MCP tool calls; ${this.native.metadata.size} screenshots (${this.rows.filter((r) => r.capture).length} checkpoints); ${Math.round((Date.now() - this.started) / 1000)} seconds`,
         `- Revision: ${this.revision}`,
+        `- Images: ${imageCounts.matched} matched; ${imageCounts.changed} changed; ${imageCounts.missingBaseline} missing baseline; ${imageCounts.incomplete} incomplete.`,
+        `- Checkpoints: ${
+          Object.entries(checkpointCounts)
+            .map(([status, count]) => `${count} ${status}`)
+            .join("; ") || "none captured"
+        }.`,
         "- Capture profile: hidden WKWebView, rendered 2× lossless PNG. Pixel comparisons use PNG masters, never JPEG previews.",
         `- Cleanup: ${cell(this.cleanup || "pending")}`,
         "- See results.json for assertions, console errors, axe, Press audit, overflow candidates and pixel differences.",
         "- Inconclusive captures require inspection against Expect; never auto-accept a baseline. Overflow candidates and moderate axe findings also need review.",
         this.fatal ? `- Run failure: ${cell(this.fatal)}` : "",
         "",
+        ...contextMarkdown(this.context),
         ...(this.executions || []).map((s) => `- Suite ${s.id} (${s.variant}): ${s.status}`),
         "",
         "| Checkpoint | Verdict | Diff | Evidence | Expect |",
@@ -314,11 +335,12 @@ export async function main(args = process.argv.slice(2)) {
   const selected = [],
     modes = [];
   let calibrate = false,
-    dryRun = false;
+    dryRun = false,
+    note = "";
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--list" || args[i] === "--help") {
       console.log(
-        "npm run qa:visual -- [--only 00,09,15] [--variants light,dark,narrow] [--calibrate]\nPreflight (no app changes): --dry-run\n" +
+        "npm run qa:visual -- [--only 00,09,15] [--variants light,dark,narrow] [--calibrate] [--context 'Intentional changes']\nPreflight (no app changes): --dry-run\n" +
           suites.map((s) => `${s.id}  ${s.title}`).join("\n")
       );
       return 0;
@@ -327,6 +349,7 @@ export async function main(args = process.argv.slice(2)) {
     else if (args[i] === "--variants" && args[i + 1]) modes.push(...args[++i].split(","));
     else if (args[i] === "--calibrate") calibrate = true;
     else if (args[i] === "--dry-run") dryRun = true;
+    else if (args[i] === "--context" && args[i + 1]) note = args[++i];
     else throw new Error(`Unknown or incomplete argument: ${args[i]}`);
   }
   for (const id of selected)
@@ -355,6 +378,10 @@ export async function main(args = process.argv.slice(2)) {
     cwd: repo,
     encoding: "utf8",
   }).stdout.trim();
+  run.context = collectContext(repo, baselines, chosen, matrix, note);
+  writeFileSync(join(output, "context.json"), JSON.stringify(run.context, null, 2));
+  writeFileSync(join(output, "context.md"), contextMarkdown(run.context).join("\n"));
+  console.log(contextMarkdown(run.context).join("\n"));
   const keepAwake =
     process.platform === "darwin" ? spawn("caffeinate", ["-i"], { stdio: "ignore" }) : null;
   keepAwake?.on("error", () => {});

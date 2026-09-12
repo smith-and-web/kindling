@@ -40,3 +40,23 @@ it("updates the beat title and scroll target on scene switch without needing a h
   expect(scroll).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
   expect(ui.expandedBeatId).toBe(second.id);
 });
+
+it.each([0, 1])("explains whether deleting beat %s discards or merges its prose", async (index) => {
+  const beats = [0, 1].map((position) => ({
+    id: `beat-${position}`,
+    scene_id: "scene",
+    content: `Beat ${position}`,
+    prose: "<p>Draft</p>",
+    position,
+  }));
+  render(BeatView, { beats });
+  await fireEvent.contextMenu(screen.getAllByTestId("beat-header")[index]);
+  await fireEvent.click(screen.getByText("Delete", { exact: true }));
+  expect(
+    screen.getByText(
+      index === 0
+        ? /first beat.*permanently deleted/
+        : /prose will be merged into the previous beat/
+    )
+  ).toBeTruthy();
+});

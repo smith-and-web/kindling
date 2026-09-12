@@ -894,7 +894,7 @@ fn find_paragraph_offset(html: &str, paragraph_index: u32) -> Option<usize> {
     while let Some(start) = html[search_start..].find("<p") {
         let abs_start = search_start + start;
         if count == paragraph_index {
-            return Some(abs_start);
+            return Some(html[..abs_start].chars().count());
         }
         count += 1;
         search_start = abs_start + 1;
@@ -2093,5 +2093,21 @@ mod writing_settings_tests {
             db::writing::daily_goal(&conn, &project.id.to_string()).unwrap(),
             800
         );
+    }
+}
+
+#[cfg(test)]
+mod unicode_split_tests {
+    use super::*;
+    #[test]
+    fn paragraph_split_uses_character_offsets_after_unicode() {
+        for prefix in ["“Don’t,” she said.", "界", "😀é界😀é界😀é界"] {
+            let first = format!("<p>{prefix}</p>");
+            let second = "<p>Second paragraph.</p>";
+            let html = format!("{first}{second}");
+            let offset = find_paragraph_offset(&html, 1).unwrap();
+            assert_eq!(html.chars().take(offset).collect::<String>(), first);
+            assert_eq!(html.chars().skip(offset).collect::<String>(), second);
+        }
     }
 }

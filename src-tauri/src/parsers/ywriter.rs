@@ -254,6 +254,25 @@ fn read_element_text(
     Ok(text)
 }
 
+/// Accept native nested ScID elements as well as legacy semicolon lists.
+fn read_scene_ids(reader: &mut Reader<&[u8]>, buf: &mut Vec<u8>) -> Result<Vec<i32>, YWriterError> {
+    let mut ids = Vec::new();
+    loop {
+        match reader.read_event_into(buf)? {
+            Event::Start(e) if e.name().as_ref() == b"ScID" => {
+                ids.extend(parse_id_list(&read_element_text(reader, buf)?));
+            }
+            Event::Text(e) => ids.extend(parse_id_list(&String::from_utf8_lossy(&e))),
+            Event::CData(e) => ids.extend(parse_id_list(&String::from_utf8_lossy(&e))),
+            Event::End(e) if e.name().as_ref() == b"Scenes" => break,
+            Event::Eof => break,
+            _ => {}
+        }
+        buf.clear();
+    }
+    Ok(ids)
+}
+
 // ============================================================================
 // XML Parser
 // ============================================================================
@@ -401,9 +420,9 @@ fn parse_ywriter_content(content: &str, path: &Path) -> Result<ParsedYWriter, YW
                         }
                     }
                     "Scenes" if current_chapter.is_some() => {
-                        let text = read_element_text(&mut reader, &mut buf)?;
+                        let ids = read_scene_ids(&mut reader, &mut buf)?;
                         if let Some(ref mut ch) = current_chapter {
-                            ch.scene_ids = parse_id_list(&text);
+                            ch.scene_ids = ids;
                         }
                     }
                     // SectionStart marks a chapter as a Part header (section heading)
@@ -1084,6 +1103,37 @@ fn convert_to_kindling(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn nested_scene_ids_preserve_all_scenes_and_prose_in_order() {
+        let xml = r#"<YWRITER7><PROJECT><Title>Nested</Title></PROJECT>
+        <CHAPTERS><CHAPTER><ID>1</ID><Title>Chapter</Title><Scenes><ScID>2</ScID><ScID>1</ScID></Scenes></CHAPTER></CHAPTERS>
+        <SCENES><SCENE><ID>1</ID><Title>First</Title><SceneContent>One sentinel</SceneContent></SCENE>
+        <SCENE><ID>2</ID><Title>Second</Title><SceneContent>Two sentinel</SceneContent></SCENE></SCENES></YWRITER7>"#;
+        for scene_list in ["<ScID>2</ScID><ScID>1</ScID>", "2;1", "<![CDATA[2;1]]>"] {
+            let xml = xml.replace("<ScID>2</ScID><ScID>1</ScID>", scene_list);
+            let parsed = parse_ywriter_content(&xml, Path::new("nested.yw7")).unwrap();
+            assert_eq!(
+                parsed
+                    .scenes
+                    .iter()
+                    .map(|s| s.title.as_str())
+                    .collect::<Vec<_>>(),
+                vec!["Second", "First"]
+            );
+            let prose = parsed
+                .scenes
+                .iter()
+                .filter_map(|s| s.prose.as_deref())
+                .collect::<String>();
+            let beat_prose = parsed
+                .beats
+                .iter()
+                .filter_map(|b| b.prose.as_deref())
+                .collect::<String>();
+            assert!(format!("{prose}{beat_prose}").contains("One sentinel"));
+            assert!(format!("{prose}{beat_prose}").contains("Two sentinel"));
+        }
+    }
     use super::*;
     use crate::models::{SceneStatus, SceneType};
 

@@ -797,7 +797,9 @@
 {#if deleteBeatDialog}
   <ConfirmDialog
     title="Delete Beat"
-    message="Are you sure you want to delete this beat? Any prose will be merged into the previous beat."
+    message={beats[0]?.id === deleteBeatDialog.id
+      ? "Are you sure you want to delete this beat? This is the first beat, so its prose will be permanently deleted."
+      : "Are you sure you want to delete this beat? Any prose will be merged into the previous beat."}
     onConfirm={executeDeleteBeat}
     onCancel={() => (deleteBeatDialog = null)}
   />

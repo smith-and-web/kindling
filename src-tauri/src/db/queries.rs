@@ -361,11 +361,13 @@ pub fn switch_scene_editor_mode(conn: &Connection, scene_id: &Uuid, mode: &str) 
         let beats = get_beats(&tx, scene_id)?;
         let combined: Vec<String> = beats
             .iter()
-            .filter_map(|b| b.prose.as_deref().filter(|p| !p.is_empty()))
+            .map(|b| b.prose.as_deref().unwrap_or(""))
             .map(String::from)
             .collect();
         let page_prose = combined.join("<hr>");
-        if !page_prose.is_empty() {
+        // Empty prompts must not replace existing scene-only prose (for example,
+        // after adding a beat to a scene first written in Page mode).
+        if combined.iter().any(|prose| !prose.is_empty()) {
             tx.execute(
                 "UPDATE scenes SET prose = ?1 WHERE id = ?2",
                 params![page_prose, scene_id.to_string()],
@@ -374,7 +376,7 @@ pub fn switch_scene_editor_mode(conn: &Connection, scene_id: &Uuid, mode: &str) 
     } else if mode == "beat" {
         let scene =
             get_scene_by_id(&tx, scene_id)?.ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)?;
-        if let Some(page_prose) = scene.prose.as_deref().filter(|p| !p.is_empty()) {
+        if let Some(page_prose) = scene.prose.as_deref() {
             let beats = get_beats(&tx, scene_id)?;
             if !beats.is_empty() {
                 let segments: Vec<&str> = page_prose.split("<hr>").collect();
@@ -2559,6 +2561,61 @@ mod tests {
     use crate::db::schema::initialize_schema;
     use crate::models::SourceType;
     use std::collections::HashMap;
+
+    #[test]
+    fn empty_beat_prompts_do_not_replace_existing_page_prose() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let scene = Scene::new(chapter.id, "Page-first scene".into(), None, 0);
+        insert_scene(&conn, &scene).unwrap();
+        switch_scene_editor_mode(&conn, &scene.id, "page").unwrap();
+        save_scene_page_prose(&conn, &scene.id, "<p>Existing manuscript</p>").unwrap();
+        switch_scene_editor_mode(&conn, &scene.id, "beat").unwrap();
+        for i in 0..3 {
+            insert_beat(&conn, &Beat::new(scene.id, format!("New prompt {i}"), i)).unwrap();
+            let page = switch_scene_editor_mode(&conn, &scene.id, "page").unwrap();
+            assert_eq!(page.prose.as_deref(), Some("<p>Existing manuscript</p>"));
+        }
+    }
+
+    #[test]
+    fn page_round_trip_keeps_empty_beats_in_place() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let scene = Scene::new(chapter.id, "Scene".into(), None, 0);
+        insert_scene(&conn, &scene).unwrap();
+        for (i, prose) in [None, Some("<p>A</p>"), None, Some("<p>C</p>"), None]
+            .into_iter()
+            .enumerate()
+        {
+            let mut beat = Beat::new(scene.id, format!("Beat {i}"), i as i32);
+            beat.prose = prose.map(str::to_owned);
+            insert_beat(&conn, &beat).unwrap();
+        }
+        let before = get_beats(&conn, &scene.id).unwrap();
+        switch_scene_editor_mode(&conn, &scene.id, "page").unwrap();
+        switch_scene_editor_mode(&conn, &scene.id, "beat").unwrap();
+        let after = get_beats(&conn, &scene.id).unwrap();
+        for (a, b) in before.iter().zip(&after) {
+            assert_eq!((&a.id, &a.prose), (&b.id, &b.prose));
+        }
+        switch_scene_editor_mode(&conn, &scene.id, "page").unwrap();
+        save_scene_page_prose(&conn, &scene.id, "").unwrap();
+        switch_scene_editor_mode(&conn, &scene.id, "beat").unwrap();
+        assert!(get_beats(&conn, &scene.id)
+            .unwrap()
+            .iter()
+            .all(|b| b.prose.is_none()));
+        assert_eq!(
+            switch_scene_editor_mode(&conn, &scene.id, "page")
+                .unwrap()
+                .prose
+                .as_deref(),
+            Some("")
+        );
+    }
 
     fn setup_test_db() -> Connection {
         let conn = Connection::open_in_memory().unwrap();

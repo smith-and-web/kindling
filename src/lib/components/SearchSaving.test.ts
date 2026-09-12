@@ -7,6 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Sidebar from "./Sidebar.svelte";
 import BeatView from "./BeatView.svelte";
 import ScenePanel from "./ScenePanel.svelte";
+import SnapshotsPanel from "./SnapshotsPanel.svelte";
 import FindReplaceDialog from "./FindReplaceDialog.svelte";
 import { currentProject } from "../stores/project.svelte";
 import { ui } from "../stores/ui.svelte";
@@ -852,3 +853,88 @@ it.each(["Beat not found", "Cannot edit beats in a locked scene"])(
     await proseSaves.discard(proseSaves.draftsForRecovery(mockProject.id));
   }
 );
+
+it.each(["page", "beat"] as const)(
+  "drains pending %s prose before restoring a snapshot",
+  async (mode) => {
+    const scene = {
+      ...mockScenes[0],
+      editor_mode: mode,
+      planning_status: "fixed" as const,
+      prose: "<p>Original</p>",
+    };
+    const sceneBeat = { ...beat, scene_id: scene.id };
+    currentProject.setCurrentScene(scene);
+    currentProject.setBeats([sceneBeat]);
+    ui.setExpandedBeat(mode === "beat" ? beat.id : null);
+    let disk = "Original";
+    const operations: string[] = [];
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "get_beats") return [sceneBeat];
+      if (command === "list_snapshots")
+        return [
+          {
+            id: "snapshot",
+            name: "Earlier",
+            created_at: "2026-01-01T00:00:00Z",
+            file_size: 100,
+            trigger_type: "manual",
+          },
+        ];
+      if (command === "save_scene_page_prose" || command === "save_beat_prose") {
+        operations.push("save");
+        disk = "Draft";
+        return;
+      }
+      if (command === "restore_snapshot") {
+        operations.push("restore");
+        disk = "Snapshot";
+        return mockProject;
+      }
+      return [];
+    });
+    const panel = render(ScenePanel).component;
+    await vi.advanceTimersByTimeAsync(0);
+    editor().commands.setContent("<p>Pending draft</p>");
+    render(SnapshotsPanel, { onClose: vi.fn(), prepareRestore: () => panel.prepareForSearch() });
+    await vi.advanceTimersByTimeAsync(0);
+    await fireEvent.click(screen.getByRole("button", { name: "Restore snapshot" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Restore" }));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(operations).toEqual(["save", "restore"]);
+    expect(disk).toBe("Snapshot");
+  }
+);
+
+it("does not restore when preparing pending drafts fails", async () => {
+  vi.mocked(invoke).mockImplementation(async (command) =>
+    command === "list_snapshots"
+      ? [
+          {
+            id: "snapshot",
+            name: "Earlier",
+            created_at: "2026-01-01T00:00:00Z",
+            file_size: 100,
+            trigger_type: "manual",
+          },
+        ]
+      : []
+  );
+  render(SnapshotsPanel, {
+    onClose: vi.fn(),
+    prepareRestore: async () => {
+      throw new Error("Could not save draft");
+    },
+  });
+  await vi.advanceTimersByTimeAsync(0);
+  await fireEvent.click(screen.getByRole("button", { name: "Restore snapshot" }));
+  await fireEvent.click(screen.getByRole("button", { name: "Restore" }));
+  await tick();
+  expect(vi.mocked(invoke).mock.calls.some(([command]) => command === "restore_snapshot")).toBe(
+    false
+  );
+  const alert = screen.getByRole("alert");
+  expect(alert.textContent).toBe("Could not save draft");
+  const dialogs = screen.getAllByRole("dialog");
+  expect(dialogs[dialogs.length - 1].contains(alert)).toBe(true);
+});

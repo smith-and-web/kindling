@@ -1490,14 +1490,33 @@ fn ensure_unique_scene_stem(
     base: String,
     used: &mut std::collections::HashMap<String, usize>,
 ) -> String {
-    let counter = used.entry(base.clone()).or_insert(0);
-    if *counter == 0 {
-        *counter = 1;
-        return base;
+    let mut candidate = base.clone();
+    let mut suffix = 1;
+    while used.contains_key(&candidate.to_lowercase()) {
+        suffix += 1;
+        candidate = format!("{} ({})", base, suffix);
     }
+    used.insert(candidate.to_lowercase(), 1);
+    candidate
+}
 
-    *counter += 1;
-    format!("{} ({})", base, counter)
+/// Export names must resolve to one normal child, even after sanitizing.
+fn export_folder(output: &std::path::Path, name: &str) -> Result<PathBuf, String> {
+    let name = sanitize_filename(name);
+    let mut components = std::path::Path::new(&name).components();
+    if name.trim_end_matches(['.', ' ']).is_empty()
+        || !matches!(components.next(), Some(std::path::Component::Normal(_)))
+        || components.next().is_some()
+    {
+        return Err(
+            "Export name must name a child folder; dot-directory names are not allowed".into(),
+        );
+    }
+    let folder = output.join(name);
+    if fs::symlink_metadata(&folder).is_ok_and(|m| m.file_type().is_symlink()) {
+        return Err("Export folder must not be a symbolic link".into());
+    }
+    Ok(folder)
 }
 
 /// Export project to markdown files
@@ -1538,10 +1557,18 @@ pub async fn export_to_markdown(
 
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
+    export_to_markdown_with_connection(&conn, project_uuid, options)
+}
+
+fn export_to_markdown_with_connection(
+    conn: &rusqlite::Connection,
+    project_uuid: Uuid,
+    options: MarkdownExportOptions,
+) -> Result<ExportResult, String> {
     // Get project info
-    let project = db::queries::get_project(&conn, &project_uuid)
+    let project = db::queries::get_project(conn, &project_uuid)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Project not found: {}", project_id))?;
+        .ok_or_else(|| format!("Project not found: {}", project_uuid))?;
 
     let output_base = PathBuf::from(&options.output_path);
 
@@ -1554,7 +1581,7 @@ pub async fn export_to_markdown(
         .unwrap_or_else(|| sanitize_filename(&project.name));
 
     // Create project folder
-    let project_folder = output_base.join(folder_name);
+    let project_folder = export_folder(&output_base, &folder_name)?;
 
     let mut files_created = 0;
     let mut chapters_exported = 0;
@@ -1572,7 +1599,7 @@ pub async fn export_to_markdown(
                 .map_err(|e| format!("Failed to create output directory: {}", e))?;
             // Get all chapters
             let chapters =
-                db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+                db::queries::get_chapters(conn, &project_uuid).map_err(|e| e.to_string())?;
 
             let mut chapter_num = 0;
             for chapter in &chapters {
@@ -1589,7 +1616,7 @@ pub async fn export_to_markdown(
 
                 // Get scenes for this chapter
                 let scenes =
-                    db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
+                    db::queries::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
 
                 let mut scene_num = 0;
                 for scene in &scenes {
@@ -1599,7 +1626,7 @@ pub async fn export_to_markdown(
                     scene_num += 1;
 
                     let beats =
-                        db::queries::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
+                        db::queries::get_beats(conn, &scene.id).map_err(|e| e.to_string())?;
 
                     let markdown =
                         generate_scene_markdown(scene, &beats, options.include_beat_markers);
@@ -1629,7 +1656,7 @@ pub async fn export_to_markdown(
 
             // Get all chapters to find this chapter's position
             let all_chapters =
-                db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+                db::queries::get_chapters(conn, &project_uuid).map_err(|e| e.to_string())?;
 
             // Find the chapter and its position (1-based, excluding archived)
             let mut chapter_num = 0;
@@ -1661,7 +1688,7 @@ pub async fn export_to_markdown(
                 .map_err(|e| format!("Failed to create chapter directory: {}", e))?;
 
             // Get scenes for this chapter
-            let scenes = db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
+            let scenes = db::queries::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
 
             let mut scene_num = 0;
             for scene in &scenes {
@@ -1670,7 +1697,7 @@ pub async fn export_to_markdown(
                 }
                 scene_num += 1;
 
-                let beats = db::queries::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
+                let beats = db::queries::get_beats(conn, &scene.id).map_err(|e| e.to_string())?;
 
                 let markdown = generate_scene_markdown(scene, &beats, options.include_beat_markers);
 
@@ -1697,18 +1724,18 @@ pub async fn export_to_markdown(
             let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
 
             // Get scene info
-            let scene = db::queries::get_scene_by_id(&conn, &scene_uuid)
+            let scene = db::queries::get_scene_by_id(conn, &scene_uuid)
                 .map_err(|e| e.to_string())?
                 .ok_or_else(|| format!("Scene not found: {}", scene_id))?;
 
             // Get chapter info to determine chapter position
-            let chapter = db::queries::get_chapter_by_id(&conn, &scene.chapter_id)
+            let chapter = db::queries::get_chapter_by_id(conn, &scene.chapter_id)
                 .map_err(|e| e.to_string())?
                 .ok_or_else(|| "Scene's chapter not found".to_string())?;
 
             // Get all chapters to find chapter position
             let all_chapters =
-                db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
+                db::queries::get_chapters(conn, &project_uuid).map_err(|e| e.to_string())?;
 
             let mut chapter_num = 0;
             for ch in &all_chapters {
@@ -1722,7 +1749,7 @@ pub async fn export_to_markdown(
 
             // Get all scenes in this chapter to find scene position
             let all_scenes =
-                db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
+                db::queries::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
 
             let mut scene_num = 0;
             for sc in &all_scenes {
@@ -1741,7 +1768,7 @@ pub async fn export_to_markdown(
             fs::create_dir_all(&chapter_folder)
                 .map_err(|e| format!("Failed to create chapter directory: {}", e))?;
 
-            let beats = db::queries::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
+            let beats = db::queries::get_beats(conn, &scene.id).map_err(|e| e.to_string())?;
 
             let markdown = generate_scene_markdown(&scene, &beats, options.include_beat_markers);
             let scene_file = chapter_folder.join(format!(
@@ -1826,7 +1853,7 @@ fn export_to_longform_with_connection(
         .cloned()
         .unwrap_or_else(|| project.name.clone());
     let folder_name = sanitize_filename(&export_name);
-    let project_folder = output_base.join(&folder_name);
+    let project_folder = export_folder(&output_base, &folder_name)?;
 
     if options.delete_existing && project_folder.exists() {
         fs::remove_dir_all(&project_folder)
@@ -1946,7 +1973,15 @@ fn export_to_longform_with_connection(
         }
     }
 
+    let mut index_file_name = sanitize_filename(&export_name);
+    if !index_file_name.to_lowercase().ends_with(".md") {
+        index_file_name = format!("{}.md", index_file_name);
+    }
     let mut used_stems: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    used_stems.insert(
+        index_file_name[..index_file_name.len() - 3].to_lowercase(),
+        1,
+    );
     let mut scene_names = Vec::new();
     let mut files_created = 0;
 
@@ -1997,10 +2032,6 @@ fn export_to_longform_with_connection(
         scene_names.push(stem);
     }
 
-    let mut index_file_name = sanitize_filename(&export_name);
-    if !index_file_name.to_lowercase().ends_with(".md") {
-        index_file_name = format!("{}.md", index_file_name);
-    }
     let index_file = project_folder.join(&index_file_name);
 
     let frontmatter = generate_longform_frontmatter(&export_name, "/", &scene_names)?;
@@ -4857,6 +4888,92 @@ fn append_to_scrivx(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn longform_reserves_index_and_all_generated_filenames() {
+        let (conn, project) = crate::parsers::novelwriter::tests::fixture();
+        let original = db::get_all_project_scenes(&conn, &project.id)
+            .unwrap()
+            .remove(0);
+        for (i, title) in ["Title", "title", "Title (2)"].into_iter().enumerate() {
+            let mut scene = Scene::new(original.chapter_id, title.into(), None, i as i32 + 1);
+            scene.prose = Some(format!("<p>Unique sentinel {i}</p>"));
+            scene.editor_mode = crate::models::EditorMode::Page;
+            db::insert_scene(&conn, &scene).unwrap();
+        }
+        for name in ["Title", "Title.md"] {
+            let temp = tempfile::tempdir().unwrap();
+            let result = export_to_longform_with_connection(
+                &conn,
+                project.id,
+                LongformExportOptions {
+                    scope: ExportScope::Project,
+                    output_path: temp.path().to_string_lossy().into(),
+                    export_name: Some(name.into()),
+                    delete_existing: true,
+                    create_snapshot: false,
+                },
+            )
+            .unwrap();
+            let index = PathBuf::from(result.output_path).join("Title.md");
+            let parsed = crate::parsers::parse_longform_index(index).unwrap();
+            assert_eq!(parsed.scenes.len(), 4);
+            let prose = parsed
+                .scenes
+                .iter()
+                .filter_map(|s| s.prose.as_deref())
+                .collect::<String>();
+            for i in 0..3 {
+                assert!(prose.contains(&format!("Unique sentinel {i}")));
+            }
+        }
+    }
+
+    #[test]
+    fn unsafe_export_names_leave_parent_and_output_sentinels_intact() {
+        let (conn, project) = crate::parsers::novelwriter::tests::fixture();
+        let temp = tempfile::tempdir().unwrap();
+        let output = temp.path().join("output");
+        fs::create_dir(&output).unwrap();
+        let parent_sentinel = temp.path().join("unrelated.txt");
+        let output_sentinel = output.join("unrelated.txt");
+        fs::write(&parent_sentinel, "parent").unwrap();
+        fs::write(&output_sentinel, "output").unwrap();
+        for name in [".", "..", " .. ", "...", ""] {
+            // Shared validation is also used by every Markdown export scope.
+            assert!(export_folder(&output, name).is_err());
+            if name.is_empty() {
+                continue;
+            }
+            let result = export_to_longform_with_connection(
+                &conn,
+                project.id,
+                LongformExportOptions {
+                    scope: ExportScope::Project,
+                    output_path: output.to_string_lossy().into(),
+                    export_name: Some(name.into()),
+                    delete_existing: true,
+                    create_snapshot: false,
+                },
+            );
+            assert!(result.is_err());
+            let result = export_to_markdown_with_connection(
+                &conn,
+                project.id,
+                MarkdownExportOptions {
+                    scope: ExportScope::Project,
+                    output_path: output.to_string_lossy().into(),
+                    export_name: Some(name.into()),
+                    delete_existing: true,
+                    create_snapshot: false,
+                    include_beat_markers: true,
+                },
+            );
+            assert!(result.is_err());
+            assert_eq!(fs::read_to_string(&parent_sentinel).unwrap(), "parent");
+            assert_eq!(fs::read_to_string(&output_sentinel).unwrap(), "output");
+        }
+    }
+
     #[test]
     fn longform_exports_timeline_and_custom_notes_for_project_and_scene_scopes() {
         use crate::models::ReferenceItem;
