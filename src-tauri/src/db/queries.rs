@@ -1615,7 +1615,15 @@ pub fn get_scene_beat_count(conn: &Connection, scene_id: &Uuid) -> Result<i32> {
 /// Delete a chapter and all its scenes, beats, and references
 pub fn delete_chapter(conn: &Connection, chapter_id: &Uuid) -> Result<()> {
     let tx = conn.unchecked_transaction()?;
+    delete_chapter_in_transaction(&tx, chapter_id)?;
+    tx.commit()
+}
 
+/// Delete a chapter and its contents within the caller's transaction (for atomic Part deletion).
+pub fn delete_chapter_in_transaction(
+    tx: &rusqlite::Transaction<'_>,
+    chapter_id: &Uuid,
+) -> Result<()> {
     tx.execute(
         "DELETE FROM scene_character_refs WHERE scene_id IN (SELECT id FROM scenes WHERE chapter_id = ?1)",
         params![chapter_id.to_string()],
@@ -1648,7 +1656,7 @@ pub fn delete_chapter(conn: &Connection, chapter_id: &Uuid) -> Result<()> {
         params![chapter_id.to_string()],
     )?;
 
-    tx.commit()
+    Ok(())
 }
 
 /// Delete a scene and all its beats and references

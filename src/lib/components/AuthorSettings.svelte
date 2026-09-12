@@ -49,6 +49,20 @@
     }
   }
 
+  async function resetSettings() {
+    if (saving) return;
+    saving = true;
+    error = null;
+    try {
+      await invoke("reset_app_settings");
+      await loadSettings();
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    } finally {
+      saving = false;
+    }
+  }
+
   async function handleSave() {
     if (saving || !loaded) return;
     saving = true;
@@ -186,6 +200,15 @@
     {#if saved && !dirty}<p role="status" class="text-press-ui text-press-muted">
         Author details saved.
       </p>{/if}
-  {:else}<button type="button" onclick={loadSettings}>Retry loading author details</button>{/if}
+  {:else}
+    <button type="button" onclick={loadSettings} disabled={saving}
+      >Retry loading author details</button
+    >
+    <p class="text-press-ui text-press-muted">
+      If the settings file is damaged, reset author details to restore saving and exports. A
+      recovery copy of the original file will be kept.
+    </p>
+    <button type="button" onclick={resetSettings} disabled={saving}>Reset author details</button>
+  {/if}
   {#if error}<p role="alert" class="text-press-ui text-press-error">{error}</p>{/if}
 </div>
