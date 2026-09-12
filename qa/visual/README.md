@@ -24,7 +24,7 @@ npm install
 npm run tauri:qa                    # terminal 1: build/start the hidden QA app
 npm run qa:baselines:check          # terminal 2: validate reviewed PNG manifest
 npm run qa:visual -- --dry-run      # socket/capture capabilities; no app changes
-npm run qa:visual                  # all 120 checkpoints
+npm run qa:visual                  # all 147 checkpoints
 npm run qa:visual -- --list
 npm run qa:visual -- --only 09,15,17 --variants light
 npm run qa:visual -- --only 07 --variants narrow --calibrate
@@ -56,10 +56,40 @@ Exit codes: **0** all checkpoint evidence passes; **1** run, assertion, audit or
 cleanup failure; **2** review pending (changed/new/incompatible images or incomplete
 evidence). A matching image cannot waive a failed accessibility audit.
 
-The last normal 120-checkpoint pass took **235 seconds**; the 240-capture
-calibration pass took **379 seconds**. See VALIDATION.md for measured evidence.
+The latest 147-checkpoint comparison took **281 seconds**; all images matched,
+with three existing References accessibility failures still reported. The earlier
+240-capture calibration took **379 seconds**. See VALIDATION.md for measured evidence.
 
 ## Capture and comparison
+
+Every run, including `--dry-run`, prints a context summary before connecting to
+the app or creating fixtures. It records the branch/revision, baseline acceptance
+revision, up to 20 intervening commit subjects, changed paths, staged/unstaged and
+untracked files, selected suites' baseline counts, and known findings. The same
+snapshot is saved in `context.json`, `context.md`, `results.json` and `report.md`.
+Use an optional operator note to explain intended visual changes:
+
+```bash
+npm run qa:visual -- --dry-run --context 'Home moved above the project title; export tiles redesigned'
+npm run qa:visual -- --context 'Verify the reviewed sidebar and export baseline update'
+```
+
+File groups are advisory, not a dependency graph: a shared sidebar or style change
+can explain differences across many checkpoints. An unknown/missing Git revision
+is explicitly reported as unknown. Git comparisons include tracked working-tree
+changes and list untracked paths separately; they do not read file contents.
+Baseline counts identify suites with no references, but cannot identify newly
+added checkpoints within a previously covered suite until capture. Neither the
+context nor an operator note skips tests, changes thresholds, accepts images or
+waives a known accessibility failure.
+
+The manifest's `revision` identifies the source state at its latest acceptance;
+record working-tree qualifications explicitly if captures came from uncommitted
+changes. Each entry keeps its capture source and review reason. Update this
+provenance when accepting images so later runs compare against the right state.
+For a partial update, retain the existing comparison revision unless every
+reference has been reviewed against the newer source state; otherwise the summary
+could omit changes relevant to older images.
 
 The fixed CSS viewports are light **1600×968**, dark **1600×968**, and narrow light
 **1100×668**. Their PNG masters are exactly **3200×1936** or **2200×1336** pixels.

@@ -2226,7 +2226,12 @@
 
 <!-- Snapshots Panel -->
 {#if showSnapshotsPanel}
-  <SnapshotsPanel onClose={() => (showSnapshotsPanel = false)} />
+  <SnapshotsPanel
+    prepareRestore={async () => {
+      await prepareWritingReset?.();
+    }}
+    onClose={() => (showSnapshotsPanel = false)}
+  />
 {/if}
 
 <!-- Export Dialog -->

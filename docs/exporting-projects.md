@@ -120,3 +120,13 @@ detail; actual page counts depend on your content.
 
 For importing or syncing exported content, see [Importing Projects](importing-projects.md)
 and [Sync & Reimport](sync-and-reimport.md).
+
+### Export folder and filename safety
+
+Markdown and Longform export names must identify a child folder. Dot-directory
+names such as `.` and `..` are rejected, including when deleting an existing
+export folder. A project export folder cannot be a symbolic link.
+
+Longform reserves the index filename before naming scene files. Scenes that
+would collide with the index or another scene receive numbered filenames, and
+the index points to those files. Comparisons ignore filename case.

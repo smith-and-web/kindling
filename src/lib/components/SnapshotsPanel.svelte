@@ -29,8 +29,16 @@
   } from "../types";
   import { currentProject } from "../stores/project.svelte";
   import Tooltip from "./Tooltip.svelte";
+  import { proseSaves } from "../utils/proseSaves";
+  import { synopsisSaves } from "../stores/synopsisSaves.svelte";
 
-  let { onClose }: { onClose: () => void } = $props();
+  let {
+    onClose,
+    prepareRestore,
+  }: {
+    onClose: () => void;
+    prepareRestore: () => Promise<void>;
+  } = $props();
 
   let loading = $state(true);
   let snapshots = $state<SnapshotMetadata[]>([]);
@@ -113,18 +121,26 @@
   }
 
   async function restoreSnapshot() {
-    if (!snapshotToRestore) return;
+    if (!snapshotToRestore || restoringId) return;
 
-    restoringId = snapshotToRestore.id;
+    const snapshotId = snapshotToRestore.id;
+    const options = {
+      mode: restoreMode,
+      new_project_name: restoreMode === "create_new" ? newProjectName.trim() : undefined,
+    };
+    restoringId = snapshotId;
     error = null;
 
     try {
+      await prepareRestore();
+      await synopsisSaves.flush(currentProject.value?.id);
+      await proseSaves.flush(currentProject.value?.id);
+      if (proseSaves.draftsForRecovery(currentProject.value?.id).length) {
+        throw new Error("Save or recover unsaved prose before restoring a snapshot.");
+      }
       const project = await invoke<Project>("restore_snapshot", {
-        snapshotId: snapshotToRestore.id,
-        options: {
-          mode: restoreMode,
-          new_project_name: restoreMode === "create_new" ? newProjectName.trim() : undefined,
-        },
+        snapshotId,
+        options,
       });
 
       showRestoreDialog = false;
@@ -179,6 +195,7 @@
   }
 
   function handleBackdropClick(event: MouseEvent) {
+    if (restoringId) return;
     if (event.target === event.currentTarget) {
       if (showCreateDialog || showRestoreDialog) {
         showCreateDialog = false;
@@ -190,6 +207,7 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
+    if (restoringId) return;
     if (event.key === "Escape") {
       if (showCreateDialog) {
         showCreateDialog = false;
@@ -274,6 +292,7 @@
           <button
             type="button"
             onclick={onClose}
+            disabled={restoringId !== null}
             class="p-1.5 text-press-muted hover:text-press-text hover:bg-press-sunken rounded-lg transition-colors"
             aria-label="Close"
             data-testid="snapshots-close"
@@ -290,7 +309,7 @@
         <div class="flex items-center justify-center py-16">
           <Loader2 class="w-8 h-8 animate-spin text-press-accent-text" />
         </div>
-      {:else if error}
+      {:else if error && !showRestoreDialog}
         <div class="text-center py-16">
           <p class="text-press-error">{error}</p>
         </div>
@@ -485,7 +504,7 @@
   {#if showRestoreDialog && snapshotToRestore}
     <div
       class="fixed inset-0 z-press-popover flex items-center justify-center bg-press-overlay"
-      onclick={(e) => e.target === e.currentTarget && (showRestoreDialog = false)}
+      onclick={(e) => !restoringId && e.target === e.currentTarget && (showRestoreDialog = false)}
       onkeydown={handleKeydown}
       role="dialog"
       aria-modal="true"
@@ -499,6 +518,7 @@
           <button
             type="button"
             onclick={() => (showRestoreDialog = false)}
+            disabled={restoringId !== null}
             class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
           >
             <X class="w-5 h-5" />
@@ -508,6 +528,10 @@
           <p class="text-press-muted">
             Restore snapshot <strong class="text-press-text">"{snapshotToRestore.name}"</strong>?
           </p>
+
+          {#if error}
+            <p role="alert" class="text-press-error">{error}</p>
+          {/if}
 
           <fieldset>
             <legend class="block text-press-ui font-medium text-press-muted mb-2"
@@ -576,6 +600,7 @@
           <button
             type="button"
             onclick={() => (showRestoreDialog = false)}
+            disabled={restoringId !== null}
             class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors"
           >
             Cancel
