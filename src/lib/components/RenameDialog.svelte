@@ -66,7 +66,7 @@
 
 <!-- Backdrop -->
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -75,18 +75,21 @@
   tabindex="-1"
 >
   <!-- Dialog -->
-  <div class="bg-bg-panel rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
+  <div
+    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-md mx-4 overflow-hidden"
+  >
     <!-- Header -->
-    <div class="flex items-center justify-between px-4 py-3 border-b border-bg-card">
-      <h2 id="rename-dialog-title" class="text-lg font-medium text-text-primary">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-press-border">
+      <h2 id="rename-dialog-title" class="text-press-body-lg font-medium text-press-text">
         {title}
       </h2>
       <Tooltip text="Close" position="left">
         <button
           type="button"
           onclick={onClose}
-          class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
+          class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
           aria-label="Close"
+          data-testid="rename-close"
         >
           <X class="w-5 h-5" />
         </button>
@@ -95,7 +98,7 @@
 
     <!-- Content -->
     <div class="p-4">
-      <label for="rename-input" class="block text-sm font-medium text-text-secondary mb-2">
+      <label for="rename-input" class="block text-press-ui font-medium text-press-muted mb-2">
         Name
       </label>
       <input
@@ -103,29 +106,30 @@
         bind:this={inputRef}
         bind:value={newName}
         type="text"
-        class="w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent"
+        class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
         placeholder="Enter name..."
         disabled={saving}
       />
       {#if error}
-        <p class="mt-2 text-sm text-red-400">{error}</p>
+        <p class="mt-2 text-press-ui text-press-error">{error}</p>
       {/if}
     </div>
 
     <!-- Footer -->
-    <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-bg-card">
+    <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-press-border">
       <button
         type="button"
         onclick={onClose}
-        class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+        class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors"
         disabled={saving}
       >
         Cancel
       </button>
       <button
+        data-testid="rename-save"
         type="button"
         onclick={handleSave}
-        class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/80 transition-colors disabled:opacity-50"
+        class="px-4 py-2 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors"
         disabled={saving || !newName.trim()}
       >
         {#if saving}

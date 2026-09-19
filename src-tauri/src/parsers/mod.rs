@@ -9,3 +9,7 @@ pub use markdown::*;
 pub use plottr::*;
 pub use scrivener::*;
 pub use ywriter::*;
+
+pub mod novelwriter;
+
+pub(crate) mod html;

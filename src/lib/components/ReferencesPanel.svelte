@@ -1,9 +1,11 @@
 <script lang="ts">
+  import { REFERENCE_FIELD_TYPES } from "../referenceTypes";
   import { invoke } from "@tauri-apps/api/core";
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import {
     ArrowDownAZ,
+    Copy,
     ChevronDown,
     ChevronRight,
     ChevronsLeft,
@@ -12,7 +14,6 @@
     GripVertical,
     Link2,
     ListChevronsDownUp,
-    Settings,
     Pencil,
     Plus,
     Trash2,
@@ -21,6 +22,7 @@
   import { ui } from "../stores/ui.svelte";
   import type {
     Project,
+    ReferenceCopyResult,
     ReferenceItem,
     ReferenceTypeId,
     ReferenceSuggestion,
@@ -36,11 +38,38 @@
     type ReferenceTypeOption,
     normalizeReferenceTypes,
   } from "../referenceTypes";
+  import CopyReferencesDialog from "./CopyReferencesDialog.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import ReferenceEditDialog from "./ReferenceEditDialog.svelte";
   import SuggestionCard from "./SuggestionCard.svelte";
   import TagSelector from "./TagSelector.svelte";
   import Tooltip from "./Tooltip.svelte";
+
+  let { contextSceneId, embedded = false }: { contextSceneId?: string | null; embedded?: boolean } =
+    $props();
+  const referenceScene = $derived(
+    contextSceneId === undefined
+      ? currentProject.currentScene
+      : contextSceneId
+        ? { id: contextSceneId }
+        : null
+  );
+  const collapsed = $derived(!embedded && ui.referencesPanelCollapsed);
+
+  let copyDestination = $state<Project | null>(null);
+  let explicitlyRefreshedProject: Project | null = null;
+
+  async function referencesCopied(result: ReferenceCopyResult) {
+    if (currentProject.value?.id !== result.project.id) return;
+    await loadReferences(true, result.project);
+    if (currentProject.value?.id !== result.project.id) return;
+    currentProject.setProject(result.project);
+    // The explicit refresh reports failures to the copy dialog. Consume only this
+    // exact store assignment so ordinary settings updates still reload the panel.
+    explicitlyRefreshedProject = currentProject.value;
+    const sceneId = referenceScene?.id;
+    if (sceneId) await loadSuggestions(sceneId);
+  }
 
   let activeTab = $state<ReferenceTypeId | null>(null);
   let loading = $state(false);
@@ -55,10 +84,6 @@
   let sceneReferenceRequestId = 0;
   let loadReferencesRequestId = 0;
   let suggestionsRequestId = 0;
-  let showReferenceTypeSettings = $state(false);
-  let referenceTypeSelection = $state<ReferenceTypeId[]>([]);
-  let referenceTypeSaving = $state(false);
-  let referenceTypeError = $state<string | null>(null);
   let isResizing = $state(false);
   let draggedId = $state<string | null>(null);
   let dragOverId = $state<string | null>(null);
@@ -78,9 +103,7 @@
   let entityTagIds = $state<Record<string, string[]>>({});
   let activeTypeOption = $derived(getReferenceTypeOption(activeTab));
   let activeSceneStates = $derived(
-    activeTab && currentProject.currentScene
-      ? getSceneStatesForType(activeTab)
-      : ([] as SceneReferenceState[])
+    activeTab && referenceScene ? getSceneStatesForType(activeTab) : ([] as SceneReferenceState[])
   );
   let linkedIds = $derived(new Set(activeSceneStates.map((state) => state.reference_id)));
   let linkedItems = $derived(
@@ -100,19 +123,19 @@
       : []
   );
   let activeItems = $derived(
-    currentProject.currentScene
+    referenceScene
       ? [...linkedItems, ...unlinkedItems]
       : activeTab
         ? getReferencesForType(activeTab as ReferenceTypeId)
         : []
   );
   let ActiveIcon = $derived(activeTypeOption?.icon ?? null);
-  let iconBgClass = $derived(activeTypeOption?.bgClass ?? "bg-accent/20");
-  let iconTextClass = $derived(activeTypeOption?.accentClass ?? "text-accent");
+  let iconBgClass = $derived(activeTypeOption?.bgClass ?? "bg-press-accent-wash");
+  let iconTextClass = $derived(activeTypeOption?.accentClass ?? "text-press-accent-text");
 
-  async function loadReferences() {
+  async function loadReferences(reportErrors = false, projectOverride?: Project) {
     const requestId = ++loadReferencesRequestId;
-    const project = currentProject.value;
+    const project = projectOverride ?? currentProject.value;
     if (!project) return;
 
     const enabledTypes = normalizeReferenceTypes(
@@ -128,6 +151,12 @@
 
     if (enabledTypes.length === 0) {
       referencesByType = {} as Record<ReferenceTypeId, ReferenceItem[]>;
+      fieldDefsMap = {};
+      fieldValuesMap = {};
+      allTags = [];
+      entityTagIds = {};
+      currentProject.setCharacters([]);
+      currentProject.setLocations([]);
       loading = false;
       return;
     }
@@ -146,29 +175,12 @@
 
       if (requestId !== loadReferencesRequestId) return;
 
-      const next: Record<ReferenceTypeId, ReferenceItem[]> = {
-        ...(referencesByType as Record<ReferenceTypeId, ReferenceItem[]>),
-      };
+      const next = {} as Record<ReferenceTypeId, ReferenceItem[]>;
       for (const [type, items] of results) {
         next[type] = items;
       }
-      referencesByType = next;
-
-      if (next.characters) {
-        currentProject.setCharacters(next.characters);
-      }
-      if (next.locations) {
-        currentProject.setLocations(next.locations);
-      }
-
       // Load field definitions for each entity type
-      const entityTypeMap: Record<string, string> = {
-        characters: "character",
-        locations: "location",
-        items: "item",
-        objectives: "objective",
-        organizations: "organization",
-      };
+      const entityTypeMap = REFERENCE_FIELD_TYPES;
       const defsMap: Record<string, FieldDefinition[]> = {};
       for (const type of enabledTypes) {
         const entityType = entityTypeMap[type] ?? type;
@@ -178,10 +190,11 @@
             entityType,
           });
         } catch {
+          if (reportErrors) throw new Error("Could not load copied fields");
           defsMap[type] = [];
         }
       }
-      fieldDefsMap = defsMap;
+      const vMap: Record<string, Record<string, string | null>> = {};
 
       // Load field values for all entities in bulk
       const allEntityIds = Object.values(next)
@@ -192,21 +205,22 @@
           const allValues = await invoke<FieldValue[]>("get_field_values_bulk", {
             entityIds: allEntityIds,
           });
-          const vMap: Record<string, Record<string, string | null>> = {};
+
           for (const v of allValues) {
             if (!vMap[v.entity_id]) vMap[v.entity_id] = {};
             vMap[v.entity_id][v.field_definition_id] = v.value;
           }
-          fieldValuesMap = vMap;
         } catch {
-          fieldValuesMap = {};
+          if (reportErrors) throw new Error("Could not load copied field values");
         }
       }
 
       // Load all project tags + per-entity tag assignments
+      let nextTags: Tag[] = [];
+      const tagMap: Record<string, string[]> = {};
       try {
-        allTags = await invoke<Tag[]>("get_tags", { projectId: project.id });
-        const tagMap: Record<string, string[]> = {};
+        nextTags = await invoke<Tag[]>("get_tags", { projectId: project.id });
+
         for (const id of allEntityIds) {
           const entityType =
             Object.entries(entityTypeMap).find(([typeKey]) =>
@@ -216,63 +230,29 @@
             const tags = await invoke<Tag[]>("get_entity_tags", { entityType, entityId: id });
             tagMap[id] = tags.map((t) => t.id);
           } catch {
+            if (reportErrors) throw new Error("Could not load copied tag assignments");
             tagMap[id] = [];
           }
         }
-        entityTagIds = tagMap;
-      } catch {
-        allTags = [];
-        entityTagIds = {};
+      } catch (e) {
+        if (reportErrors) throw e;
       }
+      if (requestId !== loadReferencesRequestId || currentProject.value?.id !== project.id) return;
+      referencesByType = next;
+      fieldDefsMap = defsMap;
+      fieldValuesMap = vMap;
+      allTags = nextTags;
+      entityTagIds = tagMap;
+      currentProject.setCharacters(next.characters ?? []);
+      currentProject.setLocations(next.locations ?? []);
     } catch (e) {
       if (requestId !== loadReferencesRequestId) return;
       console.error("Failed to load references:", e);
+      if (reportErrors) throw e;
     } finally {
       if (requestId === loadReferencesRequestId) {
         loading = false;
       }
-    }
-  }
-
-  function openReferenceTypeSettings() {
-    referenceTypeSelection = normalizeReferenceTypes(
-      currentProject.value?.reference_types ?? DEFAULT_REFERENCE_TYPES
-    );
-    referenceTypeError = null;
-    showReferenceTypeSettings = true;
-  }
-
-  function closeReferenceTypeSettings() {
-    showReferenceTypeSettings = false;
-  }
-
-  function toggleReferenceType(typeId: ReferenceTypeId) {
-    if (referenceTypeSelection.includes(typeId)) {
-      referenceTypeSelection = referenceTypeSelection.filter((type) => type !== typeId);
-    } else {
-      referenceTypeSelection = [...referenceTypeSelection, typeId];
-    }
-  }
-
-  async function saveReferenceTypeSettings() {
-    if (!currentProject.value) return;
-    referenceTypeSaving = true;
-    referenceTypeError = null;
-    try {
-      const updatedProject = await invoke<Project>("update_project_settings", {
-        projectId: currentProject.value.id,
-        settings: {
-          reference_types: referenceTypeSelection,
-        },
-      });
-      currentProject.setProject(updatedProject);
-      await loadReferences();
-      showReferenceTypeSettings = false;
-    } catch (e) {
-      console.error("Failed to update reference types:", e);
-      referenceTypeError = e instanceof Error ? e.message : "Failed to update reference types";
-    } finally {
-      referenceTypeSaving = false;
     }
   }
 
@@ -340,7 +320,7 @@
   }
 
   async function linkSuggestion(s: ReferenceSuggestion) {
-    const scene = currentProject.currentScene;
+    const scene = referenceScene;
     if (!scene) return;
 
     const refType = referenceTypeForSuggestion(s);
@@ -359,7 +339,7 @@
   }
 
   async function dismissSuggestion(s: ReferenceSuggestion) {
-    const scene = currentProject.currentScene;
+    const scene = referenceScene;
     if (!scene) return;
     try {
       await invoke("dismiss_suggestion", { sceneId: scene.id, referenceId: s.reference_id });
@@ -385,7 +365,7 @@
     referenceType: ReferenceTypeId,
     updates: SceneReferenceStateUpdate[]
   ) {
-    const scene = currentProject.currentScene;
+    const scene = referenceScene;
     if (!scene) return;
     try {
       await invoke("save_scene_reference_state", {
@@ -415,7 +395,7 @@
   function toggleExpanded(id: string) {
     const isExpanded = expandedIds.has(id);
     const nextExpanded = !isExpanded;
-    if (currentProject.currentScene && activeTab && linkedIds.has(id)) {
+    if (referenceScene && activeTab && linkedIds.has(id)) {
       const states = getSceneStatesForType(activeTab);
       const updates = states.map((state, index) => ({
         reference_id: state.reference_id,
@@ -434,7 +414,7 @@
   }
 
   function collapseAll() {
-    if (currentProject.currentScene && activeTab) {
+    if (referenceScene && activeTab) {
       const states = getSceneStatesForType(activeTab);
       const updates = states.map((state, index) => ({
         reference_id: state.reference_id,
@@ -449,7 +429,7 @@
 
   function sortAlphabetically() {
     if (!activeTab) return;
-    if (currentProject.currentScene) {
+    if (referenceScene) {
       const states = getSceneStatesForType(activeTab);
       const itemMap = new Map((referencesByType[activeTab] ?? []).map((item) => [item.id, item]));
       const sorted = [...states].sort((a, b) => {
@@ -477,7 +457,7 @@
   }
 
   async function toggleSceneLink(reference: ReferenceItem) {
-    if (!currentProject.currentScene) return;
+    if (!referenceScene) return;
     const referenceType = reference.reference_type;
     const states = getSceneStatesForType(referenceType);
     const isLinked = states.some((state) => state.reference_id === reference.id);
@@ -617,8 +597,8 @@
         referenceType: deleteTarget.reference_type,
       });
       await loadReferences();
-      if (currentProject.currentScene) {
-        loadSceneReferenceState(currentProject.currentScene.id);
+      if (referenceScene) {
+        loadSceneReferenceState(referenceScene.id);
       }
     } catch (e) {
       console.error("Failed to delete reference:", e);
@@ -701,7 +681,7 @@
     }
 
     if (draggedId && dragOverId && draggedId !== dragOverId && activeTab) {
-      if (currentProject.currentScene) {
+      if (referenceScene) {
         const states = getSceneStatesForType(activeTab);
         const fromIndex = states.findIndex((state) => state.reference_id === draggedId);
         const toIndex = states.findIndex((state) => state.reference_id === dragOverId);
@@ -778,7 +758,7 @@
 
   let lastSceneId: string | null = null;
   $effect(() => {
-    const sceneId = currentProject.currentScene?.id ?? null;
+    const sceneId = referenceScene?.id ?? null;
     if (sceneId === lastSceneId) return;
     lastSceneId = sceneId;
     if (sceneId) {
@@ -794,14 +774,17 @@
   });
 
   $effect(() => {
-    if (currentProject.value) {
-      loadReferences();
-    }
+    const project = currentProject.value;
+    untrack(() => {
+      const alreadyRefreshed = project === explicitlyRefreshedProject;
+      explicitlyRefreshedProject = null;
+      if (project && !alreadyRefreshed) void loadReferences();
+    });
   });
 
   onMount(() => {
     const handler = () => {
-      const sceneId = currentProject.currentScene?.id;
+      const sceneId = referenceScene?.id;
       if (sceneId) loadSuggestions(sceneId);
     };
     const allHandler = async () => {
@@ -809,7 +792,7 @@
       if (!projectId) return;
       try {
         await invoke("detect_all_references", { projectId });
-        const sceneId = currentProject.currentScene?.id;
+        const sceneId = referenceScene?.id;
         if (sceneId) loadSuggestions(sceneId);
       } catch (e) {
         console.error("Failed to detect all references:", e);
@@ -825,22 +808,27 @@
 </script>
 
 <aside
-  class="bg-bg-panel border-l border-bg-card flex flex-col h-full relative"
-  class:w-0={ui.referencesPanelCollapsed}
-  class:overflow-hidden={ui.referencesPanelCollapsed}
-  class:opacity-0={ui.referencesPanelCollapsed}
-  class:border-l-0={ui.referencesPanelCollapsed}
-  class:p-0={ui.referencesPanelCollapsed}
+  class="bg-press-surface border-l border-press-border flex flex-col h-full relative"
+  class:w-0={collapsed}
+  class:min-w-0={collapsed}
+  class:overflow-hidden={collapsed}
+  class:opacity-0={collapsed}
+  class:border-l-0={collapsed}
+  class:p-0={collapsed}
   class:transition-all={!isResizing}
   class:duration-200={!isResizing}
-  style={ui.referencesPanelCollapsed ? "" : `width: ${ui.referencesPanelWidth}px`}
+  style={embedded
+    ? "width: 100%; min-height: 0; border-left: 0"
+    : collapsed
+      ? ""
+      : `width: ${ui.referencesPanelWidth}px`}
 >
   <!-- Resize handle -->
-  {#if !ui.referencesPanelCollapsed}
+  {#if !embedded && !collapsed}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
-      class="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-accent/50 active:bg-accent transition-colors z-10 focus:outline-none focus:bg-accent"
+      class="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-press-accent-text active:bg-press-accent transition-colors z-press-raised focus:outline-none focus:bg-press-accent"
       onmousedown={startResize}
       onkeydown={onResizeKeydown}
       role="separator"
@@ -853,10 +841,20 @@
     ></div>
   {/if}
   <!-- Header with tabs -->
-  <div class="border-b border-bg-card">
+  <div class="border-b border-press-border">
     <div class="flex items-center justify-between px-4 py-2">
-      <h2 class="text-sm font-heading font-medium text-text-primary">References</h2>
+      <h2 class="text-press-ui font-heading font-medium text-press-text">References</h2>
       <div class="flex items-center gap-1">
+        <Tooltip text="Copy references from project…" position="bottom">
+          <button
+            onclick={() => (copyDestination = currentProject.value)}
+            disabled={!currentProject.value || editDialog !== null}
+            class="text-press-muted hover:text-press-text p-1 disabled:cursor-not-allowed"
+            aria-label="Copy references from project…"
+          >
+            <Copy class="w-4 h-4" />
+          </button>
+        </Tooltip>
         <!-- Add Reference button -->
         <Tooltip
           text={activeTab
@@ -866,28 +864,19 @@
         >
           <button
             onclick={openCreateDialog}
-            class="text-text-secondary hover:text-text-primary p-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="text-press-muted hover:text-press-text p-1 disabled:cursor-not-allowed"
             aria-label="Add reference"
+            data-testid="add-reference-button"
             disabled={!activeTab}
           >
             <Plus class="w-4 h-4" />
-          </button>
-        </Tooltip>
-        <!-- Reference Types settings -->
-        <Tooltip text="Reference types" position="bottom">
-          <button
-            onclick={openReferenceTypeSettings}
-            class="text-text-secondary hover:text-text-primary p-1"
-            aria-label="Reference types settings"
-          >
-            <Settings class="w-4 h-4" />
           </button>
         </Tooltip>
         <!-- Collapse All button -->
         <Tooltip text="Collapse all" position="bottom">
           <button
             onclick={collapseAll}
-            class="text-text-secondary hover:text-text-primary p-1"
+            class="text-press-muted hover:text-press-text p-1"
             aria-label="Collapse all"
           >
             <ListChevronsDownUp class="w-4 h-4" />
@@ -897,35 +886,35 @@
         <Tooltip text="Sort A-Z" position="bottom">
           <button
             onclick={sortAlphabetically}
-            class="text-text-secondary hover:text-text-primary p-1"
+            class="text-press-muted hover:text-press-text p-1"
             aria-label="Sort alphabetically"
           >
             <ArrowDownAZ class="w-4 h-4" />
           </button>
         </Tooltip>
         <!-- Close panel button -->
-        <Tooltip text="Collapse panel" position="bottom">
-          <button
-            onclick={toggleReferencesPanel}
-            class="text-text-secondary hover:text-text-primary p-1"
-            aria-label="Collapse references panel"
-          >
-            <ChevronsRight class="w-4 h-4" />
-          </button>
-        </Tooltip>
+        {#if !embedded}<Tooltip text="Collapse panel" position="bottom">
+            <button
+              onclick={toggleReferencesPanel}
+              class="text-press-muted hover:text-press-text p-1"
+              aria-label="Collapse references panel"
+            >
+              <ChevronsRight class="w-4 h-4" />
+            </button>
+          </Tooltip>{/if}
       </div>
     </div>
 
     <!-- Tabs -->
-    <div class="flex border-t border-bg-card overflow-x-auto">
+    <div class="flex border-t border-press-border overflow-x-auto">
       {#each referenceTypeOptions as typeOption (typeOption.id)}
         <button
           onclick={() => (activeTab = typeOption.id)}
-          class="flex-1 px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap"
-          class:text-accent={activeTab === typeOption.id}
+          class="flex-1 px-4 py-2 text-press-ui font-medium transition-colors whitespace-nowrap"
+          class:text-press-accent-text={activeTab === typeOption.id}
           class:border-b-2={activeTab === typeOption.id}
-          class:border-accent={activeTab === typeOption.id}
-          class:text-text-secondary={activeTab !== typeOption.id}
+          class:border-press-accent={activeTab === typeOption.id}
+          class:text-press-muted={activeTab !== typeOption.id}
         >
           {typeOption.label} ({getReferenceCount(typeOption.id)})
         </button>
@@ -934,22 +923,22 @@
   </div>
 
   <!-- Suggested References -->
-  {#if currentProject.currentScene && (suggestions.length > 0 || suggestionsLoading)}
-    <div class="border-t border-bg-card">
+  {#if referenceScene && (suggestions.length > 0 || suggestionsLoading)}
+    <div class="border-t border-press-border">
       <button
         onclick={() => (suggestionsOpen = !suggestionsOpen)}
-        class="flex items-center gap-1.5 w-full px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+        class="flex items-center gap-1.5 w-full px-3 py-1.5 text-press-eyebrow font-medium text-press-muted hover:text-press-text transition-colors cursor-pointer"
       >
         {#if suggestionsOpen}
           <ChevronDown class="w-3 h-3" />
         {:else}
           <ChevronRight class="w-3 h-3" />
         {/if}
-        <Zap class="w-3 h-3 text-amber-400" />
+        <Zap class="w-3 h-3 text-press-warning" />
         Suggested
         {#if suggestions.length > 0}
           <span
-            class="ml-auto bg-amber-500/20 text-amber-400 text-[10px] px-1.5 py-0.5 rounded-full"
+            class="ml-auto bg-press-warning-wash text-press-warning text-press-eyebrow px-1.5 py-0.5 rounded-full"
           >
             {suggestions.length}
           </span>
@@ -958,19 +947,19 @@
       {#if suggestionsOpen}
         <div class="px-2 pb-2 space-y-1">
           {#if suggestionsLoading}
-            <p class="text-xs text-text-secondary px-1 py-2">Detecting...</p>
+            <p class="text-press-eyebrow text-press-muted px-1 py-2">Detecting...</p>
           {:else}
             {#if suggestions.length > 1}
               <div class="flex items-center justify-end gap-2 px-1 pb-1">
                 <button
                   onclick={linkAllSuggestions}
-                  class="text-[10px] text-accent hover:text-accent/80 transition-colors"
+                  class="text-press-eyebrow text-press-accent-text hover:text-press-accent-text transition-colors"
                 >
                   Link All
                 </button>
                 <button
                   onclick={dismissAllSuggestions}
-                  class="text-[10px] text-text-secondary hover:text-text-primary transition-colors"
+                  class="text-press-eyebrow text-press-muted hover:text-press-text transition-colors"
                 >
                   Dismiss All
                 </button>
@@ -993,32 +982,34 @@
   <div class="flex-1 overflow-y-auto p-2">
     {#if loading}
       <div class="flex items-center justify-center p-4">
-        <span class="text-text-secondary text-sm">Loading...</span>
+        <span class="text-press-muted text-press-ui">Loading...</span>
       </div>
     {:else if !activeTab}
       <div class="flex items-center justify-center p-4">
-        <span class="text-text-secondary text-sm">
-          No reference types enabled. Use the settings cog to enable them.
+        <span class="text-press-muted text-press-ui">
+          No reference types enabled. Enable them in File → Settings → Reference Types.
         </span>
       </div>
     {:else if activeItems.length === 0}
       <div class="flex items-center justify-center p-4">
-        <span class="text-text-secondary text-sm">
+        <span class="text-press-muted text-press-ui">
           No {activeTypeOption?.label.toLowerCase() ?? "references"}
         </span>
       </div>
     {:else}
-      {#if currentProject.currentScene}
-        <div class="flex items-center justify-between px-1 pb-2 text-xs text-text-secondary">
+      {#if referenceScene}
+        <div
+          class="flex items-center justify-between px-1 pb-2 text-press-eyebrow text-press-muted"
+        >
           <span class="uppercase tracking-wide">Linked to this scene</span>
           {#if sceneReferenceLoading}
             <span>Loading…</span>
           {/if}
         </div>
         {#if sceneReferenceError}
-          <div class="px-1 pb-2 text-xs text-red-400">{sceneReferenceError}</div>
+          <div class="px-1 pb-2 text-press-eyebrow text-press-error">{sceneReferenceError}</div>
         {:else if linkedItems.length === 0 && !sceneReferenceLoading}
-          <div class="px-1 pb-2 text-xs text-text-secondary">
+          <div class="px-1 pb-2 text-press-eyebrow text-press-muted">
             No references linked to this scene yet.
           </div>
         {/if}
@@ -1026,29 +1017,28 @@
       <div class="space-y-2">
         {#each activeItems as reference, index (reference.id)}
           {@const isExpanded = expandedIds.has(reference.id)}
-          {@const attributes = formatAttributes(reference.attributes)}
           {@const notes = getNotes(reference.attributes)}
-          {@const isLinked = currentProject.currentScene ? linkedIds.has(reference.id) : false}
-          {@const canDrag = !currentProject.currentScene || isLinked}
-          {#if currentProject.currentScene && linkedItems.length > 0 && index === linkedItems.length}
+          {@const isLinked = referenceScene ? linkedIds.has(reference.id) : false}
+          {@const canDrag = !referenceScene || isLinked}
+          {#if referenceScene && linkedItems.length > 0 && index === linkedItems.length}
             <div
-              class="border-t border-bg-card pt-3 mt-3 text-xs text-text-secondary uppercase tracking-wide"
+              class="border-t border-press-border pt-3 mt-3 text-press-eyebrow text-press-muted uppercase tracking-wide"
             >
               All references
             </div>
           {/if}
           <div
-            class="bg-bg-card rounded-lg overflow-hidden"
+            class="bg-press-sunken rounded-lg overflow-hidden"
             class:ring-2={dragOverId === reference.id}
-            class:ring-accent={dragOverId === reference.id}
+            class:ring-press-focus={dragOverId === reference.id}
             style:opacity={draggedId === reference.id ? 0.5 : 1}
             data-drag-item={reference.id}
             role="listitem"
           >
-            <div class="w-full flex items-center gap-3 p-3 hover:bg-beat-header transition-colors">
+            <div class="w-full flex items-center gap-3 p-3 hover:bg-press-sunken transition-colors">
               <!-- Drag handle -->
               <div
-                class="text-text-secondary/50 cursor-grab active:cursor-grabbing shrink-0 hover:text-text-secondary"
+                class="text-press-muted cursor-grab active:cursor-grabbing shrink-0 hover:text-press-muted"
                 class:opacity-40={!canDrag}
                 onmousedown={(e) => onDragHandleMouseDown(e, reference.id, canDrag)}
                 role="button"
@@ -1057,14 +1047,14 @@
               >
                 <GripVertical class="w-4 h-4" />
               </div>
-              {#if currentProject.currentScene}
+              {#if referenceScene}
                 <Tooltip text={isLinked ? "Unlink from scene" : "Link to scene"} position="bottom">
                   <button
                     onclick={() => toggleSceneLink(reference)}
-                    class={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-xs transition-colors ${
+                    class={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-press-eyebrow transition-colors ${
                       isLinked
-                        ? "border-accent/60 text-accent hover:border-accent"
-                        : "border-bg-card text-text-secondary hover:text-text-primary hover:border-accent/40"
+                        ? "border-press-accent text-press-accent-text hover:border-press-accent"
+                        : "border-press-border text-press-muted hover:text-press-text hover:border-press-accent"
                     }`}
                     aria-label={isLinked ? "Unlink from scene" : "Link to scene"}
                   >
@@ -1076,7 +1066,7 @@
               <!-- Clickable area for expand/collapse -->
               <button
                 onclick={() => toggleExpanded(reference.id)}
-                class="flex-1 flex items-center gap-3 text-left"
+                class="flex-1 min-w-0 flex items-center gap-3 text-left"
               >
                 <!-- Reference icon -->
                 <div
@@ -1087,15 +1077,15 @@
                   {/if}
                 </div>
                 <div class="flex-1 min-w-0">
-                  <p class="text-text-primary font-medium text-sm truncate">{reference.name}</p>
+                  <p class="text-press-text font-medium text-press-ui truncate">{reference.name}</p>
                   {#if reference.description}
-                    <p class="text-text-secondary text-xs truncate">
+                    <p class="text-press-muted text-press-eyebrow truncate">
                       {stripHtml(reference.description)}
                     </p>
                   {/if}
                 </div>
                 <ChevronDown
-                  class="w-4 h-4 text-text-secondary transition-transform shrink-0 {isExpanded
+                  class="w-4 h-4 text-press-muted transition-transform shrink-0 {isExpanded
                     ? 'rotate-180'
                     : ''}"
                 />
@@ -1110,10 +1100,21 @@
               {@const hasFieldValues = refFieldDefs.some(
                 (d) => refFieldValues[d.id] != null && refFieldValues[d.id] !== ""
               )}
-              <div class="px-3 pb-3 border-t border-bg-panel">
+              {@const attributes = formatAttributes(reference.attributes)
+                .filter(
+                  ([key]) =>
+                    !refFieldDefs.some(
+                      (def) =>
+                        def.name.trim().toLowerCase() === key.trim().toLowerCase() &&
+                        refFieldValues[def.id] != null &&
+                        refFieldValues[def.id] !== ""
+                    )
+                )
+                .sort(([a], [b]) => a.localeCompare(b))}
+              <div class="px-3 pb-3 border-t border-press-border">
                 {#if reference.description}
                   <div
-                    class="text-text-primary text-sm mt-3 leading-relaxed max-w-none wrap-break-word [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
+                    class="font-prose text-press-text text-press-body mt-3 leading-relaxed max-w-press-measure wrap-break-word [&>p]:mb-2 [&>p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic"
                   >
                     <!-- eslint-disable-next-line svelte/no-at-html-tags -->
                     {@html reference.description}
@@ -1121,7 +1122,9 @@
                 {/if}
 
                 {#if notes}
-                  <p class="text-text-primary text-sm mt-3 leading-relaxed wrap-break-word">
+                  <p
+                    class="font-prose text-press-text text-press-body mt-3 leading-relaxed max-w-press-measure wrap-break-word"
+                  >
                     {notes}
                   </p>
                 {/if}
@@ -1131,12 +1134,12 @@
                     {#each refFieldDefs as def (def.id)}
                       {@const fv = refFieldValues[def.id]}
                       {#if fv != null && fv !== ""}
-                        <div class="flex gap-2 text-xs">
-                          <span class="text-text-secondary font-medium shrink-0">{def.name}:</span>
-                          <span class="text-text-primary wrap-break-word">
+                        <div class="flex gap-2 text-press-eyebrow">
+                          <span class="text-press-muted font-medium shrink-0">{def.name}:</span>
+                          <span class="text-press-text wrap-break-word">
                             {#if def.field_type === "checkbox"}
                               {fv === "true" ? "Yes" : "No"}
-                            {:else if def.field_type === "multiselect"}
+                            {:else if def.field_type === "multiselect" || def.field_type === "multi_select"}
                               {(() => {
                                 try {
                                   return (JSON.parse(fv) as string[]).join(", ");
@@ -1149,7 +1152,7 @@
                                 href={fv}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                class="text-accent hover:underline">{fv}</a
+                                class="text-press-accent-text hover:underline">{fv}</a
                               >
                             {:else}
                               {fv}
@@ -1164,9 +1167,9 @@
                 {#if attributes.length > 0}
                   <div class="mt-3 space-y-1.5">
                     {#each attributes as [key, value] (key)}
-                      <div class="flex gap-2 text-xs">
-                        <span class="text-text-secondary font-medium shrink-0">{key}:</span>
-                        <span class="text-text-primary wrap-break-word">{value}</span>
+                      <div class="flex gap-2 text-press-eyebrow">
+                        <span class="text-press-muted font-medium shrink-0">{key}:</span>
+                        <span class="text-press-text wrap-break-word">{value}</span>
                       </div>
                     {/each}
                   </div>
@@ -1174,15 +1177,13 @@
 
                 {#if currentProject.value}
                   <div class="mt-3">
-                    <span class="text-xs text-text-secondary font-medium block mb-1">Tags</span>
+                    <span class="text-press-eyebrow text-press-muted font-medium block mb-1"
+                      >Tags</span
+                    >
                     <TagSelector
                       projectId={currentProject.value.id}
                       entityType={activeTypeOption
-                        ? activeTypeOption.id === "characters"
-                          ? "character"
-                          : activeTypeOption.id === "locations"
-                            ? "location"
-                            : activeTypeOption.id
+                        ? REFERENCE_FIELD_TYPES[activeTypeOption.id]
                         : "item"}
                       entityId={reference.id}
                       {allTags}
@@ -1193,14 +1194,14 @@
                 {/if}
 
                 {#if !reference.description && !notes && attributes.length === 0 && !hasFieldValues}
-                  <p class="text-text-secondary text-sm mt-3 italic">No additional details</p>
+                  <p class="text-press-muted text-press-ui mt-3 italic">No additional details</p>
                 {/if}
 
                 <div class="flex items-center gap-2 mt-4">
                   <Tooltip text="Edit" position="bottom">
                     <button
                       onclick={() => openEditDialog(reference)}
-                      class="text-text-secondary hover:text-text-primary p-1"
+                      class="text-press-muted hover:text-press-text p-1"
                       aria-label="Edit reference"
                     >
                       <Pencil class="w-4 h-4" />
@@ -1209,7 +1210,7 @@
                   <Tooltip text="Delete" position="bottom">
                     <button
                       onclick={() => (deleteTarget = reference)}
-                      class="text-text-secondary hover:text-red-400 p-1"
+                      class="text-press-muted hover:text-press-error p-1"
                       aria-label="Delete reference"
                     >
                       <Trash2 class="w-4 h-4" />
@@ -1230,7 +1231,7 @@
   <Tooltip text="Expand references" position="left">
     <button
       onclick={toggleReferencesPanel}
-      class="fixed right-0 top-1/2 -translate-y-1/2 bg-bg-panel p-2 rounded-l-lg text-text-secondary hover:text-text-primary z-10"
+      class="fixed right-0 top-1/2 -translate-y-1/2 bg-press-surface p-2 rounded-l-lg text-press-muted hover:text-press-text z-press-raised"
       aria-label="Expand references panel"
     >
       <ChevronsLeft class="w-5 h-5" />
@@ -1258,70 +1259,10 @@
   />
 {/if}
 
-{#if showReferenceTypeSettings}
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="reference-types-title"
-    tabindex="-1"
-  >
-    <div class="bg-bg-panel rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
-      <div class="flex items-center justify-between px-4 py-3 border-b border-bg-card">
-        <h2 id="reference-types-title" class="text-lg font-medium text-text-primary">
-          Reference Types
-        </h2>
-        <Tooltip text="Close" position="left">
-          <button
-            type="button"
-            onclick={closeReferenceTypeSettings}
-            class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
-            aria-label="Close"
-          >
-            <ChevronsRight class="w-4 h-4" />
-          </button>
-        </Tooltip>
-      </div>
-      <div class="p-4 space-y-3">
-        <p class="text-sm text-text-secondary">
-          Choose which reference types appear in this project’s References panel.
-        </p>
-        <div class="space-y-2">
-          {#each REFERENCE_TYPE_OPTIONS as option (option.id)}
-            <label class="flex items-center gap-2 text-sm text-text-primary">
-              <input
-                type="checkbox"
-                class="accent-accent"
-                checked={referenceTypeSelection.includes(option.id)}
-                disabled={referenceTypeSaving}
-                onclick={() => toggleReferenceType(option.id)}
-              />
-              <span>{option.label}</span>
-            </label>
-          {/each}
-        </div>
-        {#if referenceTypeError}
-          <p class="text-sm text-red-400">{referenceTypeError}</p>
-        {/if}
-      </div>
-      <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-bg-card">
-        <button
-          type="button"
-          onclick={closeReferenceTypeSettings}
-          class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-          disabled={referenceTypeSaving}
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onclick={saveReferenceTypeSettings}
-          class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/80 transition-colors disabled:opacity-50"
-          disabled={referenceTypeSaving}
-        >
-          {referenceTypeSaving ? "Saving..." : "Save"}
-        </button>
-      </div>
-    </div>
-  </div>
+{#if copyDestination && currentProject.value?.id === copyDestination.id}
+  <CopyReferencesDialog
+    destination={copyDestination}
+    onClose={() => (copyDestination = null)}
+    onComplete={referencesCopied}
+  />
 {/if}

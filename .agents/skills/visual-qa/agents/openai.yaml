@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kindling Visual QA"
+  short_description: "Run isolated Kindling visual QA in the background"
+  default_prompt: "Use $visual-qa to run Kindling's visual regression pass and report image matches, audit failures, and cleanup."

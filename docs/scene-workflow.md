@@ -17,6 +17,10 @@ When you open a scene, the Scene panel shows its beats, synopsis, and metadata c
 
 ![Screenshot: Beat editor with prose](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/beat-with-prose.png)
 
+## Returning to a Project
+
+Reopening a project restores the last scene you viewed, the expanded beat, your prose cursor, and your scroll position. This works in both beat and page mode, including after restarting Kindling. Each project remembers its own position. If the saved scene was deleted or archived, the project opens with the usual chapter selection.
+
 ## Synopsis Editing
 
 Use the synopsis field to capture a short summary for the scene. Synopses can be edited inline and are saved automatically.
@@ -33,3 +37,30 @@ These controls influence scene filters in the sidebar and are used in exports.
 ## Scene Locking
 
 Locked scenes (or scenes inside locked chapters) are read-only. Unlock the scene to edit beats, prose, or metadata.
+
+## Cancelling quit after a save failure
+
+If saving fails while quitting, choose **Keep editing** or press **Escape** to
+return to the same writing editor and selection. Kindling restores the caret only
+while that editor still belongs to the same scene and project and you have not
+moved focus to another control outside the quit prompt.
+
+## Snapshot independence
+
+Each newly created project snapshot has its own backing file, including snapshots
+created in rapid succession. Deleting one leaves the others available to preview
+and restore.
+
+## Prose preservation
+
+Switching from Beat mode to Page mode and back preserves empty beat positions.
+Splitting a beat before a paragraph also works with curly quotes, accented text,
+CJK characters, and emoji in earlier paragraphs.
+
+Deleting a beat merges its prose into the previous beat when one exists. For
+the first beat, the confirmation explicitly warns that its prose will be
+permanently deleted. Copy any prose you want to keep before confirming.
+
+Restoring a snapshot waits for pending prose and synopsis saves before replacing
+project content. If a draft cannot be saved, restore stops so you can save or
+recover it first; an older queued save cannot overwrite the restored content.

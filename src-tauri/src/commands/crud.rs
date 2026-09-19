@@ -52,6 +52,7 @@ pub struct ProjectSettingsUpdate {
     pub reference_types: Option<Vec<String>>,
     pub project_type: Option<String>,
     pub target_page_count: Option<i32>,
+    pub daily_writing_goal: Option<i64>,
 }
 
 #[tauri::command]
@@ -63,8 +64,23 @@ pub async fn update_project_settings(
     let uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
+    apply_project_settings(&conn, &uuid, settings)
+}
+
+fn apply_project_settings(
+    conn: &rusqlite::Connection,
+    uuid: &Uuid,
+    settings: ProjectSettingsUpdate,
+) -> Result<Project, String> {
+    if settings
+        .daily_writing_goal
+        .is_some_and(|goal| !(0..=1_000_000).contains(&goal))
+    {
+        return Err("Daily goal must be a whole number between 0 and 1,000,000".into());
+    }
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     // Get the existing project
-    let mut project = db::get_project(&conn, &uuid)
+    let mut project = db::get_project(&tx, uuid)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "Project not found".to_string())?;
 
@@ -85,8 +101,18 @@ pub async fn update_project_settings(
     project.modified_at = chrono::Utc::now().to_rfc3339();
 
     // Save to database
-    db::update_project(&conn, &project).map_err(|e| e.to_string())?;
+    db::update_project(&tx, &project).map_err(|e| e.to_string())?;
 
+    if let Some(goal) = settings.daily_writing_goal {
+        db::writing::set_goal_in_transaction(
+            &tx,
+            &uuid.to_string(),
+            goal,
+            chrono::Local::now().date_naive(),
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(project)
 }
 
@@ -404,7 +430,13 @@ pub async fn save_scene_prose(
         return Err("Cannot edit a locked scene".to_string());
     }
 
-    db::update_scene_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())?;
+    db::writing::save_prose(
+        &conn,
+        db::writing::ProseTarget::Scene(uuid),
+        chrono::Local::now().date_naive(),
+        |tx| db::update_scene_prose(tx, &uuid, &prose),
+    )
+    .map_err(|e| e.to_string())?;
 
     // Update project modified time
     if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
@@ -438,7 +470,13 @@ pub async fn save_scene_page_prose(
         return Err("Cannot edit a locked scene".to_string());
     }
 
-    db::save_scene_page_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())?;
+    db::writing::save_prose(
+        &conn,
+        db::writing::ProseTarget::Scene(uuid),
+        chrono::Local::now().date_naive(),
+        |tx| db::save_scene_page_prose(tx, &uuid, &prose),
+    )
+    .map_err(|e| e.to_string())?;
 
     if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
         let _ = db::update_project_modified(&conn, &project_id);
@@ -744,7 +782,13 @@ pub async fn save_beat_prose(
         return Err("Cannot edit beats in a locked scene".to_string());
     }
 
-    db::update_beat_prose(&conn, &uuid, &prose).map_err(|e| e.to_string())?;
+    db::writing::save_prose(
+        &conn,
+        db::writing::ProseTarget::Beat(uuid),
+        chrono::Local::now().date_naive(),
+        |tx| db::update_beat_prose(tx, &uuid, &prose),
+    )
+    .map_err(|e| e.to_string())?;
 
     if let Some(project_id) =
         db::get_scene_project_id(&conn, &scene_id).map_err(|e| e.to_string())?
@@ -850,7 +894,7 @@ fn find_paragraph_offset(html: &str, paragraph_index: u32) -> Option<usize> {
     while let Some(start) = html[search_start..].find("<p") {
         let abs_start = search_start + start;
         if count == paragraph_index {
-            return Some(abs_start);
+            return Some(html[..abs_start].chars().count());
         }
         count += 1;
         search_start = abs_start + 1;
@@ -1405,15 +1449,32 @@ pub async fn reclassify_references(
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
+    reclassify_references_with_connection(&conn, project_uuid, &changes)
+}
+
+fn reclassify_references_with_connection(
+    conn: &rusqlite::Connection,
+    project_uuid: Uuid,
+    changes: &[ReferenceReclassification],
+) -> Result<Project, String> {
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
     let result: Result<Project, String> = (|| {
-        for change in &changes {
+        for change in changes {
             let reference_uuid =
                 Uuid::parse_str(&change.reference_id).map_err(|e| e.to_string())?;
             let target_type = change.new_type.trim().to_lowercase();
-            if target_type.is_empty() {
-                continue;
+            if !matches!(
+                target_type.as_str(),
+                "characters"
+                    | "locations"
+                    | "items"
+                    | "objectives"
+                    | "organizations"
+                    | "timelines"
+                    | "custom"
+            ) {
+                return Err(format!("Unknown reference type: {}", change.new_type));
             }
 
             let current_character =
@@ -1425,7 +1486,7 @@ pub async fn reclassify_references(
 
             let (current_type, scene_states) = if current_character.is_some() {
                 let states = db::get_scene_reference_states_for_reference(
-                    &conn,
+                    conn,
                     "characters",
                     &reference_uuid,
                 )
@@ -1433,7 +1494,7 @@ pub async fn reclassify_references(
                 ("characters".to_string(), states)
             } else if current_location.is_some() {
                 let states = db::get_scene_reference_states_for_reference(
-                    &conn,
+                    conn,
                     "locations",
                     &reference_uuid,
                 )
@@ -1441,7 +1502,7 @@ pub async fn reclassify_references(
                 ("locations".to_string(), states)
             } else if let Some(item) = &current_reference_item {
                 let states = db::get_scene_reference_states_for_reference(
-                    &conn,
+                    conn,
                     &item.reference_type,
                     &reference_uuid,
                 )
@@ -1466,14 +1527,14 @@ pub async fn reclassify_references(
 
             if !scene_states.is_empty() {
                 db::delete_scene_reference_states_for_reference(
-                    &conn,
+                    conn,
                     &current_type,
                     &reference_uuid,
                 )
                 .map_err(|e| e.to_string())?;
                 for state in &scene_states {
                     let max_position = db::get_scene_reference_state_max_position(
-                        &conn,
+                        conn,
                         &state.scene_id,
                         &target_type,
                     )
@@ -1512,7 +1573,7 @@ pub async fn reclassify_references(
                             }
                             db::delete_character(&tx, &character.id).map_err(|e| e.to_string())?;
                         }
-                        "items" | "objectives" | "organizations" => {
+                        "items" | "objectives" | "organizations" | "timelines" | "custom" => {
                             let item = ReferenceItem {
                                 id: character.id,
                                 project_id: character.project_id,
@@ -1554,7 +1615,7 @@ pub async fn reclassify_references(
                             }
                             db::delete_location(&tx, &location.id).map_err(|e| e.to_string())?;
                         }
-                        "items" | "objectives" | "organizations" => {
+                        "items" | "objectives" | "organizations" | "timelines" | "custom" => {
                             let item = ReferenceItem {
                                 id: location.id,
                                 project_id: location.project_id,
@@ -1616,7 +1677,7 @@ pub async fn reclassify_references(
                             db::delete_scene_reference_item_refs_for_item(&tx, &reference_uuid)
                                 .map_err(|e| e.to_string())?;
                         }
-                        "items" | "objectives" | "organizations" => {
+                        "items" | "objectives" | "organizations" | "timelines" | "custom" => {
                             db::update_reference_item_type(&tx, &item.id, &target_type)
                                 .map_err(|e| e.to_string())?;
                         }
@@ -1874,4 +1935,179 @@ pub async fn move_scene_to_chapter(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod reclassification_tests {
+    use super::*;
+    use crate::parsers::novelwriter::tests::fixture;
+
+    #[test]
+    fn reclassification_preserves_links_state_attributes_and_identity() {
+        for target in ["timelines", "custom"] {
+            for original in ["characters", "locations", "items"] {
+                let (conn, project) = fixture();
+                let (id, name) = match original {
+                    "characters" => {
+                        let c = db::get_characters(&conn, &project.id).unwrap().remove(0);
+                        (c.id, c.name)
+                    }
+                    "locations" => {
+                        let l = db::get_locations(&conn, &project.id).unwrap().remove(0);
+                        (l.id, l.name)
+                    }
+                    _ => {
+                        let r = db::get_all_reference_items(&conn, &project.id)
+                            .unwrap()
+                            .remove(0);
+                        (r.id, r.name)
+                    }
+                };
+                let scene = db::get_all_project_scenes(&conn, &project.id)
+                    .unwrap()
+                    .remove(0);
+                db::insert_scene_reference_state(
+                    &conn,
+                    &SceneReferenceState {
+                        scene_id: scene.id,
+                        reference_type: original.into(),
+                        reference_id: id,
+                        position: 0,
+                        expanded: true,
+                    },
+                )
+                .unwrap();
+                let result = reclassify_references_with_connection(
+                    &conn,
+                    project.id,
+                    &[ReferenceReclassification {
+                        reference_id: id.to_string(),
+                        new_type: target.into(),
+                    }],
+                )
+                .unwrap();
+                assert!(result.reference_types.contains(&target.to_string()));
+                let item = db::get_reference_item_by_id(&conn, &id).unwrap().unwrap();
+                assert_eq!(item.name, name);
+                assert!(!item.attributes.is_empty());
+                assert_eq!(item.reference_type, target);
+                assert_eq!(
+                    db::get_scene_ids_for_reference_item(&conn, &id).unwrap(),
+                    vec![scene.id]
+                );
+                let states =
+                    db::get_scene_reference_states_for_reference(&conn, target, &id).unwrap();
+                assert_eq!(states.len(), 1);
+                assert!(states[0].expanded);
+                reclassify_references_with_connection(
+                    &conn,
+                    project.id,
+                    &[ReferenceReclassification {
+                        reference_id: id.to_string(),
+                        new_type: "characters".into(),
+                    }],
+                )
+                .unwrap();
+                assert_eq!(
+                    db::get_scene_ids_for_character(&conn, &id).unwrap(),
+                    vec![scene.id]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_target_rolls_back_the_whole_batch_without_losing_links() {
+        let (conn, project) = fixture();
+        let character = db::get_characters(&conn, &project.id).unwrap().remove(0);
+        let before = db::get_scene_ids_for_character(&conn, &character.id).unwrap();
+        for target in ["", "not-a-type"] {
+            assert!(reclassify_references_with_connection(
+                &conn,
+                project.id,
+                &[
+                    ReferenceReclassification {
+                        reference_id: character.id.to_string(),
+                        new_type: "custom".into()
+                    },
+                    ReferenceReclassification {
+                        reference_id: character.id.to_string(),
+                        new_type: target.into()
+                    },
+                ]
+            )
+            .is_err());
+            assert!(db::get_character_by_id(&conn, &character.id)
+                .unwrap()
+                .is_some());
+            assert_eq!(
+                db::get_scene_ids_for_character(&conn, &character.id).unwrap(),
+                before
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod writing_settings_tests {
+    use super::*;
+
+    #[test]
+    fn metadata_and_daily_goal_commit_or_roll_back_together() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        let project = Project::new("Novel".into(), crate::models::SourceType::Blank, None);
+        db::insert_project(&conn, &project).unwrap();
+        let settings = || {
+            serde_json::from_value::<ProjectSettingsUpdate>(serde_json::json!({
+                "author_pen_name": "New name", "daily_writing_goal": 800
+            }))
+            .unwrap()
+        };
+        conn.execute_batch("CREATE TRIGGER fail_goal BEFORE INSERT ON writing_goals BEGIN SELECT RAISE(ABORT, 'disk failure'); END;").unwrap();
+        assert!(apply_project_settings(&conn, &project.id, settings()).is_err());
+        assert_eq!(
+            db::get_project(&conn, &project.id)
+                .unwrap()
+                .unwrap()
+                .author_pen_name,
+            None
+        );
+        assert_eq!(
+            db::writing::daily_goal(&conn, &project.id.to_string()).unwrap(),
+            500
+        );
+        conn.execute_batch("DROP TRIGGER fail_goal").unwrap();
+        let result = apply_project_settings(&conn, &project.id, settings()).unwrap();
+        assert_eq!(result.author_pen_name.as_deref(), Some("New name"));
+        assert_eq!(
+            db::writing::daily_goal(&conn, &project.id.to_string()).unwrap(),
+            800
+        );
+        let mut invalid = settings();
+        invalid.daily_writing_goal = Some(-1);
+        assert!(apply_project_settings(&conn, &project.id, invalid).is_err());
+        let legacy = serde_json::from_value(serde_json::json!({"genre": "Fantasy"})).unwrap();
+        apply_project_settings(&conn, &project.id, legacy).unwrap();
+        assert_eq!(
+            db::writing::daily_goal(&conn, &project.id.to_string()).unwrap(),
+            800
+        );
+    }
+}
+
+#[cfg(test)]
+mod unicode_split_tests {
+    use super::*;
+    #[test]
+    fn paragraph_split_uses_character_offsets_after_unicode() {
+        for prefix in ["“Don’t,” she said.", "界", "😀é界😀é界😀é界"] {
+            let first = format!("<p>{prefix}</p>");
+            let second = "<p>Second paragraph.</p>";
+            let html = format!("{first}{second}");
+            let offset = find_paragraph_offset(&html, 1).unwrap();
+            assert_eq!(html.chars().take(offset).collect::<String>(), first);
+            assert_eq!(html.chars().skip(offset).collect::<String>(), second);
+        }
+    }
 }

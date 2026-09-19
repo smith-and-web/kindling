@@ -44,7 +44,7 @@
 
 <!-- Backdrop -->
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -53,17 +53,19 @@
   tabindex="-1"
 >
   <!-- Dialog -->
-  <div class="bg-bg-panel rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
+  <div
+    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-md mx-4 overflow-hidden"
+  >
     <!-- Header -->
-    <div class="flex items-center justify-between px-4 py-3 border-b border-bg-card">
-      <h2 id="export-success-dialog-title" class="text-lg font-medium text-text-primary">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-press-border">
+      <h2 id="export-success-dialog-title" class="text-press-body-lg font-medium text-press-text">
         Export Complete
       </h2>
       <Tooltip text="Close" position="left">
         <button
           type="button"
           onclick={onClose}
-          class="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
+          class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
           aria-label="Close"
         >
           <X class="w-5 h-5" />
@@ -75,10 +77,10 @@
     <div class="p-4 space-y-4">
       <!-- Success Message -->
       <div class="flex items-start gap-3">
-        <CheckCircle class="w-6 h-6 text-success flex-shrink-0 mt-0.5" />
+        <CheckCircle class="w-6 h-6 text-press-success flex-shrink-0 mt-0.5" />
         <div>
-          <p class="text-text-primary font-medium">Successfully exported:</p>
-          <ul class="mt-2 space-y-1 text-text-secondary text-sm">
+          <p class="text-press-text font-medium">Successfully exported:</p>
+          <ul class="mt-2 space-y-1 text-press-muted text-press-ui">
             {#if result.chapters_exported > 0}
               <li>{result.chapters_exported} chapter{result.chapters_exported === 1 ? "" : "s"}</li>
             {/if}
@@ -92,19 +94,19 @@
 
       <!-- Location -->
       <div>
-        <p class="text-sm font-medium text-text-secondary mb-1">Location:</p>
-        <p class="text-sm text-text-primary break-all bg-bg-card rounded px-2 py-1.5">
+        <p class="text-press-ui font-medium text-press-muted mb-1">Location:</p>
+        <p class="text-press-ui text-press-text break-all bg-press-sunken rounded px-2 py-1.5">
           {result.output_path}
         </p>
       </div>
     </div>
 
     <!-- Footer -->
-    <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-bg-card">
+    <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-press-border">
       <button
         type="button"
         onclick={openFolder}
-        class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors flex items-center gap-2"
+        class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors flex items-center gap-2"
       >
         <FolderOpen class="w-4 h-4" />
         Open Folder
@@ -112,7 +114,7 @@
       <button
         type="button"
         onclick={onClose}
-        class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/80 transition-colors"
+        class="px-4 py-2 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors"
       >
         Close
       </button>

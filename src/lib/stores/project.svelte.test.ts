@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { currentProject } from "./project.svelte";
+import { mockScenes } from "../../dev/mock-data";
 import type {
   Chapter,
   EditorMode,
@@ -64,6 +65,56 @@ describe("currentProject store", () => {
 
     currentProject.setProject(mockProject);
     expect(currentProject.value).toEqual(mockProject);
+  });
+
+  it("should clear selection and child data when switching to a different project", () => {
+    const base = {
+      name: "P",
+      source_type: "Plottr" as const,
+      source_path: "/a.pltr",
+      created_at: new Date().toISOString(),
+      modified_at: new Date().toISOString(),
+      author_pen_name: null,
+      genre: null,
+      description: null,
+      word_target: null,
+      reference_types: ["characters", "locations"] as ReferenceTypeId[],
+      project_type: "novel" as ProjectType,
+      target_page_count: null,
+    };
+    const chapter: Chapter = {
+      id: "c1",
+      project_id: "p1",
+      title: "Ch",
+      order_index: 0,
+      ...defaultChapterMeta,
+    } as unknown as Chapter;
+    const scene: Scene = {
+      id: "s1",
+      chapter_id: "c1",
+      title: "Sc",
+      order_index: 0,
+    } as unknown as Scene;
+
+    currentProject.setProject({ ...base, id: "p1" });
+    currentProject.setChapters([chapter]);
+    currentProject.setCurrentChapter(chapter);
+    currentProject.setScenes([scene]);
+    currentProject.setCurrentScene(scene);
+
+    // Same project id: selection survives (rename / settings update path)
+    currentProject.setProject({ ...base, id: "p1", name: "Renamed" });
+    expect(currentProject.currentScene).toEqual(scene);
+    expect(currentProject.chapters).toEqual([chapter]);
+
+    // Different project id: everything from the old project is cleared
+    currentProject.setProject({ ...base, id: "p2" });
+    expect(currentProject.value?.id).toBe("p2");
+    expect(currentProject.chapters).toEqual([]);
+    expect(currentProject.currentChapter).toBeNull();
+    expect(currentProject.currentScene).toBeNull();
+    expect(currentProject.scenes).toEqual([]);
+    expect(currentProject.beats).toEqual([]);
   });
 
   it("should clear all state when setting project to null", () => {
@@ -367,6 +418,23 @@ describe("currentProject store", () => {
     currentProject.setCurrentScene(null);
 
     expect(currentProject.currentScene).toBeNull();
+    expect(currentProject.beats).toEqual([]);
+  });
+
+  it("clears the previous scene's beats while the next scene is loading", () => {
+    const scene = mockScenes[0];
+    const beat = {
+      id: "old-beat",
+      scene_id: scene.id,
+      content: "Old title",
+      prose: null,
+      position: 0,
+    };
+    currentProject.setCurrentScene(scene);
+    currentProject.setBeats([beat]);
+    currentProject.setCurrentScene({ ...scene, title: "Renamed scene" });
+    expect(currentProject.beats).toEqual([beat]);
+    currentProject.setCurrentScene({ ...scene, id: "next-scene" });
     expect(currentProject.beats).toEqual([]);
   });
 

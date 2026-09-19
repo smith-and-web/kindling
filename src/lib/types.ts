@@ -8,7 +8,14 @@
  */
 
 /** Supported outline import formats */
-export type SourceType = "Plottr" | "Markdown" | "YWriter" | "Scrivener" | "Longform" | "Blank";
+export type SourceType =
+  | "Plottr"
+  | "Markdown"
+  | "YWriter"
+  | "Scrivener"
+  | "Longform"
+  | "NovelWriter"
+  | "Blank";
 
 /** Project type: novel (default) or screenplay */
 export type ProjectType = "novel" | "screenplay";
@@ -214,10 +221,25 @@ export interface ReferenceSuggestion {
 }
 
 /** Supported reference types for the References panel */
-export type ReferenceTypeId = "characters" | "locations" | "items" | "objectives" | "organizations";
+export type ReferenceTypeId =
+  | "characters"
+  | "locations"
+  | "items"
+  | "objectives"
+  | "organizations"
+  | "timelines"
+  | "custom";
 
 /** Supported field types for custom fields */
-export type FieldType = "text" | "number" | "date" | "select" | "multiselect" | "checkbox" | "url";
+export type FieldType =
+  | "text"
+  | "number"
+  | "date"
+  | "select"
+  | "multiselect"
+  | "multi_select"
+  | "checkbox"
+  | "url";
 
 /** Entity types that support custom fields */
 export type FieldEntityType =
@@ -226,7 +248,9 @@ export type FieldEntityType =
   | "scene"
   | "item"
   | "objective"
-  | "organization";
+  | "organization"
+  | "timeline"
+  | "custom";
 
 /** Project-level definition for a custom field */
 export interface FieldDefinition {
@@ -288,8 +312,11 @@ export interface ReferenceReclassification {
 export interface SessionState {
   project_id: string;
   current_scene_id: string | null;
+  current_chapter_id: string | null;
+  current_beat_id: string | null;
   cursor_position: number | null;
   scroll_position: number | null;
+  editor_scroll_position: number | null;
   last_opened_at: string | null;
 }
 
@@ -310,7 +337,7 @@ export interface SyncAddition {
 export interface SyncChange {
   id: string;
   item_type: "chapter" | "scene" | "beat";
-  field: "title" | "synopsis" | "content";
+  field: "title" | "synopsis" | "content" | "prose";
   item_title: string;
   current_value: string;
   new_value: string;
@@ -334,6 +361,7 @@ export interface ReimportSummary {
   beats_updated: number;
   /** Count of prose blocks that were preserved (not overwritten) */
   prose_preserved: number;
+  prose_updated: number;
 }
 
 // =============================================================================
@@ -574,4 +602,61 @@ export interface StoryTemplate {
   structure: TemplatePart[];
   bundled: boolean;
   created_at?: string | null;
+}
+
+export interface NovelWriterExportOptions {
+  include_beat_comments: boolean;
+  include_notes: boolean;
+  create_snapshot: boolean;
+}
+
+/** Independent reference transfer IPC contract. */
+export interface ReferenceCopyKey {
+  reference_type: ReferenceTypeId;
+  id: string;
+}
+export interface ReferenceCopyRequest {
+  source_project_id: string;
+  destination_project_id: string;
+  selection: ReferenceCopyKey[] | null;
+  keep_both: ReferenceCopyKey[];
+}
+export interface ReferenceCopyRow extends ReferenceCopyKey {
+  name: string;
+  description: string | null;
+  selected: boolean;
+  conflict: boolean;
+  action: "copy" | "skip" | "unselected";
+  destination_name: string;
+}
+export interface ReferenceCopyPreview {
+  references: ReferenceCopyRow[];
+  changes: {
+    kind: "field" | "tag";
+    entity_type: string;
+    source_name: string;
+    destination_name: string;
+  }[];
+  enabled_types: ReferenceTypeId[];
+  copied: number;
+  skipped: number;
+  revision: string;
+}
+export interface ReferenceCopyResult {
+  project: Project;
+  created_reference_ids: string[];
+  copied: number;
+  skipped: number;
+}
+
+/** Persisted daily writing and current app-session statistics for one project. */
+export interface WritingStats {
+  project_id: string;
+  project_words: number;
+  chapter_words: Record<string, number>;
+  scene_words: Record<string, number>;
+  daily_goal: number;
+  today_words: number;
+  session_words: number;
+  streak: number;
 }

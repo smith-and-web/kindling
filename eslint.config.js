@@ -22,6 +22,7 @@ export default ts.config(
         localStorage: "readonly",
         requestAnimationFrame: "readonly",
         // DOM types
+        Element: "readonly",
         Node: "readonly",
         Event: "readonly",
         KeyboardEvent: "readonly",
@@ -30,6 +31,8 @@ export default ts.config(
         HTMLInputElement: "readonly",
         HTMLTextAreaElement: "readonly",
         HTMLDivElement: "readonly",
+        HTMLDialogElement: "readonly",
+        HTMLDetailsElement: "readonly",
         MouseEvent: "readonly",
         CustomEvent: "readonly",
         HTMLSelectElement: "readonly",
@@ -57,7 +60,15 @@ export default ts.config(
     },
   },
   {
-    ignores: ["dist/", "node_modules/", "src-tauri/", ".svelte-kit/", "build/"],
+    ignores: [
+      "dist/",
+      "node_modules/",
+      "src-tauri/",
+      ".svelte-kit/",
+      "build/",
+      // One-way mirrors are linted in their canonical brand-assets repository.
+      "src/styles/press/",
+    ],
   },
   {
     rules: {

@@ -1,3 +1,4 @@
+import { formatShortcut } from "./utils/keyboardShortcuts";
 import { describe, it, expect } from "vitest";
 import { COMMAND_DEFS, fuzzyMatch, fuzzyScore } from "./commands";
 
@@ -107,4 +108,16 @@ describe("fuzzyScore", () => {
   it("returns -1 for partial non-match", () => {
     expect(fuzzyScore("exz", "export")).toBe(-1);
   });
+});
+
+it("exposes one shared settings command without requiring an open project", () => {
+  const settings = COMMAND_DEFS.filter((command) => command.id.includes("settings"));
+  expect(settings).toEqual([
+    expect.objectContaining({
+      id: "settings",
+      label: "Settings",
+      requiresProject: false,
+      shortcut: formatShortcut("Mod+Comma"),
+    }),
+  ]);
 });

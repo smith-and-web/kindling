@@ -1,0 +1,84 @@
+@import "./styles/press/tokens.css";
+
+/* This stylesheet is linked by index.html, independently of the JS bundle. */
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-Regular-latin.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+}
+
+/* Keep every app layer beneath the startup overlay while it renders. */
+#app[aria-busy="true"] {
+  isolation: isolate;
+}
+
+#startup-loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-s);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-small);
+  line-height: var(--leading);
+}
+
+#startup-loading::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain-tile);
+  opacity: var(--grain-strength);
+  pointer-events: none;
+}
+
+#startup-loading > span,
+#startup-retry {
+  position: relative;
+}
+
+#startup-retry {
+  padding: var(--space-2xs) var(--space-s);
+  border: var(--border-hair);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+#startup-retry:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.startup-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: startup-spin 900ms linear infinite;
+}
+
+@keyframes startup-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .startup-spinner {
+    animation: none;
+  }
+}

@@ -1,5 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { get } from "svelte/store";
+import { invoke } from "@tauri-apps/api/core";
+import { synopsisSaves } from "./stores/synopsisSaves.svelte";
+import { session } from "./stores/session.svelte";
 
 vi.mock("@tauri-apps/plugin-updater", () => ({
   check: vi.fn(),
@@ -18,8 +21,15 @@ const checkMock = vi.mocked(check);
 const relaunchMock = vi.mocked(relaunch);
 
 describe("updater", () => {
+  afterEach(async () => {
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    await synopsisSaves.flush();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(invoke).mockResolvedValue(undefined);
     updateState.set(null);
   });
 
@@ -106,6 +116,146 @@ describe("updater", () => {
   });
 
   describe("installAndRelaunch", () => {
+    it("saves a debounced synopsis before entering the installer", async () => {
+      vi.useFakeTimers();
+      synopsisSaves.stage({
+        projectId: "project",
+        sceneId: "scene",
+        synopsis: "Last synopsis edit",
+      });
+      let finish!: () => void;
+      vi.mocked(invoke).mockImplementation(async (cmd) => {
+        if (cmd === "save_scene_synopsis")
+          await new Promise<void>((resolve) => {
+            finish = resolve;
+          });
+      });
+      const install = vi.fn().mockResolvedValue(undefined);
+      const installing = installAndRelaunch({
+        ready: true,
+        version: "1.2.0",
+        body: null,
+        update: { install } as never,
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      try {
+        expect(invoke).toHaveBeenCalledWith("save_scene_synopsis", {
+          sceneId: "scene",
+          synopsis: "Last synopsis edit",
+        });
+        expect(install).not.toHaveBeenCalled();
+        expect(relaunchMock).not.toHaveBeenCalled();
+      } finally {
+        finish?.();
+      }
+      await installing;
+      expect(install).toHaveBeenCalledOnce();
+      expect(relaunchMock).toHaveBeenCalledOnce();
+    });
+
+    it.each([false, true])(
+      "blocks installation until a failed synopsis can be saved (already retained: %s)",
+      async (retained) => {
+        vi.useFakeTimers();
+        const draft = { projectId: "project", sceneId: "scene", synopsis: "Do not lose this" };
+        synopsisSaves.stage(draft);
+        vi.mocked(invoke).mockRejectedValue("disk full");
+        if (retained) await expect(synopsisSaves.flush()).rejects.toThrow("disk full");
+        const install = vi.fn().mockResolvedValue(undefined);
+        const state = { ready: true, version: "1.2.0", body: null, update: { install } as never };
+        await expect(installAndRelaunch(state)).rejects.toThrow("disk full");
+        expect(install).not.toHaveBeenCalled();
+        expect(relaunchMock).not.toHaveBeenCalled();
+        expect(synopsisSaves.getState("project", "scene").draft).toEqual(draft);
+        vi.mocked(invoke).mockResolvedValue(undefined);
+        await installAndRelaunch(state);
+        expect(install).toHaveBeenCalledOnce();
+        expect(relaunchMock).toHaveBeenCalledOnce();
+      }
+    );
+
+    it.each([false, true])(
+      "continues update installation after a failed position flush (installer fails: %s)",
+      async (installFails) => {
+        const saveError = new Error("Database is locked");
+        const installError = new Error("Installer failed");
+        const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const flush = vi.spyOn(session, "flush").mockRejectedValue(saveError);
+        const install = vi.fn(async () => {
+          expect(flush).toHaveBeenCalledOnce();
+          expect(errorSpy).toHaveBeenCalledWith(
+            "Failed to save writing position before updating:",
+            saveError
+          );
+          if (installFails) throw installError;
+        });
+
+        const installing = installAndRelaunch({
+          ready: true,
+          version: "1.2.0",
+          body: null,
+          update: { install } as never,
+        });
+        if (installFails) await expect(installing).rejects.toBe(installError);
+        else await expect(installing).resolves.toBeUndefined();
+
+        expect(install).toHaveBeenCalledOnce();
+        if (installFails) {
+          expect(errorSpy).toHaveBeenCalledWith("Failed to install update:", installError);
+          expect(relaunchMock).not.toHaveBeenCalled();
+        } else {
+          expect(errorSpy).toHaveBeenCalledTimes(1);
+          expect(relaunchMock).toHaveBeenCalledOnce();
+        }
+      }
+    );
+
+    it("waits for the position flush before entering an installer that may exit the process", async () => {
+      let finishFlush!: () => void;
+      vi.spyOn(session, "flush").mockReturnValue(
+        new Promise<void>((resolve) => {
+          finishFlush = resolve;
+        })
+      );
+      let finishInstall!: () => void;
+      const install = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            finishInstall = resolve;
+          })
+      );
+      const installing = installAndRelaunch({
+        ready: true,
+        version: "1.2.0",
+        body: null,
+        update: { install } as never,
+      });
+      expect(install).not.toHaveBeenCalled();
+      finishFlush();
+      await vi.waitFor(() => expect(install).toHaveBeenCalledOnce());
+      expect(relaunchMock).not.toHaveBeenCalled();
+      finishInstall();
+      await installing;
+    });
+
+    it("flushes even if installation fails", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const flushed = vi.spyOn(session, "flush").mockResolvedValue(undefined);
+      const install = vi.fn(async () => {
+        expect(flushed).toHaveBeenCalledOnce();
+        throw new Error("install failed");
+      });
+      await expect(
+        installAndRelaunch({
+          ready: true,
+          version: "1.2.0",
+          body: null,
+          update: { install } as never,
+        })
+      ).rejects.toThrow("install failed");
+      expect(install).toHaveBeenCalledOnce();
+      expect(relaunchMock).not.toHaveBeenCalled();
+    });
     it("installs and relaunches", async () => {
       const mockUpdate = {
         install: vi.fn().mockResolvedValue(undefined),
@@ -136,7 +286,7 @@ describe("updater", () => {
       expect(relaunchMock).not.toHaveBeenCalled();
     });
 
-    it("handles install failure gracefully", async () => {
+    it("propagates install failure to the banner", async () => {
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const mockUpdate = {
         install: vi.fn().mockRejectedValue(new Error("Install failed")),
@@ -148,7 +298,7 @@ describe("updater", () => {
         update: mockUpdate as never,
       };
 
-      await installAndRelaunch(state);
+      await expect(installAndRelaunch(state)).rejects.toThrow("Install failed");
 
       expect(errorSpy).toHaveBeenCalledWith("Failed to install update:", expect.any(Error));
       errorSpy.mockRestore();

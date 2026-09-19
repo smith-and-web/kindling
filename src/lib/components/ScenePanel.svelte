@@ -1,6 +1,13 @@
 <script lang="ts">
+  import { shortcuts } from "../stores/shortcuts.svelte";
+  import { countWordsInHtml } from "../utils/wordCount";
+  import { writing } from "../stores/writing.svelte";
+  import type { SceneReview } from "../utils/revisions";
+  import WritingStatusBar from "./WritingStatusBar.svelte";
+  import Previously from "./Previously.svelte";
   import {
     FileText,
+    History,
     ChevronDown,
     Loader2,
     Plus,
@@ -16,7 +23,10 @@
   } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import ConfirmDialog from "./ConfirmDialog.svelte";
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy, onMount, untrack } from "svelte";
+  import { trackScrollPosition } from "../utils/scrollPosition";
+  import { session } from "../stores/session.svelte";
+  import { synopsisSaves } from "../stores/synopsisSaves.svelte";
   import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
@@ -32,22 +42,73 @@
     SceneType,
     Tag,
   } from "../types";
+  import { proseSaves, type ProseSave } from "../utils/proseSaves";
+  import type { ProseReplacement } from "../utils/proseSearch";
   import BeatView from "./BeatView.svelte";
   import PageView from "./PageView.svelte";
   import SluglineInput from "./SluglineInput.svelte";
   import TagSelector from "./TagSelector.svelte";
   import Tooltip from "./Tooltip.svelte";
 
-  const isScreenplay = $derived(currentProject.value?.project_type === "screenplay");
-
-  function countWordsInHtml(html: string | null | undefined): number {
-    if (!html) return 0;
-    const text = html
-      .replace(/<[^>]*>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    return text ? text.split(/\s+/).length : 0;
+  let {
+    onOpenEditorial,
+  }: {
+    onOpenEditorial?: (
+      projectId: string,
+      sceneId: string,
+      cursor?: { sourceId: string; from: number; to: number }
+    ) => Promise<void>;
+  } = $props();
+  let openingRevisions = $state(false);
+  let previousSceneVersion = $state(0);
+  let previousSceneLoading = $state(true);
+  let revisionEditorVersion = $state(0);
+  async function openRevisions() {
+    const scene = currentProject.currentScene;
+    const project = currentProject.value;
+    if (!scene || !project) return;
+    openingRevisions = true;
+    try {
+      await prepareForSearch();
+      if (proseSaves.draftsForRecovery(project.id).length)
+        throw new Error("Save or recover unsaved prose before opening Revisions.");
+      if (currentProject.currentScene?.id !== scene.id) return;
+      const anchor = window
+        .getSelection()
+        ?.anchorNode?.parentElement?.closest<HTMLElement>("[data-source-id]");
+      const wrapper = anchor ?? document.querySelector<HTMLElement>("[data-source-id]");
+      const editorElement = wrapper?.querySelector<HTMLElement>(".tiptap") as
+        | (HTMLElement & { editor?: import("@tiptap/core").Editor })
+        | null;
+      const selection = editorElement?.editor?.state.selection;
+      await onOpenEditorial?.(
+        project.id,
+        scene.id,
+        selection && wrapper?.dataset.sourceId
+          ? { sourceId: wrapper.dataset.sourceId, from: selection.from, to: selection.to }
+          : undefined
+      );
+    } catch (e) {
+      ui.showError(String(e));
+    } finally {
+      openingRevisions = false;
+    }
   }
+  export function applyRevision(review: SceneReview) {
+    previousSceneVersion++;
+    if (currentProject.currentScene?.id !== review.scene_id) return;
+    const prose = review.documents.find((d) => d.id === review.scene_id)?.html ?? "";
+    currentProject.updateScene(review.scene_id, { prose, editor_mode: review.mode });
+    pageProseContent = prose;
+    for (const doc of review.documents) {
+      if (doc.id !== review.scene_id) currentProject.updateBeatProse(doc.id, doc.html);
+    }
+    pageEditorVersion++;
+    revisionEditorVersion++;
+    writing.scheduleRefresh(currentProject.value!.id);
+  }
+
+  const isScreenplay = $derived(currentProject.value?.project_type === "screenplay");
 
   const scenePageEstimate = $derived.by(() => {
     if (!isScreenplay || !currentProject.currentScene) return null;
@@ -65,13 +126,46 @@
   );
 
   let beatViewRef: ReturnType<typeof BeatView> | undefined = $state();
-  let scrollContainerRef: HTMLDivElement | undefined = $state();
-  let synopsisSaveTimeout: ReturnType<typeof setTimeout> | null = null;
+  let scrollTracker = $state.raw<ReturnType<typeof trackScrollPosition> | null>(null);
+
+  function trackSceneScroll(
+    node: HTMLElement,
+    identifiers: { projectId: string; sceneId: string }
+  ) {
+    let ids = identifiers;
+    function create() {
+      const { projectId, sceneId } = ids;
+      const tracker = trackScrollPosition(node, (position) => {
+        session.update(projectId, sceneId, { scroll_position: position });
+      });
+      tracker.set(0);
+      scrollTracker = tracker;
+      return tracker;
+    }
+    let tracker = create();
+    return {
+      update(next: typeof identifiers) {
+        if (next.projectId === ids.projectId && next.sceneId === ids.sceneId) return;
+        tracker.destroy();
+        ids = next;
+        tracker = create();
+      },
+      destroy() {
+        tracker.destroy();
+        if (scrollTracker === tracker) scrollTracker = null;
+      },
+    };
+  }
 
   // Synopsis editing state
   let editingSynopsis = $state(false);
   let synopsisText = $state("");
-  let synopsisSaving = $state(false);
+  const synopsisSave = $derived(
+    synopsisSaves.getState(currentProject.value?.id, currentProject.currentScene?.id)
+  );
+  const synopsis = $derived(
+    synopsisSave.draft ? synopsisSave.draft.synopsis : currentProject.currentScene?.synopsis
+  );
   let metadataSaving = $state(false);
   let metadataError = $state<string | null>(null);
   let sceneTagIds = $state<string[]>([]);
@@ -97,7 +191,7 @@
   ];
 
   const sceneReferenceOptions = REFERENCE_TYPE_OPTIONS.filter(
-    (option) => option.id === "items" || option.id === "objectives" || option.id === "organizations"
+    (option) => option.id !== "characters" && option.id !== "locations"
   );
 
   let sceneReferenceItems = $state<Record<ReferenceTypeId, ReferenceItem[]>>(
@@ -245,17 +339,13 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === "d" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      discoveryNotesVisible = !discoveryNotesVisible;
-      return;
-    }
     if (e.key === "Escape") {
       if (ui.expandedBeatId) {
         beatViewRef?.flushOnSceneChange();
       }
       beatViewRef?.handleEscape();
       if (editingSynopsis) {
+        flushSynopsisSave();
         editingSynopsis = false;
       }
       if (addingDiscoveryNote) {
@@ -271,45 +361,68 @@
 
   // Synopsis functions
   function startEditingSynopsis() {
-    synopsisText = currentProject.currentScene?.synopsis || "";
+    synopsisText = synopsis || "";
     editingSynopsis = true;
   }
 
-  async function saveSynopsis() {
-    if (!currentProject.currentScene) return;
-    synopsisSaving = true;
-    try {
-      const synopsis = synopsisText.trim() || null;
-      await invoke("save_scene_synopsis", {
-        sceneId: currentProject.currentScene.id,
-        synopsis,
-      });
-      currentProject.updateSceneSynopsis(currentProject.currentScene.id, synopsis);
-      editingSynopsis = false;
-    } catch (e) {
-      console.error("Failed to save synopsis:", e);
-    } finally {
-      synopsisSaving = false;
+  function flushSynopsisSave() {
+    if (synopsisProjectId && synopsisSceneId) {
+      void synopsisSaves.flush(synopsisProjectId, synopsisSceneId).catch(() => {});
     }
   }
 
   function handleSynopsisInput(value: string) {
     synopsisText = value;
-    // Debounce auto-save
-    if (synopsisSaveTimeout) {
-      clearTimeout(synopsisSaveTimeout);
-    }
-    synopsisSaveTimeout = setTimeout(() => {
-      saveSynopsis();
-    }, 1000);
+    const sceneId = currentProject.currentScene?.id;
+    const projectId = currentProject.value?.id;
+    if (!sceneId || !projectId) return;
+    synopsisSaves.stage({ projectId, sceneId, synopsis: value.trim() || null });
   }
 
+  let synopsisProjectId: string | undefined;
+  let synopsisSceneId: string | undefined;
+  $effect(() => {
+    // Only navigation should close the editor; autosave updates the same scene object.
+    const projectId = currentProject.value?.id;
+    const sceneId = currentProject.currentScene?.id;
+    if (projectId === synopsisProjectId && sceneId === synopsisSceneId) return;
+    untrack(() => {
+      flushSynopsisSave();
+      editingSynopsis = false;
+      synopsisText = "";
+    });
+    synopsisProjectId = projectId;
+    synopsisSceneId = sceneId;
+  });
+
   let lastSceneId: string | null = null;
+  let completedViewport: typeof session.viewport = null;
+  // A cancelled navigation publishes no request. This effect owns only the viewport it applies.
+  $effect(() => {
+    const request = session.viewport;
+    const tracker = scrollTracker;
+    if (
+      !request ||
+      !tracker ||
+      request === completedViewport ||
+      request.projectId !== currentProject.value?.id ||
+      request.sceneId !== currentProject.currentScene?.id ||
+      discoveryNotesLoading ||
+      sceneReferenceLoading ||
+      previousSceneLoading
+    )
+      return;
+    return untrack(() =>
+      tracker.restore(request.position, () => {
+        completedViewport = request;
+      })
+    );
+  });
+
   $effect(() => {
     const sceneId = currentProject.currentScene?.id ?? null;
     if (lastSceneId && sceneId !== lastSceneId) {
       beatViewRef?.flushOnSceneChange();
-      if (scrollContainerRef) scrollContainerRef.scrollTop = 0;
     }
     lastSceneId = sceneId;
   });
@@ -437,23 +550,34 @@
   // Page View state
   let switchingMode = $state(false);
   let pageProseContent = $state("");
+  let pageEditorVersion = $state(0);
   let pageProseSaveTimeout: ReturnType<typeof setTimeout> | null = null;
   let pageProseSaveStatus = $state<"idle" | "saving" | "error">("idle");
   let showSwitchToBeatConfirm = $state(false);
 
   // Sync page prose content when scene changes
   let lastPageViewSceneId: string | null = null;
+  let pageProseProjectId = "";
   $effect(() => {
     const scene = currentProject.currentScene;
+    if ((scene?.id ?? null) === lastPageViewSceneId) return;
+    if (pageProseSaveTimeout) {
+      clearTimeout(pageProseSaveTimeout);
+      savePageProse();
+    }
+    pageProseSaveStatus = "idle";
+    lastPageViewSceneId = scene?.id ?? null;
+    pageProseProjectId = currentProject.value?.id ?? "";
     if (!scene || scene.editor_mode !== "page") return;
-    if (scene.id === lastPageViewSceneId) return;
-    lastPageViewSceneId = scene.id;
-    pageProseContent = scene.prose ?? "";
+    const unsaved = proseSaves
+      .draftsForRecovery(pageProseProjectId)
+      .find((draft) => draft.kind === "page" && draft.id === scene.id);
+    pageProseContent = unsaved?.prose ?? scene.prose ?? "";
   });
 
   async function switchEditorMode(targetMode: EditorMode) {
     const scene = currentProject.currentScene;
-    if (!scene || switchingMode) return;
+    if (!scene || switchingMode || isLocked) return;
 
     if (targetMode === "beat" && scene.editor_mode === "page") {
       showSwitchToBeatConfirm = true;
@@ -465,28 +589,19 @@
 
   async function doSwitchMode(targetMode: EditorMode) {
     const scene = currentProject.currentScene;
-    if (!scene || switchingMode) return;
+    if (!scene || switchingMode || isLocked) return;
 
     switchingMode = true;
     try {
-      // Flush unsaved beat prose before leaving beat mode
-      if (scene.editor_mode === "beat") {
-        beatViewRef?.flushOnSceneChange();
-      }
-
-      if (scene.editor_mode === "page" && pageProseSaveTimeout) {
-        clearTimeout(pageProseSaveTimeout);
-        pageProseSaveTimeout = null;
-        await invoke("save_scene_page_prose", {
-          sceneId: scene.id,
-          prose: pageProseContent,
-        });
-      }
+      await prepareForSearch();
+      if (currentProject.currentScene?.id !== scene.id || isLocked) return;
+      beatViewRef?.flushOnSceneChange();
 
       const updated = await invoke<Scene>("switch_scene_editor_mode", {
         sceneId: scene.id,
         mode: targetMode,
       });
+      if (currentProject.currentScene?.id !== scene.id) return;
       currentProject.refreshCurrentScene(updated);
 
       if (targetMode === "page") {
@@ -496,11 +611,12 @@
         const freshBeats = await invoke<Beat[]>("get_beats", {
           sceneId: scene.id,
         });
+        if (currentProject.currentScene?.id !== scene.id) return;
         currentProject.setBeats(freshBeats);
       }
     } catch (e) {
       console.error("Failed to switch editor mode:", e);
-      ui.showError("Failed to switch editor mode");
+      ui.showError(`Failed to switch editor mode: ${String(e)}`);
     } finally {
       switchingMode = false;
     }
@@ -508,36 +624,135 @@
 
   function handlePageProseUpdate(html: string) {
     pageProseContent = html;
+    // The store is the working copy used when navigating back, even while a save is in flight.
+    // Failed writes remain recoverable in proseSaves; an older acknowledgement must not replace this text.
+    if (currentProject.currentScene?.id === lastPageViewSceneId && lastPageViewSceneId) {
+      currentProject.updateScene(lastPageViewSceneId, { prose: html });
+    }
     if (pageProseSaveTimeout) clearTimeout(pageProseSaveTimeout);
     pageProseSaveStatus = "idle";
     pageProseSaveTimeout = setTimeout(() => savePageProse(), 500);
   }
 
-  async function savePageProse() {
-    const scene = currentProject.currentScene;
-    if (!scene) return;
-    pageProseSaveStatus = "saving";
-    try {
-      await invoke("save_scene_page_prose", {
-        sceneId: scene.id,
-        prose: pageProseContent,
-      });
-      pageProseSaveStatus = "idle";
-    } catch (e) {
-      console.error("Failed to save page prose:", e);
-      pageProseSaveStatus = "error";
+  let pageSaveQueue: Promise<void> = Promise.resolve();
+
+  function savePageProse() {
+    const sceneId = lastPageViewSceneId;
+    const prose = pageProseContent;
+    pageProseSaveTimeout = null;
+    if (!sceneId) return pageSaveQueue;
+    const writing = proseSaves.save({
+      projectId: pageProseProjectId,
+      kind: "page",
+      id: sceneId,
+      prose,
+    });
+    pageSaveQueue = persistPageProse(sceneId, prose, pageProseProjectId, writing);
+    return pageSaveQueue;
+  }
+
+  export async function prepareForSearch() {
+    await beatViewRef?.flushForSearch();
+    if (pageProseSaveTimeout) {
+      clearTimeout(pageProseSaveTimeout);
+      pageProseSaveTimeout = null;
+      await savePageProse();
+    }
+    await pageSaveQueue;
+    await proseSaves.flush(currentProject.value?.id ?? "", (save) => {
+      if (currentProject.value?.id !== save.projectId) return;
+      if (save.kind === "beat") currentProject.updateBeatProse(save.id, save.prose);
+      else {
+        currentProject.updateScene(save.id, { prose: save.prose });
+        if (currentProject.currentScene?.id === save.id) pageProseContent = save.prose;
+      }
+    });
+    pageProseSaveStatus = "idle";
+  }
+
+  // Called atomically with queue discard when the user approves quitting without saving.
+  export function discardProseDraftsForClose(drafts: ProseSave[]) {
+    beatViewRef?.discardFailedDrafts(drafts);
+    if (
+      drafts.some(
+        (draft) =>
+          draft.kind === "page" &&
+          draft.projectId === pageProseProjectId &&
+          draft.id === lastPageViewSceneId &&
+          draft.prose === pageProseContent
+      )
+    ) {
+      if (pageProseSaveTimeout) clearTimeout(pageProseSaveTimeout);
+      pageProseSaveTimeout = null;
     }
   }
 
-  function stripHtmlTags(html: string): string {
-    return html.replace(/<[^>]*>/g, "").trim();
+  export async function discardFailedSaves(drafts: ProseSave[]) {
+    const projectId = currentProject.value?.id;
+    const scene = currentProject.currentScene;
+    const draftView = beatViewRef;
+    // Reload before discarding: a read failure must leave the recoverable draft intact.
+    const scenes = scene
+      ? await invoke<Scene[]>("get_scenes", { chapterId: scene.chapter_id })
+      : [];
+    const freshScene = scenes.find((s) => s.id === scene?.id);
+    const beats = freshScene ? await invoke<Beat[]>("get_beats", { sceneId: freshScene.id }) : [];
+    if (currentProject.value?.id !== projectId || currentProject.currentScene?.id !== scene?.id) {
+      throw new Error("The selected project or scene changed. Reopen Find and Replace.");
+    }
+    await proseSaves.discard(drafts, () => draftView?.discardFailedDrafts(drafts));
+    if (currentProject.value?.id !== projectId || currentProject.currentScene?.id !== scene?.id)
+      return;
+    if (scene) {
+      currentProject.setScenes(scenes);
+      currentProject.setBeats(beats);
+      currentProject.setCurrentScene(freshScene ?? null);
+      if (drafts.some((draft) => draft.kind === "page" && draft.id === scene.id)) {
+        if (pageProseSaveTimeout) clearTimeout(pageProseSaveTimeout);
+        pageProseSaveTimeout = null;
+        pageProseContent = freshScene?.prose ?? "";
+        pageEditorVersion += 1;
+      }
+    }
+    pageProseSaveStatus = "idle";
+    previousSceneVersion++;
+  }
+
+  export function applySearchChanges(changes: Pick<ProseReplacement, "id" | "prose">[]) {
+    previousSceneVersion++;
+    void writing.refresh(currentProject.value?.id);
+    for (const change of changes) {
+      currentProject.updateBeatProse(change.id, change.prose);
+      currentProject.updateScene(change.id, { prose: change.prose });
+      if (currentProject.currentScene?.id === change.id) pageProseContent = change.prose;
+    }
+  }
+
+  async function persistPageProse(
+    sceneId: string,
+    prose: string,
+    projectId: string,
+    writing: Promise<void>
+  ) {
+    pageProseSaveStatus = "saving";
+    try {
+      await writing;
+      const newerQueued = proseSaves
+        .draftsForRecovery(projectId)
+        .some((draft) => draft.id === sceneId && draft.prose !== prose);
+      const newerEditor = currentProject.currentScene?.id === sceneId && pageProseContent !== prose;
+      if (currentProject.value?.id === projectId && !newerQueued && !newerEditor) {
+        currentProject.updateScene(sceneId, { prose });
+      }
+      if (currentProject.currentScene?.id === sceneId) pageProseSaveStatus = "idle";
+    } catch (e) {
+      console.error("Failed to save page prose:", e);
+      if (currentProject.currentScene?.id === sceneId) pageProseSaveStatus = "error";
+    }
   }
 
   function getPageWordCount(): number {
-    if (!pageProseContent) return 0;
-    return stripHtmlTags(pageProseContent)
-      .split(/\s+/)
-      .filter((w) => w.length > 0).length;
+    return countWordsInHtml(pageProseContent);
   }
 
   onMount(() => {
@@ -558,6 +773,7 @@
   });
 
   onDestroy(() => {
+    flushSynopsisSave();
     beatViewRef?.flushOnSceneChange();
     if (pageProseSaveTimeout) {
       clearTimeout(pageProseSaveTimeout);
@@ -569,10 +785,24 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div data-testid="scene-panel" class="flex-1 flex flex-col h-full overflow-hidden">
-  {#if currentProject.currentScene}
+  {#if currentProject.currentScene && currentProject.value}
     {@const scene = currentProject.currentScene}
-    <div bind:this={scrollContainerRef} class="flex-1 overflow-y-auto">
+    {@const projectId = currentProject.value.id}
+    <div use:trackSceneScroll={{ projectId, sceneId: scene.id }} class="flex-1 overflow-y-auto">
       <div class="max-w-3xl mx-auto p-8">
+        <Previously refreshVersion={previousSceneVersion} bind:loading={previousSceneLoading}>
+          {#snippet actions()}
+            <button
+              type="button"
+              disabled={openingRevisions}
+              onclick={openRevisions}
+              class="flex items-center gap-2 py-1 text-press-ui font-press-ui text-press-muted hover:text-press-text"
+            >
+              <History class="w-4 h-4" strokeWidth={1} aria-hidden="true" />
+              {openingRevisions ? "Opening revisions…" : "Revisions"}
+            </button>
+          {/snippet}
+        </Previously>
         <!-- Scene Title -->
         <header class="mb-8">
           <div class="flex items-center gap-3 flex-wrap">
@@ -587,14 +817,14 @@
             {:else}
               <h1
                 data-testid="scene-title"
-                class="text-3xl font-heading font-semibold text-text-primary"
+                class="text-press-h1 font-heading font-semibold text-press-text"
               >
                 {scene.title}
               </h1>
             {/if}
             {#if isLocked}
               <span
-                class="flex items-center gap-1 px-2 py-1 bg-amber-500/10 text-amber-500 rounded-lg text-sm"
+                class="flex items-center gap-1 px-2 py-1 bg-press-warning-wash text-press-warning rounded-lg text-press-ui"
               >
                 <Lock class="w-4 h-4" />
                 Locked
@@ -602,24 +832,24 @@
             {/if}
           </div>
           {#if currentProject.currentChapter}
-            <p class="text-text-secondary text-sm mt-1">
+            <p class="text-press-muted text-press-ui mt-1">
               {currentProject.currentChapter.title}
             </p>
           {/if}
           {#if isScreenplay && scenePageEstimate !== null}
-            <span class="text-xs text-text-secondary mt-1">
+            <span class="text-press-eyebrow text-press-muted mt-1">
               ~{scenePageEstimate.toFixed(1)} pg
             </span>
           {/if}
           <div class="mt-4 flex flex-wrap gap-4">
             <div class="flex flex-col gap-1">
-              <label for="scene-type" class="text-xs text-text-secondary">Scene type</label>
+              <label for="scene-type" class="text-press-eyebrow text-press-muted">Scene type</label>
               <div class="relative">
                 <select
                   id="scene-type"
                   value={scene.scene_type ?? "normal"}
                   onchange={(event) => handleSceneTypeChange(event, scene)}
-                  class="appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer disabled:opacity-60"
+                  class="appearance-none bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus cursor-pointer"
                   disabled={isLocked || metadataSaving}
                 >
                   {#each sceneTypeOptions as option (option.value)}
@@ -627,18 +857,18 @@
                   {/each}
                 </select>
                 <ChevronDown
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-press-muted pointer-events-none"
                 />
               </div>
             </div>
             <div class="flex flex-col gap-1">
-              <label for="scene-status" class="text-xs text-text-secondary">Status</label>
+              <label for="scene-status" class="text-press-eyebrow text-press-muted">Status</label>
               <div class="relative">
                 <select
                   id="scene-status"
                   value={scene.scene_status ?? "draft"}
                   onchange={(event) => handleSceneStatusChange(event, scene)}
-                  class="appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer disabled:opacity-60"
+                  class="appearance-none bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus cursor-pointer"
                   disabled={isLocked || metadataSaving}
                 >
                   {#each sceneStatusOptions as option (option.value)}
@@ -646,7 +876,7 @@
                   {/each}
                 </select>
                 <ChevronDown
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-press-muted pointer-events-none"
                 />
               </div>
             </div>
@@ -657,10 +887,10 @@
               >
                 <label
                   for="planning-status"
-                  class="text-xs text-text-secondary cursor-help flex items-center gap-1"
+                  class="text-press-eyebrow text-press-muted cursor-help flex items-center gap-1"
                 >
                   Planning
-                  <Info class="w-3 h-3 text-text-secondary/50" />
+                  <Info class="w-3 h-3 text-press-muted" />
                 </label>
               </Tooltip>
               <div class="relative">
@@ -668,7 +898,7 @@
                   id="planning-status"
                   value={scene.planning_status ?? "fixed"}
                   onchange={(event) => handleScenePlanningStatusChange(event, scene)}
-                  class="appearance-none bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 cursor-pointer disabled:opacity-60"
+                  class="appearance-none bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus cursor-pointer"
                   disabled={isLocked || metadataSaving}
                 >
                   {#each planningStatusOptions as option (option.value)}
@@ -676,23 +906,24 @@
                   {/each}
                 </select>
                 <ChevronDown
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none"
+                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-press-muted pointer-events-none"
                 />
               </div>
             </div>
           </div>
           {#if (scene.planning_status ?? "fixed") === "fixed"}
             <div class="flex flex-col gap-1">
-              <span class="text-xs text-text-secondary">View</span>
-              <div class="flex bg-bg-card rounded-lg p-0.5">
+              <span class="text-press-eyebrow text-press-muted">View</span>
+              <div class="flex bg-press-sunken rounded-lg p-0.5">
                 <Tooltip text="Beat cards" position="top">
                   <button
+                    data-testid="view-beats"
                     onclick={() => switchEditorMode("beat")}
                     disabled={switchingMode || isLocked}
-                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors {scene.editor_mode ===
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-press-ui transition-colors {scene.editor_mode ===
                     'beat'
-                      ? 'bg-accent text-white'
-                      : 'text-text-secondary hover:text-text-primary'}"
+                      ? 'bg-press-accent text-press-on-accent'
+                      : 'text-press-muted hover:text-press-text'}"
                   >
                     <LayoutGrid class="w-3.5 h-3.5" />
                     Beats
@@ -700,12 +931,13 @@
                 </Tooltip>
                 <Tooltip text="Full page prose" position="top">
                   <button
+                    data-testid="view-page"
                     onclick={() => switchEditorMode("page")}
                     disabled={switchingMode || isLocked}
-                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors {scene.editor_mode ===
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-press-ui transition-colors {scene.editor_mode ===
                     'page'
-                      ? 'bg-accent text-white'
-                      : 'text-text-secondary hover:text-text-primary'}"
+                      ? 'bg-press-accent text-press-on-accent'
+                      : 'text-press-muted hover:text-press-text'}"
                   >
                     <AlignLeft class="w-3.5 h-3.5" />
                     Page
@@ -715,14 +947,14 @@
             </div>
           {/if}
           {#if metadataError}
-            <p class="text-xs text-red-400 mt-2">{metadataError}</p>
+            <p class="text-press-eyebrow text-press-error mt-2">{metadataError}</p>
           {/if}
         </header>
 
         <!-- Scene tags -->
         {#if currentProject.value}
           <div class="mb-4 flex items-center gap-2">
-            <span class="text-xs text-text-secondary shrink-0">Tags</span>
+            <span class="text-press-eyebrow text-press-muted shrink-0">Tags</span>
             <TagSelector
               projectId={currentProject.value.id}
               entityType="scene"
@@ -736,44 +968,44 @@
 
         <!-- Planning status guidance (first-time, shown once on any scene) -->
         {#if !ui.hasSeenTooltip("planningStatus")}
-          <div class="mb-6 px-4 py-3 bg-accent/5 border border-accent/15 rounded-lg">
+          <div class="mb-6 px-4 py-3 bg-press-accent-wash border border-press-accent rounded-lg">
             <div class="flex items-start gap-2.5">
-              <Lightbulb class="w-4 h-4 text-accent shrink-0 mt-0.5" />
+              <Lightbulb class="w-4 h-4 text-press-accent-text shrink-0 mt-0.5" />
               <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-sm font-medium text-text-primary">Rolling outline</p>
+                  <p class="text-press-ui font-medium text-press-text">Rolling outline</p>
                   <button
                     onclick={() => ui.markTooltipSeen("planningStatus")}
-                    class="p-0.5 text-text-secondary hover:text-text-primary rounded transition-colors shrink-0"
+                    class="p-0.5 text-press-muted hover:text-press-text rounded transition-colors shrink-0"
                     aria-label="Dismiss"
                   >
                     <X class="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <p class="text-xs text-text-secondary leading-relaxed mt-1 mb-2.5">
-                  The <strong class="text-text-primary">Planning</strong> dropdown above controls how
-                  much structure this scene has. Use it to work through your story gradually:
+                <p class="text-press-eyebrow text-press-muted leading-relaxed mt-1 mb-2.5">
+                  The <strong class="text-press-text">Planning</strong> dropdown above controls how much
+                  structure this scene has. Use it to work through your story gradually:
                 </p>
                 <div class="grid grid-cols-3 gap-3">
-                  <div class="text-xs">
-                    <span class="font-medium text-text-secondary/60 flex items-center gap-1"
+                  <div class="text-press-eyebrow">
+                    <span class="font-medium text-press-muted flex items-center gap-1"
                       ><CircleDashed class="w-3 h-3" /> Undefined</span
                     >
-                    <p class="text-text-secondary/70 mt-0.5">
+                    <p class="text-press-muted mt-0.5">
                       A placeholder — you know it exists but haven't planned it.
                     </p>
                   </div>
-                  <div class="text-xs">
-                    <span class="font-medium text-amber-500/70 flex items-center gap-1"
+                  <div class="text-press-eyebrow">
+                    <span class="font-medium text-press-warning flex items-center gap-1"
                       ><CircleDot class="w-3 h-3" /> Flexible</span
                     >
-                    <p class="text-text-secondary/70 mt-0.5">
+                    <p class="text-press-muted mt-0.5">
                       You have the gist — a synopsis and rough direction.
                     </p>
                   </div>
-                  <div class="text-xs">
-                    <span class="font-medium text-text-primary flex items-center gap-1">Fixed</span>
-                    <p class="text-text-secondary/70 mt-0.5">
+                  <div class="text-press-eyebrow">
+                    <span class="font-medium text-press-text flex items-center gap-1">Fixed</span>
+                    <p class="text-press-muted mt-0.5">
                       Full structure with beats, references, and notes.
                     </p>
                   </div>
@@ -785,19 +1017,21 @@
 
         <!-- Undefined: Placeholder view -->
         {#if (scene.planning_status ?? "fixed") === "undefined"}
-          <div class="mb-8 p-6 bg-bg-panel rounded-lg border border-dashed border-bg-card">
+          <div
+            class="mb-8 p-6 bg-press-surface rounded-lg border border-dashed border-press-border"
+          >
             <div class="flex items-start gap-3">
               <div
-                class="w-8 h-8 rounded-full bg-text-secondary/10 flex items-center justify-center shrink-0 mt-0.5"
+                class="w-8 h-8 rounded-full bg-press-border flex items-center justify-center shrink-0 mt-0.5"
               >
-                <CircleDashed class="w-4 h-4 text-text-secondary/60" />
+                <CircleDashed class="w-4 h-4 text-press-muted" />
               </div>
               <div>
-                <h3 class="text-sm font-medium text-text-primary mb-1">Undefined scene</h3>
-                <p class="text-text-secondary text-sm mb-1">
+                <h3 class="text-press-ui font-medium text-press-text mb-1">Undefined scene</h3>
+                <p class="text-press-muted text-press-ui mb-1">
                   This is a placeholder — you know it exists but haven't planned it yet.
                 </p>
-                <p class="text-text-secondary/70 text-xs mb-3">
+                <p class="text-press-muted text-press-eyebrow mb-3">
                   Add a synopsis above to capture the gist, then promote it when you're ready to
                   flesh it out.
                 </p>
@@ -805,13 +1039,13 @@
                   <div class="flex items-center gap-2">
                     <button
                       onclick={() => setScenePlanningStatus(scene, "flexible")}
-                      class="px-3 py-1.5 rounded-md bg-accent/10 text-accent text-sm font-medium hover:bg-accent/20 transition-colors"
+                      class="px-3 py-1.5 rounded-md bg-press-accent-wash text-press-accent-text text-press-ui font-medium hover:text-press-text transition-colors"
                     >
                       Switch to Flexible
                     </button>
                     <button
                       onclick={() => setScenePlanningStatus(scene, "fixed")}
-                      class="px-3 py-1.5 rounded-md text-text-secondary text-sm hover:text-text-primary hover:bg-bg-card transition-colors"
+                      class="px-3 py-1.5 rounded-md text-press-muted text-press-ui hover:text-press-text hover:bg-press-sunken transition-colors"
                     >
                       Go straight to Fixed
                     </button>
@@ -822,26 +1056,28 @@
           </div>
         {:else if (scene.planning_status ?? "fixed") === "flexible"}
           <!-- Flexible: Synopsis + prompt to add beats -->
-          <div class="mb-8 p-6 bg-bg-panel rounded-lg border border-dashed border-bg-card">
+          <div
+            class="mb-8 p-6 bg-press-surface rounded-lg border border-dashed border-press-border"
+          >
             <div class="flex items-start gap-3">
               <div
-                class="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5"
+                class="w-8 h-8 rounded-full bg-press-warning-wash flex items-center justify-center shrink-0 mt-0.5"
               >
-                <CircleDot class="w-4 h-4 text-amber-500/70" />
+                <CircleDot class="w-4 h-4 text-press-warning" />
               </div>
               <div>
-                <h3 class="text-sm font-medium text-text-primary mb-1">Flexible scene</h3>
-                <p class="text-text-secondary text-sm mb-1">
+                <h3 class="text-press-ui font-medium text-press-text mb-1">Flexible scene</h3>
+                <p class="text-press-muted text-press-ui mb-1">
                   You have an idea for this scene but haven't locked down the structure.
                 </p>
-                <p class="text-text-secondary/70 text-xs mb-3">
+                <p class="text-press-muted text-press-eyebrow mb-3">
                   Use the synopsis to capture your intent. When you're ready to break it into beats,
                   switch to Fixed.
                 </p>
                 {#if !isLocked}
                   <button
                     onclick={() => setScenePlanningStatus(scene, "fixed")}
-                    class="px-3 py-1.5 rounded-md bg-accent/10 text-accent text-sm font-medium hover:bg-accent/20 transition-colors"
+                    class="px-3 py-1.5 rounded-md bg-press-accent-wash text-press-accent-text text-press-ui font-medium hover:text-press-text transition-colors"
                   >
                     Define beats
                   </button>
@@ -853,12 +1089,12 @@
 
         <!-- Locked Banner -->
         {#if isLocked}
-          <div class="mb-8 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-            <div class="flex items-center gap-2 text-amber-500">
+          <div class="mb-8 px-4 py-3 bg-press-warning-wash border border-press-warning rounded-lg">
+            <div class="flex items-center gap-2 text-press-warning">
               <Lock class="w-4 h-4" />
               <span class="font-medium">This scene is locked</span>
             </div>
-            <p class="text-text-secondary text-sm mt-1">
+            <p class="text-press-muted text-press-ui mt-1">
               {#if currentProject.currentChapter?.locked}
                 The parent chapter is locked. Unlock the chapter to edit this scene.
               {:else}
@@ -871,14 +1107,14 @@
         <!-- Synopsis (shown for all planning statuses) -->
         <section class="mb-8">
           <div class="flex items-center justify-between mb-2">
-            <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">
+            <h2 class="text-press-ui font-semibold text-press-text uppercase tracking-wide">
               Synopsis
             </h2>
-            {#if scene.synopsis && !editingSynopsis && !isLocked}
+            {#if synopsis && !editingSynopsis && !isLocked}
               <Tooltip text="Edit synopsis" position="left">
                 <button
                   onclick={startEditingSynopsis}
-                  class="text-text-secondary hover:text-text-primary transition-colors p-1"
+                  class="text-press-muted hover:text-press-text transition-colors p-1"
                   aria-label="Edit synopsis"
                 >
                   <Pencil class="w-3.5 h-3.5" />
@@ -889,44 +1125,55 @@
           {#if editingSynopsis && !isLocked}
             <div class="relative">
               <textarea
-                class="w-full min-h-[100px] bg-bg-card rounded-lg p-4 text-text-primary font-prose italic leading-relaxed resize-y border border-accent focus:outline-none"
+                class="w-full min-h-[100px] bg-press-sunken rounded-lg p-4 text-press-text font-prose italic leading-relaxed resize-y border border-press-accent focus:outline-none"
                 placeholder="Write a brief synopsis for this scene..."
                 bind:value={synopsisText}
                 oninput={(e) => handleSynopsisInput(e.currentTarget.value)}
               ></textarea>
-              {#if synopsisSaving}
-                <div
-                  class="absolute bottom-3 right-3 flex items-center gap-1.5 text-text-secondary/50"
-                >
+              {#if synopsisSave.saving}
+                <div class="absolute bottom-3 right-3 flex items-center gap-1.5 text-press-muted">
                   <Loader2 class="w-3.5 h-3.5 animate-spin" />
-                  <span class="text-xs">Saving...</span>
+                  <span class="text-press-eyebrow">Saving...</span>
                 </div>
               {/if}
             </div>
-            <p class="text-text-secondary text-xs mt-2">
+            <p class="text-press-muted text-press-eyebrow mt-2">
               Press Escape to close. Changes are saved automatically.
             </p>
-          {:else if scene.synopsis}
-            <div class="bg-bg-panel rounded-lg p-4 border-l-2 border-accent">
-              <p class="text-text-primary font-prose italic">
-                {scene.synopsis}
+          {:else if synopsis}
+            <div class="bg-press-surface rounded-lg p-4 border-l-2 border-press-accent">
+              <p class="text-press-text font-prose italic">
+                {synopsis}
               </p>
             </div>
           {:else if !isLocked}
             <button
               onclick={startEditingSynopsis}
-              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-bg-card text-text-secondary hover:text-text-primary hover:border-accent transition-colors"
+              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-press-border text-press-muted hover:text-press-text hover:border-press-accent transition-colors"
             >
               <Plus class="w-4 h-4" />
-              <span class="text-sm">Add Synopsis</span>
+              <span class="text-press-ui">Add Synopsis</span>
             </button>
           {:else}
             <div
-              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-bg-card text-text-secondary/50"
+              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-press-border text-press-muted"
             >
               <Lock class="w-4 h-4" />
-              <span class="text-sm">Scene is locked</span>
+              <span class="text-press-ui">Scene is locked</span>
             </div>
+          {/if}
+          {#if synopsisSave.error}
+            <div role="alert" class="mt-2 text-press-ui text-press-error">
+              <p>Synopsis not saved: {synopsisSave.error}. Your draft is kept for retry.</p>
+              <button
+                onclick={flushSynopsisSave}
+                disabled={synopsisSave.saving}
+                class="underline mt-1 disabled:opacity-50"
+                aria-label="Retry synopsis save">Retry saving</button
+              >
+            </div>
+          {:else if synopsisSave.draft && !synopsisSave.saving}
+            <p role="status" class="mt-2 text-press-eyebrow text-press-muted">Unsaved changes</p>
           {/if}
         </section>
 
@@ -934,15 +1181,15 @@
         {#if (scene.planning_status ?? "fixed") === "fixed"}
           <section class="mb-8">
             <div class="flex items-center justify-between mb-2">
-              <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide">
+              <h2 class="text-press-ui font-semibold text-press-text uppercase tracking-wide">
                 References
               </h2>
               {#if sceneReferenceLoading}
-                <span class="text-xs text-text-secondary">Loading…</span>
+                <span class="text-press-eyebrow text-press-muted">Loading…</span>
               {/if}
             </div>
             {#if sceneReferenceError}
-              <p class="text-xs text-red-400">{sceneReferenceError}</p>
+              <p class="text-press-eyebrow text-press-error">{sceneReferenceError}</p>
             {:else}
               {@const hasSceneReferences = sceneReferenceOptions.some(
                 (option) => (sceneReferenceItems[option.id]?.length ?? 0) > 0
@@ -954,14 +1201,14 @@
                     {#if items.length > 0}
                       {@const Icon = option.icon}
                       <div>
-                        <div class="flex items-center gap-2 text-xs text-text-secondary">
+                        <div class="flex items-center gap-2 text-press-eyebrow text-press-muted">
                           <Icon class={`w-3.5 h-3.5 ${option.accentClass}`} />
                           <span class="font-medium">{option.label}</span>
                         </div>
                         <div class="mt-2 flex flex-wrap gap-2">
                           {#each items as item (item.id)}
                             <span
-                              class="px-2 py-1 rounded-md bg-bg-panel text-text-primary text-xs"
+                              class="px-2 py-1 rounded-md bg-press-surface text-press-text text-press-eyebrow"
                             >
                               {item.name}
                             </span>
@@ -972,15 +1219,13 @@
                   {/each}
                 </div>
               {:else if !sceneReferenceLoading}
-                <div class="text-sm text-text-secondary">
-                  No linked items, objectives, or organizations.
-                </div>
+                <div class="text-press-ui text-press-muted">No linked reference notes.</div>
               {/if}
             {/if}
           </section>
         {/if}
 
-        <!-- Discovery Notes (Fixed only, Cmd/Ctrl+D) -->
+        <!-- Discovery Notes (Fixed only) -->
         {#if (scene.planning_status ?? "fixed") === "fixed"}
           <section class="mb-8">
             <button
@@ -989,43 +1234,44 @@
               class="flex items-center justify-between w-full mb-2 text-left group"
             >
               <h2
-                class="text-sm font-semibold text-text-primary uppercase tracking-wide group-hover:text-text-primary transition-colors"
+                class="text-press-ui font-semibold text-press-text uppercase tracking-wide group-hover:text-press-text transition-colors"
               >
                 Discovery Notes
               </h2>
-              <span class="text-xs text-text-secondary">
-                {discoveryNotesVisible ? "Hide" : "Show"} (⌘D)
+              <span class="text-press-eyebrow text-press-muted">
+                {discoveryNotesVisible ? "Hide" : "Show"}
+                {shortcuts.label("toggle_discovery_notes")}
               </span>
             </button>
             {#if discoveryNotesVisible}
               {#if discoveryNotesLoading}
-                <p class="text-sm text-text-secondary">Loading…</p>
+                <p class="text-press-ui text-press-muted">Loading…</p>
               {:else}
                 <div class="space-y-3">
                   {#if !addingDiscoveryNote && !isLocked}
                     <button
                       type="button"
                       onclick={startAddingDiscoveryNote}
-                      class="flex items-center gap-1 text-text-secondary hover:text-text-primary transition-colors text-sm"
+                      class="flex items-center gap-1 text-press-muted hover:text-press-text transition-colors text-press-ui"
                     >
                       <Plus class="w-3.5 h-3.5" />
                       <span>Add note</span>
                     </button>
                   {/if}
                   {#if addingDiscoveryNote}
-                    <div class="flex flex-col gap-2 p-3 rounded-lg bg-bg-panel">
+                    <div class="flex flex-col gap-2 p-3 rounded-lg bg-press-surface">
                       <textarea
                         bind:value={newDiscoveryNoteContent}
                         placeholder="What did you discover?"
                         rows="2"
-                        class="w-full px-3 py-2 rounded-md bg-bg-base text-text-primary text-sm placeholder:text-text-secondary/50 resize-none focus:outline-none focus:ring-2 focus:ring-accent"
+                        class="w-full px-3 py-2 rounded-md bg-press-sunken text-press-text text-press-ui placeholder:text-press-muted resize-none focus:outline-none focus:ring-2 focus:ring-press-focus"
                       ></textarea>
                       <div class="flex gap-2">
                         <button
                           type="button"
                           onclick={createDiscoveryNote}
                           disabled={!newDiscoveryNoteContent.trim() || creatingDiscoveryNote}
-                          class="px-3 py-1.5 rounded-md bg-accent text-white text-sm font-medium disabled:opacity-50"
+                          class="px-3 py-1.5 rounded-md bg-press-accent text-press-on-accent text-press-ui font-medium"
                         >
                           {creatingDiscoveryNote ? "Adding…" : "Add"}
                         </button>
@@ -1035,7 +1281,7 @@
                             addingDiscoveryNote = false;
                             newDiscoveryNoteContent = "";
                           }}
-                          class="px-3 py-1.5 rounded-md bg-bg-card text-text-secondary text-sm hover:text-text-primary"
+                          class="px-3 py-1.5 rounded-md bg-press-sunken text-press-muted text-press-ui hover:text-press-text"
                         >
                           Cancel
                         </button>
@@ -1044,19 +1290,19 @@
                   {/if}
                   {#each discoveryNotes as note}
                     {@const isEditing = editingDiscoveryNoteId === note.id}
-                    <div class="p-3 rounded-lg bg-bg-panel">
+                    <div class="p-3 rounded-lg bg-press-surface">
                       {#if isEditing}
                         <textarea
                           bind:value={editingDiscoveryNoteContent}
                           rows="2"
-                          class="w-full px-3 py-2 rounded-md bg-bg-base text-text-primary text-sm resize-none focus:outline-none focus:ring-2 focus:ring-accent mb-2"
+                          class="w-full px-3 py-2 rounded-md bg-press-sunken text-press-text text-press-ui resize-none focus:outline-none focus:ring-2 focus:ring-press-focus mb-2"
                         ></textarea>
                         <div class="flex gap-2">
                           <button
                             type="button"
                             onclick={() =>
                               updateDiscoveryNote(note.id, editingDiscoveryNoteContent)}
-                            class="px-3 py-1.5 rounded-md bg-accent text-white text-sm font-medium"
+                            class="px-3 py-1.5 rounded-md bg-press-accent text-press-on-accent text-press-ui font-medium"
                           >
                             Save
                           </button>
@@ -1066,18 +1312,22 @@
                               editingDiscoveryNoteId = null;
                               editingDiscoveryNoteContent = "";
                             }}
-                            class="px-3 py-1.5 rounded-md bg-bg-card text-text-secondary text-sm hover:text-text-primary"
+                            class="px-3 py-1.5 rounded-md bg-press-sunken text-press-muted text-press-ui hover:text-press-text"
                           >
                             Cancel
                           </button>
                         </div>
                       {:else}
-                        <p class="text-sm text-text-primary whitespace-pre-wrap">{note.content}</p>
+                        <p
+                          class="font-prose text-press-body text-press-text whitespace-pre-wrap max-w-press-measure"
+                        >
+                          {note.content}
+                        </p>
                         {#if note.tags && note.tags.length > 0}
                           <div class="flex flex-wrap gap-1 mt-2">
                             {#each note.tags as tag}
                               <span
-                                class="px-1.5 py-0.5 rounded bg-bg-base text-xs text-text-secondary"
+                                class="px-1.5 py-0.5 rounded bg-press-sunken text-press-eyebrow text-press-muted"
                               >
                                 {tag}
                               </span>
@@ -1091,14 +1341,14 @@
                               editingDiscoveryNoteId = note.id;
                               editingDiscoveryNoteContent = note.content;
                             }}
-                            class="text-xs text-text-secondary hover:text-text-primary"
+                            class="text-press-eyebrow text-press-muted hover:text-press-text"
                           >
                             Edit
                           </button>
                           <button
                             type="button"
                             onclick={() => deleteDiscoveryNote(note.id)}
-                            class="text-xs text-text-secondary hover:text-red-400"
+                            class="text-press-eyebrow text-press-muted hover:text-press-error"
                           >
                             Delete
                           </button>
@@ -1106,7 +1356,7 @@
                             type="button"
                             onclick={() => promoteNoteToBeat(note)}
                             disabled={promotingNoteId === note.id}
-                            class="text-xs text-text-secondary hover:text-accent disabled:opacity-50"
+                            class="text-press-eyebrow text-press-muted hover:text-press-accent-text"
                           >
                             {promotingNoteId === note.id ? "Promoting…" : "Promote to beat"}
                           </button>
@@ -1115,7 +1365,7 @@
                     </div>
                   {/each}
                   {#if discoveryNotes.length === 0 && !addingDiscoveryNote}
-                    <p class="text-sm text-text-secondary">No discovery notes yet.</p>
+                    <p class="text-press-ui text-press-muted">No discovery notes yet.</p>
                   {/if}
                 </div>
               {/if}
@@ -1125,28 +1375,38 @@
 
         <!-- Page View (Fixed + Page mode) -->
         {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode === "page"}
-          <PageView
-            content={pageProseContent}
-            readonly={isLocked}
-            saveStatus={pageProseSaveStatus}
-            wordCount={getPageWordCount()}
-            onUpdate={handlePageProseUpdate}
-          />
+          {#key pageEditorVersion}
+            <PageView
+              projectId={currentProject.value?.id}
+              sceneId={scene.id}
+              content={pageProseContent}
+              readonly={isLocked || switchingMode || openingRevisions}
+              saveStatus={pageProseSaveStatus}
+              wordCount={getPageWordCount()}
+              onUpdate={handlePageProseUpdate}
+            />
+          {/key}
         {/if}
 
         <!-- Beats (Fixed + Beat mode only) -->
         {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode !== "page"}
-          <BeatView bind:this={beatViewRef} beats={currentProject.beats} {isLocked} />
+          {#key revisionEditorVersion}
+            <BeatView
+              bind:this={beatViewRef}
+              beats={currentProject.beats}
+              isLocked={isLocked || switchingMode || openingRevisions}
+            />
+          {/key}
         {/if}
 
         <!-- Scene Prose fallback (Fixed + Beat mode only, if exists and no beats) -->
         {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode !== "page" && scene.prose && currentProject.beats.length === 0}
           <section class="mt-8">
-            <h2 class="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">
+            <h2 class="text-press-ui font-semibold text-press-text uppercase tracking-wide mb-4">
               Content
             </h2>
-            <div class="bg-bg-panel rounded-lg p-6">
-              <p class="text-text-primary font-prose leading-relaxed whitespace-pre-wrap">
+            <div class="bg-press-surface rounded-lg p-6">
+              <p class="text-press-text font-prose leading-relaxed whitespace-pre-wrap">
                 {scene.prose}
               </p>
             </div>
@@ -1158,13 +1418,16 @@
     <!-- Empty State -->
     <div
       data-testid="empty-state"
-      class="flex-1 flex flex-col items-center justify-center text-text-secondary"
+      class="flex-1 flex flex-col items-center justify-center text-press-muted"
     >
       <FileText class="w-16 h-16 mb-4 opacity-50" strokeWidth={1.5} />
-      <p class="text-lg">Select a scene to start writing</p>
-      <p class="text-sm mt-1">Choose a scene from the sidebar to view its content</p>
+      <p class="text-press-body-lg">Select a scene to start writing</p>
+      <p class="text-press-ui mt-1">Choose a scene from the sidebar to view its content</p>
     </div>
   {/if}
+  {#key currentProject.value?.id}
+    <WritingStatusBar />
+  {/key}
 </div>
 
 {#if showSwitchToBeatConfirm}

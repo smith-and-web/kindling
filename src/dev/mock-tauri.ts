@@ -1,9 +1,15 @@
+import { countWordsInHtml } from "../lib/utils/wordCount";
+import { planMockCopy } from "./mock-reference-copy";
+import type { ReferenceCopyRequest } from "../lib/types";
+import type { ProseDocument, ProseReplacement } from "../lib/utils/proseSearch";
+import { IMPORT_FORMATS, importTypeForCommand } from "../lib/importFormats";
 /**
  * Mock Tauri invoke() for browser-only dev (npm run dev without Tauri).
  * Provides an in-memory backend so Cursor can drive the full UI via browser tools.
  */
 
 import type {
+  WritingStats,
   Project,
   Chapter,
   Scene,
@@ -20,6 +26,7 @@ import type {
   EntityTag,
   SavedFilter,
   StoryTemplate,
+  SessionState,
 } from "../lib/types";
 
 import {
@@ -34,6 +41,27 @@ import {
 } from "./mock-data";
 
 // Mutable in-memory store (cloned from seed so we can mutate)
+const writingGoals = new Map<string, number>();
+const writingDays = new Map<string, { words: number; goal: number }>();
+const writingSessions = new Map<string, number>();
+function writingDate() {
+  return new Date().toLocaleDateString("en-CA");
+}
+function mockSceneWords(scene: Scene) {
+  const sceneBeats = beats.filter((beat) => beat.scene_id === scene.id);
+  return scene.editor_mode === "page" || sceneBeats.length === 0
+    ? countWordsInHtml(scene.prose)
+    : sceneBeats.reduce((sum, beat) => sum + countWordsInHtml(beat.prose), 0);
+}
+function recordMockWriting(scene: Scene, before: number) {
+  const projectId = chapters.find((chapter) => chapter.id === scene.chapter_id)?.project_id;
+  if (!projectId) return;
+  const delta = mockSceneWords(scene) - before;
+  const key = `${projectId}:${writingDate()}`;
+  const previous = writingDays.get(key) ?? { words: 0, goal: writingGoals.get(projectId) ?? 500 };
+  writingDays.set(key, { ...previous, words: previous.words + delta });
+  writingSessions.set(projectId, (writingSessions.get(projectId) ?? 0) + delta);
+}
 let projects: Project[] = [{ ...mockProject }];
 let chapters: Chapter[] = mockChapters.map((c) => ({ ...c }));
 let scenes: Scene[] = mockScenes.map((s) => ({ ...s }));
@@ -49,6 +77,7 @@ let fieldValues: FieldValue[] = [];
 let tags: Tag[] = [];
 let entityTags: EntityTag[] = [];
 let savedFilters: SavedFilter[] = [];
+const sessions = new Map<string, SessionState>();
 
 let idCounter = 100;
 
@@ -82,16 +111,171 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
   const referenceId = getArg<string>(args, "referenceId", "reference_id");
   const snapshotId = getArg<string>(args, "snapshotId", "snapshot_id");
 
+  const importType = importTypeForCommand(cmd);
+  if (importType) {
+    return {
+      ...projects[0]!,
+      source_type: IMPORT_FORMATS[importType].sourceType,
+      source_path: getArg<string>(args, "path") ?? "/mock/path/story.pltr",
+      modified_at: new Date().toISOString(),
+    } as T;
+  }
   switch (cmd) {
-    // Import - return the seed project
-    case "import_plottr":
-    case "import_ywriter":
-    case "import_markdown":
-    case "import_longform":
-    case "import_scrivener": {
-      const path = getArg<string>(args, "path") ?? "/mock/path/story.pltr";
-      const project = projects[0]!;
-      return { ...project, source_path: path, modified_at: new Date().toISOString() } as T;
+    case "create_blank_project": {
+      const project: Project = {
+        ...mockProject,
+        id: nextId("project"),
+        name: getArg<string>(args, "name") ?? "Untitled",
+        source_type: "Blank",
+        source_path: null,
+        reference_types: ["characters", "locations"],
+        created_at: new Date().toISOString(),
+        modified_at: new Date().toISOString(),
+      };
+      projects.push(project);
+      return project as T;
+    }
+    case "preview_reference_copy":
+    case "copy_references_between_projects": {
+      const request = args.request as ReferenceCopyRequest;
+      const all = [
+        ...characters.map((r) => ({ ...r, reference_type: "characters" as const })),
+        ...locations.map((r) => ({ ...r, reference_type: "locations" as const })),
+        ...referenceItems,
+      ];
+      const plan = planMockCopy(
+        {
+          projects,
+          references: all,
+          fields: fieldDefinitions,
+          values: fieldValues,
+          tags,
+          assignments: entityTags,
+        },
+        request
+      );
+      if (cmd === "preview_reference_copy") return plan.preview as T;
+      if (args.expectedRevision !== plan.preview.revision)
+        throw {
+          code: "stale_preview",
+          message: "References changed. Refresh the preview and review it before copying.",
+        };
+      const refs = new Map<string, string>();
+      for (const row of plan.preview.references.filter((r) => r.action === "copy")) {
+        const original = plan.sourceRefs.find((r) => r.id === row.id)!;
+        const next = {
+          ...structuredClone(original),
+          id: nextId("reference"),
+          project_id: request.destination_project_id,
+          source_id: null,
+          name: row.destination_name,
+        };
+        refs.set(row.id, next.id);
+        if (next.reference_type === "characters") characters.push(next);
+        else if (next.reference_type === "locations") locations.push(next);
+        else referenceItems.push(next);
+      }
+      fieldDefinitions.push(...plan.fields);
+      tags.push(...plan.tags);
+      fieldValues.push(
+        ...plan.values.map((v) => ({
+          ...v,
+          id: nextId("value"),
+          field_definition_id: plan.fieldMap.get(v.field_definition_id)!,
+          entity_id: refs.get(v.entity_id)!,
+        }))
+      );
+      entityTags.push(
+        ...plan.assignments.map((a) => ({
+          ...a,
+          tag_id: plan.tagMap.get(a.tag_id)!,
+          entity_id: refs.get(a.entity_id)!,
+        }))
+      );
+      if (refs.size) {
+        plan.destination.reference_types.push(...plan.preview.enabled_types);
+        plan.destination.modified_at = new Date().toISOString();
+      }
+      return {
+        project: plan.destination,
+        created_reference_ids: [...refs.values()],
+        copied: plan.preview.copied,
+        skipped: plan.preview.skipped,
+      } as T;
+    }
+
+    case "get_session_state": {
+      const saved = sessions.get(projectId!);
+      const scene = scenes.find((s) => s.id === saved?.current_scene_id && !s.archived);
+      const chapter = chapters.find(
+        (c) => c.id === scene?.chapter_id && !c.archived && c.project_id === projectId
+      );
+      return (saved && scene && chapter ? { ...saved, current_chapter_id: chapter.id } : null) as T;
+    }
+    case "save_session_state": {
+      const saved = args.session as SessionState;
+      sessions.set(saved.project_id, { ...saved });
+      return undefined as T;
+    }
+    case "get_search_documents": {
+      const documents: ProseDocument[] = [];
+      for (const chapter of chapters
+        .filter((c) => c.project_id === projectId && !c.archived)
+        .sort((a, b) => a.position - b.position)) {
+        for (const scene of scenes
+          .filter(
+            (s) => s.chapter_id === chapter.id && !s.archived && s.planning_status === "fixed"
+          )
+          .sort((a, b) => a.position - b.position)) {
+          const base: ProseDocument = {
+            id: scene.id,
+            scene_id: scene.id,
+            chapter_id: chapter.id,
+            chapter_title: chapter.title,
+            scene_title: scene.title,
+            beat_title: null,
+            prose: scene.prose ?? "",
+            locked: chapter.locked || scene.locked,
+          };
+          const sceneBeats = beats
+            .filter((b) => b.scene_id === scene.id)
+            .sort((a, b) => a.position - b.position);
+          if (scene.editor_mode === "page" || !sceneBeats.length) documents.push(base);
+          else
+            for (const beat of sceneBeats)
+              documents.push({
+                ...base,
+                id: beat.id,
+                beat_title: beat.content,
+                prose: beat.prose ?? "",
+              });
+        }
+      }
+      return documents as T;
+    }
+
+    case "replace_prose_batch": {
+      const changes = getArg<ProseReplacement[]>(args, "changes") ?? [];
+      const documents = await invoke<ProseDocument[]>("get_search_documents", { projectId });
+      const seen = new Set<string>();
+      // Validate the whole batch before mutating, matching the real transaction.
+      for (const change of changes) {
+        const doc = documents.find((d) => d.id === change.id);
+        if (!doc)
+          throw new Error("Prose is no longer available. Close and reopen Find and Replace.");
+        if (seen.has(change.id) || doc.prose !== change.expected_prose)
+          throw new Error("Prose changed since searching. Close and reopen Find and Replace.");
+        if (doc.locked) throw new Error("Cannot replace prose in a locked scene or chapter.");
+        seen.add(change.id);
+      }
+      for (const change of changes) {
+        const doc = documents.find((d) => d.id === change.id)!;
+        if (doc.beat_title !== null) beats.find((b) => b.id === change.id)!.prose = change.prose;
+        else scenes.find((s) => s.id === change.id)!.prose = change.prose;
+      }
+      const project = projects.find((p) => p.id === projectId);
+      if (changes.length && project) project.modified_at = new Date().toISOString();
+      return undefined as T;
     }
 
     case "preview_import": {
@@ -131,10 +315,15 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       return projects as T;
 
     case "update_project_settings": {
-      const settings = getArg<Partial<Project>>(args, "settings");
+      const settings = getArg<Partial<Project> & { daily_writing_goal?: number }>(args, "settings");
       if (!projectId || !settings) throw new Error("Missing projectId or settings");
       const idx = projects.findIndex((p) => p.id === projectId);
       if (idx < 0) throw new Error(`Project not found: ${projectId}`);
+      if (settings.daily_writing_goal !== undefined) {
+        writingGoals.set(projectId, settings.daily_writing_goal);
+        const day = writingDays.get(`${projectId}:${writingDate()}`);
+        if (day) day.goal = settings.daily_writing_goal;
+      }
       projects[idx] = { ...projects[idx]!, ...settings };
       return projects[idx] as T;
     }
@@ -359,7 +548,12 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       return locations.filter((l) => l.project_id === projectId) as T;
 
     case "get_references": {
-      const list = referenceItems.filter(
+      const all = [
+        ...characters.map((r) => ({ ...r, reference_type: "characters" })),
+        ...locations.map((r) => ({ ...r, reference_type: "locations" })),
+        ...referenceItems,
+      ];
+      const list = all.filter(
         (r) => r.project_id === projectId && r.reference_type === referenceType
       );
       return list as T;
@@ -411,8 +605,10 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         attributes: reference.attributes ?? {},
         source_id: null,
       };
-      referenceItems.push(newRef);
-      return undefined as T;
+      if (referenceType === "characters") characters.push(newRef);
+      else if (referenceType === "locations") locations.push(newRef);
+      else referenceItems.push(newRef);
+      return newRef.id as T;
     }
 
     case "update_reference": {
@@ -422,7 +618,9 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         attributes?: Record<string, string>;
       }>(args, "reference");
       if (!referenceId || !reference) return undefined as T;
-      const ref = referenceItems.find((r) => r.id === referenceId);
+      const ref = [...characters, ...locations, ...referenceItems].find(
+        (r) => r.id === referenceId
+      );
       if (ref) {
         ref.name = reference.name;
         ref.description = reference.description ?? ref.description;
@@ -434,6 +632,8 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
     case "delete_reference": {
       if (!referenceId) return undefined as T;
       referenceItems = referenceItems.filter((r) => r.id !== referenceId);
+      characters = characters.filter((r) => r.id !== referenceId);
+      locations = locations.filter((r) => r.id !== referenceId);
       return undefined as T;
     }
 
@@ -449,11 +649,61 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       return proj as T;
     }
 
+    case "get_writing_stats": {
+      if (!projectId) throw new Error("Missing projectId");
+      const result: WritingStats = {
+        project_id: projectId,
+        project_words: 0,
+        chapter_words: {},
+        scene_words: {},
+        daily_goal: writingGoals.get(projectId) ?? 500,
+        today_words: writingDays.get(`${projectId}:${writingDate()}`)?.words ?? 0,
+        session_words: writingSessions.get(projectId) ?? 0,
+        streak: 0,
+      };
+      for (const chapter of chapters.filter(
+        (chapter) => chapter.project_id === projectId && !chapter.archived
+      )) {
+        let total = 0;
+        for (const scene of scenes.filter(
+          (scene) => scene.chapter_id === chapter.id && !scene.archived
+        )) {
+          const count = mockSceneWords(scene);
+          result.scene_words[scene.id] = count;
+          total += count;
+        }
+        result.chapter_words[chapter.id] = total;
+        result.project_words += total;
+      }
+      const today = writingDays.get(`${projectId}:${writingDate()}`);
+      result.streak = today && today.goal > 0 && today.words >= today.goal ? 1 : 0;
+      return result as T;
+    }
+    case "set_daily_writing_goal": {
+      const goal = getArg<number>(args, "goal");
+      if (!projectId || goal === undefined || !Number.isInteger(goal) || goal < 0 || goal > 1000000)
+        throw new Error("Invalid daily goal");
+      writingGoals.set(projectId, goal);
+      const day = writingDays.get(`${projectId}:${writingDate()}`);
+      if (day) day.goal = goal;
+      return undefined as T;
+    }
+    case "reset_writing_session": {
+      if (!projectId) throw new Error("Missing projectId");
+      writingSessions.delete(projectId);
+      return undefined as T;
+    }
+
     case "save_beat_prose": {
       const prose = getArg<string>(args, "prose");
       if (!beatId) throw new Error("Missing beatId");
       const b = beats.find((x) => x.id === beatId);
-      if (b) b.prose = prose ?? null;
+      if (b) {
+        const scene = scenes.find((scene) => scene.id === b.scene_id);
+        const before = scene ? mockSceneWords(scene) : 0;
+        b.prose = prose ?? null;
+        if (scene) recordMockWriting(scene, before);
+      }
       return undefined as T;
     }
 
@@ -557,7 +807,11 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       if (!sceneId) throw new Error("Missing sceneId");
       const prose = getArg<string>(args, "prose") ?? "";
       const sc = scenes.find((s) => s.id === sceneId);
-      if (sc) sc.prose = prose;
+      if (sc) {
+        const before = mockSceneWords(sc);
+        sc.prose = prose;
+        recordMockWriting(sc, before);
+      }
       return undefined as T;
     }
 
@@ -572,6 +826,7 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         beats_added: 0,
         beats_updated: 0,
         prose_preserved: 0,
+        prose_updated: 0,
       } as T;
     }
 
@@ -589,6 +844,7 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
         beats_added: 0,
         beats_updated: 0,
         prose_preserved: 0,
+        prose_updated: 0,
       } as T;
     }
 
@@ -738,9 +994,13 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
     case "preview_scrivener_matches":
       return [] as T;
 
+    case "export_to_novelwriter":
     case "export_to_scrivener": {
       const options = getArg<{ output_path?: string }>(args, "options");
-      const outputPath = options?.output_path ?? "/mock/path/export";
+      const outputPath =
+        getArg<string>(args, "outputPath", "output_path") ??
+        options?.output_path ??
+        "/mock/path/export";
       return {
         output_path: outputPath,
         files_created: 1,

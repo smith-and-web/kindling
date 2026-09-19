@@ -147,13 +147,12 @@ describe("Re-import to Update Project (#40)", () => {
       await clickSyncButton();
 
       // Wait for sync preview dialog
-      const dialog = await browser.waitUntil(
-        async () => {
-          const d = await $('[data-testid="sync-preview-dialog"]');
-          return (await d.isExisting()) ? d : false;
-        },
+      await browser.waitUntil(
+        async () => (await $('[data-testid="sync-preview-dialog"]')).isExisting(),
         { timeout: 10000 }
       );
+      // Re-query after the wait: isExisting can succeed for a handle created before the dialog.
+      const dialog = await $('[data-testid="sync-preview-dialog"]');
 
       expect(await dialog.isExisting()).toBe(true);
     });
@@ -162,13 +161,12 @@ describe("Re-import to Update Project (#40)", () => {
       await clickSyncButton();
 
       // Wait for sync preview dialog
-      const dialog = await browser.waitUntil(
-        async () => {
-          const d = await $('[data-testid="sync-preview-dialog"]');
-          return (await d.isExisting()) ? d : false;
-        },
+      await browser.waitUntil(
+        async () => (await $('[data-testid="sync-preview-dialog"]')).isExisting(),
         { timeout: 10000 }
       );
+      // Re-query after the wait: isExisting can succeed for a handle created before the dialog.
+      const dialog = await $('[data-testid="sync-preview-dialog"]');
 
       // Check dialog content (use textContent for WebKit)
       const text = await browser.execute((el) => el.textContent, dialog);
@@ -246,13 +244,12 @@ describe("Re-import to Update Project (#40)", () => {
       await clickSyncButton();
 
       // Wait for sync preview dialog
-      const dialog = await browser.waitUntil(
-        async () => {
-          const d = await $('[data-testid="sync-preview-dialog"]');
-          return (await d.isExisting()) ? d : false;
-        },
+      await browser.waitUntil(
+        async () => (await $('[data-testid="sync-preview-dialog"]')).isExisting(),
         { timeout: 10000 }
       );
+      // Re-query after the wait: isExisting can succeed for a handle created before the dialog.
+      const dialog = await $('[data-testid="sync-preview-dialog"]');
 
       expect(await dialog.isExisting()).toBe(true);
 

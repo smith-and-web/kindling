@@ -33,7 +33,8 @@ src/                      Svelte 5 + TS frontend
   lib/components/         UI components (*.svelte, co-located *.test.ts)
   lib/stores/            Runed stores (*.svelte.ts)
   lib/utils/             Helpers (theme, import, ...)
-  app.css                Tailwind + Kindling brand tokens (@theme block)
+  app.css                Tailwind + Press imports, fonts, and app-wide styles
+  styles/press/           Generated read-only mirror + Tailwind token bridge
 src-tauri/src/           Rust backend
   commands/              Tauri IPC commands (import, export, crud, sync, ...)
   parsers/               Import parsers: plottr, ywriter, scrivener, longform, markdown
@@ -54,6 +55,9 @@ npm test -- --coverage   # frontend tests with coverage gate
 npm run check            # svelte-check (types)
 npm run lint             # eslint src/
 npm run format:check     # prettier check
+npm run sync:design-system   # sync Press from the sibling brand-assets repo
+npm run check:design-system  # fail if a synced file or generated bridge drifted
+# Add -- --with-app-icons when the canonical app-icon master changes.
 
 cd src-tauri && cargo test --all-features                                  # Rust tests
 cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings   # Rust lint
@@ -61,6 +65,21 @@ cd src-tauri && cargo fmt --all -- --check                                 # Rus
 
 npm run check:all        # everything CI checks (types, format, lint, rust fmt+clippy)
 ```
+
+## Press design system
+
+`../brand-assets/design-system/` is the canonical source for the app's colours,
+typography, spacing, states, elevation, and component foundations. Read
+`DESIGN_GUIDE.md` before changing UI. Never define a token locally or hand-edit
+anything under `src/styles/press/`; change Press upstream, regenerate
+`tokens.json`, then run `npm run sync:design-system` here. Light is the default
+theme and dark remains a supported app theme.
+
+Use token-backed utilities from the generated Tailwind bridge. Never free-hand a
+hex, font family, font size, z-index, or reduced text opacity in app UI. Reading
+prose uses Newsreader, operational UI uses Inter, headings use Fraunces, and prose
+is capped by `--measure`. Verify shared-style changes through computed styles in
+both themes because component-scoped Svelte CSS can win the cascade.
 
 ## Conventions
 
@@ -80,10 +99,76 @@ npm run check:all        # everything CI checks (types, format, lint, rust fmt+c
   behavior change.
 - **DOCX export** follows Standard Manuscript Format — don't change those rules casually.
 
+### Commit type and scope feed the release notes
+
+Release notes are generated from commit messages —
+`npm run changelog` runs `conventional-changelog -p conventionalcommits -i
+CHANGELOG.md -s`. The commit message _is_ the release note, so two things are
+worth getting right at commit time because they are tedious to fix afterwards.
+
+**Type decides whether users see it.** In practice this preset renders only
+`feat` (Features) and `fix` (Bug Fixes) sections; `chore`, `docs`, `style`,
+`refactor`, `test`, `ci` and `build` are hidden. So pick the type by asking
+whether a _writer using Kindling_ would care. Work on the toolchain, CI, git
+hooks or the blacksmith orchestrator is `chore` or `ci` even when it fixes
+something — `fix(blacksmith): ...` puts an automation detail in front of end
+users, and the 1.1.0 notes already carry `fix(dev)` and `fix(mock)` entries
+that mean nothing to a novelist.
+
+**Scope should name a product area, not a work item.** Good: `export`,
+`scrivener`, `plottr`, `editor`, `import`, `db`, `ui`. Not a PRD id, work-unit
+id, branch name or ticket number — `feat(wu-01): ...` renders as a headline
+feature scoped to a label no reader can interpret. If a work unit spans one
+product area, use that area; if it spans several, split the commit.
+
+Neither rule is machine-enforced. Commitlint checks the type is in its
+`type-enum` and that the scope is kebab-case — `wu-01` passes both, and scope
+is optional. The CI "Commit Messages" check will not catch a mis-typed `fix` or
+a meaningless scope.
+
+**Two gotchas when actually cutting the notes.** `npm run changelog` emits only
+the _unreleased_ section and takes the version from `package.json`, so while
+`package.json` still matches the latest tag it outputs nothing — bump the
+version first, then generate. And CHANGELOG.md is currently stale: its newest
+entry is `0.2.0-alpha`, so 1.0.0-beta through 1.2.0 were never appended.
+`npm run changelog:all` (`-r 0`) regenerates the whole file from history and
+will overwrite any hand-edited prose in it — check the diff rather than
+trusting it.
+
+## The IPC boundary (Rust ↔ TypeScript)
+
+Rust and TypeScript are maintained independently and **nothing checks their
+agreement at build time**. Currently 138 `#[tauri::command]` functions, 138
+registered. Three things must line
+up for every command:
+
+1. The function is annotated `#[tauri::command]` (in `src-tauri/src/commands/`).
+2. It is listed in `tauri::generate_handler![...]` in `src-tauri/src/lib.rs`.
+   **A command that exists but isn't registered compiles fine and fails only at
+   runtime** — check the count matches after adding or renaming one.
+3. The frontend `invoke("name", { args })` matches the command name and its
+   argument names exactly.
+
+Two conversions that hide mismatches:
+
+- **Tauri maps Rust `snake_case` parameters to `camelCase` on the JS side.** A
+  mismatch here arrives as a missing or `null` argument, not an error.
+- **A Rust `Err` becomes a rejected promise.** With no `catch` at the call site
+  the failure is silent and the UI simply does nothing. Every `invoke` needs
+  error handling; a missing one is a real defect, not a style nit.
+
+Also: a Tauri plugin or filesystem/shell capability the frontend calls must be
+permitted in `src-tauri/capabilities/default.json`, or it fails at runtime with a
+misleading message.
+
+`npm run dev` runs Vite **without** the Rust backend, so every `invoke` fails
+there. Verify anything touching the boundary with `npm run tauri dev`.
+
 ## Sensitive areas (touch only with explicit intent)
 
 - `src-tauri/src/db/schema.rs` — the SQLite schema. Changes affect existing user files.
-- `src/app.css` — Kindling brand tokens (Ember/Flame orange palette, theme variables).
+- `../brand-assets/design-system/` — canonical Press tokens and component styles.
+  Synced files in this repo are generated mirrors and must not be hand-edited.
 - `Cargo.lock` / `package-lock.json` — don't add or bump dependencies unsupervised.
 
 ## Automation: blacksmith

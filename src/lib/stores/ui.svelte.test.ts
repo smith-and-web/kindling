@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 
 // Mock theme utils before importing ui store
 vi.mock("../utils/theme", () => ({
-  getStoredPreference: vi.fn(() => "dark"),
+  getStoredPreference: vi.fn(() => "light"),
   setThemePreference: vi.fn(),
   initTheme: vi.fn(),
 }));
@@ -353,8 +353,8 @@ describe("ui store", () => {
   });
 
   describe("theme", () => {
-    it("should default to dark theme", () => {
-      expect(ui.theme).toBe("dark");
+    it("should default to light theme", () => {
+      expect(ui.theme).toBe("light");
     });
 
     it("should set theme preference", async () => {

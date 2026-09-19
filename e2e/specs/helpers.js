@@ -95,27 +95,34 @@ export async function waitForEditor() {
  * This bypasses the native file dialog which can't be controlled in E2E tests
  */
 export async function importPlottrFile(filename) {
-  const filePath = resolve(testDataDir, filename);
+  return importProject(resolve(testDataDir, filename), "plottr");
+}
 
+export async function importProject(filePath, format = "plottr") {
+  await waitForAppReady();
   // Use the app's importProject helper which handles:
   // 1. Calling invoke("import_plottr")
   // 2. Updating currentProject store
   // 3. Setting ui view to "editor"
-  const result = await browser.executeAsync(async (path, done) => {
-    try {
-      // The app exposes importProject via __KINDLING_TEST__ for E2E testing
-      if (!window.__KINDLING_TEST__?.importProject) {
-        throw new Error("__KINDLING_TEST__.importProject not available");
+  const result = await browser.executeAsync(
+    async (path, format, done) => {
+      try {
+        // The app exposes importProject via __KINDLING_TEST__ for E2E testing
+        if (!window.__KINDLING_TEST__?.importProject) {
+          throw new Error("__KINDLING_TEST__.importProject not available");
+        }
+        const project = await window.__KINDLING_TEST__.importProject(path, format);
+        done({ success: true, project });
+      } catch (error) {
+        done({ success: false, error: error.message || String(error) });
       }
-      const project = await window.__KINDLING_TEST__.importProject(path);
-      done({ success: true, project });
-    } catch (error) {
-      done({ success: false, error: error.message || String(error) });
-    }
-  }, filePath);
+    },
+    filePath,
+    format
+  );
 
   if (!result.success) {
-    throw new Error(`Failed to import Plottr file: ${result.error}`);
+    throw new Error(`Failed to import project: ${result.error}`);
   }
 
   // Wait for UI to update after import
@@ -438,7 +445,22 @@ export async function clickContextMenuItem(label) {
  * Perform drag-drop using mouse events (not WebDriver's dragAndDrop)
  * This works with custom mouse-event-based drag implementations
  */
-export async function dragWithMouseEvents(fromElement, toElement) {
+export async function dragWithMouseEvents(fromElement, toElement, whileDragging) {
+  const attribute = (await fromElement.getAttribute("data-drag-chapter"))
+    ? "data-drag-chapter"
+    : "data-drag-scene";
+  const sourceId = await fromElement.getAttribute(attribute);
+  const targetId = await toElement.getAttribute(attribute);
+  const itemIds = () =>
+    browser.execute(
+      (attr) => [...document.querySelectorAll(`[${attr}]`)].map((el) => el.getAttribute(attr)),
+      attribute
+    );
+  const before = await itemIds();
+  const expected = [...before];
+  expected.splice(before.indexOf(sourceId), 1);
+  expected.splice(before.indexOf(targetId), 0, sourceId);
+
   // Get the drag handle from the element
   const handle = await fromElement.$('[data-testid="drag-handle"]');
 
@@ -454,24 +476,54 @@ export async function dragWithMouseEvents(fromElement, toElement) {
   const toX = Math.floor(toLocation.x + toSize.width / 2);
   const toY = Math.floor(toLocation.y + toSize.height / 2);
 
+  // Keep the first failure so cleanup cannot mask a drag/assertion error.
+  const errors = [];
   // Perform the drag using Actions API
-  await browser.performActions([
+  try {
+    await browser.performActions([
+      {
+        type: "pointer",
+        id: "mouse",
+        parameters: { pointerType: "mouse" },
+        actions: [
+          { type: "pointerMove", duration: 0, x: fromX, y: fromY },
+          { type: "pointerDown", button: 0 },
+          { type: "pause", duration: 100 },
+          { type: "pointerMove", duration: 200, x: toX, y: toY },
+          { type: "pause", duration: 100 },
+        ],
+      },
+    ]);
+    if (whileDragging) await whileDragging();
+  } catch (error) {
+    errors.push(error);
+  }
+  // WebKit's cleanup does not reliably emit the mouseup that commits the drag.
+  // Attempt both releases even when the gesture, assertion, or pointerUp fails.
+  try {
+    await browser.performActions([
+      {
+        type: "pointer",
+        id: "mouse",
+        parameters: { pointerType: "mouse" },
+        actions: [{ type: "pointerUp", button: 0 }],
+      },
+    ]);
+  } catch (error) {
+    errors.push(error);
+  }
+  try {
+    await browser.releaseActions();
+  } catch (error) {
+    errors.push(error);
+  }
+  if (errors.length) throw errors[0];
+  // The UI updates after the database write; a fixed delay races that response on CI.
+  await browser.waitUntil(
+    async () => JSON.stringify(await itemIds()) === JSON.stringify(expected),
     {
-      type: "pointer",
-      id: "mouse",
-      parameters: { pointerType: "mouse" },
-      actions: [
-        { type: "pointerMove", duration: 0, x: fromX, y: fromY },
-        { type: "pointerDown", button: 0 },
-        { type: "pause", duration: 100 },
-        { type: "pointerMove", duration: 200, x: toX, y: toY },
-        { type: "pause", duration: 100 },
-        { type: "pointerUp", button: 0 },
-      ],
-    },
-  ]);
-
-  // Clean up actions
-  await browser.releaseActions();
-  await browser.pause(300); // Wait for UI to update
+      timeout: 5000,
+      timeoutMsg: "Dragged items did not reach the expected order",
+    }
+  );
 }

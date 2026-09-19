@@ -7,8 +7,8 @@ use thiserror::Error;
 use walkdir::WalkDir;
 
 use crate::models::{
-    Beat, Chapter, Character, Location, Project, ReferenceItem, Scene, SceneStatus, SceneType,
-    SourceType,
+    Beat, Chapter, Character, EditorMode, Location, Project, ReferenceItem, Scene, SceneStatus,
+    SceneType, SourceType,
 };
 
 const LONGFORM_DEFAULT_CHAPTER_SOURCE_ID: &str = "longform:default";
@@ -82,6 +82,9 @@ struct SceneFrontmatter {
     factions: Option<FrontmatterList>,
     groups: Option<FrontmatterList>,
     teams: Option<FrontmatterList>,
+    timelines: Option<FrontmatterList>,
+    #[serde(alias = "notes")]
+    custom: Option<FrontmatterList>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -110,6 +113,7 @@ struct BeatContent {
 }
 
 struct SceneContent {
+    editor_mode: EditorMode,
     synopsis: Option<String>,
     prose: Option<String>,
     scene_type: SceneType,
@@ -120,6 +124,8 @@ struct SceneContent {
     items: Vec<String>,
     objectives: Vec<String>,
     organizations: Vec<String>,
+    timelines: Vec<String>,
+    custom: Vec<String>,
 }
 
 struct SceneEntry {
@@ -143,11 +149,25 @@ struct ReferenceNameIndex {
     item_names: HashSet<String>,
     objective_names: HashSet<String>,
     organization_names: HashSet<String>,
+    timeline_names: HashSet<String>,
+    custom_names: HashSet<String>,
 }
 
 impl ReferenceNameIndex {
     fn new(parsed: &ParsedLongform) -> Self {
         Self {
+            timeline_names: parsed
+                .reference_items
+                .iter()
+                .filter(|item| item.reference_type == "timelines")
+                .map(|item| item.name.to_lowercase())
+                .collect(),
+            custom_names: parsed
+                .reference_items
+                .iter()
+                .filter(|item| item.reference_type == "custom")
+                .map(|item| item.name.to_lowercase())
+                .collect(),
             character_names: parsed
                 .characters
                 .iter()
@@ -220,6 +240,8 @@ struct DataviewContext<'a> {
     items: &'a mut Vec<String>,
     objectives: &'a mut Vec<String>,
     organizations: &'a mut Vec<String>,
+    timelines: &'a mut Vec<String>,
+    custom: &'a mut Vec<String>,
 }
 
 // ============================================================================
@@ -520,7 +542,20 @@ fn resolve_note_kind(
         return Some(ReferenceKind::Organization);
     }
 
+    if path_contains_folder(path, &["timeline", "timelines"]) {
+        return Some(ReferenceKind::Timeline);
+    }
+    if path_contains_folder(path, &["notes", "custom"]) {
+        return Some(ReferenceKind::Custom);
+    }
+
     let stem_key = file_stem.to_lowercase();
+    if reference_names.timeline_names.contains(&stem_key) {
+        return Some(ReferenceKind::Timeline);
+    }
+    if reference_names.custom_names.contains(&stem_key) {
+        return Some(ReferenceKind::Custom);
+    }
     if reference_names.character_names.contains(&stem_key) {
         return Some(ReferenceKind::Character);
     }
@@ -547,7 +582,16 @@ fn extract_note_details(
     kind: ReferenceKind,
 ) -> (String, Option<String>, HashMap<String, String>) {
     let mut attributes = HashMap::new();
-    let mut name = file_stem.to_string();
+    let extended_note = matches!(kind, ReferenceKind::Timeline | ReferenceKind::Custom);
+    let mut name = if extended_note {
+        body.lines()
+            .find_map(|line| line.strip_prefix("# "))
+            .unwrap_or(file_stem)
+            .trim()
+            .to_string()
+    } else {
+        file_stem.to_string()
+    };
     let mut description = None;
 
     if let Some(frontmatter) = frontmatter {
@@ -600,7 +644,28 @@ fn extract_note_details(
         }
     }
 
-    if description.is_none() {
+    if extended_note {
+        // Kindling's exported note sections carry multiline descriptions and
+        // notes separately from generated scene backlinks. Keep their contents.
+        if description.is_none() {
+            description = note_section(body, "Description").or_else(|| {
+                let prose = body
+                    .lines()
+                    .skip_while(|line| line.trim().is_empty() || line.starts_with("# "))
+                    .take_while(|line| {
+                        !matches!(line.trim(), "## Notes" | "## Scenes" | "## Appearances")
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                normalize_block(&prose)
+            });
+        }
+        if !attributes.contains_key("notes") {
+            if let Some(notes) = note_section(body, "Notes") {
+                attributes.insert("notes".into(), notes);
+            }
+        }
+    } else if description.is_none() {
         description = extract_first_paragraph(body);
     }
 
@@ -609,6 +674,23 @@ fn extract_note_details(
     }
 
     (name, description, attributes)
+}
+
+fn note_section(body: &str, title: &str) -> Option<String> {
+    let heading = format!("## {title}");
+    let mut lines = body.lines().skip_while(|line| line.trim() != heading);
+    lines.next()?;
+    normalize_block(
+        &lines
+            .take_while(|line| {
+                !matches!(
+                    line.trim(),
+                    "## Description" | "## Notes" | "## Scenes" | "## Appearances"
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
 }
 
 fn join_frontmatter_list(list: FrontmatterList) -> Option<String> {
@@ -804,7 +886,11 @@ fn merge_reference_notes(parsed: &mut ParsedLongform, notes: Vec<ReferenceNote>)
         match note.kind {
             ReferenceKind::Character => merge_character_note(parsed, note, &mut character_index),
             ReferenceKind::Location => merge_location_note(parsed, note, &mut location_index),
-            ReferenceKind::Item | ReferenceKind::Objective | ReferenceKind::Organization => {
+            ReferenceKind::Item
+            | ReferenceKind::Objective
+            | ReferenceKind::Organization
+            | ReferenceKind::Timeline
+            | ReferenceKind::Custom => {
                 merge_reference_item_note(parsed, note, &mut reference_item_index);
             }
         }
@@ -983,16 +1069,22 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
         let mut items = std::mem::take(&mut scene_content.items);
         let mut objectives = std::mem::take(&mut scene_content.objectives);
         let mut organizations = std::mem::take(&mut scene_content.organizations);
+        let mut timelines = std::mem::take(&mut scene_content.timelines);
+        let mut custom = std::mem::take(&mut scene_content.custom);
         if let Some(list) = frontmatter.characters {
             for value in list.into_vec() {
                 push_reference(
                     &value,
                     ReferenceKind::Character,
-                    &mut characters,
-                    &mut locations,
-                    &mut items,
-                    &mut objectives,
-                    &mut organizations,
+                    [
+                        &mut characters,
+                        &mut locations,
+                        &mut items,
+                        &mut objectives,
+                        &mut organizations,
+                        &mut timelines,
+                        &mut custom,
+                    ],
                 );
             }
         }
@@ -1000,11 +1092,15 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
             push_reference(
                 &pov,
                 ReferenceKind::Character,
-                &mut characters,
-                &mut locations,
-                &mut items,
-                &mut objectives,
-                &mut organizations,
+                [
+                    &mut characters,
+                    &mut locations,
+                    &mut items,
+                    &mut objectives,
+                    &mut organizations,
+                    &mut timelines,
+                    &mut custom,
+                ],
             );
         }
         if let Some(list) = frontmatter.setting {
@@ -1012,11 +1108,15 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
                 push_reference(
                     &value,
                     ReferenceKind::Location,
-                    &mut characters,
-                    &mut locations,
-                    &mut items,
-                    &mut objectives,
-                    &mut organizations,
+                    [
+                        &mut characters,
+                        &mut locations,
+                        &mut items,
+                        &mut objectives,
+                        &mut organizations,
+                        &mut timelines,
+                        &mut custom,
+                    ],
                 );
             }
         }
@@ -1025,11 +1125,15 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
                 push_reference(
                     &value,
                     ReferenceKind::Item,
-                    &mut characters,
-                    &mut locations,
-                    &mut items,
-                    &mut objectives,
-                    &mut organizations,
+                    [
+                        &mut characters,
+                        &mut locations,
+                        &mut items,
+                        &mut objectives,
+                        &mut organizations,
+                        &mut timelines,
+                        &mut custom,
+                    ],
                 );
             }
         }
@@ -1038,11 +1142,15 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
                 push_reference(
                     &value,
                     ReferenceKind::Item,
-                    &mut characters,
-                    &mut locations,
-                    &mut items,
-                    &mut objectives,
-                    &mut organizations,
+                    [
+                        &mut characters,
+                        &mut locations,
+                        &mut items,
+                        &mut objectives,
+                        &mut organizations,
+                        &mut timelines,
+                        &mut custom,
+                    ],
                 );
             }
         }
@@ -1051,11 +1159,15 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
                 push_reference(
                     &value,
                     ReferenceKind::Objective,
-                    &mut characters,
-                    &mut locations,
-                    &mut items,
-                    &mut objectives,
-                    &mut organizations,
+                    [
+                        &mut characters,
+                        &mut locations,
+                        &mut items,
+                        &mut objectives,
+                        &mut organizations,
+                        &mut timelines,
+                        &mut custom,
+                    ],
                 );
             }
         }
@@ -1064,11 +1176,15 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
                 push_reference(
                     &value,
                     ReferenceKind::Objective,
-                    &mut characters,
-                    &mut locations,
-                    &mut items,
-                    &mut objectives,
-                    &mut organizations,
+                    [
+                        &mut characters,
+                        &mut locations,
+                        &mut items,
+                        &mut objectives,
+                        &mut organizations,
+                        &mut timelines,
+                        &mut custom,
+                    ],
                 );
             }
         }
@@ -1077,11 +1193,15 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
                 push_reference(
                     &value,
                     ReferenceKind::Organization,
-                    &mut characters,
-                    &mut locations,
-                    &mut items,
-                    &mut objectives,
-                    &mut organizations,
+                    [
+                        &mut characters,
+                        &mut locations,
+                        &mut items,
+                        &mut objectives,
+                        &mut organizations,
+                        &mut timelines,
+                        &mut custom,
+                    ],
                 );
             }
         }
@@ -1090,11 +1210,15 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
                 push_reference(
                     &value,
                     ReferenceKind::Organization,
-                    &mut characters,
-                    &mut locations,
-                    &mut items,
-                    &mut objectives,
-                    &mut organizations,
+                    [
+                        &mut characters,
+                        &mut locations,
+                        &mut items,
+                        &mut objectives,
+                        &mut organizations,
+                        &mut timelines,
+                        &mut custom,
+                    ],
                 );
             }
         }
@@ -1103,11 +1227,15 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
                 push_reference(
                     &value,
                     ReferenceKind::Organization,
-                    &mut characters,
-                    &mut locations,
-                    &mut items,
-                    &mut objectives,
-                    &mut organizations,
+                    [
+                        &mut characters,
+                        &mut locations,
+                        &mut items,
+                        &mut objectives,
+                        &mut organizations,
+                        &mut timelines,
+                        &mut custom,
+                    ],
                 );
             }
         }
@@ -1116,14 +1244,42 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
                 push_reference(
                     &value,
                     ReferenceKind::Organization,
-                    &mut characters,
-                    &mut locations,
-                    &mut items,
-                    &mut objectives,
-                    &mut organizations,
+                    [
+                        &mut characters,
+                        &mut locations,
+                        &mut items,
+                        &mut objectives,
+                        &mut organizations,
+                        &mut timelines,
+                        &mut custom,
+                    ],
                 );
             }
         }
+        for (list, kind) in [
+            (frontmatter.timelines, ReferenceKind::Timeline),
+            (frontmatter.custom, ReferenceKind::Custom),
+        ] {
+            if let Some(list) = list {
+                for value in list.into_vec() {
+                    push_reference(
+                        &value,
+                        kind,
+                        [
+                            &mut characters,
+                            &mut locations,
+                            &mut items,
+                            &mut objectives,
+                            &mut organizations,
+                            &mut timelines,
+                            &mut custom,
+                        ],
+                    );
+                }
+            }
+        }
+        scene_content.timelines = normalize_reference_list(timelines);
+        scene_content.custom = normalize_reference_list(custom);
         scene_content.characters = normalize_reference_list(characters);
         scene_content.locations = normalize_reference_list(locations);
         scene_content.items = normalize_reference_list(items);
@@ -1135,6 +1291,7 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
 }
 
 fn parse_scene_body(content: &str) -> SceneContent {
+    let mut editor_mode = EditorMode::Beat;
     let mut scene_type = SceneType::Normal;
     let mut scene_status = SceneStatus::Draft;
     let mut synopsis = None;
@@ -1150,6 +1307,8 @@ fn parse_scene_body(content: &str) -> SceneContent {
     let mut items = Vec::new();
     let mut objectives = Vec::new();
     let mut organizations = Vec::new();
+    let mut timelines = Vec::new();
+    let mut custom = Vec::new();
 
     for line in content.lines() {
         let trimmed = line.trim();
@@ -1162,6 +1321,9 @@ fn parse_scene_body(content: &str) -> SceneContent {
 
         if !in_beats && !metadata_parsed {
             if let Some(meta) = parse_kindling_comment(trimmed) {
+                if let Some(value) = meta.get("editor_mode") {
+                    editor_mode = EditorMode::parse(value);
+                }
                 if let Some(value) = meta.get("scene_type") {
                     scene_type = SceneType::parse(value);
                 }
@@ -1195,6 +1357,8 @@ fn parse_scene_body(content: &str) -> SceneContent {
                     items: &mut items,
                     objectives: &mut objectives,
                     organizations: &mut organizations,
+                    timelines: &mut timelines,
+                    custom: &mut custom,
                 };
                 apply_dataview_field(&key, &value, &mut context);
                 continue;
@@ -1208,11 +1372,15 @@ fn parse_scene_body(content: &str) -> SceneContent {
                 push_reference(
                     &link,
                     ReferenceKind::Character,
-                    &mut characters,
-                    &mut locations,
-                    &mut items,
-                    &mut objectives,
-                    &mut organizations,
+                    [
+                        &mut characters,
+                        &mut locations,
+                        &mut items,
+                        &mut objectives,
+                        &mut organizations,
+                        &mut timelines,
+                        &mut custom,
+                    ],
                 );
             }
             if !skipped_heading && trimmed_start.starts_with("# ") {
@@ -1227,6 +1395,7 @@ fn parse_scene_body(content: &str) -> SceneContent {
     let beats = parse_beats_block(&beat_lines.join("\n"));
 
     SceneContent {
+        editor_mode,
         synopsis,
         prose,
         scene_type,
@@ -1237,6 +1406,8 @@ fn parse_scene_body(content: &str) -> SceneContent {
         items: normalize_reference_list(items),
         objectives: normalize_reference_list(objectives),
         organizations: normalize_reference_list(organizations),
+        timelines: normalize_reference_list(timelines),
+        custom: normalize_reference_list(custom),
     }
 }
 
@@ -1358,6 +1529,8 @@ enum ReferenceKind {
     Item,
     Objective,
     Organization,
+    Timeline,
+    Custom,
 }
 
 fn reference_kind_from_label(label: &str) -> Option<ReferenceKind> {
@@ -1373,6 +1546,12 @@ fn reference_kind_from_label(label: &str) -> Option<ReferenceKind> {
         .trim()
         .to_lowercase();
 
+    if matches!(normalized.as_str(), "timeline" | "timelines") {
+        return Some(ReferenceKind::Timeline);
+    }
+    if matches!(normalized.as_str(), "custom" | "note" | "notes") {
+        return Some(ReferenceKind::Custom);
+    }
     if normalized.contains("character")
         || matches!(normalized.as_str(), "person" | "people" | "npc" | "cast")
     {
@@ -1420,6 +1599,8 @@ fn reference_type_for_kind(kind: ReferenceKind) -> Option<&'static str> {
         ReferenceKind::Item => Some("items"),
         ReferenceKind::Objective => Some("objectives"),
         ReferenceKind::Organization => Some("organizations"),
+        ReferenceKind::Timeline => Some("timelines"),
+        ReferenceKind::Custom => Some("custom"),
         _ => None,
     }
 }
@@ -1431,11 +1612,15 @@ fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_
             push_reference(
                 value,
                 ReferenceKind::Character,
-                context.characters,
-                context.locations,
-                context.items,
-                context.objectives,
-                context.organizations,
+                [
+                    context.characters,
+                    context.locations,
+                    context.items,
+                    context.objectives,
+                    context.organizations,
+                    context.timelines,
+                    context.custom,
+                ],
             );
         }
         "characters" => {
@@ -1443,11 +1628,15 @@ fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_
                 push_reference(
                     &entry,
                     ReferenceKind::Character,
-                    context.characters,
-                    context.locations,
-                    context.items,
-                    context.objectives,
-                    context.organizations,
+                    [
+                        context.characters,
+                        context.locations,
+                        context.items,
+                        context.objectives,
+                        context.organizations,
+                        context.timelines,
+                        context.custom,
+                    ],
                 );
             }
         }
@@ -1456,11 +1645,15 @@ fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_
                 push_reference(
                     &entry,
                     ReferenceKind::Location,
-                    context.characters,
-                    context.locations,
-                    context.items,
-                    context.objectives,
-                    context.organizations,
+                    [
+                        context.characters,
+                        context.locations,
+                        context.items,
+                        context.objectives,
+                        context.organizations,
+                        context.timelines,
+                        context.custom,
+                    ],
                 );
             }
         }
@@ -1469,11 +1662,15 @@ fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_
                 push_reference(
                     &entry,
                     ReferenceKind::Item,
-                    context.characters,
-                    context.locations,
-                    context.items,
-                    context.objectives,
-                    context.organizations,
+                    [
+                        context.characters,
+                        context.locations,
+                        context.items,
+                        context.objectives,
+                        context.organizations,
+                        context.timelines,
+                        context.custom,
+                    ],
                 );
             }
         }
@@ -1483,11 +1680,15 @@ fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_
                 push_reference(
                     &entry,
                     ReferenceKind::Objective,
-                    context.characters,
-                    context.locations,
-                    context.items,
-                    context.objectives,
-                    context.organizations,
+                    [
+                        context.characters,
+                        context.locations,
+                        context.items,
+                        context.objectives,
+                        context.organizations,
+                        context.timelines,
+                        context.custom,
+                    ],
                 );
             }
         }
@@ -1498,11 +1699,37 @@ fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_
                 push_reference(
                     &entry,
                     ReferenceKind::Organization,
-                    context.characters,
-                    context.locations,
-                    context.items,
-                    context.objectives,
-                    context.organizations,
+                    [
+                        context.characters,
+                        context.locations,
+                        context.items,
+                        context.objectives,
+                        context.organizations,
+                        context.timelines,
+                        context.custom,
+                    ],
+                );
+            }
+        }
+        "timeline" | "timelines" | "notes" | "custom" => {
+            let kind = if normalized_key.starts_with("timeline") {
+                ReferenceKind::Timeline
+            } else {
+                ReferenceKind::Custom
+            };
+            for entry in split_inline_list(value) {
+                push_reference(
+                    &entry,
+                    kind,
+                    [
+                        context.characters,
+                        context.locations,
+                        context.items,
+                        context.objectives,
+                        context.organizations,
+                        context.timelines,
+                        context.custom,
+                    ],
                 );
             }
         }
@@ -1580,11 +1807,8 @@ fn extract_wikilink_targets(line: &str) -> Vec<String> {
 fn push_reference(
     value: &str,
     default_kind: ReferenceKind,
-    characters: &mut Vec<String>,
-    locations: &mut Vec<String>,
-    items: &mut Vec<String>,
-    objectives: &mut Vec<String>,
-    organizations: &mut Vec<String>,
+    [characters, locations, items, objectives, organizations, timelines, custom]: [&mut Vec<String>;
+        7],
 ) {
     if let Some((kind, name)) = classify_reference(value, default_kind) {
         match kind {
@@ -1593,6 +1817,8 @@ fn push_reference(
             ReferenceKind::Item => items.push(name),
             ReferenceKind::Objective => objectives.push(name),
             ReferenceKind::Organization => organizations.push(name),
+            ReferenceKind::Timeline => timelines.push(name),
+            ReferenceKind::Custom => custom.push(name),
         }
     }
 }
@@ -1805,6 +2031,7 @@ fn add_scene_from_entry(
         scene_position,
     )
     .with_source_id(Some(scene_source_id));
+    scene.editor_mode = scene_content.editor_mode;
     scene.prose = scene_content.prose;
     scene.scene_type = scene_content.scene_type;
     scene.scene_status = scene_content.scene_status;
@@ -1852,6 +2079,21 @@ fn add_scene_from_entry(
         context.reference_item_index,
         context.scene_reference_item_refs,
     );
+
+    for (kind, names) in [
+        (ReferenceKind::Timeline, &scene_content.timelines),
+        (ReferenceKind::Custom, &scene_content.custom),
+    ] {
+        register_scene_reference_items(
+            chapter.project_id,
+            scene.id,
+            kind,
+            names,
+            context.reference_items,
+            context.reference_item_index,
+            context.scene_reference_item_refs,
+        );
+    }
 
     for (beat_position, beat) in scene_content.beats.into_iter().enumerate() {
         let mut new_beat = Beat::new(scene.id, beat.content, beat_position as i32);
@@ -2155,6 +2397,94 @@ fn build_scene_source_id(index_dir: &Path, scene_path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn imports_timeline_and_custom_notes_from_folders_and_metadata() {
+        let temp = tempfile::tempdir().unwrap();
+        let index = temp.path().join("Index.md");
+        fs::write(
+            &index,
+            "---\nlongform:\n  format: scenes\n  title: Notes Test\n  scenes: [Opening]\n---\n",
+        )
+        .unwrap();
+        fs::write(temp.path().join("Opening.md"), "---\ntimelines: ['[[Past]]']\nnotes: ['[[Research]]']\n---\ntimelines:: [[Future]]\ncustom:: [[Motif]]\n\nScene prose.").unwrap();
+        for folder in ["timelines", "notes", "misc"] {
+            fs::create_dir(temp.path().join(folder)).unwrap();
+        }
+        for (path, body) in [
+            (
+                "timelines/Past.md",
+                "# Past\n\nFirst paragraph.\n\nSecond paragraph.",
+            ),
+            ("notes/Research.md", "# Research\n\nResearch body."),
+            (
+                "misc/Future.md",
+                "---\ntags: [timeline]\nEra: Tomorrow\n---\n# Future\n\nFuture body.",
+            ),
+            (
+                "misc/Motif.md",
+                "---\ncategory: custom\nColour: Green\n---\n# Motif\n\nMotif body.",
+            ),
+            (
+                "notes/unlinked.md",
+                "# Display: Name\n\nUnlinked note body.",
+            ),
+            (
+                "notes/character.md",
+                "---\ntype: character\nname: Jane\n---\nA character despite the notes folder.",
+            ),
+        ] {
+            fs::write(temp.path().join(path), body).unwrap();
+        }
+        let parsed = parse_longform_index(&index).unwrap();
+        assert_eq!(parsed.reference_items.len(), 5);
+        assert_eq!(parsed.scene_reference_item_refs.len(), 4);
+        assert_eq!(parsed.characters.len(), 1);
+        assert_eq!(parsed.characters[0].name, "Jane");
+        for (name, kind) in [
+            ("Past", "timelines"),
+            ("Future", "timelines"),
+            ("Research", "custom"),
+            ("Motif", "custom"),
+            ("Display: Name", "custom"),
+        ] {
+            let note = parsed
+                .reference_items
+                .iter()
+                .find(|item| item.name == name)
+                .unwrap();
+            assert_eq!(note.reference_type, kind);
+            assert!(note.description.is_some());
+            assert!(note.source_id.is_some());
+        }
+        let past = parsed
+            .reference_items
+            .iter()
+            .find(|item| item.name == "Past")
+            .unwrap();
+        assert_eq!(
+            past.description.as_deref(),
+            Some("First paragraph.\n\nSecond paragraph.")
+        );
+        assert_eq!(
+            parsed
+                .reference_items
+                .iter()
+                .find(|item| item.name == "Future")
+                .unwrap()
+                .attributes["Era"],
+            "Tomorrow"
+        );
+        assert_eq!(
+            parsed
+                .reference_items
+                .iter()
+                .find(|item| item.name == "Motif")
+                .unwrap()
+                .attributes["Colour"],
+            "Green"
+        );
+    }
+
     use super::*;
     use std::fs;
     use tempfile::tempdir;

@@ -1,6 +1,6 @@
 # Kindling
 
-**Kindling** is a story outlining and planning tool for writers. Import your existing outlines from Plottr, Markdown, yWriter, or Longform/Obsidian, then export to DOCX, Markdown, Longform, or EPUB.
+**Kindling** is a story outlining and planning tool for writers. Import your existing outlines from Plottr, Markdown, yWriter, or Longform/Obsidian, then export a manuscript, reading copy, or project for another writing app.
 
 > **Note:** Kindling is currently in active development. Features and documentation may change.
 
@@ -10,7 +10,8 @@
 
 - [Installation](Installation) - Download and install Kindling
 - [Importing Projects](Importing-Projects) - How to import outlines and source projects
-- [Exporting Projects](Exporting-Projects) - Export to DOCX, Markdown, Longform, or EPUB
+- [Exporting Projects](Exporting-Projects) - Choose an output format and export your writing
+- [Export Workspace](Export-Workspace) - Customize exports and save profiles for each writing routine
 - [Sync and Reimport](Sync-and-Reimport) - Keep source-backed projects up to date
 
 ### Writing & Planning

@@ -21,11 +21,16 @@
 pub mod commands;
 pub mod db;
 pub mod detect;
+mod editorial_files;
 pub mod menu;
 pub mod models;
 pub mod parsers;
+#[cfg(all(debug_assertions, target_os = "macos"))]
+mod qa;
+pub mod shortcuts;
 
 use commands::AppState;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Manager;
 
 /// Returns `Some((key, value))` when the WebKitGTK DMABUF renderer workaround
@@ -47,8 +52,50 @@ fn webkit_dmabuf_workaround(
     }
 }
 
+/// Picks the directory that holds the SQLite database and snapshots.
+///
+/// In debug builds a non-empty `KINDLING_DATA_DIR` overrides the platform
+/// default so automated QA can run against a scratch database. Release builds
+/// ignore the variable entirely, so a stray environment value can never
+/// redirect a real user's data.
+fn resolve_data_dir(
+    is_debug: bool,
+    override_value: Option<&str>,
+    default_dir: std::path::PathBuf,
+) -> std::path::PathBuf {
+    match override_value {
+        Some(dir) if is_debug && !dir.trim().is_empty() => {
+            eprintln!("[kindling] KINDLING_DATA_DIR override active: {dir}");
+            std::path::PathBuf::from(dir)
+        }
+        _ => default_dir,
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(all(debug_assertions, target_os = "macos"))]
+    let qa_background = qa::enabled();
+    #[cfg(not(all(debug_assertions, target_os = "macos")))]
+    let qa_background = false;
+    let mut context = tauri::generate_context!();
+    if qa_background {
+        // Separate app settings, browser storage and socket from the user's app.
+        // No display sizing, foreground activation or desktop capture is needed.
+        context.config_mut().identifier = "com.kindlingwriter.app.visual-qa".into();
+        for window in &mut context.config_mut().app.windows {
+            window.visible = false;
+            window.focus = false;
+            window.decorations = false;
+            window.width = 1600.0;
+            window.height = 968.0;
+            window.min_width = None;
+            window.min_height = None;
+            window.background_throttling =
+                Some(tauri::utils::config::BackgroundThrottlingPolicy::Disabled);
+            window.data_store_identifier = Some(*b"KindlingVisualQA");
+        }
+    }
     // Apply the WebKitGTK DMABUF renderer workaround on Linux to prevent a white
     // screen on startup (https://github.com/tauri-apps/tauri/issues/9304).
     // Must be set before the Tauri builder is constructed so that WebKitGTK picks
@@ -63,54 +110,129 @@ pub fn run() {
         std::env::set_var(key, val);
     }
 
+    let initial_page_loaded = AtomicBool::new(false);
     let builder = tauri::Builder::default()
+        .on_page_load(move |webview, payload| {
+            // Show the small loading shell as soon as its document finishes
+            // loading, even if its JavaScript failed. The bootstrap waits for
+            // a visible frame before requesting the full application bundle.
+            // A reload must not steal focus or re-show a hidden window.
+            if webview.label() == "main"
+                && !qa_background
+                && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished)
+                && !initial_page_loaded.swap(true, Ordering::Relaxed)
+            {
+                let window = webview.window();
+                if let Err(error) = window.show() {
+                    eprintln!("Failed to show startup window: {error}");
+                } else if let Err(error) = window.set_focus() {
+                    eprintln!("Failed to focus startup window: {error}");
+                }
+            }
+        })
+        .manage(editorial_files::PendingEditorialFiles::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init());
 
+    let builder = if qa_background {
+        builder.plugin(tauri::plugin::Builder::<tauri::Wry>::new("visual-qa")
+            .js_init_script("Object.defineProperty(window, '__KINDLING_QA_BACKGROUND__', {value:true});")
+            .build())
+            .plugin(tauri_plugin_single_instance::init(|_, _, _| {}))
+    } else {
+        builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            editorial_files::enqueue(
+                app,
+                args.into_iter()
+                    .skip(1)
+                    .map(|p| std::path::Path::new(&cwd).join(p)),
+            );
+        }))
+    };
+
     // MCP plugin for QA automation — only in dev builds
     #[cfg(debug_assertions)]
-    let builder = builder.plugin(tauri_plugin_mcp::init_with_config(
-        tauri_plugin_mcp::PluginConfig::new("Kindling".to_string())
+    let builder = {
+        let mut config = tauri_plugin_mcp::PluginConfig::new("Kindling".to_string())
             .start_socket_server(true)
-            .socket_path("/tmp/kindling-mcp.sock".into()),
-    ));
+            .socket_path(
+                if qa_background {
+                    "/tmp/kindling-qa.sock"
+                } else {
+                    "/tmp/kindling-mcp.sock"
+                }
+                .into(),
+            );
+        if qa_background {
+            config = config.auth_token(uuid::Uuid::new_v4().to_string());
+        }
+        builder.plugin(tauri_plugin_mcp::init_with_config(config))
+    };
 
     builder
-        .setup(|app| {
-            // Get the app data directory
-            let app_data_dir = app
+        .setup(move |app| {
+            if qa_background {
+                #[cfg(target_os = "macos")]
+                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                if let Some(window) = app.get_webview_window("main") {
+                    window.set_ignore_cursor_events(true)?;
+                }
+            }
+            // Get the app data directory. Debug builds honour KINDLING_DATA_DIR so
+            // QA runs can use a scratch database instead of the user's real one.
+            let default_dir = app
                 .path()
                 .app_data_dir()
                 .expect("Failed to get app data directory");
+            let app_data_dir = resolve_data_dir(
+                cfg!(debug_assertions),
+                std::env::var("KINDLING_DATA_DIR").ok().as_deref(),
+                default_dir,
+            );
 
             // Initialize application state with database
             let state =
                 AppState::new(app_data_dir).expect("Failed to initialize application state");
 
             app.manage(state);
+            editorial_files::enqueue(
+                app.handle(),
+                std::env::args_os().skip(1).map(std::path::PathBuf::from),
+            );
 
             // Set up application menu
             let app_handle = app.handle();
-            menu::create_menu(app_handle).expect("Failed to create menu");
             menu::setup_menu_events(app_handle);
+            shortcuts::initialize(app_handle).expect("Failed to create menu");
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            #[cfg(all(debug_assertions, target_os = "macos"))]
+            qa::qa_capabilities,
+            #[cfg(all(debug_assertions, target_os = "macos"))]
+            qa::qa_set_viewport,
+            #[cfg(all(debug_assertions, target_os = "macos"))]
+            qa::qa_snapshot,
             commands::import_plottr,
             commands::import_ywriter,
             commands::import_markdown,
             commands::import_longform,
             commands::import_scrivener,
+            commands::import_novelwriter,
             commands::preview_import,
             commands::create_sample_project,
+            #[cfg(debug_assertions)]
+            commands::create_demo_fixture,
             commands::create_blank_project,
             commands::create_screenplay_project,
             commands::get_page_count_estimate,
             commands::get_project,
+            commands::get_session_state,
+            commands::save_session_state,
             commands::get_recent_projects,
             commands::get_all_projects,
             commands::update_project_settings,
@@ -131,7 +253,11 @@ pub fn run() {
             commands::delete_reference,
             commands::save_scene_reference_state,
             commands::reclassify_references,
+            commands::preview_reference_copy,
+            commands::copy_references_between_projects,
             commands::save_beat_prose,
+            commands::get_search_documents,
+            commands::replace_prose_batch,
             commands::delete_beat,
             commands::reorder_beats,
             commands::split_beat,
@@ -182,17 +308,47 @@ pub fn run() {
             commands::export_to_markdown,
             commands::export_to_longform,
             commands::export_to_docx,
+            commands::get_export_prototype_document,
+            commands::save_export_prototype_html,
+            commands::export_workspace_document,
+            commands::export_workspace_exchange,
             commands::export_to_epub,
             commands::get_project_word_count,
+            commands::get_writing_stats,
+            commands::set_daily_writing_goal,
+            commands::reset_writing_session,
             commands::generate_treatment,
             commands::preview_scrivener_matches,
             commands::export_to_scrivener,
+            commands::export_to_novelwriter,
+            commands::get_scene_review,
+            commands::save_scene_review,
+            commands::get_revision_overview,
+            commands::editorial_sources,
+            commands::open_local_editorial_review,
+            commands::get_project_scene_reviews,
+            commands::save_scene_review_batch,
+            commands::export_editorial_review,
+            commands::open_editorial_package,
+            commands::save_editorial_session,
+            commands::export_editorial_feedback,
+            commands::export_editorial_recovery,
+            commands::export_editorial_reply,
+            commands::import_editorial_feedback,
+            commands::get_editorial_feedback,
+            commands::decide_editorial_feedback,
+            commands::list_editorial_rounds,
+            commands::reply_editorial_feedback,
+            editorial_files::take_editorial_open_files,
             // Snapshot commands
             commands::create_snapshot,
             commands::list_snapshots,
             commands::delete_snapshot,
             commands::restore_snapshot,
             commands::preview_snapshot,
+            shortcuts::get_keyboard_shortcuts,
+            shortcuts::set_keyboard_shortcuts,
+            shortcuts::suspend_keyboard_shortcuts,
             // App settings commands
             commands::get_app_settings,
             commands::update_app_settings,
@@ -236,8 +392,19 @@ pub fn run() {
             // Feedback commands
             commands::submit_feedback,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(context)
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = event {
+                editorial_files::enqueue(
+                    app,
+                    urls.into_iter().filter_map(|url| url.to_file_path().ok()),
+                );
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }
 
 #[cfg(test)]
@@ -273,5 +440,37 @@ mod tests {
     #[test]
     fn non_linux_present_returns_none() {
         assert_eq!(webkit_dmabuf_workaround(false, Some("1")), None);
+    }
+}
+
+#[cfg(test)]
+mod resolve_data_dir_tests {
+    use super::resolve_data_dir;
+    use std::path::PathBuf;
+
+    fn default() -> PathBuf {
+        PathBuf::from("/default/app-data")
+    }
+
+    #[test]
+    fn debug_build_honours_override() {
+        assert_eq!(
+            resolve_data_dir(true, Some("/tmp/qa-data"), default()),
+            PathBuf::from("/tmp/qa-data")
+        );
+    }
+
+    #[test]
+    fn release_build_ignores_override() {
+        assert_eq!(
+            resolve_data_dir(false, Some("/tmp/qa-data"), default()),
+            default()
+        );
+    }
+
+    #[test]
+    fn empty_or_missing_override_uses_default() {
+        assert_eq!(resolve_data_dir(true, Some("   "), default()), default());
+        assert_eq!(resolve_data_dir(true, None, default()), default());
     }
 }

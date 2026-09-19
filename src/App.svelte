@@ -1,39 +1,99 @@
 <script lang="ts">
+  import { IMPORT_FORMATS, importTypeForCommand, isImportType } from "./lib/importFormats";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
   import { exit } from "@tauri-apps/plugin-process";
-  import { onMount } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { runImport, type ImportType } from "./lib/utils/import";
   import AboutDialog from "./lib/components/AboutDialog.svelte";
+  import EditorialWorkspace from "./lib/components/EditorialWorkspace.svelte";
   import FeedbackDialog from "./lib/components/FeedbackDialog.svelte";
   import Onboarding from "./lib/components/Onboarding.svelte";
   import ReferencesPanel from "./lib/components/ReferencesPanel.svelte";
+  import FindReplaceDialog from "./lib/components/FindReplaceDialog.svelte";
   import ScenePanel from "./lib/components/ScenePanel.svelte";
   import Sidebar from "./lib/components/Sidebar.svelte";
   import StartScreen from "./lib/components/StartScreen.svelte";
-  import KindlingSettingsDialog from "./lib/components/KindlingSettingsDialog.svelte";
-  import ProjectSettingsDialog from "./lib/components/ProjectSettingsDialog.svelte";
+  import SettingsDialog from "./lib/components/SettingsDialog.svelte";
   import ExportDialog from "./lib/components/ExportDialog.svelte";
   import ExportSuccessDialog from "./lib/components/ExportSuccessDialog.svelte";
   import ErrorToast from "./lib/components/ErrorToast.svelte";
+  import ConfirmDialog from "./lib/components/ConfirmDialog.svelte";
   import ImportLongformDialog from "./lib/components/ImportLongformDialog.svelte";
   import ReferenceClassificationDialog from "./lib/components/ReferenceClassificationDialog.svelte";
   import QuickStartDialog from "./lib/components/QuickStartDialog.svelte";
   import GuidanceOverlay from "./lib/components/GuidanceOverlay.svelte";
   import CommandPalette from "./lib/components/CommandPalette.svelte";
   import UpdateBanner from "./lib/components/UpdateBanner.svelte";
+  import { captureWritingFocus } from "./lib/utils/writingFocus";
   import { checkForUpdate } from "./lib/updater";
   import NewProjectDialog from "./lib/components/NewProjectDialog.svelte";
+  import { shortcuts } from "./lib/stores/shortcuts.svelte";
   import { COMMAND_DEFS } from "./lib/commands";
   import { currentProject } from "./lib/stores/project.svelte";
+  import { session } from "./lib/stores/session.svelte";
+  import { synopsisSaves, type SynopsisDraft } from "./lib/stores/synopsisSaves.svelte";
+  import { proseSaves, type ProseSave } from "./lib/utils/proseSaves";
   import { ui } from "./lib/stores/ui.svelte";
-  import type { Project, ExportResult } from "./lib/types";
+  import type { ProseDocument } from "./lib/utils/proseSearch";
+  import type { Project, ExportResult, Chapter, Scene, Beat } from "./lib/types";
+
+  let { onReady }: { onReady?: () => void } = $props();
+  let initialProjectsLoaded = $state(false);
+  let initialEditorialLoaded = $state(false);
+
+  $effect(() => {
+    if (initialProjectsLoaded && initialEditorialLoaded) onReady?.();
+  });
+
+  let scenePanel: ReturnType<typeof ScenePanel> | undefined = $state();
+  let editorial: ReturnType<typeof EditorialWorkspace> | undefined = $state();
+  export function focusAfterStartup() {
+    editorial?.focusIfOpen();
+  }
+  let searchDialog: ReturnType<typeof FindReplaceDialog> | undefined = $state();
+  let search = $state<{ projectId: string; scope: "scene" | "project"; replace: boolean } | null>(
+    null
+  );
+
+  // Native New/Import commands can change projects while a modal is open.
+  $effect(() => {
+    if (search && search.projectId !== currentProject.value?.id) search = null;
+  });
+
+  function openSearch(scope: "scene" | "project", replace = false) {
+    const projectId = currentProject.value?.id;
+    if (!projectId) return;
+    if (search?.projectId === projectId) searchDialog?.configure(scope, replace);
+    search = { projectId, scope, replace };
+  }
+
+  async function openSearchScene(doc: ProseDocument) {
+    if (!currentProject.value) return;
+    const projectId = currentProject.value.id;
+    const chapters = await invoke<Chapter[]>("get_chapters", {
+      projectId: currentProject.value.id,
+    });
+    const chapter = chapters.find((chapter) => chapter.id === doc.chapter_id);
+    const scenes = await invoke<Scene[]>("get_scenes", { chapterId: doc.chapter_id });
+    const scene = scenes.find((scene) => scene.id === doc.scene_id);
+    if (!chapter || !scene) throw new Error("This scene is no longer available.");
+    const beats = await invoke<Beat[]>("get_beats", { sceneId: scene.id });
+    if (currentProject.value?.id !== projectId) return;
+    currentProject.setChapters(chapters);
+    currentProject.setCurrentChapter(chapter);
+    currentProject.setScenes(scenes);
+    currentProject.setCurrentScene(scene);
+    await tick();
+    currentProject.setBeats(beats);
+    if (doc.beat_title !== null) ui.setExpandedBeat(doc.id);
+  }
 
   let recentProjects = $state<Project[]>([]);
 
   // Dialog states triggered by menu
-  let showKindlingSettings = $state(false);
-  let showProjectSettings = $state(false);
+  let showSettings = $state(false);
   let showExportDialog = $state(false);
   let exportResult = $state<ExportResult | null>(null);
   let showLongformImportDialog = $state(false);
@@ -51,6 +111,8 @@
     } catch (e) {
       console.error("Failed to load recent projects:", e);
       recentProjects = [];
+    } finally {
+      initialProjectsLoaded = true;
     }
   }
 
@@ -84,30 +146,220 @@
     }
   });
 
-  const HAS_REFERENCES: ImportType[] = ["plottr", "ywriter", "longform", "longformVault"];
-
   async function handleImport(type: ImportType) {
     const project = await runImport(type);
     if (!project) return;
     activateImportedProject(project);
-    if (HAS_REFERENCES.includes(type)) {
+    if (IMPORT_FORMATS[type].references) {
       openReferenceClassificationDialog(project);
     }
   }
 
-  const importPlottr = () => handleImport("plottr");
-  const importMarkdown = () => handleImport("markdown");
-  const importYWriter = () => handleImport("ywriter");
   const importLongform = () => handleImport("longform");
   const importLongformVault = () => handleImport("longformVault");
-  const importScrivener = () => handleImport("scrivener");
+
+  function handleImportCommand(command: string): boolean {
+    const type = importTypeForCommand(command);
+    if (!type) return false;
+    if (type === "longform") openLongformImportDialog();
+    else void handleImport(type);
+    return true;
+  }
 
   function openLongformImportDialog() {
     showLongformImportDialog = true;
   }
 
   function closeProject() {
+    search = null;
     currentProject.setProject(null);
+  }
+
+  let closePending = $state(false);
+  let updatePending = $state(false);
+  let closeRequest: Promise<boolean> | null = null;
+  let discardQuitDrafts = $state.raw<SynopsisDraft[] | null>(null);
+  let discardQuitProse = $state.raw<ProseSave[]>([]);
+
+  const interactionBlocked = $derived(closePending || updatePending || discardQuitDrafts !== null);
+
+  let quitConfirmation: HTMLDialogElement | undefined = $state();
+
+  let finishQuitFocus: ((restore: boolean) => void) | undefined;
+
+  function captureCurrentWritingFocus(isTemporaryFocus?: (target: Event["target"]) => boolean) {
+    const projectId = currentProject.value?.id;
+    const sceneId = currentProject.currentScene?.id;
+    return captureWritingFocus(
+      () => currentProject.value?.id === projectId && currentProject.currentScene?.id === sceneId,
+      isTemporaryFocus
+    );
+  }
+
+  async function keepEditing() {
+    if (closePending) return;
+    const finish = finishQuitFocus;
+    finishQuitFocus = undefined;
+    quitConfirmation?.close();
+    discardQuitDrafts = null;
+    await tick();
+    finish?.(true);
+  }
+
+  function releaseQuitFocus() {
+    finishQuitFocus?.(false);
+    finishQuitFocus = undefined;
+  }
+
+  function focusQuitConfirmation(node: HTMLDialogElement) {
+    node.showModal();
+    node.querySelector<HTMLElement>('[data-testid="dialog-cancel"]')?.focus();
+  }
+
+  // Capture before any child/window shortcut handler can act on the same event.
+  onMount(() => {
+    const guardKeyboard = (event: KeyboardEvent) => {
+      if (!interactionBlocked) return;
+      if (discardQuitDrafts && !closePending && event.key === "Tab") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const buttons = Array.from(quitConfirmation?.querySelectorAll<HTMLElement>("button") ?? []);
+        const current = buttons.indexOf(document.activeElement as HTMLElement);
+        buttons[(current + (event.shiftKey ? buttons.length - 1 : 1)) % buttons.length]?.focus();
+        return;
+      }
+      const inConfirmation =
+        event.target instanceof HTMLElement &&
+        event.target.closest("[data-quit-confirmation]") !== null;
+      if (
+        inConfirmation &&
+        !closePending &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        event.key !== "Escape"
+      ) {
+        // Keep native button activation, but never deliver these keys to sibling
+        // dialogs' window listeners (including their bare Enter shortcuts).
+        event.stopImmediatePropagation();
+        return;
+      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.key === "Escape" && !closePending && !updatePending) void keepEditing();
+    };
+    window.addEventListener("keydown", guardKeyboard, true);
+    return () => window.removeEventListener("keydown", guardKeyboard, true);
+  });
+
+  function flushBeforeClose() {
+    if (discardQuitDrafts || updatePending) return Promise.resolve(false);
+    if (closeRequest) return closeRequest;
+    finishQuitFocus = captureCurrentWritingFocus(
+      (target) => target instanceof Node && !!quitConfirmation?.contains(target)
+    );
+    closePending = true;
+    closeRequest = saveBeforeClose().finally(() => {
+      closePending = false;
+      closeRequest = null;
+      if (!discardQuitDrafts) releaseQuitFocus();
+    });
+    return closeRequest;
+  }
+
+  async function flushWritingBeforeExit() {
+    // This existing editor hook submits debounced page and beat edits to proseSaves.
+    await scenePanel?.prepareForSearch();
+    await proseSaves.flush();
+    if (proseSaves.draftsForRecovery().length) {
+      throw new Error(
+        "Prose changes could not be saved. Review the unsaved drafts in Find and Replace."
+      );
+    }
+  }
+
+  async function flushProseBeforeExit() {
+    const results = await Promise.allSettled([editorial?.flush(), flushWritingBeforeExit()]);
+    for (const result of results) if (result.status === "rejected") throw result.reason;
+  }
+  let editorialQuitFailed = $state(false);
+  async function saveBeforeClose() {
+    const results = await Promise.allSettled([
+      editorial?.flush(),
+      flushWritingBeforeExit(),
+      synopsisSaves.flush(),
+    ]);
+    editorialQuitFailed = results[0].status === "rejected";
+    const failed = results.some((result) => result.status === "rejected");
+    if (failed) {
+      discardQuitProse = proseSaves.draftsForRecovery();
+      discardQuitDrafts = synopsisSaves.snapshot();
+      return false;
+    }
+    await flushPositionBeforeClose();
+    return true;
+  }
+
+  async function flushPositionBeforeClose() {
+    try {
+      await session.flush();
+    } catch (error) {
+      console.error("Failed to save writing position before closing:", error);
+    }
+  }
+
+  async function quit() {
+    if (!(await flushBeforeClose())) return;
+    try {
+      await exit(0);
+    } catch (error) {
+      console.error("Failed to quit:", error);
+    }
+  }
+
+  async function quitAndDiscard() {
+    const approved = discardQuitDrafts;
+    if (!approved || closePending) return;
+    releaseQuitFocus();
+    closePending = true;
+    try {
+      if (editorialQuitFailed) editorial?.discardForQuit();
+      await proseSaves.discard(discardQuitProse, () =>
+        scenePanel?.discardProseDraftsForClose(discardQuitProse)
+      );
+      await synopsisSaves.discardAll(approved);
+      await flushPositionBeforeClose();
+      discardQuitDrafts = null;
+      await exit(0);
+    } catch (error) {
+      discardQuitDrafts = null;
+      ui.showError(`Could not quit: ${String(error)}`);
+    } finally {
+      closePending = false;
+    }
+  }
+
+  onMount(() => {
+    // Tauri awaits this handler before destroying the window.
+    const unlisten = getCurrentWindow().onCloseRequested(async (event) => {
+      if (!(await flushBeforeClose())) event.preventDefault();
+    });
+    return () => {
+      releaseQuitFocus();
+      void unlisten.then((stop) => stop());
+    };
+  });
+
+  let retryingSynopses = $state(false);
+  async function retrySynopses() {
+    if (interactionBlocked || retryingSynopses) return;
+    retryingSynopses = true;
+    try {
+      await synopsisSaves.flush();
+    } catch {
+      // The banner and per-scene errors remain visible until saving succeeds.
+    } finally {
+      retryingSynopses = false;
+    }
   }
 
   // Check for updates on launch (delayed so it doesn't block startup)
@@ -121,68 +373,7 @@
   // Handle menu events from Tauri
   onMount(() => {
     const unlisten = listen<string>("menu-event", (event) => {
-      const menuId = event.payload;
-
-      switch (menuId) {
-        case "new_project":
-          showNewProjectDialog = true;
-          break;
-        case "import_plottr":
-          importPlottr();
-          break;
-        case "import_ywriter":
-          importYWriter();
-          break;
-        case "import_markdown":
-          importMarkdown();
-          break;
-        case "import_longform":
-          openLongformImportDialog();
-          break;
-        case "import_scrivener":
-          importScrivener();
-          break;
-        case "export":
-          if (currentProject.value) {
-            showExportDialog = true;
-          }
-          break;
-        case "close_project":
-          closeProject();
-          break;
-        case "project_settings":
-          if (currentProject.value) {
-            showProjectSettings = true;
-          }
-          break;
-        case "kindling_settings":
-          showKindlingSettings = true;
-          break;
-        case "command_palette":
-          showCommandPalette = true;
-          break;
-        case "quick_start":
-          showQuickStart = true;
-          break;
-        case "toggle_sidebar":
-          ui.toggleSidebar();
-          break;
-        case "toggle_references":
-          ui.toggleReferencesPanel();
-          break;
-        case "sync":
-          window.dispatchEvent(new CustomEvent("kindling:sync"));
-          break;
-        case "about":
-          showAboutDialog = true;
-          break;
-        case "send_feedback":
-          showFeedbackDialog = true;
-          break;
-        case "quit":
-          exit(0);
-          break;
-      }
+      if (!showSettings || event.payload === "quit") runCommand(event.payload);
     });
 
     return () => {
@@ -198,35 +389,56 @@
       return true;
     }).map((def) => ({
       ...def,
+      shortcut: shortcuts.label(def.id),
       action: () => runCommand(def.id),
     }))
   );
 
   function runCommand(id: string) {
+    if (interactionBlocked || (showSettings && id !== "quit")) return;
+    if (
+      editorial?.isOpen() &&
+      !["settings", "quit", "editorial_open", "editorial_project"].includes(id)
+    ) {
+      if (id === "close_project") void editorial.closeWorkspace();
+      if (["find", "find_project", "find_replace"].includes(id)) editorial.focusSearch();
+      if (id === "export") void editorial.exportFeedback();
+      return;
+    }
+    const def = COMMAND_DEFS.find((item) => item.id === id);
+    if (def?.requiresProject && !currentProject.value) return;
+    if (def?.requiresSourcePath && !currentProject.value?.source_path) return;
+    if (handleImportCommand(id)) return;
     switch (id) {
+      case "new_project":
+        showNewProjectDialog = true;
+        break;
+      case "command_palette":
+        showCommandPalette = true;
+        break;
+      case "send_feedback":
+        showFeedbackDialog = true;
+        break;
+      case "editorial_open":
+        void editorial?.openFile();
+        break;
+      case "editorial_project":
+        if (currentProject.value) void editorial?.openProject(currentProject.value.id);
+        break;
+      case "find":
+        openSearch("scene");
+        break;
+      case "find_replace":
+        openSearch("scene", true);
+        break;
+      case "find_project":
+        openSearch("project", true);
+        break;
       case "export":
         if (currentProject.value) showExportDialog = true;
         break;
       case "close_project":
         closeProject();
-        break;
-      case "import_plottr":
-        importPlottr();
-        break;
-      case "import_markdown":
-        importMarkdown();
-        break;
-      case "import_longform":
-        openLongformImportDialog();
-        break;
-      case "import_ywriter":
-        importYWriter();
-        break;
-      case "import_scrivener":
-        importScrivener();
-        break;
-      case "project_settings":
-        if (currentProject.value) showProjectSettings = true;
         break;
       case "sync":
         window.dispatchEvent(new CustomEvent("kindling:sync"));
@@ -252,175 +464,350 @@
       case "quick_start":
         showQuickStart = true;
         break;
-      case "kindling_settings":
-        showKindlingSettings = true;
+      case "settings":
+        showSettings = true;
         break;
       case "about":
         showAboutDialog = true;
         break;
       case "quit":
-        exit(0);
+        void quit();
         break;
     }
   }
 
-  // Global keyboard shortcuts
+  let previousEditorialScene: string | undefined;
+  $effect(() => {
+    const scene = currentProject.currentScene?.id;
+    if (scene && scene !== previousEditorialScene && untrack(() => editorial?.isLocal()))
+      untrack(() => editorial?.navigateScene(scene));
+    previousEditorialScene = scene;
+  });
+
+  $effect(() => {
+    // A lock/status change in the shared outline refreshes local review metadata.
+    const metadata = [
+      currentProject.chapters.map((c) => [c.id, c.locked]),
+      currentProject.scenes.map((s) => [s.id, s.locked, s.scene_status]),
+    ];
+    void metadata;
+    if (untrack(() => editorial?.isLocal()))
+      untrack(() => {
+        void editorial?.refreshLocalContext();
+      });
+  });
+
+  // Capture application bindings before TipTap/browser keymaps consume them.
+  onMount(() => {
+    void shortcuts.load();
+    window.addEventListener("keydown", handleKeydown, true);
+    return () => window.removeEventListener("keydown", handleKeydown, true);
+  });
+
+  $effect(() => {
+    void shortcuts.suspend(showSettings).then(() => {
+      if (shortcuts.error) ui.showError(shortcuts.error);
+    });
+  });
+
   function handleKeydown(event: KeyboardEvent) {
-    // Cmd/Ctrl+K: Open command palette
-    if ((event.metaKey || event.ctrlKey) && event.key === "k") {
-      event.preventDefault();
-      showCommandPalette = true;
-      return;
-    }
-    // Cmd/Ctrl+E: Open export dialog
-    if ((event.metaKey || event.ctrlKey) && event.key === "e") {
-      event.preventDefault();
-      if (currentProject.value && !showExportDialog) {
-        showExportDialog = true;
+    if (interactionBlocked || event.defaultPrevented || event.isComposing) return;
+    const id = shortcuts.match(event);
+    if (showSettings) {
+      if (id === "quit" && !shortcuts.recording) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!event.repeat) runCommand(id);
       }
       return;
     }
-    // Cmd/Ctrl+Shift+H: Open Quick Start
-    if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === "H") {
-      event.preventDefault();
-      showQuickStart = true;
+    if (
+      showCommandPalette ||
+      (event.target instanceof Element &&
+        event.target.closest('[role="dialog"], dialog') &&
+        !(
+          event.target.closest('dialog[aria-labelledby="find-title"]') &&
+          id &&
+          ["find", "find_replace", "find_project"].includes(id)
+        ))
+    )
       return;
-    }
+    if (!id || !COMMAND_DEFS.some((def) => def.id === id)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (!event.repeat) runCommand(id);
   }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
+{#snippet errorToast()}
+  {#if ui.toast}
+    {#key ui.toast.id}
+      <ErrorToast message={ui.toast.message} onDismiss={() => ui.clearToast()} />
+    {/key}
+  {/if}
+{/snippet}
 
-<UpdateBanner />
+<div
+  inert={interactionBlocked || editorial?.isOpen()}
+  hidden={interactionBlocked || editorial?.isOpen()}
+>
+  {#if search && search.projectId === currentProject.value?.id}
+    {#key search.projectId}
+      <FindReplaceDialog
+        bind:this={searchDialog}
+        projectId={search.projectId}
+        sceneId={currentProject.currentScene?.id ?? null}
+        initialScope={search.scope}
+        showReplace={search.replace}
+        prepare={async () => {
+          await scenePanel?.prepareForSearch();
+        }}
+        onDiscardDrafts={async (drafts) => {
+          await scenePanel?.discardFailedSaves(drafts);
+        }}
+        onApplied={(changes) => scenePanel?.applySearchChanges(changes)}
+        onOpenScene={openSearchScene}
+        onClose={() => (search = null)}
+      />
+    {/key}
+  {/if}
+</div>
 
-<main class="flex h-screen w-screen overflow-hidden bg-bg-primary">
-  {#if currentProject.value}
-    <Sidebar />
-    <ScenePanel />
-    <ReferencesPanel />
-  {:else}
-    <StartScreen
-      {recentProjects}
-      onImportLongform={openLongformImportDialog}
-      onImportComplete={(project, type) => {
-        if (HAS_REFERENCES.includes(type)) {
-          openReferenceClassificationDialog(project);
+<UpdateBanner
+  disabled={closePending || discardQuitDrafts !== null}
+  bind:restarting={updatePending}
+  prepare={flushProseBeforeExit}
+  captureFocus={() => captureCurrentWritingFocus()}
+/>
+
+{#if discardQuitDrafts}
+  <dialog
+    data-quit-confirmation
+    aria-labelledby="quit-confirmation-title"
+    bind:this={quitConfirmation}
+    use:focusQuitConfirmation
+    oncancel={(event) => {
+      event.preventDefault();
+      void keepEditing();
+    }}
+    class="border-0 p-0 max-w-none max-h-none backdrop:bg-transparent"
+  >
+    <ConfirmDialog
+      embedded
+      titleId="quit-confirmation-title"
+      title={editorialQuitFailed
+        ? "Quit without saving review changes?"
+        : discardQuitProse.length
+          ? "Quit without saving writing changes?"
+          : "Quit without saving synopsis changes?"}
+      message={editorialQuitFailed
+        ? "Your review could not be saved. Keep editing to retry or export a recovery copy. Quitting and discarding removes all unsaved review, prose, and synopsis changes."
+        : discardQuitProse.length
+          ? "Some prose or synopsis changes could not be saved. Quit and discard these unsaved writing changes, or keep editing to retry saving."
+          : "Some synopsis changes could not be saved. Quit and discard these unsaved synopsis changes, or keep editing to retry saving."}
+      confirmLabel="Quit and discard"
+      cancelLabel="Keep editing"
+      onConfirm={quitAndDiscard}
+      onCancel={keepEditing}
+    />
+    {@render errorToast()}
+  </dialog>
+{/if}
+
+{#if synopsisSaves.failedCount && !discardQuitDrafts}
+  <div
+    role="alert"
+    class="fixed bottom-4 left-1/2 -translate-x-1/2 z-press-toast rounded-lg bg-press-surface border border-press-error p-4 shadow-lg text-press-ui"
+  >
+    <p class="text-press-error">Your synopsis changes have not been saved.</p>
+    <button
+      onclick={retrySynopses}
+      disabled={retryingSynopses || interactionBlocked}
+      aria-label="Retry all synopsis saves"
+      class="mt-2 underline text-press-text disabled:opacity-50"
+      >{retryingSynopses ? "Saving..." : "Retry saving"}</button
+    >
+  </div>
+{/if}
+
+<!-- Settings is shared by the writing and local editorial workspaces. -->
+<div inert={interactionBlocked} hidden={interactionBlocked}>
+  {#if showSettings}
+    <SettingsDialog onClose={() => (showSettings = false)} />
+  {/if}
+</div>
+
+<main
+  inert={interactionBlocked}
+  aria-busy={closePending || updatePending}
+  class="flex h-screen w-screen overflow-hidden bg-press-bg"
+>
+  {#if currentProject.value && (!editorial?.isOpen() || editorial?.isLocal())}
+    <Sidebar
+      onOpenSettings={() => (showSettings = true)}
+      beforeCloseProject={async () => {
+        if (editorial?.isLocal()) {
+          await editorial.closeWorkspace();
         }
       }}
-      onOpenQuickStart={() => (showQuickStart = true)}
-      onNewProject={() => (showNewProjectDialog = true)}
+      prepareWritingReset={async () => {
+        await scenePanel?.prepareForSearch();
+        await editorial?.flush();
+      }}
     />
   {/if}
+  <div class="writing-surface" class:writing-hidden={editorial?.isOpen()}>
+    {#if currentProject.value}
+      <ScenePanel
+        bind:this={scenePanel}
+        onOpenEditorial={async (id, sceneId, cursor) => {
+          await editorial?.openLocal(id, sceneId, cursor);
+        }}
+      />
+      <ReferencesPanel />
+    {:else}
+      <StartScreen
+        {recentProjects}
+        onOpenEditorial={() => editorial?.openFile()}
+        onImportLongform={openLongformImportDialog}
+        onImportComplete={(project, type) => {
+          if (IMPORT_FORMATS[type].references) {
+            openReferenceClassificationDialog(project);
+          }
+        }}
+        onOpenQuickStart={() => (showQuickStart = true)}
+        onNewProject={() => (showNewProjectDialog = true)}
+      />
+    {/if}
+  </div>
+
+  <EditorialWorkspace
+    bind:this={editorial}
+    onReady={() => (initialEditorialLoaded = true)}
+    prepareWriting={async () => {
+      await scenePanel?.prepareForSearch();
+      await proseSaves.flush();
+    }}
+    onManuscriptChanged={async () => {
+      const scene = currentProject.currentScene;
+      if (scene) {
+        const scenes = await invoke<Scene[]>("get_scenes", { chapterId: scene.chapter_id });
+        currentProject.setScenes(scenes);
+        currentProject.setCurrentScene(scenes.find((s) => s.id === scene.id) ?? null);
+        currentProject.setBeats(await invoke<Beat[]>("get_beats", { sceneId: scene.id }));
+        scenePanel?.applyRevision(await invoke("get_scene_review", { sceneId: scene.id }));
+      }
+    }}
+    >{#snippet references(sceneId)}<ReferencesPanel
+        contextSceneId={sceneId}
+        embedded
+      />{/snippet}</EditorialWorkspace
+  >
 </main>
 
-{#if ui.toast}
-  {#key ui.toast.id}
-    <ErrorToast message={ui.toast.message} onDismiss={() => ui.clearToast()} />
-  {/key}
+{#if !discardQuitDrafts}
+  {@render errorToast()}
 {/if}
 
-<!-- Command palette (⌘K) -->
-<CommandPalette
-  bind:open={showCommandPalette}
-  commands={paletteCommands}
-  onClose={() => (showCommandPalette = false)}
-/>
-
-<!-- Guidance overlay (first-visit tips, one at a time, modal-style) -->
-<GuidanceOverlay />
-
-<!-- Onboarding overlay (shown on first launch) -->
-<Onboarding
-  onImportLongform={openLongformImportDialog}
-  onImportComplete={(project: Project, type: string) => {
-    if (HAS_REFERENCES.includes(type as ImportType)) {
-      openReferenceClassificationDialog(project);
-    }
-  }}
-/>
-
-{#if showReferenceClassificationDialog && referenceClassificationProjectId}
-  <ReferenceClassificationDialog
-    projectId={referenceClassificationProjectId}
-    onClose={closeReferenceClassificationDialog}
-    onComplete={handleReferenceClassificationComplete}
+<div
+  inert={interactionBlocked || editorial?.isOpen()}
+  hidden={interactionBlocked || editorial?.isOpen()}
+>
+  <!-- Command palette -->
+  <CommandPalette
+    bind:open={showCommandPalette}
+    commands={paletteCommands}
+    onClose={() => (showCommandPalette = false)}
   />
-{/if}
 
-<!-- New Project Dialog (triggered by File menu or StartScreen) -->
-{#if showNewProjectDialog}
-  <NewProjectDialog onClose={() => (showNewProjectDialog = false)} />
-{/if}
+  <!-- Guidance overlay (first-visit tips, one at a time, modal-style) -->
+  <GuidanceOverlay />
 
-<!-- Quick Start Dialog (triggered by Help menu) -->
-{#if showQuickStart}
-  <QuickStartDialog onClose={() => (showQuickStart = false)} />
-{/if}
-
-<!-- Kindling Settings Dialog (triggered by menu) -->
-{#if showKindlingSettings}
-  <KindlingSettingsDialog
-    onClose={() => (showKindlingSettings = false)}
-    onSave={() => (showKindlingSettings = false)}
-  />
-{/if}
-
-<!-- Project Settings Dialog (triggered by menu) -->
-{#if showProjectSettings && currentProject.value}
-  <ProjectSettingsDialog
-    onClose={() => (showProjectSettings = false)}
-    onSave={(project) => {
-      currentProject.setProject(project);
-      showProjectSettings = false;
+  <!-- Onboarding overlay (shown on first launch) -->
+  <Onboarding
+    onImportLongform={openLongformImportDialog}
+    onImportComplete={(project: Project, type: string) => {
+      if (isImportType(type) && IMPORT_FORMATS[type].references) {
+        openReferenceClassificationDialog(project);
+      }
     }}
   />
-{/if}
 
-<!-- Export Dialog (triggered by menu) -->
-{#if showExportDialog && currentProject.value}
-  <ExportDialog
-    scope="project"
-    scopeId={null}
-    scopeTitle={currentProject.value.name}
-    onClose={() => (showExportDialog = false)}
-    onSuccess={(result) => {
-      showExportDialog = false;
-      exportResult = result;
-    }}
-  />
-{/if}
+  {#if showReferenceClassificationDialog && referenceClassificationProjectId}
+    <ReferenceClassificationDialog
+      projectId={referenceClassificationProjectId}
+      onClose={closeReferenceClassificationDialog}
+      onComplete={handleReferenceClassificationComplete}
+    />
+  {/if}
 
-{#if showLongformImportDialog}
-  <ImportLongformDialog
-    onSelectIndex={() => {
-      showLongformImportDialog = false;
-      importLongform();
-    }}
-    onSelectVault={() => {
-      showLongformImportDialog = false;
-      importLongformVault();
-    }}
-    onClose={() => (showLongformImportDialog = false)}
-  />
-{/if}
+  <!-- New Project Dialog (triggered by File menu or StartScreen) -->
+  {#if showNewProjectDialog}
+    <NewProjectDialog onClose={() => (showNewProjectDialog = false)} />
+  {/if}
 
-<!-- Export Success Dialog -->
-{#if exportResult}
-  <ExportSuccessDialog result={exportResult} onClose={() => (exportResult = null)} />
-{/if}
+  <!-- Quick Start Dialog (triggered by Help menu) -->
+  {#if showQuickStart}
+    <QuickStartDialog onClose={() => (showQuickStart = false)} />
+  {/if}
 
-<!-- About Dialog -->
-{#if showAboutDialog}
-  <AboutDialog
-    onClose={() => (showAboutDialog = false)}
-    onSendFeedback={() => {
-      showAboutDialog = false;
-      showFeedbackDialog = true;
-    }}
-  />
-{/if}
+  <!-- Export Dialog (triggered by menu) -->
+  {#if showExportDialog && currentProject.value}
+    <ExportDialog
+      scope="project"
+      scopeId={null}
+      scopeTitle={currentProject.value.name}
+      onClose={() => (showExportDialog = false)}
+      onSuccess={(result) => {
+        showExportDialog = false;
+        exportResult = result;
+      }}
+    />
+  {/if}
 
-<!-- Feedback Dialog (opened from the Help menu or the About dialog) -->
-{#if showFeedbackDialog}
-  <FeedbackDialog onClose={() => (showFeedbackDialog = false)} />
-{/if}
+  {#if showLongformImportDialog}
+    <ImportLongformDialog
+      onSelectIndex={() => {
+        showLongformImportDialog = false;
+        importLongform();
+      }}
+      onSelectVault={() => {
+        showLongformImportDialog = false;
+        importLongformVault();
+      }}
+      onClose={() => (showLongformImportDialog = false)}
+    />
+  {/if}
+
+  <!-- Export Success Dialog -->
+  {#if exportResult}
+    <ExportSuccessDialog result={exportResult} onClose={() => (exportResult = null)} />
+  {/if}
+
+  <!-- About Dialog -->
+  {#if showAboutDialog}
+    <AboutDialog
+      onClose={() => (showAboutDialog = false)}
+      onSendFeedback={() => {
+        showAboutDialog = false;
+        showFeedbackDialog = true;
+      }}
+    />
+  {/if}
+
+  <!-- Feedback Dialog (opened from the Help menu or the About dialog) -->
+  {#if showFeedbackDialog}
+    <FeedbackDialog onClose={() => (showFeedbackDialog = false)} />
+  {/if}
+</div>
+
+<style>
+  .writing-surface {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+  }
+  .writing-hidden {
+    display: none;
+  }
+</style>

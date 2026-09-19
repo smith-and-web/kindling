@@ -16,6 +16,7 @@
  * @see ui.svelte.ts for UI-related state (panel visibility, onboarding, etc.)
  */
 import type { Project, Chapter, Scene, Beat, Character, Location } from "../types";
+import { session } from "./session.svelte";
 
 class ProjectStore {
   value = $state<Project | null>(null);
@@ -28,8 +29,12 @@ class ProjectStore {
   locations = $state<Location[]>([]);
 
   setProject(project: Project | null) {
+    const switchingProject = project !== null && project.id !== this.value?.id;
     this.value = project;
-    if (!project) {
+    // Clear child state when closing a project or opening a different one.
+    // Updating the same project (rename, settings) keeps the current selection.
+    if (!project || switchingProject) {
+      session.open(project?.id ?? null);
       this.chapters = [];
       this.currentChapter = null;
       this.currentScene = null;
@@ -112,10 +117,11 @@ class ProjectStore {
   }
 
   setCurrentScene(scene: Scene | null) {
-    this.currentScene = scene;
-    if (!scene) {
+    if (scene) session.selectScene(scene);
+    if (!scene || this.currentScene?.id !== scene.id) {
       this.beats = [];
     }
+    this.currentScene = scene;
   }
 
   setBeats(beats: Beat[]) {

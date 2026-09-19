@@ -13,6 +13,7 @@ export default defineConfig(({ command }) => {
 
   return {
     plugins: [svelte(), tailwindcss()],
+    publicDir: "static",
     resolve: {
       alias: {
         $lib: path.resolve("./src/lib"),
@@ -39,7 +40,14 @@ export default defineConfig(({ command }) => {
           }
         : undefined,
       watch: {
-        ignored: ["**/src-tauri/**"],
+        // QA writes screenshots, DOM dumps and reports while driving the app.
+        // Watching those artifacts reloads the webview mid-scenario.
+        ignored: [
+          "**/src-tauri/**",
+          "**/qa/visual/results/**",
+          "**/qa/visual/data/**",
+          "**/qa/demo/data/**",
+        ],
       },
     },
   };

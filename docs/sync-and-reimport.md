@@ -39,10 +39,33 @@ Sync/reimport is available for:
 Sync/reimport focuses on outline structure:
 
 - Chapter, scene, and beat additions
-- Title and synopsis updates
-- Beat content updates
+- Title and synopsis updates (Markdown title changes require label alignment first)
+- Beat content updates (Markdown beat text changes require label alignment first)
 
 Locked chapters or scenes are skipped, and prose inside Kindling is preserved.
+
+## Markdown identity and ambiguous changes
+
+Markdown has no permanent outline IDs. Kindling matches unique chapter titles,
+scene titles within a chapter, and beat text within a scene. Inserting or
+reordering nodes keeps existing prose attached to its original scene and beat.
+
+If sibling labels are duplicated, or unmatched labels could represent a rename
+or replacement, sync and reimport stop without applying changes. Give siblings
+unique labels and explicitly align renamed titles or beat text in Kindling and
+the source, then retry. This also applies to older imported Markdown projects;
+positions alone are never used to attach prose to incoming outline nodes.
+
+Local-only nodes remain independent and do not block source additions. Archived
+chapters and scenes stay archived; sync neither updates nor recreates them or
+their descendants. If a scene or beat moved between parents in the source,
+align that move in Kindling before syncing. For beat moves, move the source beat
+back to its original scene before syncing; copying prose into a new beat is a
+separate, explicit editing operation.
+
+A successful preview may repair missing or duplicate legacy identity metadata.
+Cancelling the preview leaves outline content and prose unchanged; the repaired
+identities remain saved.
 
 ## Troubleshooting
 

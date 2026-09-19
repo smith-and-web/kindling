@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { GripVertical, Pencil, Plus, Trash2, X, Loader2, Check } from "lucide-svelte";
   import type { FieldDefinition, FieldType, FieldEntityType } from "../types";
@@ -6,10 +7,14 @@
 
   let {
     projectId,
+    onState,
+    onChange,
     entityType,
     entityLabel,
   }: {
     projectId: string;
+    onState?: (state: { dirty: boolean; busy: boolean }) => void;
+    onChange?: () => void;
     entityType: FieldEntityType;
     entityLabel: string;
   } = $props();
@@ -21,6 +26,11 @@
   let editingDef = $state<Partial<FieldDefinition> | null>(null);
   let editMode = $state<"create" | "edit">("create");
   let saving = $state(false);
+  $effect(() => {
+    const state = { dirty: editingDef !== null, busy: saving };
+    untrack(() => onState?.(state));
+  });
+  onDestroy(() => onState?.({ dirty: false, busy: false }));
 
   const FIELD_TYPES: { value: FieldType; label: string }[] = [
     { value: "text", label: "Text" },
@@ -67,7 +77,10 @@
 
   function openEditForm(def: FieldDefinition) {
     editMode = "edit";
-    editingDef = { ...def };
+    editingDef = {
+      ...def,
+      field_type: def.field_type === "multi_select" ? "multiselect" : def.field_type,
+    };
   }
 
   function cancelEdit() {
@@ -108,6 +121,7 @@
       }
       editingDef = null;
       await loadDefinitions();
+      onChange?.();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -116,11 +130,16 @@
   }
 
   async function deleteDefinition(id: string) {
+    if (saving) return;
+    saving = true;
     try {
       await invoke("delete_field_definition", { projectId, definitionId: id });
       await loadDefinitions();
+      onChange?.();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+    } finally {
+      saving = false;
     }
   }
 
@@ -156,16 +175,16 @@
   );
 
   const inputClass =
-    "w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent";
+    "w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 text-press-ui focus:outline-none focus:border-press-accent";
 </script>
 
 <div class="space-y-3">
   <div class="flex items-center justify-between">
-    <h3 class="text-sm font-medium text-text-primary">{entityLabel} Fields</h3>
+    <h3 class="text-press-ui font-medium text-press-text">{entityLabel} Fields</h3>
     <button
       type="button"
       onclick={openCreateForm}
-      class="text-text-secondary hover:text-text-primary text-xs flex items-center gap-1"
+      class="text-press-muted hover:text-press-text text-press-eyebrow flex items-center gap-1"
       disabled={!!editingDef}
     >
       <Plus class="w-3 h-3" />
@@ -174,25 +193,25 @@
   </div>
 
   {#if loading}
-    <p class="text-xs text-text-secondary">Loading fields...</p>
+    <p class="text-press-eyebrow text-press-muted">Loading fields...</p>
   {:else if error}
-    <p class="text-xs text-red-400">{error}</p>
+    <p class="text-press-eyebrow text-press-error">{error}</p>
   {:else if definitions.length === 0 && !editingDef}
-    <p class="text-xs text-text-secondary">No custom fields defined yet.</p>
+    <p class="text-press-eyebrow text-press-muted">No custom fields defined yet.</p>
   {:else}
     <div class="space-y-1">
       {#each definitions as def}
-        <div class="flex items-center gap-2 py-1.5 px-2 bg-bg-card rounded-lg text-sm">
-          <GripVertical class="w-3.5 h-3.5 text-text-secondary/50 shrink-0" />
-          <span class="flex-1 text-text-primary truncate">{def.name}</span>
-          <span class="text-xs text-text-secondary capitalize">{def.field_type}</span>
+        <div class="flex items-center gap-2 py-1.5 px-2 bg-press-sunken rounded-lg text-press-ui">
+          <GripVertical class="w-3.5 h-3.5 text-press-muted shrink-0" />
+          <span class="flex-1 text-press-text truncate">{def.name}</span>
+          <span class="text-press-eyebrow text-press-muted capitalize">{def.field_type}</span>
           {#if def.required}
-            <span class="text-xs text-red-400">req</span>
+            <span class="text-press-eyebrow text-press-error">req</span>
           {/if}
           <Tooltip text="Edit" position="bottom">
             <button
               onclick={() => openEditForm(def)}
-              class="p-1 text-text-secondary hover:text-text-primary"
+              class="p-1 text-press-muted hover:text-press-text"
               aria-label="Edit field"
             >
               <Pencil class="w-3.5 h-3.5" />
@@ -201,7 +220,7 @@
           <Tooltip text="Delete" position="bottom">
             <button
               onclick={() => deleteDefinition(def.id)}
-              class="p-1 text-text-secondary hover:text-red-400"
+              class="p-1 text-press-muted hover:text-press-error"
               aria-label="Delete field"
             >
               <Trash2 class="w-3.5 h-3.5" />
@@ -213,18 +232,18 @@
   {/if}
 
   {#if editingDef}
-    <div class="bg-bg-card rounded-lg p-3 space-y-3 border border-accent/30">
+    <div class="bg-press-sunken rounded-lg p-3 space-y-3 border border-press-accent">
       <div class="flex items-center justify-between">
-        <span class="text-sm font-medium text-text-primary">
+        <span class="text-press-ui font-medium text-press-text">
           {editMode === "create" ? "New Field" : "Edit Field"}
         </span>
-        <button onclick={cancelEdit} class="p-1 text-text-secondary hover:text-text-primary">
+        <button onclick={cancelEdit} class="p-1 text-press-muted hover:text-press-text">
           <X class="w-4 h-4" />
         </button>
       </div>
 
       <div>
-        <label class="block text-xs text-text-secondary mb-1" for="field-name">Name</label>
+        <label class="block text-press-eyebrow text-press-muted mb-1" for="field-name">Name</label>
         <input
           id="field-name"
           type="text"
@@ -236,7 +255,7 @@
       </div>
 
       <div>
-        <label class="block text-xs text-text-secondary mb-1" for="field-type">Type</label>
+        <label class="block text-press-eyebrow text-press-muted mb-1" for="field-type">Type</label>
         <select
           id="field-type"
           bind:value={editingDef.field_type}
@@ -251,7 +270,7 @@
 
       {#if needsOptions}
         <div>
-          <label class="block text-xs text-text-secondary mb-1" for="field-options">
+          <label class="block text-press-eyebrow text-press-muted mb-1" for="field-options">
             Options (comma-separated)
           </label>
           <input
@@ -267,7 +286,7 @@
       {/if}
 
       <div>
-        <label class="block text-xs text-text-secondary mb-1" for="field-default">
+        <label class="block text-press-eyebrow text-press-muted mb-1" for="field-default">
           Default value
         </label>
         <input
@@ -281,7 +300,9 @@
       </div>
 
       <div class="flex items-center gap-4">
-        <label class="inline-flex items-center gap-1.5 text-sm text-text-primary cursor-pointer">
+        <label
+          class="inline-flex items-center gap-1.5 text-press-ui text-press-text cursor-pointer"
+        >
           <input
             type="checkbox"
             class="accent-accent"
@@ -290,7 +311,9 @@
           />
           Required
         </label>
-        <label class="inline-flex items-center gap-1.5 text-sm text-text-primary cursor-pointer">
+        <label
+          class="inline-flex items-center gap-1.5 text-press-ui text-press-text cursor-pointer"
+        >
           <input
             type="checkbox"
             class="accent-accent"
@@ -304,14 +327,14 @@
       <div class="flex justify-end gap-2">
         <button
           onclick={cancelEdit}
-          class="px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary"
+          class="px-3 py-1.5 text-press-ui text-press-muted hover:text-press-text"
           disabled={saving}
         >
           Cancel
         </button>
         <button
           onclick={saveDefinition}
-          class="px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-accent/80 disabled:opacity-50 flex items-center gap-1.5"
+          class="px-3 py-1.5 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text flex items-center gap-1.5"
           disabled={saving || !editingDef.name?.trim()}
         >
           {#if saving}

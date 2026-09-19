@@ -8,6 +8,7 @@ pub enum SourceType {
     Markdown,
     YWriter,
     Longform,
+    NovelWriter,
     Blank,
 }
 
@@ -19,6 +20,7 @@ impl SourceType {
             SourceType::Markdown => "markdown",
             SourceType::YWriter => "ywriter",
             SourceType::Longform => "longform",
+            SourceType::NovelWriter => "novelwriter",
             SourceType::Blank => "blank",
         }
     }
@@ -30,6 +32,7 @@ impl SourceType {
             "markdown" => Some(SourceType::Markdown),
             "ywriter" => Some(SourceType::YWriter),
             "longform" => Some(SourceType::Longform),
+            "novelwriter" => Some(SourceType::NovelWriter),
             "blank" => Some(SourceType::Blank),
             _ => None,
         }

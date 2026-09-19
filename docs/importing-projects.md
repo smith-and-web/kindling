@@ -1,11 +1,11 @@
 # Importing Projects into Kindling
 
-Kindling supports importing story outlines from multiple sources. This guide explains how to prepare your files for successful import and how reference data is handled.
+Kindling supports importing story outlines and drafts from multiple sources. This guide explains how to prepare your files for successful import and how reference data is handled.
 
 ## Importing a Project
 
 1. Choose **Import** from the start screen or project menu.
-2. Select a source file (Plottr, Markdown, yWriter) or a Longform/Obsidian vault folder.
+2. Select a source file (Plottr, Markdown, yWriter), a Longform/Obsidian index or vault, or a novelWriter project folder.
 3. Review the import summary and finish the import.
 
 ![Screenshot: Import dialog](https://raw.githubusercontent.com/smith-and-web/kindling/main/docs/assets/import-dialog.png)
@@ -18,6 +18,7 @@ Kindling supports importing story outlines from multiple sources. This guide exp
 | [Markdown](#markdown-md) | `.md` | Plain text markdown outlines |
 | [yWriter](#ywriter-yw7) | `.yw7` | yWriter 7 project files |
 | [Longform/Obsidian](#longform-obsidian-md) | `.md` index or vault folder | Longform index + scene files |
+| [novelWriter](#novelwriter-project-folder) | Folder containing `nwProject.nwx` | Manuscript, prose, beats and reference notes |
 
 ---
 
@@ -189,7 +190,7 @@ Kindling enhances the Obsidian workflow—it doesn't replace it. Keep research a
 - **Chapters and scenes** based on the `longform.scenes` list
 - **Scene status, synopsis, and prose**
 - **Reference types** via frontmatter, tags, folders, and wikilinks
-- **Reference notes** from character/location/item/objective/organization notes
+- **Reference notes** from character, location, item, objective, organization, timeline and custom notes
 
 ### Recommended Vault Structure
 
@@ -204,6 +205,8 @@ My Novel/
   items/
   objectives/
   organizations/
+  timelines/
+  notes/
   templates/
 ```
 
@@ -256,6 +259,8 @@ Supported fields:
 - `items` / `objects`
 - `objectives` / `goals`
 - `organizations` / `factions` / `groups` / `teams`
+- `timelines`
+- `custom` (or `notes`)
 
 You can also use Dataview-style fields (`characters::`, `setting::`) or `#status/final` tags.
 
@@ -263,12 +268,79 @@ You can also use Dataview-style fields (`characters::`, `setting::`) or `#status
 
 Kindling detects reference notes using both folder names and frontmatter:
 
-- Use folders like `characters/`, `locations/`, `items/`, `objectives/`, `organizations/`
+- Use folders like `characters/`, `locations/`, `items/`, `objectives/`, `organizations/`, `timelines/`, `notes/`
 - Add `type`, `category`, or `tags` in frontmatter (e.g., `type: character`)
 - Keep reference names consistent between notes and scene links
 - Use `[[;Name]]` for characters and `[[~Place]]` for locations when a name could be ambiguous
 - Keep a single Longform index file per vault to avoid import ambiguity
 - Let Longform manage the `longform.scenes` list so ordering stays in sync
+
+Timeline notes import into **Timelines**, and custom notes into **Notes**. You can
+also classify them with `type: timeline` or `type: custom` in frontmatter.
+Longform export and import preserve these categories, their descriptions and
+attributes, and scene links. Keep the exported **Description** and **Notes**
+sections to preserve their text separately.
+
+---
+
+## novelWriter (Project Folder)
+
+Import a novelWriter project to plan its chapters and scenes in Kindling while keeping your draft and reference notes together.
+
+### File Requirements
+
+1. Choose **Import → novelWriter** from the project menu, or **novelWriter** in the guided import.
+2. Select the project folder containing `nwProject.nwx` and its `content/` folder. Select the whole folder, not an individual scene file.
+3. Finish the import and review any reference classifications offered.
+
+Keep the project folder intact. Kindling reads current `.md` documents and legacy `.nwd` documents from project format versions 1.4–1.6.
+
+### What Gets Imported
+
+- **Project name and author**
+- **Parts, chapters and scenes** from the manuscript headings
+- **Prose** with bold, italic and strikethrough formatting
+- **Scene synopses** from `%Synopsis:` comments
+- **Beats** from `% Beat:` comments, with the prose following each comment
+- **Reference notes** with names, descriptions and attributes
+- **Scene links** to characters, locations and supported reference notes, resolved by their tags
+
+| novelWriter Note Root | Kindling Reference Type |
+|-----------------------|-------------------------|
+| Character | Characters |
+| World | Locations |
+| Object | Items |
+| Plot | Objectives |
+| Entity | Organizations |
+| Timeline | Timelines |
+| Custom | Notes |
+
+Blank lines separate paragraphs; a single newline stays within the same paragraph. Part documents that contain prose receive a normal chapter so their scenes remain accessible.
+
+A scene without beat comments opens in Page mode and also has a single beat titled **Scene Content**. Archive, Trash and Template roots are skipped; only the first Novel root is imported.
+
+### Moving Between Kindling and novelWriter
+
+To take a Kindling novel into novelWriter, choose **Export → novelWriter** and select an empty destination folder. Exported projects require **novelWriter 26.2 or newer**. Beat comments and reference notes are included by default; archived chapters and scenes are excluded. Screenplays cannot be exported to this format.
+
+Keep **Include beat comments** enabled to preserve beat boundaries for later sync. Page-mode scenes export as whole-scene prose because they have no stored beat boundaries. Exporting does not change the project's existing sync connection. Import the exported folder to create a Kindling project linked to that novelWriter source.
+
+### Reviewing Changes with Sync
+
+After editing the source project in novelWriter, open the linked Kindling project and choose **Sync**. Review the full current and incoming prose, select the changes you want, then choose **Apply Sync**. Prose changes are unselected by default, and locked chapters and scenes are skipped.
+
+- With beat comments, Beat-mode prose can be reviewed and accepted for individual beats.
+- Without beat comments, or in Page mode, prose is reviewed as one scene-level change.
+- Accepting a whole-scene replacement in Beat mode keeps the planning beats, puts the incoming text in the first beat and clears prose from the remaining beats. The editor mode stays the same.
+- Declining a change leaves your local prose untouched. Sync reads changes into Kindling; export to a new empty folder to take Kindling changes back to novelWriter.
+
+Beats created or split locally keep their own prose and are not assigned to incoming beat comments during Sync.
+
+Sync covers chapters, scenes, beats and prose. Changes to notes, reference links and project metadata are not synced. Keep beat comments in their original order when possible: inserting a beat between existing comments can change how subsequent beats are matched, so review those changes carefully.
+
+### Limitations
+
+Underline and Kindling-only planning data are not included in export. novelWriter shortcodes, footnotes, alignment and indent codes, ignored text and per-item importance are not preserved. H4 sections are flattened into scene prose; POV, focus, mention and story references are not restored as scene links.
 
 ---
 
@@ -283,19 +355,21 @@ Kindling detects reference notes using both folder names and frontmatter:
 - **Plottr**: Ensure the file is valid JSON (not corrupted)
 - **Markdown**: Check for encoding issues (should be UTF-8)
 - **Longform/Obsidian**: Ensure the index has `longform.format: scenes`
+- **novelWriter**: Select the folder containing a readable `nwProject.nwx` and its `content/` folder
 
 ### Missing Content After Import
 
 - **No chapters**: Make sure your file has the expected structure markers
 - **No scenes**: Scenes require a parent chapter to exist first
 - **No beats**: Beats require a parent scene to exist first
-- **No characters/locations**: These are only imported from Plottr, yWriter, or Longform/Obsidian
+- **No characters/locations**: These are imported from Plottr, yWriter, Longform/Obsidian and novelWriter
 
 ### Missing References or Notes
 
 - Confirm reference notes live in recognizable folders (e.g., `characters/`, `locations/`)
 - Add `type`, `category`, or `tags` frontmatter to classify notes
 - Use `[[;Name]]` and `[[~Place]]` prefixes for ambiguous names
+- For novelWriter, check that notes have unique `@tag:` values and scene references use those tags
 - Run the post-import reference classification dialog to adjust types
 
 ---
@@ -305,19 +379,20 @@ Kindling detects reference notes using both folder names and frontmatter:
 - Longform import supports `format: scenes` only (single-scene format is not supported yet).
 - Markdown imports outline structure only; it does not include reference types.
 - Sync/reimport updates outline structure but does not enrich references for Markdown sources.
+- novelWriter sync includes user-selected prose changes; notes, reference links and project metadata are not synced.
 
 ---
 
 ## Format Comparison
 
-| Feature | Plottr | Markdown | yWriter | Longform/Obsidian |
-|---------|--------|----------|---------|------------------|
-| Chapters | Yes | Yes (H1) | Yes | Yes |
-| Scenes | Yes | Yes (H2) | Yes | Yes |
-| Beats | Yes (scene descriptions) | Yes (lists/paragraphs) | Yes (Goal/Conflict/Outcome) | Yes (beats marker) |
-| Synopsis | Yes | No | Yes | Yes |
-| Prose | No | No | Yes | Yes |
-| Characters | Yes | No | Yes | Yes |
-| Locations | Yes | No | Yes | Yes |
-| Items/Objectives/Organizations | No | No | Items only | Yes |
-| Scene-reference links | Yes | No | Characters/locations | Yes |
+| Feature | Plottr | Markdown | yWriter | Longform/Obsidian | novelWriter |
+|---------|--------|----------|---------|------------------|-------------|
+| Chapters | Yes | Yes (H1) | Yes | Yes | Yes, including parts |
+| Scenes | Yes | Yes (H2) | Yes | Yes | Yes |
+| Beats | Yes (scene descriptions) | Yes (lists/paragraphs) | Yes (Goal/Conflict/Outcome) | Yes (beats marker) | Yes (beat comments; otherwise one content beat) |
+| Synopsis | Yes | No | Yes | Yes | Yes |
+| Prose | No | No | Yes | Yes | Yes, including reviewed sync changes |
+| Characters | Yes | No | Yes | Yes | Yes |
+| Locations | Yes | No | Yes | Yes | Yes |
+| Items/Objectives/Organizations | No | No | Items only | Yes | Yes, plus timelines and notes |
+| Scene-reference links | Yes | No | Characters/locations | Yes | Characters, locations and supported tagged notes |

@@ -1,13 +1,19 @@
 <script lang="ts">
+  import { onDestroy, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { Loader2, Pencil, Plus, Trash2, X, Check } from "lucide-svelte";
+  import pressTokens from "../../styles/press/tokens.json";
   import type { Tag } from "../types";
   import Tooltip from "./Tooltip.svelte";
 
   let {
     projectId,
+    onState,
+    onChange,
   }: {
     projectId: string;
+    onState?: (state: { dirty: boolean; busy: boolean }) => void;
+    onChange?: () => void;
   } = $props();
 
   let tags = $state<Tag[]>([]);
@@ -17,19 +23,28 @@
   let editingTag = $state<Partial<Tag> | null>(null);
   let editMode = $state<"create" | "edit">("create");
   let saving = $state(false);
+  $effect(() => {
+    const state = { dirty: editingTag !== null, busy: saving };
+    untrack(() => onState?.(state));
+  });
+  onDestroy(() => onState?.({ dirty: false, busy: false }));
 
-  const PRESET_COLORS = [
-    "#ef4444",
-    "#f97316",
-    "#eab308",
-    "#22c55e",
-    "#06b6d4",
-    "#3b82f6",
-    "#8b5cf6",
-    "#ec4899",
-    "#6b7280",
-    "#14b8a6",
+  const PRESET_COLOR_TOKENS: Array<[string, keyof typeof pressTokens.light]> = [
+    ["Red", "--tag-red"],
+    ["Orange", "--tag-orange"],
+    ["Yellow", "--tag-yellow"],
+    ["Green", "--tag-green"],
+    ["Teal", "--tag-teal"],
+    ["Blue", "--tag-blue"],
+    ["Purple", "--tag-purple"],
+    ["Pink", "--tag-pink"],
+    ["Slate", "--tag-slate"],
+    ["Cyan", "--tag-cyan"],
   ];
+  const PRESET_COLORS = PRESET_COLOR_TOKENS.map(([name, token]) => ({
+    name,
+    color: pressTokens.light[token],
+  }));
 
   async function loadTags() {
     loading = true;
@@ -98,6 +113,7 @@
       }
       editingTag = null;
       await loadTags();
+      onChange?.();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -106,25 +122,30 @@
   }
 
   async function deleteTag(id: string) {
+    if (saving) return;
+    saving = true;
     try {
       await invoke("delete_tag", { tagId: id });
       await loadTags();
+      onChange?.();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+    } finally {
+      saving = false;
     }
   }
 
   const inputClass =
-    "w-full bg-bg-card text-text-primary border border-bg-card rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent";
+    "w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 text-press-ui focus:outline-none focus:border-press-accent";
 </script>
 
 <div class="space-y-3">
   <div class="flex items-center justify-between">
-    <h3 class="text-sm font-medium text-text-primary">Tags</h3>
+    <h3 class="text-press-ui font-medium text-press-text">Tags</h3>
     <button
       type="button"
       onclick={() => openCreateForm()}
-      class="text-text-secondary hover:text-text-primary text-xs flex items-center gap-1"
+      class="text-press-muted hover:text-press-text text-press-eyebrow flex items-center gap-1"
       disabled={!!editingTag}
     >
       <Plus class="w-3 h-3" />
@@ -133,25 +154,27 @@
   </div>
 
   {#if loading}
-    <p class="text-xs text-text-secondary">Loading tags...</p>
+    <p class="text-press-eyebrow text-press-muted">Loading tags...</p>
   {:else if error}
-    <p class="text-xs text-red-400">{error}</p>
+    <p class="text-press-eyebrow text-press-error">{error}</p>
   {:else if tags.length === 0 && !editingTag}
-    <p class="text-xs text-text-secondary">No tags defined yet.</p>
+    <p class="text-press-eyebrow text-press-muted">No tags defined yet.</p>
   {:else}
     <div class="space-y-0.5">
       {#each getRootTags() as tag}
         {@const children = getChildTags(tag.id)}
         <div>
-          <div class="flex items-center gap-2 py-1.5 px-2 bg-bg-card rounded-lg text-sm group">
+          <div
+            class="flex items-center gap-2 py-1.5 px-2 bg-press-sunken rounded-lg text-press-ui group"
+          >
             {#if tag.color}
               <span class="w-3 h-3 rounded-full shrink-0" style:background-color={tag.color}></span>
             {:else}
-              <span class="w-3 h-3 rounded-full shrink-0 bg-text-secondary/20"></span>
+              <span class="w-3 h-3 rounded-full shrink-0 bg-press-border"></span>
             {/if}
-            <span class="flex-1 text-text-primary truncate">{tag.name}</span>
+            <span class="flex-1 text-press-text truncate">{tag.name}</span>
             {#if children.length > 0}
-              <span class="text-xs text-text-secondary">{children.length}</span>
+              <span class="text-press-eyebrow text-press-muted">{children.length}</span>
             {/if}
             <div
               class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -159,7 +182,7 @@
               <Tooltip text="Add child" position="bottom">
                 <button
                   onclick={() => openCreateForm(tag.id)}
-                  class="p-0.5 text-text-secondary hover:text-text-primary"
+                  class="p-0.5 text-press-muted hover:text-press-text"
                   aria-label="Add child tag"
                 >
                   <Plus class="w-3 h-3" />
@@ -168,7 +191,7 @@
               <Tooltip text="Edit" position="bottom">
                 <button
                   onclick={() => openEditForm(tag)}
-                  class="p-0.5 text-text-secondary hover:text-text-primary"
+                  class="p-0.5 text-press-muted hover:text-press-text"
                   aria-label="Edit tag"
                 >
                   <Pencil class="w-3 h-3" />
@@ -177,7 +200,7 @@
               <Tooltip text="Delete" position="bottom">
                 <button
                   onclick={() => deleteTag(tag.id)}
-                  class="p-0.5 text-text-secondary hover:text-red-400"
+                  class="p-0.5 text-press-muted hover:text-press-error"
                   aria-label="Delete tag"
                 >
                   <Trash2 class="w-3 h-3" />
@@ -191,7 +214,7 @@
                 {@const grandchildren = getChildTags(child.id)}
                 <div>
                   <div
-                    class="flex items-center gap-2 py-1 px-2 bg-bg-card/50 rounded text-sm group"
+                    class="flex items-center gap-2 py-1 px-2 bg-press-sunken rounded text-press-ui group"
                   >
                     {#if child.color}
                       <span
@@ -199,9 +222,11 @@
                         style:background-color={child.color}
                       ></span>
                     {:else}
-                      <span class="w-2.5 h-2.5 rounded-full shrink-0 bg-text-secondary/20"></span>
+                      <span class="w-2.5 h-2.5 rounded-full shrink-0 bg-press-border"></span>
                     {/if}
-                    <span class="flex-1 text-text-primary truncate text-xs">{child.name}</span>
+                    <span class="flex-1 text-press-text truncate text-press-eyebrow"
+                      >{child.name}</span
+                    >
                     <div
                       class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
@@ -209,7 +234,7 @@
                         <Tooltip text="Add child" position="bottom">
                           <button
                             onclick={() => openCreateForm(child.id)}
-                            class="p-0.5 text-text-secondary hover:text-text-primary"
+                            class="p-0.5 text-press-muted hover:text-press-text"
                             aria-label="Add child tag"
                           >
                             <Plus class="w-3 h-3" />
@@ -219,7 +244,7 @@
                       <Tooltip text="Edit" position="bottom">
                         <button
                           onclick={() => openEditForm(child)}
-                          class="p-0.5 text-text-secondary hover:text-text-primary"
+                          class="p-0.5 text-press-muted hover:text-press-text"
                           aria-label="Edit tag"
                         >
                           <Pencil class="w-3 h-3" />
@@ -228,7 +253,7 @@
                       <Tooltip text="Delete" position="bottom">
                         <button
                           onclick={() => deleteTag(child.id)}
-                          class="p-0.5 text-text-secondary hover:text-red-400"
+                          class="p-0.5 text-press-muted hover:text-press-error"
                           aria-label="Delete tag"
                         >
                           <Trash2 class="w-3 h-3" />
@@ -240,7 +265,7 @@
                     <div class="ml-4 mt-0.5 space-y-0.5">
                       {#each grandchildren as gc}
                         <div
-                          class="flex items-center gap-2 py-1 px-2 bg-bg-card/30 rounded text-xs group"
+                          class="flex items-center gap-2 py-1 px-2 bg-press-sunken rounded text-press-eyebrow group"
                         >
                           {#if gc.color}
                             <span
@@ -248,16 +273,16 @@
                               style:background-color={gc.color}
                             ></span>
                           {:else}
-                            <span class="w-2 h-2 rounded-full shrink-0 bg-text-secondary/20"></span>
+                            <span class="w-2 h-2 rounded-full shrink-0 bg-press-border"></span>
                           {/if}
-                          <span class="flex-1 text-text-primary truncate">{gc.name}</span>
+                          <span class="flex-1 text-press-text truncate">{gc.name}</span>
                           <div
                             class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                           >
                             <Tooltip text="Edit" position="bottom">
                               <button
                                 onclick={() => openEditForm(gc)}
-                                class="p-0.5 text-text-secondary hover:text-text-primary"
+                                class="p-0.5 text-press-muted hover:text-press-text"
                                 aria-label="Edit tag"
                               >
                                 <Pencil class="w-3 h-3" />
@@ -266,7 +291,7 @@
                             <Tooltip text="Delete" position="bottom">
                               <button
                                 onclick={() => deleteTag(gc.id)}
-                                class="p-0.5 text-text-secondary hover:text-red-400"
+                                class="p-0.5 text-press-muted hover:text-press-error"
                                 aria-label="Delete tag"
                               >
                                 <Trash2 class="w-3 h-3" />
@@ -287,18 +312,18 @@
   {/if}
 
   {#if editingTag}
-    <div class="bg-bg-card rounded-lg p-3 space-y-3 border border-accent/30">
+    <div class="bg-press-sunken rounded-lg p-3 space-y-3 border border-press-accent">
       <div class="flex items-center justify-between">
-        <span class="text-sm font-medium text-text-primary">
+        <span class="text-press-ui font-medium text-press-text">
           {editMode === "create" ? "New Tag" : "Edit Tag"}
         </span>
-        <button onclick={cancelEdit} class="p-1 text-text-secondary hover:text-text-primary">
+        <button onclick={cancelEdit} class="p-1 text-press-muted hover:text-press-text">
           <X class="w-4 h-4" />
         </button>
       </div>
 
       <div>
-        <label class="block text-xs text-text-secondary mb-1" for="tag-name">Name</label>
+        <label class="block text-press-eyebrow text-press-muted mb-1" for="tag-name">Name</label>
         <input
           id="tag-name"
           type="text"
@@ -309,53 +334,54 @@
         />
       </div>
 
-      <div>
-        <label class="block text-xs text-text-secondary mb-1">Color</label>
+      <fieldset>
+        <legend class="block text-press-eyebrow text-press-muted mb-1">Color</legend>
         <div class="flex flex-wrap gap-1.5">
           <button
             onclick={() => {
               if (editingTag) editingTag.color = null;
             }}
             class="w-6 h-6 rounded-full border-2 flex items-center justify-center"
-            class:border-accent={!editingTag.color}
+            class:border-press-accent={!editingTag.color}
             class:border-transparent={!!editingTag.color}
-            style:background-color="var(--color-bg-card)"
+            style:background-color="var(--color-surface-sunken)"
             aria-label="No color"
           >
             {#if !editingTag.color}
-              <Check class="w-3 h-3 text-text-secondary" />
+              <Check class="w-3 h-3 text-press-muted" />
             {/if}
           </button>
-          {#each PRESET_COLORS as color}
+          {#each PRESET_COLORS as preset (preset.name)}
+            {@const color = preset.color}
             <button
               onclick={() => {
                 if (editingTag) editingTag.color = color;
               }}
               class="w-6 h-6 rounded-full border-2 flex items-center justify-center"
-              class:border-white={editingTag.color === color}
+              class:border-press-on-accent={editingTag.color === color}
               class:border-transparent={editingTag.color !== color}
               style:background-color={color}
-              aria-label="Color {color}"
+              aria-label={preset.name}
             >
               {#if editingTag.color === color}
-                <Check class="w-3 h-3 text-white" />
+                <Check class="w-3 h-3 text-press-on-accent" />
               {/if}
             </button>
           {/each}
         </div>
-      </div>
+      </fieldset>
 
       <div class="flex justify-end gap-2">
         <button
           onclick={cancelEdit}
-          class="px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary"
+          class="px-3 py-1.5 text-press-ui text-press-muted hover:text-press-text"
           disabled={saving}
         >
           Cancel
         </button>
         <button
           onclick={saveTag}
-          class="px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-accent/80 disabled:opacity-50 flex items-center gap-1.5"
+          class="px-3 py-1.5 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text flex items-center gap-1.5"
           disabled={saving || !editingTag.name?.trim()}
         >
           {#if saving}

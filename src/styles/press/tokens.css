@@ -1,0 +1,202 @@
+/* Kindling — Press design tokens */
+:root {
+  /* ===== Palette — raw brand colours ===== */
+  --paper:#F4EFE6; --raised:#FBF8F1; --sunken:#ECE4D6;
+  --ink:#231D18; --ink-2:#6B635B;
+  --terracotta:#B5532E; --accent-text:#9E3D1B; --ember:#E0612C;
+  --hair:rgba(35,29,24,.13);
+  --green:#356B4D;
+  --red:#9E3E36; --amber:#775600; --blue:#386078;
+
+  /* Application tag palette. Each colour clears AA as text on paper and with
+     paper text on the solid fill. Tags are user-authored metadata, not status. */
+  --tag-red:#91362F; --tag-orange:#9E3D1B; --tag-yellow:#755400;
+  --tag-green:#356B4D; --tag-teal:#246C68; --tag-blue:#315F78;
+  --tag-purple:#654A79; --tag-pink:#894366; --tag-slate:#5C5A58;
+  --tag-cyan:#2C6670;
+
+  --paper-dark:#1E1A16; --raised-dark:#26211B; --sunken-dark:#181410;
+  --ink-dark:#E8E0D4; --ink-2-dark:#A89C8C;
+  --flame-dark:#E08A5C; --ember-dark:#F0A878;
+  --hair-dark:rgba(232,224,212,.13);
+  --green-dark:#5FA37E;
+  --red-dark:#E58B7F; --amber-dark:#D8AB5F; --blue-dark:#78ABC4;
+  --tag-red-dark:#E58B7F; --tag-orange-dark:#E08A5C; --tag-yellow-dark:#D8AB5F;
+  --tag-green-dark:#5FA37E; --tag-teal-dark:#65AAA5; --tag-blue-dark:#78ABC4;
+  --tag-purple-dark:#B39AC4; --tag-pink-dark:#D89AB9; --tag-slate-dark:#A89C8C;
+  --tag-cyan-dark:#72B0BA;
+
+  /* ===== Semantic — components read these ===== */
+  --color-bg:var(--paper);
+  --color-surface:var(--raised);
+  --color-surface-sunken:var(--sunken);
+  --color-text:var(--ink);
+  --color-text-muted:var(--ink-2);
+  --color-accent:var(--terracotta);          /* fills, borders — NOT body text on paper */
+  --color-accent-text:var(--accent-text);    /* accent for small text / links (AA); button hover */
+  --color-flame-inner:var(--ember);          /* decorative only */
+  --color-on-accent:var(--raised);           /* text on terracotta fills */
+  --color-border:var(--hair);
+  --color-success:var(--green);
+  --color-error:var(--red);
+  --color-warning:var(--amber);
+  --color-info:var(--blue);
+  --color-success-wash:rgba(53,107,77,.10);
+  --color-error-wash:rgba(158,62,54,.10);
+  --color-warning-wash:rgba(119,86,0,.10);
+  --color-info-wash:rgba(56,96,120,.10);
+  --color-tag-red:var(--tag-red);
+  --color-tag-orange:var(--tag-orange);
+  --color-tag-yellow:var(--tag-yellow);
+  --color-tag-green:var(--tag-green);
+  --color-tag-teal:var(--tag-teal);
+  --color-tag-blue:var(--tag-blue);
+  --color-tag-purple:var(--tag-purple);
+  --color-tag-pink:var(--tag-pink);
+  --color-tag-slate:var(--tag-slate);
+  --color-tag-cyan:var(--tag-cyan);
+  --color-focus:rgba(181,83,46,.40);
+  --color-accent-wash:rgba(181,83,46,.08);   /* terracotta tint — highlight card + active flow node */
+  --color-nav-scrim:rgba(244,239,230,.85);   /* translucent paper behind the blurred navbar */
+
+  /* ===== Application surfaces ===== */
+  --color-overlay-scrim:rgba(35,29,24,.52);
+  --color-selection-bg:var(--color-accent);
+  --color-selection-text:var(--color-on-accent);
+  --color-scrollbar-track:var(--color-surface-sunken);
+  --color-scrollbar-thumb:var(--color-text-muted);
+  --color-scrollbar-thumb-hover:var(--color-accent-text);
+
+  --color-control-bg:var(--color-surface);
+  --color-control-text:var(--color-text);
+  --color-control-placeholder:var(--color-text-muted);
+  --color-control-border:var(--color-border);
+  --color-control-border-hover:var(--color-text-muted);
+  --color-control-border-focus:var(--color-accent);
+  --color-control-invalid:var(--color-error);
+  --color-disabled-bg:var(--color-surface-sunken);
+  --color-disabled-text:var(--color-text-muted);
+  --color-disabled-border:var(--color-border);
+
+  /* The editor is a mounted sheet of warm paper in both themes. Keeping these
+     tied to the light raw palette preserves the physical-paper metaphor when
+     the surrounding application chrome is dark. */
+  --color-prose-bg:var(--paper);
+  --color-prose-text:var(--ink);
+  --color-prose-placeholder:var(--ink-2);
+  --color-prose-border:var(--hair);
+  --color-prose-callout-bg:var(--raised);
+  --color-prose-blockquote-border:var(--terracotta);
+  --color-prose-blockquote-text:var(--ink);
+  --color-prose-code-bg:var(--sunken);
+
+  /* ===== Typography ===== */
+  --font-display:'Fraunces',Georgia,'Times New Roman',serif;
+  --font-body:'Newsreader',Georgia,'Times New Roman',serif;
+  --font-ui:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --font-mono:'Monaco','Menlo','Consolas',monospace;
+
+  --text-hero:clamp(2rem,6vw,3rem);      /* 32 -> 48 */
+  --text-h1:clamp(2rem,5.5vw,2.75rem);   /* 32 -> 44 */
+  --text-h2:clamp(1.5rem,4vw,2rem);      /* 24 -> 32 */
+  --text-h3:1.25rem;                      /* 20 */
+  --text-body-lg:1.125rem;                /* 18 */
+  --text-body:1.0625rem;                  /* 17 */
+  --text-base:1rem;                       /* 16 — form controls (iOS zoom floor), small card labels */
+  --text-ui:0.9375rem;                    /* 15 */
+  --text-small:0.875rem;                  /* 14 */
+  --text-eyebrow:0.75rem;                 /* 12 */
+
+  --leading-tight:1.15;
+  --leading:1.6;
+  --leading-relaxed:1.7;
+  --tracking-tight:-0.02em;
+  --tracking-eyebrow:0.08em;
+
+  /* ===== Spacing (4px base) ===== */
+  --space-3xs:4px; --space-2xs:8px; --space-xs:12px; --space-s:16px;
+  --space-m:24px; --space-l:32px; --space-xl:40px; --space-2xl:60px;
+  --space-3xl:80px; --space-4xl:120px; --space-5xl:140px;
+
+  /* ===== Composition =====
+     Press is asymmetric and column-based, not centred bands. These three
+     govern horizontal composition the way the spacing scale governs vertical.
+     --measure is the reading column; headings and figures break out wider. */
+  --measure:36rem;         /* 576px ~= 85 characters (68ch) of Newsreader at 17px */
+  --page-frame:1120px;     /* outer editorial frame */
+  --page-gutter:32px;
+
+  /* ===== Paper grain =====
+     A monochrome fractal-noise tile laid behind content so paper reads as
+     stock rather than a flat fill. Tune --grain-strength (0 disables); never
+     hand-edit the encoded tile. */
+  --grain-tile: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='160'%20height='160'%3E%3Cfilter%20id='g'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.8'%20numOctaves='2'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='saturate'%20values='0'/%3E%3C/filter%3E%3Crect%20width='160'%20height='160'%20filter='url(%23g)'/%3E%3C/svg%3E");
+  --grain-strength:0.14;
+
+  /* ===== Radii ===== */
+  --radius-xs:4px; --radius-s:6px; --radius-m:8px; --radius-l:10px;
+  --radius-xl:12px; --radius-2xl:16px;
+  --radius-pill:100px;   /* fully rounded — badges, tags, version pills */
+
+  /* ===== Elevation / motion ===== */
+  --shadow-sm:0 1px 2px rgba(35,29,24,.06);
+  --shadow-md:0 8px 24px rgba(35,29,24,.10);
+  --shadow-overlay:0 16px 48px rgba(35,29,24,.22);
+  --shadow-prose:0 0 0 1px var(--color-prose-border),0 8px 24px rgba(35,29,24,.16);
+  --border-hair:1px solid var(--color-border);
+  --transition-fast:.1s ease;
+  --transition:.2s ease;
+  --focus-ring:0 0 0 3px var(--color-focus);
+
+  /* Application stacking contexts. Use the semantic layer name, never a
+     free-hand integer in a consumer. */
+  --z-base:0;
+  --z-raised:10;
+  --z-sticky:20;
+  --z-dropdown:30;
+  --z-overlay:40;
+  --z-modal:50;
+  --z-popover:60;
+  --z-toast:70;
+  --z-command-backdrop:80;
+  --z-command:81;
+  --z-guidance-backdrop:90;
+  --z-guidance:91;
+}
+
+[data-theme="dark"] {
+  --color-bg:var(--paper-dark);
+  --color-surface:var(--raised-dark);
+  --color-surface-sunken:var(--sunken-dark);
+  --color-text:var(--ink-dark);
+  --color-text-muted:var(--ink-2-dark);
+  --color-accent:var(--flame-dark);
+  --color-accent-text:var(--flame-dark);
+  --color-flame-inner:var(--ember-dark);
+  --color-on-accent:var(--paper-dark);
+  --color-border:var(--hair-dark);
+  --color-success:var(--green-dark);
+  --color-error:var(--red-dark);
+  --color-warning:var(--amber-dark);
+  --color-info:var(--blue-dark);
+  --color-success-wash:rgba(95,163,126,.14);
+  --color-error-wash:rgba(229,139,127,.14);
+  --color-warning-wash:rgba(216,171,95,.14);
+  --color-info-wash:rgba(120,171,196,.14);
+  --color-tag-red:var(--tag-red-dark);
+  --color-tag-orange:var(--tag-orange-dark);
+  --color-tag-yellow:var(--tag-yellow-dark);
+  --color-tag-green:var(--tag-green-dark);
+  --color-tag-teal:var(--tag-teal-dark);
+  --color-tag-blue:var(--tag-blue-dark);
+  --color-tag-purple:var(--tag-purple-dark);
+  --color-tag-pink:var(--tag-pink-dark);
+  --color-tag-slate:var(--tag-slate-dark);
+  --color-tag-cyan:var(--tag-cyan-dark);
+  --color-focus:rgba(224,138,92,.40);
+  --color-accent-wash:rgba(224,138,92,.12);
+  --color-nav-scrim:rgba(30,26,22,.85);
+  --color-overlay-scrim:rgba(24,20,16,.72);
+  --shadow-overlay:0 16px 48px rgba(0,0,0,.44);
+  --shadow-prose:0 0 0 1px var(--color-prose-border),0 12px 36px rgba(0,0,0,.36);
+}

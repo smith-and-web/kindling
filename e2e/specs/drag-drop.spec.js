@@ -51,14 +51,13 @@ describe("Drag and Drop Reordering (#14)", () => {
 
     it("should show drop indicator while dragging", async () => {
       const chapters = await $$('[data-testid="chapter-item"]');
-      if (chapters.length < 2) return; // Skip if not enough chapters
-
-      const firstChapter = chapters[0];
-      await firstChapter.moveTo();
-      const handle = await firstChapter.$('[data-testid="drag-handle"]');
-
-      // This test validates the drag handle is interactive
-      expect(await handle.isClickable()).toBe(true);
+      expect(chapters.length).toBeGreaterThanOrEqual(2);
+      await dragWithMouseEvents(chapters[0], chapters[1], async () => {
+        await browser.waitUntil(
+          async () => (await chapters[1].getAttribute("class")).split(/\s+/).includes("ring-2"),
+          { timeout: 3000, timeoutMsg: "Drop target did not show its drag indicator" }
+        );
+      });
     });
 
     // Note: Page refresh returns to start screen (project not auto-loaded)

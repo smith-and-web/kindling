@@ -37,16 +37,16 @@
 </script>
 
 {#if message}
-  <div class="fixed bottom-4 right-4 z-50 max-w-sm">
+  <div class="fixed bottom-4 right-4 z-press-toast max-w-sm">
     <div
       role="alert"
       aria-live="assertive"
-      class="bg-bg-card border border-rose-500/40 text-text-primary rounded-lg shadow-lg px-4 py-3"
+      class="bg-press-sunken border border-press-error text-press-text rounded-lg shadow-press-overlay px-4 py-3"
     >
       <div class="flex items-start gap-3">
-        <p class="text-sm leading-relaxed flex-1">{message}</p>
+        <p class="text-press-ui leading-relaxed flex-1">{message}</p>
         <button
-          class="text-text-secondary hover:text-text-primary transition-colors"
+          class="text-press-muted hover:text-press-text transition-colors"
           onclick={onDismiss}
           aria-label="Dismiss error"
         >

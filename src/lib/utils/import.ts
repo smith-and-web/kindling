@@ -4,52 +4,9 @@ import { platform } from "@tauri-apps/plugin-os";
 import { ui } from "$lib/stores/ui.svelte";
 import type { Project } from "$lib/types";
 
-interface FileFilter {
-  name: string;
-  extensions: string[];
-}
-
-interface ImportOptions {
-  command: string;
-  filters?: FileFilter[];
-  directory?: boolean;
-  label: string;
-}
-
-const IMPORT_CONFIGS: Record<string, ImportOptions> = {
-  plottr: {
-    command: "import_plottr",
-    filters: [{ name: "Plottr", extensions: ["pltr"] }],
-    label: "Plottr file",
-  },
-  markdown: {
-    command: "import_markdown",
-    filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
-    label: "Markdown file",
-  },
-  ywriter: {
-    command: "import_ywriter",
-    filters: [{ name: "yWriter 7", extensions: ["yw7"] }],
-    label: "yWriter file",
-  },
-  longform: {
-    command: "import_longform",
-    filters: [{ name: "Longform Index", extensions: ["md", "markdown"] }],
-    label: "Longform index",
-  },
-  longformVault: {
-    command: "import_longform",
-    directory: true,
-    label: "Longform vault",
-  },
-  scrivener: {
-    command: "import_scrivener",
-    filters: [{ name: "Scrivener Project", extensions: ["scriv"] }],
-    label: "Scrivener project",
-  },
-};
-
-export type ImportType = keyof typeof IMPORT_CONFIGS;
+import { IMPORT_FORMATS } from "../importFormats";
+import type { ImportType } from "../importFormats";
+export type { ImportType } from "../importFormats";
 
 /**
  * Opens a file dialog, invokes the backend import command, and returns the
@@ -71,7 +28,7 @@ export async function pickScrivenerProjectPath(): Promise<string | null> {
   const path = await open({
     multiple: false,
     title: isMacos ? undefined : "Select Scrivener project folder (.scriv)",
-    ...(isMacos ? { filters: IMPORT_CONFIGS.scrivener.filters } : { directory: true }),
+    ...(isMacos ? { filters: IMPORT_FORMATS.scrivener.filters } : { directory: true }),
   });
   if (!path) return null;
   if (!isMacos) {
@@ -85,7 +42,7 @@ export async function pickScrivenerProjectPath(): Promise<string | null> {
 }
 
 export async function runImport(type: ImportType): Promise<Project | null> {
-  const config = IMPORT_CONFIGS[type];
+  const config = IMPORT_FORMATS[type];
   if (!config) throw new Error(`Unknown import type: ${type}`);
 
   const path =

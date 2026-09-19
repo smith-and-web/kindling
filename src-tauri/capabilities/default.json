@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "core:app:default",
+    "core:window:allow-destroy",
     "opener:default",
     "dialog:default",
     "updater:default",

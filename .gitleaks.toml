@@ -1,0 +1,23 @@
+# gitleaks configuration for Kindling.
+#
+# Kindling is offline-only and ships no secrets, so this file exists to give the
+# .githooks/pre-commit hook a documented home for false positives rather than
+# having contributors reach for `git commit --no-verify`.
+#
+# Start from the upstream ruleset, then narrow.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Paths that are never committed, plus fixture-shaped false positives"
+paths = [
+  # Local-only files. Already gitignored; listed so a scan of the working tree
+  # (`gitleaks dir .`) is quiet too, not just the staged-changes hook.
+  '''^\.env(\..*)?$''',
+  '''^src-tauri/target/''',
+  '''^node_modules/''',
+  '''^e2e/node_modules/''',
+  # Import-parser fixtures: Plottr/yWriter/Scrivener sample projects contain
+  # high-entropy ids that trip the generic-api-key rule.
+  '''^test-data/''',
+]

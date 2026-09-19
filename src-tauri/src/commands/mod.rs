@@ -17,36 +17,60 @@
 mod archive;
 mod blank_project;
 mod crud;
+#[cfg(debug_assertions)]
+mod demo_fixture;
 mod detect;
 mod export;
+mod export_prototype;
 pub mod feedback;
 mod fields;
 mod import;
 mod lock;
+mod novelwriter_sync;
+mod reference_copy;
 mod sample_project;
+mod sample_revisions;
 mod screenplay_project;
+mod search;
+mod session;
 mod settings;
 mod snapshot;
 mod state;
 mod sync;
 mod tags;
 mod templates;
+mod workspace_export;
 
 // Re-export everything for backwards compatibility with lib.rs
 pub use archive::*;
 pub use blank_project::*;
 pub use crud::*;
+#[cfg(debug_assertions)]
+pub use demo_fixture::*;
 pub use detect::*;
 pub use export::*;
+pub use export_prototype::*;
 pub use feedback::*;
 pub use fields::*;
 pub use import::*;
 pub use lock::*;
+pub use reference_copy::*;
 pub use sample_project::*;
 pub use screenplay_project::*;
+pub use search::*;
+pub use session::*;
 pub use settings::*;
 pub use snapshot::*;
 pub use state::*;
 pub use sync::*;
 pub use tags::*;
 pub use templates::*;
+pub use workspace_export::*;
+
+mod writing;
+pub use writing::*;
+
+mod revisions;
+pub use revisions::*;
+pub mod editorial;
+pub use editorial::*;

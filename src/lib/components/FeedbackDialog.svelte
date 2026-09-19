@@ -121,7 +121,7 @@
 
 <!-- Backdrop -->
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -131,18 +131,21 @@
 >
   <!-- Dialog -->
   <div
-    class="bg-bg-panel rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden"
+    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-md mx-4 overflow-hidden"
     data-testid="feedback-dialog"
   >
     <!-- Header -->
-    <div class="flex items-center justify-between px-5 py-4 border-b border-bg-card">
-      <h2 id="feedback-dialog-title" class="text-lg font-heading font-medium text-text-primary">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-press-border">
+      <h2
+        id="feedback-dialog-title"
+        class="text-press-body-lg font-heading font-medium text-press-text"
+      >
         Send feedback
       </h2>
       <button
         type="button"
         onclick={onClose}
-        class="p-1 rounded hover:bg-bg-card text-text-secondary hover:text-text-primary transition-colors"
+        class="p-1 rounded hover:bg-press-sunken text-press-muted hover:text-press-text transition-colors"
         aria-label="Close"
       >
         <X class="w-5 h-5" />
@@ -156,15 +159,15 @@
         data-testid="feedback-success"
         role="status"
       >
-        <div class="w-12 h-12 rounded-full bg-green-500/15 flex items-center justify-center">
-          <CheckCircle2 class="w-7 h-7 text-green-400" />
+        <div class="w-12 h-12 rounded-full bg-press-success-wash flex items-center justify-center">
+          <CheckCircle2 class="w-7 h-7 text-press-success" />
         </div>
-        <p class="text-base font-medium text-text-primary">Thanks for your feedback!</p>
-        <p class="text-sm text-text-secondary">Your message was sent to the Kindling team.</p>
+        <p class="text-press-base font-medium text-press-text">Thanks for your feedback!</p>
+        <p class="text-press-ui text-press-muted">Your message was sent to the Kindling team.</p>
         <button
           type="button"
           onclick={onClose}
-          class="mt-2 px-5 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors"
+          class="mt-2 px-5 py-2 text-press-ui font-medium bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors"
         >
           Done
         </button>
@@ -174,7 +177,7 @@
       <div class="p-5 space-y-4">
         <!-- Feedback type -->
         <fieldset>
-          <legend class="block text-sm font-medium text-text-secondary mb-2">
+          <legend class="block text-press-ui font-medium text-press-muted mb-2">
             What kind of feedback?
           </legend>
           <div class="grid grid-cols-3 gap-2">
@@ -183,10 +186,10 @@
                 type="button"
                 onclick={() => selectType(type.value)}
                 aria-pressed={feedbackType === type.value}
-                class="px-3 py-2 text-sm rounded-lg border transition-colors {feedbackType ===
+                class="px-3 py-2 text-press-ui rounded-lg border transition-colors {feedbackType ===
                 type.value
-                  ? 'border-accent bg-accent/10 text-text-primary'
-                  : 'border-bg-card bg-bg-card/50 text-text-secondary hover:text-text-primary'}"
+                  ? 'border-press-accent bg-press-accent-wash text-press-text'
+                  : 'border-press-border bg-press-sunken text-press-muted hover:text-press-text'}"
               >
                 {type.label}
               </button>
@@ -197,7 +200,7 @@
         {#if feedbackType === "rating"}
           <!-- Rating -->
           <fieldset>
-            <legend class="block text-sm font-medium text-text-secondary mb-2">
+            <legend class="block text-press-ui font-medium text-press-muted mb-2">
               How would you rate Kindling?
             </legend>
             <div class="flex items-center gap-1">
@@ -208,8 +211,8 @@
                   aria-label={`${n} star${n === 1 ? "" : "s"}`}
                   aria-pressed={rating === n}
                   class="p-1 transition-colors {n <= rating
-                    ? 'text-accent'
-                    : 'text-text-secondary hover:text-text-primary'}"
+                    ? 'text-press-accent-text'
+                    : 'text-press-muted hover:text-press-text'}"
                 >
                   <Star class="w-7 h-7" fill={n <= rating ? "currentColor" : "none"} />
                 </button>
@@ -221,9 +224,9 @@
           <div>
             <label
               for="feedback-summary"
-              class="block text-sm font-medium text-text-secondary mb-1"
+              class="block text-press-ui font-medium text-press-muted mb-1"
             >
-              Summary <span class="text-text-secondary/70">(optional)</span>
+              Summary <span class="text-press-muted">(optional)</span>
             </label>
             <input
               id="feedback-summary"
@@ -231,12 +234,12 @@
               bind:value={summary}
               disabled={sending}
               placeholder="A short title"
-              class="w-full bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent disabled:opacity-50"
+              class="w-full bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
             />
             <p
-              class="mt-1 text-xs text-right {summary.trim().length > MAX_SUMMARY_LEN
-                ? 'text-red-400'
-                : 'text-text-secondary/70'}"
+              class="mt-1 text-press-eyebrow text-right {summary.trim().length > MAX_SUMMARY_LEN
+                ? 'text-press-error'
+                : 'text-press-muted'}"
             >
               {summary.trim().length}/{MAX_SUMMARY_LEN}
             </p>
@@ -246,7 +249,7 @@
           <div>
             <label
               for="feedback-message"
-              class="block text-sm font-medium text-text-secondary mb-1"
+              class="block text-press-ui font-medium text-press-muted mb-1"
             >
               Message
             </label>
@@ -256,12 +259,12 @@
               bind:value={message}
               disabled={sending}
               placeholder="Tell us what's on your mind..."
-              class="w-full bg-bg-card text-text-primary text-sm border border-bg-card rounded-lg px-3 py-2 focus:outline-none focus:border-accent disabled:opacity-50 resize-none"
+              class="w-full bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent resize-none"
             ></textarea>
             <p
-              class="mt-1 text-xs text-right {message.trim().length > MAX_MESSAGE_LEN
-                ? 'text-red-400'
-                : 'text-text-secondary/70'}"
+              class="mt-1 text-press-eyebrow text-right {message.trim().length > MAX_MESSAGE_LEN
+                ? 'text-press-error'
+                : 'text-press-muted'}"
             >
               {message.trim().length}/{MAX_MESSAGE_LEN}
             </p>
@@ -270,7 +273,7 @@
 
         <!-- Validation error -->
         {#if validationError}
-          <p class="text-sm text-red-400" data-testid="feedback-validation" role="alert">
+          <p class="text-press-ui text-press-error" data-testid="feedback-validation" role="alert">
             {validationError}
           </p>
         {/if}
@@ -278,20 +281,20 @@
         <!-- Submission error (retryable) -->
         {#if status === "error"}
           <div
-            class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-2"
+            class="p-3 bg-press-error-wash border border-press-error rounded-lg flex items-start gap-2"
             data-testid="feedback-error"
             role="alert"
           >
-            <AlertCircle class="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <AlertCircle class="w-4 h-4 text-press-error shrink-0 mt-0.5" />
             <div class="flex-1">
-              <p class="text-sm text-red-400">
+              <p class="text-press-ui text-press-error">
                 Couldn't send your feedback{error ? `: ${error}` : "."}
               </p>
               <button
                 type="button"
                 onclick={handleSubmit}
                 disabled={sending}
-                class="mt-2 text-sm font-medium text-accent hover:underline disabled:opacity-50"
+                class="mt-2 text-press-ui font-medium text-press-accent-text hover:underline"
               >
                 Try again
               </button>
@@ -301,12 +304,12 @@
       </div>
 
       <!-- Footer -->
-      <div class="flex items-center justify-end gap-3 px-5 py-4 border-t border-bg-card">
+      <div class="flex items-center justify-end gap-3 px-5 py-4 border-t border-press-border">
         <button
           type="button"
           onclick={onClose}
           disabled={sending}
-          class="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors rounded-lg hover:bg-bg-card disabled:opacity-50"
+          class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors rounded-lg hover:bg-press-sunken"
         >
           Cancel
         </button>
@@ -314,7 +317,7 @@
           type="button"
           onclick={handleSubmit}
           disabled={sending}
-          class="px-5 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          class="px-5 py-2 text-press-ui font-medium bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors disabled:cursor-not-allowed flex items-center gap-2"
           data-testid="feedback-submit"
         >
           {#if sending}

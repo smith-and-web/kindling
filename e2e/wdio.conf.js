@@ -1,7 +1,7 @@
 import { spawn, execSync } from "child_process";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
-import { existsSync } from "fs";
+import { existsSync, mkdirSync } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -246,7 +246,9 @@ export const config = {
       const filename = `${testName}-${timestamp}.png`;
 
       try {
-        await browser.saveScreenshot(`./screenshots/${filename}`);
+        const screenshots = resolve(__dirname, "screenshots");
+        mkdirSync(screenshots, { recursive: true });
+        await browser.saveScreenshot(resolve(screenshots, filename));
         console.log(`📸 Screenshot saved: screenshots/${filename}`);
       } catch (screenshotError) {
         console.warn(`Failed to save screenshot: ${screenshotError.message}`);

@@ -145,6 +145,28 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             last_opened_at TEXT
         );
 
+CREATE TABLE IF NOT EXISTS writing_goals (
+            project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+            daily_goal INTEGER NOT NULL CHECK(daily_goal BETWEEN 0 AND 1000000)
+        );
+        CREATE TABLE IF NOT EXISTS writing_sessions (
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            date TEXT NOT NULL,
+            words INTEGER NOT NULL DEFAULT 0,
+            goal INTEGER NOT NULL,
+            PRIMARY KEY(project_id, date)
+        );
+        CREATE TEMP TABLE IF NOT EXISTS writing_runtime (
+            project_id TEXT PRIMARY KEY,
+            words INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS scene_reviews (
+            scene_id TEXT PRIMARY KEY REFERENCES scenes(id) ON DELETE CASCADE,
+            version INTEGER NOT NULL,
+            data TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS snapshots (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -255,11 +277,35 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
     )?;
 
     // Apply migrations for existing databases
-    apply_migrations(conn)
+    apply_migrations(conn)?;
+    crate::commands::editorial::initialize(conn)
 }
 
 /// Apply schema migrations for existing databases
 fn apply_migrations(conn: &Connection) -> Result<()> {
+    let session_columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(session_state)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<_>>()?;
+    if !session_columns
+        .iter()
+        .any(|column| column == "current_beat_id")
+    {
+        conn.execute(
+            "ALTER TABLE session_state ADD COLUMN current_beat_id TEXT",
+            [],
+        )?;
+    }
+    if !session_columns
+        .iter()
+        .any(|column| column == "editor_scroll_position")
+    {
+        conn.execute(
+            "ALTER TABLE session_state ADD COLUMN editor_scroll_position REAL",
+            [],
+        )?;
+    }
+
     // Migration: Add source_id column to chapters if missing
     let columns: Vec<String> = conn
         .prepare("PRAGMA table_info(chapters)")?
@@ -599,10 +645,32 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
         )?;
     }
 
+    migrate_reference_tag_types(conn)?;
+
     // Auto-migrate existing *_attributes into field_definitions + field_values
     migrate_attributes_to_fields(conn)?;
 
     Ok(())
+}
+
+/// Recover tag assignments written with reference category IDs instead of entity types.
+/// Insert before deleting so mixed singular/plural assignments coalesce without losing tags.
+fn migrate_reference_tag_types(conn: &Connection) -> Result<()> {
+    let tx = conn.unchecked_transaction()?;
+    for (plural, singular) in [
+        ("items", "item"),
+        ("objectives", "objective"),
+        ("organizations", "organization"),
+        ("timelines", "timeline"),
+    ] {
+        tx.execute(
+            "INSERT OR IGNORE INTO entity_tags (tag_id, entity_type, entity_id)
+             SELECT tag_id, ?2, entity_id FROM entity_tags WHERE entity_type = ?1",
+            params![plural, singular],
+        )?;
+        tx.execute("DELETE FROM entity_tags WHERE entity_type = ?1", [plural])?;
+    }
+    tx.commit()
 }
 
 /// Migrate legacy *_attributes tables into the new field_definitions + field_values system.
@@ -788,6 +856,99 @@ mod tests {
         assert!(tables.contains(&"field_values".to_string()));
         assert!(tables.contains(&"dismissed_suggestions".to_string()));
         assert!(tables.contains(&"story_templates".to_string()));
+    }
+
+    #[test]
+    fn test_reference_tag_migration_preserves_assignments_and_coalesces_duplicates() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+        initialize_schema(&conn).unwrap();
+        let project_id = Uuid::new_v4();
+        let tag_id = Uuid::new_v4();
+        let entity_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at)
+             VALUES (?1, 'Migration', 'Blank', '', '')",
+            [project_id.to_string()],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO tags (id, project_id, name) VALUES (?1, ?2, 'Recovered')",
+            params![tag_id.to_string(), project_id.to_string()],
+        )
+        .unwrap();
+        let types = [
+            "items",
+            "objectives",
+            "organizations",
+            "timelines",
+            "item",
+            "character",
+            "location",
+            "custom",
+            "scene",
+        ];
+        for entity_type in types {
+            conn.execute(
+                "INSERT INTO entity_tags VALUES (?1, ?2, ?3)",
+                params![tag_id.to_string(), entity_type, entity_id.to_string()],
+            )
+            .unwrap();
+        }
+        // Reopening applies this to existing databases; running twice must be harmless.
+        for _ in 0..2 {
+            initialize_schema(&conn).unwrap();
+            let actual: Vec<String> = conn
+                .prepare("SELECT entity_type FROM entity_tags ORDER BY entity_type")
+                .unwrap()
+                .query_map([], |row| row.get(0))
+                .unwrap()
+                .collect::<Result<_>>()
+                .unwrap();
+            assert_eq!(
+                actual,
+                [
+                    "character",
+                    "custom",
+                    "item",
+                    "location",
+                    "objective",
+                    "organization",
+                    "scene",
+                    "timeline"
+                ]
+            );
+            for entity_type in ["item", "objective", "organization", "timeline"] {
+                let tags =
+                    crate::db::tags::get_entity_tags(&conn, entity_type, &entity_id).unwrap();
+                assert_eq!(tags.len(), 1);
+                assert_eq!(tags[0].id, tag_id);
+            }
+        }
+    }
+
+    #[test]
+    fn test_reference_tag_migration_rolls_back_on_failure() {
+        let conn = Connection::open_in_memory().unwrap();
+        initialize_schema(&conn).unwrap();
+        conn.execute_batch(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at) VALUES ('project', 'Test', 'Blank', '', '');
+            INSERT INTO tags (id, project_id, name) VALUES ('tag', 'project', 'Test');
+            INSERT INTO entity_tags VALUES ('tag', 'items', 'entity');
+            INSERT INTO entity_tags VALUES ('tag', 'timelines', 'entity');
+            CREATE TRIGGER fail_tag_migration BEFORE INSERT ON entity_tags
+            WHEN NEW.entity_type = 'timeline' BEGIN SELECT RAISE(ABORT, 'disk failure'); END;",
+        )
+        .unwrap();
+        assert!(migrate_reference_tag_types(&conn).is_err());
+        let actual: Vec<String> = conn
+            .prepare("SELECT entity_type FROM entity_tags ORDER BY entity_type")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_>>()
+            .unwrap();
+        assert_eq!(actual, ["items", "timelines"]);
     }
 
     #[test]

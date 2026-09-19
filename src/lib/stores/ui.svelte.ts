@@ -88,7 +88,7 @@ class UIStore {
   private _tooltipSeenVersion = $state(0); // Bump to trigger re-check of localStorage
 
   // Theme
-  private _theme = $state<ThemePreference>("dark");
+  private _theme = $state<ThemePreference>("light");
 
   constructor() {
     const saved = localStorage.getItem(REFERENCES_PANEL_STORAGE_KEY);

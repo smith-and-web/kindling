@@ -1,0 +1,22 @@
+{
+  "productName": "Kindling Export Prototype",
+  "identifier": "com.kindlingwriter.export-prototype",
+  "bundle": {
+    "createUpdaterArtifacts": false
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Kindling Export Prototype",
+        "visible": false,
+        "width": 1440,
+        "height": 960,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ]
+  }
+}
