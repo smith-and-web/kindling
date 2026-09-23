@@ -315,7 +315,7 @@ The frontend talks to Rust through 166 `#[tauri::command]` functions, all regist
 
 ## Press design system
 
-[Press](https://github.com/smith-and-web/press) (`@kindling/design-system`) is kindling's own design system and the single source for the app's colours, typography, spacing, states, elevation, controls and brand artwork. It is a paper-first system for editorial websites and Svelte writing applications. The logo at the top of this README is the Press primary lockup.
+[Press](https://github.com/smith-and-web/press) (`@kindling/design-system`, 0.13.1) is kindling's own design system and the single source for the app's colours, typography, spacing, states, elevation, controls and brand artwork. It is a paper-first system for editorial websites and Svelte writing applications. The logo at the top of this README is the Press primary lockup.
 
 **What kindling uses from it**
 
@@ -337,7 +337,7 @@ npm run sync:design-system -- --with-app-icons  # also regenerate the Tauri app 
 npm run check:design-system                   # fail if any mirrored file drifted from MANIFEST.json
 ```
 
-`src/styles/press/MANIFEST.json` records the mirrored Press version (currently 0.12.0) and a SHA-256 hash for every mirrored file. CI runs the drift check, and so does `npm run check:all`.
+`src/styles/press/MANIFEST.json` records the mirrored Press version (currently 0.13.1) and a SHA-256 hash for every mirrored file. CI runs the drift check, and so does `npm run check:all`.
 
 ## From source
 
