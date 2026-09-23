@@ -18,7 +18,7 @@ import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { resolve, dirname } from "node:path";
-import { globSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const source = resolve(root, "../press");
@@ -39,9 +39,23 @@ const PATTERNS = [
   "DESIGN_GUIDE.md",
 ];
 
+/* The three pattern shapes above: a literal path, "dir/*.ext" (one level) and
+   "dir/**" + "/*" (everything below dir). fs.globSync needs Node 22; CI runs 20. */
+function match(pattern) {
+  if (!pattern.includes("*")) return existsSync(resolve(root, pattern)) ? [pattern] : [];
+  const deep = pattern.endsWith("/**/*");
+  const dir = deep ? pattern.slice(0, -"/**/*".length) : dirname(pattern);
+  const ext = deep ? "" : pattern.slice(pattern.lastIndexOf("*") + 1);
+  const abs = resolve(root, dir);
+  if (!existsSync(abs)) return [];
+  return readdirSync(abs, { recursive: deep })
+    .map((entry) => `${dir}/${String(entry).split("\\").join("/")}`)
+    .filter((path) => path.endsWith(ext));
+}
+
 const files = [];
 for (const pattern of PATTERNS) {
-  const matches = globSync(pattern, { cwd: root })
+  const matches = match(pattern)
     .filter((path) => !path.endsWith("MANIFEST.json"))
     .sort();
   if (!matches.length) {
