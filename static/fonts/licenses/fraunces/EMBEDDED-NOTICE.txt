@@ -1,0 +1,8 @@
+Transcribed from the unchanged bundled Fraunces font name table.
+Copyright 2020 The Fraunces Project Authors (github.com/undercasetype/Fraunces)
+Designers: Phaedra Charles and Flavia Zimbardi
+This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: https://scripts.sil.org/OFL
+License URL: https://scripts.sil.org/OFL
+
+The accompanying upstream OFL.txt says Copyright 2018. Both notices are retained;
+the font binary was not replaced or relabeled to erase this difference.

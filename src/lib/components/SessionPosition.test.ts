@@ -105,7 +105,9 @@ it.each(["beat", "page"] as const)(
     expect(currentProject.currentChapter?.id).toBe(chapter.id);
     expect(currentProject.currentScene?.id).toBe(scene.id);
     expect(ui.expandedBeatId).toBe(mode === "page" ? null : beat.id);
-    const outer = document.querySelector('[data-testid="scene-panel"] > div') as HTMLElement;
+    const outer = document.querySelector(
+      '[data-testid="scene-panel"] .scene-scroll'
+    ) as HTMLElement;
     const inner = document.querySelector(".novel-pages-container") as HTMLElement;
     await waitFor(() => expect(outer.scrollTop).toBe(330));
     await waitFor(() => expect(inner.scrollTop).toBe(85));
@@ -132,7 +134,8 @@ it.each(["beat", "page"] as const)(
     await waitFor(() => expect(activeEditor().state.selection.head).toBe(23));
     await waitFor(() =>
       expect(
-        (document.querySelector('[data-testid="scene-panel"] > div') as HTMLElement).scrollTop
+        (document.querySelector('[data-testid="scene-panel"] .scene-scroll') as HTMLElement)
+          .scrollTop
       ).toBe(460)
     );
   }
@@ -223,7 +226,9 @@ it.each(["deleted-beat", "shorter-page"])(
       render(Sidebar);
       render(ScenePanel);
       await waitFor(() => expect(session.viewport?.position).toBe(1800));
-      const outer = document.querySelector('[data-testid="scene-panel"] > div') as HTMLElement;
+      const outer = document.querySelector(
+        '[data-testid="scene-panel"] .scene-scroll'
+      ) as HTMLElement;
       await waitFor(() => expect(outer.scrollTop).toBe(200));
       if (mode === "page") {
         const inner = document.querySelector(".novel-pages-container") as HTMLElement;
@@ -294,7 +299,7 @@ it("keeps scroll saving and screenplay auto-selection working when sync supersed
   await tick();
   await new Promise((resolve) => setTimeout(resolve, 40));
   expect(session.viewport).toBeNull();
-  const outer = document.querySelector('[data-testid="scene-panel"] > div') as HTMLElement;
+  const outer = document.querySelector('[data-testid="scene-panel"] .scene-scroll') as HTMLElement;
   outer.scrollTop = 110;
   await fireEvent.scroll(outer);
   await session.flush();

@@ -85,7 +85,7 @@ it("ships the shell and small entry point with the app initially inert", () => {
   expect(page.querySelector('link[href="/src/startup.css"]')).not.toBeNull();
   expect(page.querySelector("#app")?.hasAttribute("inert")).toBe(true);
   expect(page.querySelector("#startup-loading")?.getAttribute("role")).toBe("status");
-  expect(page.querySelector("#startup-loading")?.textContent).toContain("Starting Kindling…");
+  expect(page.querySelector("#startup-loading")?.textContent).toContain("Starting kindling…");
 });
 it("paints before loading the app and waits for content, assets and another paint", async () => {
   const decoded = deferred();

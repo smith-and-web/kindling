@@ -169,7 +169,7 @@
   },
   {
     "id": "about",
-    "label": "About Kindling",
+    "label": "About kindling",
     "category": "Help",
     "requiresProject": false,
     "keywords": ["about", "version", "info"],

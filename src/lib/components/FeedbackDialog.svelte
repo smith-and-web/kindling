@@ -1,5 +1,5 @@
 <!--
-  FeedbackDialog.svelte - Send feedback to the Kindling team
+  FeedbackDialog.svelte - Send feedback to the kindling team
 
   A small form letting the user submit a bug report, feature request, or star
   rating. Submission is the ONLY network call the app makes and is strictly
@@ -9,7 +9,8 @@
 -->
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { X, Loader2, Send, Star, CheckCircle2, AlertCircle } from "lucide-svelte";
+  import DialogHeader from "./DialogHeader.svelte";
+  import { Loader2, Send, Star, CheckCircle2, AlertCircle } from "lucide-svelte";
 
   type FeedbackType = "bug" | "feature" | "rating";
 
@@ -119,9 +120,8 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<!-- Backdrop -->
 <div
-  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
+  class="dialog-scrim"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -129,67 +129,35 @@
   aria-labelledby="feedback-dialog-title"
   tabindex="-1"
 >
-  <!-- Dialog -->
-  <div
-    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-md mx-4 overflow-hidden"
-    data-testid="feedback-dialog"
-  >
-    <!-- Header -->
-    <div class="flex items-center justify-between px-5 py-4 border-b border-press-border">
-      <h2
-        id="feedback-dialog-title"
-        class="text-press-body-lg font-heading font-medium text-press-text"
-      >
-        Send feedback
-      </h2>
-      <button
-        type="button"
-        onclick={onClose}
-        class="p-1 rounded hover:bg-press-sunken text-press-muted hover:text-press-text transition-colors"
-        aria-label="Close"
-      >
-        <X class="w-5 h-5" />
-      </button>
-    </div>
+  <div class="app-dialog-surface ka-dialog-narrow dialog-shell" data-testid="feedback-dialog">
+    <DialogHeader
+      title="Send feedback"
+      titleId="feedback-dialog-title"
+      {onClose}
+      closeLabel="Close"
+    />
 
     {#if status === "success"}
-      <!-- Success state -->
-      <div
-        class="p-6 flex flex-col items-center text-center gap-3"
-        data-testid="feedback-success"
-        role="status"
-      >
-        <div class="w-12 h-12 rounded-full bg-press-success-wash flex items-center justify-center">
-          <CheckCircle2 class="w-7 h-7 text-press-success" />
-        </div>
-        <p class="text-press-base font-medium text-press-text">Thanks for your feedback!</p>
-        <p class="text-press-ui text-press-muted">Your message was sent to the Kindling team.</p>
-        <button
-          type="button"
-          onclick={onClose}
-          class="mt-2 px-5 py-2 text-press-ui font-medium bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors"
-        >
-          Done
-        </button>
+      <div class="ka-dialog-body feedback-success" data-testid="feedback-success" role="status">
+        <CheckCircle2 class="w-7 h-7" aria-hidden="true" />
+        <h3>Thanks for your feedback!</h3>
+        <p>Your message was sent to the kindling team.</p>
       </div>
+      <footer class="ka-dialog-footer">
+        <button type="button" onclick={onClose} class="ka-button">Done</button>
+      </footer>
     {:else}
-      <!-- Form -->
-      <div class="p-5 space-y-4">
-        <!-- Feedback type -->
-        <fieldset>
-          <legend class="block text-press-ui font-medium text-press-muted mb-2">
-            What kind of feedback?
-          </legend>
-          <div class="grid grid-cols-3 gap-2">
+      <div class="ka-dialog-body feedback-form">
+        <fieldset class="ka-segments">
+          <legend>What kind of feedback?</legend>
+          <div class="ka-segment-track">
             {#each FEEDBACK_TYPES as type (type.value)}
               <button
                 type="button"
                 onclick={() => selectType(type.value)}
                 aria-pressed={feedbackType === type.value}
-                class="px-3 py-2 text-press-ui rounded-lg border transition-colors {feedbackType ===
-                type.value
-                  ? 'border-press-accent bg-press-accent-wash text-press-text'
-                  : 'border-press-border bg-press-sunken text-press-muted hover:text-press-text'}"
+                class="ka-segment"
+                class:ka-selected={feedbackType === type.value}
               >
                 {type.label}
               </button>
@@ -198,35 +166,28 @@
         </fieldset>
 
         {#if feedbackType === "rating"}
-          <!-- Rating -->
-          <fieldset>
-            <legend class="block text-press-ui font-medium text-press-muted mb-2">
-              How would you rate Kindling?
-            </legend>
-            <div class="flex items-center gap-1">
+          <fieldset class="feedback-rating">
+            <legend>How would you rate kindling?</legend>
+            <div class="ka-row">
               {#each [1, 2, 3, 4, 5] as n (n)}
                 <button
                   type="button"
                   onclick={() => (rating = n)}
                   aria-label={`${n} star${n === 1 ? "" : "s"}`}
                   aria-pressed={rating === n}
-                  class="p-1 transition-colors {n <= rating
-                    ? 'text-press-accent-text'
-                    : 'text-press-muted hover:text-press-text'}"
+                  class="ka-button ka-button--ghost ka-icon-button feedback-star"
+                  class:is-on={n <= rating}
                 >
-                  <Star class="w-7 h-7" fill={n <= rating ? "currentColor" : "none"} />
+                  <Star class="w-6 h-6" fill={n <= rating ? "currentColor" : "none"} />
                 </button>
               {/each}
+              {#if rating > 0}<span class="ka-help">{rating} of 5</span>{/if}
             </div>
           </fieldset>
         {:else}
-          <!-- Summary (optional) -->
-          <div>
-            <label
-              for="feedback-summary"
-              class="block text-press-ui font-medium text-press-muted mb-1"
-            >
-              Summary <span class="text-press-muted">(optional)</span>
+          <div class="ka-field od-field">
+            <label for="feedback-summary">
+              Summary <span class="ka-optional">(optional)</span>
             </label>
             <input
               id="feedback-summary"
@@ -234,67 +195,59 @@
               bind:value={summary}
               disabled={sending}
               placeholder="A short title"
-              class="w-full bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
+              aria-invalid={summary.trim().length > MAX_SUMMARY_LEN || undefined}
             />
-            <p
-              class="mt-1 text-press-eyebrow text-right {summary.trim().length > MAX_SUMMARY_LEN
-                ? 'text-press-error'
-                : 'text-press-muted'}"
-            >
-              {summary.trim().length}/{MAX_SUMMARY_LEN}
-            </p>
+            <div class="ka-field-meta">
+              <span
+                class="ka-count"
+                class:ka-error={summary.trim().length > MAX_SUMMARY_LEN}
+                aria-live="polite">{summary.trim().length}/{MAX_SUMMARY_LEN}</span
+              >
+            </div>
           </div>
 
-          <!-- Message (required) -->
-          <div>
-            <label
-              for="feedback-message"
-              class="block text-press-ui font-medium text-press-muted mb-1"
-            >
-              Message
-            </label>
+          <div class="ka-field od-field">
+            <label for="feedback-message">Message</label>
             <textarea
               id="feedback-message"
-              rows="4"
+              rows="5"
               bind:value={message}
               disabled={sending}
-              placeholder="Tell us what's on your mind..."
-              class="w-full bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent resize-none"
+              placeholder="Tell us what’s on your mind…"
+              aria-invalid={message.trim().length > MAX_MESSAGE_LEN || undefined}
             ></textarea>
-            <p
-              class="mt-1 text-press-eyebrow text-right {message.trim().length > MAX_MESSAGE_LEN
-                ? 'text-press-error'
-                : 'text-press-muted'}"
-            >
-              {message.trim().length}/{MAX_MESSAGE_LEN}
-            </p>
+            <div class="ka-field-meta">
+              <span
+                class="ka-count"
+                class:ka-error={message.trim().length > MAX_MESSAGE_LEN}
+                aria-live="polite">{message.trim().length}/{MAX_MESSAGE_LEN}</span
+              >
+            </div>
           </div>
         {/if}
 
-        <!-- Validation error -->
         {#if validationError}
-          <p class="text-press-ui text-press-error" data-testid="feedback-validation" role="alert">
+          <p class="ka-error" data-testid="feedback-validation" role="alert">
+            <AlertCircle class="w-4 h-4 shrink-0" aria-hidden="true" />
             {validationError}
           </p>
         {/if}
 
-        <!-- Submission error (retryable) -->
         {#if status === "error"}
           <div
-            class="p-3 bg-press-error-wash border border-press-error rounded-lg flex items-start gap-2"
+            class="ka-notice ka-notice--error od-row-top"
             data-testid="feedback-error"
             role="alert"
           >
-            <AlertCircle class="w-4 h-4 text-press-error shrink-0 mt-0.5" />
-            <div class="flex-1">
-              <p class="text-press-ui text-press-error">
-                Couldn't send your feedback{error ? `: ${error}` : "."}
-              </p>
+            <AlertCircle class="w-5 h-5 shrink-0" aria-hidden="true" />
+            <div class="od-field od-fill">
+              <strong>Couldn’t send your feedback{error ? `: ${error}` : "."}</strong>
+              <p>Your form is kept as you left it.</p>
               <button
                 type="button"
                 onclick={handleSubmit}
                 disabled={sending}
-                class="mt-2 text-press-ui font-medium text-press-accent-text hover:underline"
+                class="ka-button ka-button--secondary feedback-retry"
               >
                 Try again
               </button>
@@ -303,13 +256,12 @@
         {/if}
       </div>
 
-      <!-- Footer -->
-      <div class="flex items-center justify-end gap-3 px-5 py-4 border-t border-press-border">
+      <footer class="ka-dialog-footer">
         <button
           type="button"
           onclick={onClose}
           disabled={sending}
-          class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors rounded-lg hover:bg-press-sunken"
+          class="ka-button ka-button--secondary"
         >
           Cancel
         </button>
@@ -317,18 +269,62 @@
           type="button"
           onclick={handleSubmit}
           disabled={sending}
-          class="px-5 py-2 text-press-ui font-medium bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors disabled:cursor-not-allowed flex items-center gap-2"
+          aria-busy={sending || undefined}
+          class="ka-button"
           data-testid="feedback-submit"
         >
           {#if sending}
-            <Loader2 class="w-4 h-4 animate-spin" />
-            Sending...
+            <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
+            Sending…
           {:else}
-            <Send class="w-4 h-4" />
+            <Send class="w-5 h-5" aria-hidden="true" />
             Send feedback
           {/if}
         </button>
-      </div>
+      </footer>
     {/if}
   </div>
 </div>
+
+<style>
+  .feedback-form {
+    display: grid;
+    gap: 20px;
+  }
+  .feedback-rating {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .feedback-rating legend {
+    margin-bottom: var(--space-2xs);
+    font: 500 var(--text-ui) / 1.5 var(--font-ui);
+    color: var(--color-text);
+  }
+  .feedback-star {
+    color: var(--color-text-muted);
+  }
+  .feedback-star.is-on {
+    color: var(--color-accent-text);
+  }
+  .feedback-retry {
+    justify-self: start;
+    margin-top: var(--space-2xs);
+  }
+  .feedback-success {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-2xs);
+    color: var(--color-success);
+  }
+  .feedback-success h3 {
+    margin: var(--space-2xs) 0 0;
+    font: 550 var(--text-h3) / 1.25 var(--font-display);
+    color: var(--color-text);
+  }
+  .feedback-success p {
+    margin: 0;
+    font: var(--text-ui) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+</style>

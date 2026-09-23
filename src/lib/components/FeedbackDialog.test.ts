@@ -150,7 +150,7 @@ describe("FeedbackDialog", () => {
     await fireEvent.click(screen.getByTestId("feedback-submit"));
 
     const errorBox = await screen.findByTestId("feedback-error");
-    expect(errorBox.textContent).toContain("Couldn't send your feedback");
+    expect(errorBox.textContent).toContain("Couldn’t send your feedback");
     expect(screen.queryByTestId("feedback-success")).toBeNull();
 
     // The error is retryable.

@@ -20,7 +20,7 @@ vi.hoisted(() => {
 
 const scene = { ...mockScenes[0], planning_status: "fixed" as const, editor_mode: "beat" as const };
 const destination = { ...scene, id: "destination", synopsis: "Destination synopsis" };
-const placeholder = "Write a brief synopsis for this scene...";
+const placeholder = "Write a brief synopsis for this scene…";
 
 beforeEach(() => {
   vi.useFakeTimers();

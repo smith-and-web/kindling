@@ -233,7 +233,7 @@ it.each(["success", "failure"])(
     });
     session.restoreViewport(mockProject.id, current.id, 250);
     const view = render(ScenePanel);
-    const scroll = view.getByTestId("scene-panel").firstElementChild as HTMLElement;
+    const scroll = view.getByTestId("scene-panel").querySelector(".scene-scroll") as HTMLElement;
     await waitFor(() => expect(finish).toBeTypeOf("function"));
     // Allow the one-shot restore's animation frame to run if it was scheduled early.
     await new Promise<void>((done) => requestAnimationFrame(() => done()));
@@ -244,3 +244,13 @@ it.each(["success", "failure"])(
     else expect(screen.getByText(/Could not load previous scene context/)).toBeTruthy();
   }
 );
+
+it("names the scene's own chapter in the scene breadcrumb", async () => {
+  const other = { ...chapter, id: "other-chapter", title: "QA Chapter", position: 1 };
+  currentProject.setChapters([chapter, other]);
+  currentProject.setCurrentScene(current);
+  currentProject.setCurrentChapter(other);
+  render(ScenePanel);
+  expect(await screen.findByText(`Chapter · ${chapter.title}`)).toBeTruthy();
+  expect(screen.queryByText("Chapter · QA Chapter")).toBeNull();
+});

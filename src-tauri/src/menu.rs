@@ -38,7 +38,7 @@ pub fn create_menu(app: &AppHandle<Wry>, bindings: &BTreeMap<String, String>) ->
         .separator()
         .item(&command("settings", "Settings...")?)
         .separator()
-        .item(&command("quit", "Quit Kindling")?)
+        .item(&command("quit", "Quit kindling")?)
         .build()?;
     let edit_submenu = SubmenuBuilder::new(app, "Edit")
         .undo()
@@ -65,7 +65,7 @@ pub fn create_menu(app: &AppHandle<Wry>, bindings: &BTreeMap<String, String>) ->
         .item(&command("sync", "Sync from Source")?)
         .build()?;
     let help_submenu = SubmenuBuilder::new(app, "Help")
-        .item(&command("about", "About Kindling...")?)
+        .item(&command("about", "About kindling…")?)
         .item(&command("send_feedback", "Send Feedback...")?)
         .separator()
         .item(&command("command_palette", "Command Palette...")?)

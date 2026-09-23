@@ -51,7 +51,6 @@
   let isDraggingBeat = $state(false);
   let draggedBeatElement: HTMLElement | null = null;
   let currentDragOverBeatElement: HTMLElement | null = null;
-  let hoveredBeatId: string | null = $state(null);
 
   let beatContextMenu: { beat: Beat; x: number; y: number } | null = $state(null);
   let deleteBeatDialog: Beat | null = $state(null);
@@ -557,38 +556,37 @@
   }
 </script>
 
-<section>
-  <div class="flex items-center justify-between mb-4">
-    <h2 class="text-press-ui font-semibold text-press-text uppercase tracking-wide">Beats</h2>
+<section class="beats" aria-labelledby="beats-title">
+  <div class="beats-head">
+    <h3 id="beats-title">Beats</h3>
     {#if beats.length > 0 && !addingBeat && !isLocked}
       <button
+        type="button"
         onclick={startAddingBeat}
-        class="flex items-center gap-1 text-press-muted hover:text-press-text transition-colors text-press-ui"
+        class="ka-button ka-button--ghost beats-add-top"
       >
-        <Plus class="w-3.5 h-3.5" />
-        <span>Add Beat</span>
+        <Plus class="w-5 h-5" aria-hidden="true" />
+        Add beat
       </button>
     {/if}
   </div>
   {#if beats.length > 0}
-    <div class="space-y-4">
+    <div class="beats-list">
       {#each beats as beat, index (beat.id)}
         {@const isExpanded = ui.expandedBeatId === beat.id}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <article
           data-drag-beat={beat.id}
           data-testid="beat-item"
-          class="bg-press-surface rounded-lg overflow-hidden select-none relative"
-          class:ring-2={dragOverBeatId === beat.id}
-          class:ring-press-focus={dragOverBeatId === beat.id}
+          class="ka-beat beat"
+          class:is-open={isExpanded}
+          class:is-drop-target={dragOverBeatId === beat.id}
           use:registerBeatRef={beat.id}
-          onmouseenter={() => (hoveredBeatId = beat.id)}
-          onmouseleave={() => (hoveredBeatId = null)}
         >
           <!-- Beat Header -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
-            class="w-full bg-press-sunken px-4 py-2 flex items-center gap-2 hover:bg-press-sunken/80 transition-colors cursor-pointer"
+            class="beat-summary"
             oncontextmenu={(e) => {
               if (isLocked) return;
               beatContextMenu = { beat, x: e.clientX, y: e.clientY };
@@ -599,37 +597,25 @@
               <div
                 data-testid="beat-drag-handle"
                 onmousedown={(e) => onBeatDragHandleMouseDown(e, beat.id)}
-                class="cursor-grab active:cursor-grabbing p-0.5 text-press-muted hover:text-press-text transition-opacity shrink-0"
-                class:opacity-0={hoveredBeatId !== beat.id}
-                class:opacity-100={hoveredBeatId === beat.id}
-                role="button"
-                tabindex="-1"
-                aria-label="Drag to reorder"
+                class="beat-grip"
+                aria-hidden="true"
+                title="Drag to reorder"
               >
-                <GripVertical class="w-3.5 h-3.5" />
+                <GripVertical class="w-4 h-4" aria-hidden="true" />
               </div>
             {/if}
             {#if editingBeatId === beat.id}
-              <div class="flex-1 flex items-center gap-3 min-w-0">
-                <span class="text-press-muted shrink-0">
-                  {#if isExpanded}
-                    <ChevronDown class="w-4 h-4" />
-                  {:else}
-                    <ChevronRight class="w-4 h-4" />
-                  {/if}
-                </span>
-                <span
-                  class="w-6 h-6 rounded-full bg-press-accent text-press-on-accent text-press-eyebrow font-medium flex items-center justify-center shrink-0"
-                >
-                  {index + 1}
-                </span>
+              <div class="beat-toggle">
+                <ChevronRight class="w-5 h-5 beat-chev" aria-hidden="true" />
+                <span class="ka-beat-number">{index + 1}</span>
                 <input
                   data-rename-beat={beat.id}
                   type="text"
                   bind:value={editingBeatContent}
                   onkeydown={handleRenameKeydown}
                   onblur={saveRenameBeat}
-                  class="flex-1 min-w-0 bg-press-sunken rounded px-2 py-0.5 text-press-text text-press-ui font-medium focus:outline-none focus:ring-1 focus:ring-press-focus"
+                  aria-label="Beat title"
+                  class="beat-rename"
                 />
               </div>
             {:else}
@@ -637,27 +623,15 @@
                 data-testid="beat-header"
                 onclick={() => toggleBeat(beat.id)}
                 aria-expanded={isExpanded}
-                class="flex-1 flex items-center gap-3 text-left min-w-0"
+                class="beat-toggle"
               >
-                <span class="text-press-muted shrink-0">
-                  {#if isExpanded}
-                    <ChevronDown class="w-4 h-4" />
-                  {:else}
-                    <ChevronRight class="w-4 h-4" />
-                  {/if}
-                </span>
-                <span
-                  class="w-6 h-6 rounded-full bg-press-accent text-press-on-accent text-press-eyebrow font-medium flex items-center justify-center shrink-0"
-                >
-                  {index + 1}
-                </span>
-                <p class="text-press-text text-press-ui font-medium flex-1 truncate">
-                  {beat.content}
-                </p>
+                <ChevronRight class="w-5 h-5 beat-chev" aria-hidden="true" />
+                <span class="ka-beat-number">{index + 1}</span>
+                <span class="beat-title" title={beat.content}>{beat.content}</span>
                 {#if beat.prose || draftProse.get(beat.id)}
-                  <span class="text-press-eyebrow text-press-muted shrink-0" title="Word count">
-                    {getBeatWordCount(draftProse.get(beat.id)?.prose ?? beat.prose)}w
-                  </span>
+                  <small class="beat-count"
+                    >{getBeatWordCount(draftProse.get(beat.id)?.prose ?? beat.prose)} words</small
+                  >
                 {/if}
               </button>
             {/if}
@@ -668,29 +642,25 @@
                   e.stopPropagation();
                   beatContextMenu = { beat, x: e.clientX, y: e.clientY };
                 }}
-                class="p-1 text-press-muted hover:text-press-text transition-opacity shrink-0"
-                class:opacity-0={hoveredBeatId !== beat.id}
-                class:opacity-100={hoveredBeatId === beat.id}
+                class="ka-button ka-button--ghost ka-icon-button beat-menu"
                 aria-label="Beat menu"
+                aria-haspopup="menu"
               >
-                <MoreVertical class="w-3.5 h-3.5" />
+                <MoreVertical class="w-5 h-5" aria-hidden="true" />
               </button>
             {/if}
           </div>
 
           <!-- Expanded Beat Content -->
           {#if isExpanded}
-            <div
-              class="border-t border-press-border relative"
-              style="min-height: 20rem; height: calc(100vh - 20rem); max-height: 50rem;"
-            >
+            <div class="beat-editor">
               <NovelEditor
                 bind:this={novelEditorRef}
                 projectId={currentProject.value?.id}
                 sceneId={beat.scene_id}
                 beatId={beat.id}
                 content={beat.prose || ""}
-                placeholder={isLocked ? "Scene is locked" : "Write your prose for this beat..."}
+                placeholder={isLocked ? "Scene is locked" : "Write your prose for this beat…"}
                 readonly={isLocked || changingBeats}
                 saveStatus={localSaveStatus}
                 onUpdate={handleEditorUpdate(beat.id)}
@@ -698,8 +668,7 @@
             </div>
           {:else if beat.prose}
             <div
-              class="px-4 py-3 border-t border-press-border cursor-pointer hover:bg-press-sunken transition-colors overflow-hidden"
-              style="max-height: 6.5rem;"
+              class="beat-preview"
               onclick={() => toggleBeat(beat.id)}
               onkeydown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
@@ -709,74 +678,79 @@
               }}
               role="button"
               tabindex="0"
+              aria-label={`Open beat ${index + 1} prose`}
             >
-              <p class="text-press-text font-prose leading-relaxed line-clamp-3">
-                {stripHtml(beat.prose)}
-              </p>
+              <p>{stripHtml(beat.prose)}</p>
             </div>
           {/if}
         </article>
       {/each}
       {#if !addingBeat && !isLocked}
         <button
+          type="button"
           onclick={startAddingBeat}
-          class="w-full flex items-center justify-center gap-1.5 py-2 mt-2 text-press-muted hover:text-press-text text-press-ui transition-colors rounded-lg hover:bg-press-sunken"
+          class="ka-button ka-button--secondary beats-add"
         >
-          <Plus class="w-3.5 h-3.5" />
-          <span>Add Beat</span>
+          <Plus class="w-5 h-5" aria-hidden="true" />
+          Add beat
         </button>
       {/if}
     </div>
   {:else if !addingBeat && !isLocked}
-    <button
-      onclick={startAddingBeat}
-      class="w-full flex items-center justify-center gap-2 px-4 py-8 rounded-lg border border-dashed border-press-border text-press-muted hover:text-press-text hover:border-press-accent transition-colors"
-    >
-      <Plus class="w-4 h-4" />
-      <span class="text-press-ui">Add Your First Beat</span>
-    </button>
-  {:else if !addingBeat && isLocked}
-    <div
-      class="w-full flex items-center justify-center gap-2 px-4 py-8 rounded-lg border border-dashed border-press-border text-press-muted"
-    >
-      <Lock class="w-4 h-4" />
-      <span class="text-press-ui">Scene is locked</span>
+    <div class="ka-empty od-stack beats-empty">
+      <h4>No beats yet</h4>
+      <p>Beats come from an imported outline, or you can add them here one moment at a time.</p>
+      <button type="button" onclick={startAddingBeat} class="ka-button">
+        <Plus class="w-5 h-5" aria-hidden="true" />
+        Add your first beat
+      </button>
     </div>
+  {:else if !addingBeat && isLocked}
+    <p class="ka-help beats-locked">
+      <Lock class="w-4 h-4" aria-hidden="true" />
+      Scene is locked
+    </p>
   {/if}
 
   <!-- Add Beat Input -->
   {#if addingBeat && !isLocked}
-    <div class="mt-4 bg-press-surface rounded-lg p-4">
+    <div class="ka-field od-field beats-new">
+      <label for="new-beat-content">New beat</label>
       <input
+        id="new-beat-content"
         type="text"
-        class="w-full bg-press-sunken rounded-lg px-4 py-3 text-press-text text-press-ui border border-press-accent focus:outline-none"
-        placeholder="Describe what happens in this beat..."
+        aria-describedby="new-beat-help"
+        placeholder="Describe what happens in this beat…"
         bind:value={newBeatContent}
         onkeydown={handleNewBeatKeydown}
         disabled={creatingBeat}
       />
-      <div class="flex items-center justify-between mt-3">
-        <p class="text-press-muted text-press-eyebrow">Press Enter to create, Escape to cancel</p>
-        <div class="flex gap-2">
+      <div class="ka-between">
+        <p id="new-beat-help" class="ka-help">Press Enter to create, Escape to cancel.</p>
+        <div class="ka-row">
           <button
+            type="button"
             onclick={() => {
               addingBeat = false;
               newBeatContent = "";
             }}
-            class="px-3 py-1.5 text-press-muted hover:text-press-text text-press-ui transition-colors"
+            class="ka-button ka-button--ghost"
             disabled={creatingBeat}
           >
             Cancel
           </button>
           <button
+            type="button"
             onclick={createBeat}
             disabled={creatingBeat || !newBeatContent.trim()}
-            class="px-3 py-1.5 bg-press-accent text-press-on-accent text-press-ui rounded hover:bg-press-accent-text transition-colors"
+            aria-busy={creatingBeat || undefined}
+            class="ka-button"
           >
             {#if creatingBeat}
-              <Loader2 class="w-4 h-4 animate-spin" />
+              <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
+              Creating…
             {:else}
-              Create Beat
+              Create beat
             {/if}
           </button>
         </div>
@@ -796,7 +770,7 @@
 
 {#if deleteBeatDialog}
   <ConfirmDialog
-    title="Delete Beat"
+    title="Delete beat"
     message={beats[0]?.id === deleteBeatDialog.id
       ? "Are you sure you want to delete this beat? This is the first beat, so its prose will be permanently deleted."
       : "Are you sure you want to delete this beat? Any prose will be merged into the previous beat."}
@@ -804,3 +778,202 @@
     onCancel={() => (deleteBeatDialog = null)}
   />
 {/if}
+
+<style>
+  .beats {
+    margin-top: var(--space-m);
+    padding-top: var(--space-s);
+    border-top: var(--border-hair);
+  }
+  .beats-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-s);
+    min-height: var(--control-target);
+    margin-bottom: var(--space-2xs);
+  }
+  .beats-head h3 {
+    margin: 0;
+    font: 550 var(--text-h3) / var(--leading-tight) var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
+  }
+  .beats-list {
+    display: grid;
+    gap: var(--space-xs);
+  }
+
+  /* Press BeatItem: a sunken row; only the open beat carries the accent. */
+  .beat {
+    position: relative;
+    user-select: none;
+  }
+  .beat.is-drop-target::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 2px;
+    z-index: var(--z-raised);
+    background: var(--color-accent-text);
+  }
+  .beat-summary {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: 52px;
+    padding: 0 var(--space-3xs) 0 var(--space-2xs);
+  }
+  .beat {
+    overflow: visible;
+  }
+  .beat.is-open .beat-summary {
+    border-bottom: var(--border-hair);
+  }
+  .beat-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    flex: 1;
+    min-width: 0;
+    min-height: 52px;
+    padding: var(--space-2xs) var(--space-2xs) var(--space-2xs) var(--space-3xs);
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--color-text);
+    font: var(--text-ui) / 1.5 var(--font-ui);
+    text-align: left;
+    cursor: pointer;
+  }
+  .beat-toggle :global(.beat-chev) {
+    flex: none;
+    color: var(--color-text-muted);
+    transition: transform var(--ka-motion) ease-out;
+  }
+  .beat.is-open .beat-toggle :global(.beat-chev) {
+    transform: rotate(90deg);
+  }
+  .beat:not(.is-open) .ka-beat-number {
+    background: transparent;
+    color: var(--color-text-muted);
+    box-shadow: inset 0 0 0 1px var(--color-control-border-hover);
+  }
+  .ka-beat-number {
+    font: 500 var(--text-small) / 1 var(--font-ui);
+  }
+  .beat-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .beat-count {
+    flex: none;
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .beat-rename {
+    flex: 1;
+    min-width: 0;
+    min-height: var(--control-target);
+    padding: var(--space-3xs) var(--space-2xs);
+    font: 500 var(--text-ui) / 1.5 var(--font-ui);
+  }
+  .beat-grip {
+    position: absolute;
+    left: -18px;
+    top: 50%;
+    display: flex;
+    width: 16px;
+    margin-top: -8px;
+    color: var(--color-text-muted);
+    cursor: grab;
+    opacity: 0;
+  }
+  .beat-grip:active {
+    cursor: grabbing;
+  }
+  .beat-menu {
+    flex: none;
+    color: var(--color-text-muted);
+    opacity: 0;
+  }
+  .beat-summary:hover .beat-grip,
+  .beat-summary:focus-within .beat-grip,
+  .beat-summary:hover .beat-menu,
+  .beat-summary:focus-within .beat-menu {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .beat-menu {
+      opacity: 1;
+    }
+  }
+  /* Grows with the prose up to a window-relative cap, then scrolls inside. */
+  .beat-editor {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-height: min(50rem, calc(100vh - 20rem));
+    border-radius: 0 0 var(--radius-m) var(--radius-m);
+    overflow: hidden;
+  }
+
+  /* A collapsed beat's prose is manuscript: a strip of light paper in either
+     theme, three lines deep, opening the beat when chosen. */
+  .beat-preview {
+    margin: 0 var(--space-s) var(--space-s);
+    padding: var(--space-s) var(--space-m);
+    max-height: 7.5rem;
+    overflow: hidden;
+    border-radius: var(--radius-xs);
+    background: var(--color-prose-bg);
+    color: var(--color-prose-text);
+    box-shadow: 0 0 0 1px var(--color-prose-border);
+    cursor: pointer;
+  }
+  .beat-preview p {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin: 0;
+    max-width: var(--measure);
+    font: var(--text-body) / var(--leading-relaxed) var(--font-body);
+  }
+  @media (hover: hover) {
+    .beat-preview:hover {
+      box-shadow: 0 0 0 1px var(--color-control-border-hover);
+    }
+  }
+
+  .beats-add {
+    justify-self: start;
+    margin-top: var(--space-3xs);
+  }
+  .beats-empty {
+    align-items: flex-start;
+    padding: var(--space-m) 0;
+  }
+  .beats-empty h4 {
+    margin: 0;
+    font: 550 var(--text-h3) / var(--leading-tight) var(--font-display);
+    color: var(--color-text);
+  }
+  .beats-locked {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3xs);
+  }
+  .beats-new {
+    margin-top: var(--space-s);
+    gap: var(--space-2xs);
+  }
+</style>

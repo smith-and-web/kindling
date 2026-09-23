@@ -56,8 +56,8 @@ Exit codes: **0** all checkpoint evidence passes; **1** run, assertion, audit or
 cleanup failure; **2** review pending (changed/new/incompatible images or incomplete
 evidence). A matching image cannot waive a failed accessibility audit.
 
-The latest 147-checkpoint comparison took **281 seconds**; all images matched,
-with three existing References accessibility failures still reported. The earlier
+The latest 147-checkpoint comparison (after the Press reskin baseline update) took
+**334 seconds**; all images matched and every checkpoint passed. The earlier
 240-capture calibration took **379 seconds**. See VALIDATION.md for measured evidence.
 
 ## Capture and comparison

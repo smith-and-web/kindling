@@ -108,18 +108,18 @@ describe("reference fixture rendering", () => {
     render(ReferencesPanel);
     await expandReference();
     await screen.findByText("protagonist");
-    expect(screen.getAllByText("Role:")).toHaveLength(1);
-    expect(screen.getAllByText("Age:")).toHaveLength(1);
+    expect(screen.getAllByText("Role")).toHaveLength(1);
+    expect(screen.getAllByText("Age")).toHaveLength(1);
     expect(screen.queryByText("Legacy role")).toBeNull();
     expect(screen.getByText("18")).toBeTruthy();
-    expect(screen.getByText("Keepsake:")).toBeTruthy();
+    expect(screen.getByText("Keepsake")).toBeTruthy();
   });
   it("preserves legacy-only projects without field definitions", async () => {
     mockFields([], []);
     render(ReferencesPanel);
     await expandReference();
     expect(await screen.findByText("Legacy role")).toBeTruthy();
-    expect(screen.getAllByText("Role:")).toHaveLength(1);
+    expect(screen.getAllByText("Role")).toHaveLength(1);
     expect(screen.getByText("17")).toBeTruthy();
   });
   it("keeps a legacy value when the matching typed field is empty", async () => {
@@ -127,22 +127,36 @@ describe("reference fixture rendering", () => {
     render(ReferencesPanel);
     await expandReference();
     expect(await screen.findByText("Legacy role")).toBeTruthy();
-    expect(screen.getAllByText("Role:")).toHaveLength(1);
+    expect(screen.getAllByText("Role")).toHaveLength(1);
   });
-  it("returns the collapsed panel's minimum width and restores its pixel width on expansion", async () => {
+  it("collapses to a rail and restores its pixel width on expansion", async () => {
     const { container } = render(ReferencesPanel);
     const aside = container.querySelector("aside")!;
     expect(aside.style.width).toBe(`${ui.referencesPanelWidth}px`);
-    expect(aside.classList.contains("min-w-0")).toBe(false);
+    expect(aside.classList.contains("is-collapsed")).toBe(false);
     ui.referencesPanelCollapsed = true;
     await tick();
-    expect(aside.classList.contains("w-0")).toBe(true);
-    expect(aside.classList.contains("min-w-0")).toBe(true);
+    expect(aside.classList.contains("is-collapsed")).toBe(true);
     expect(aside.getAttribute("style") ?? "").not.toContain("width:");
+    expect(
+      screen.getByRole("button", { name: /^Expand references panel, \d+ references$/ })
+    ).toBeTruthy();
+    expect(screen.queryByRole("tablist")).toBeNull();
     ui.referencesPanelCollapsed = false;
     await tick();
     expect(aside.style.width).toBe(`${ui.referencesPanelWidth}px`);
-    expect(aside.classList.contains("min-w-0")).toBe(false);
+    expect(aside.classList.contains("is-collapsed")).toBe(false);
+  });
+
+  it("moves between reference types with the arrow keys", async () => {
+    currentProject.setProject({ ...project, reference_types: ["characters", "locations"] });
+    render(ReferencesPanel);
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs[0].getAttribute("aria-selected")).toBe("true");
+    await fireEvent.keyDown(tabs[0], { key: "ArrowRight" });
+    expect(screen.getAllByRole("tab")[1].getAttribute("aria-selected")).toBe("true");
+    await fireEvent.keyDown(screen.getAllByRole("tab")[1], { key: "Home" });
+    expect(screen.getAllByRole("tab")[0].getAttribute("aria-selected")).toBe("true");
   });
   it("keeps typed and legacy values editable in distinctly labelled sections", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
@@ -153,8 +167,8 @@ describe("reference fixture rendering", () => {
       onSave,
       onClose: vi.fn(),
     });
-    const typedHeading = await screen.findByText("Custom Fields");
-    const legacyHeading = screen.getByText("Legacy Attributes");
+    const typedHeading = await screen.findByText("Custom fields");
+    const legacyHeading = screen.getByText("Legacy attributes");
     expect(typedHeading.parentElement?.querySelector("input")?.value).toBe("protagonist");
     expect(legacyHeading.parentElement?.parentElement?.querySelector("input")?.value).toBe("Role");
     await fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -250,10 +264,10 @@ it.each([null, "get_references", "get_tags"])(
     });
     await waitFor(() =>
       expect(
-        (screen.getByRole("button", { name: "Copy 1 references" }) as HTMLButtonElement).disabled
+        (screen.getByRole("button", { name: "Copy 1 reference" }) as HTMLButtonElement).disabled
       ).toBe(false)
     );
-    await fireEvent.click(screen.getByRole("button", { name: "Copy 1 references" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Copy 1 reference" }));
     if (failure) {
       expect(await screen.findByRole("alert")).toHaveProperty(
         "textContent",
@@ -346,7 +360,9 @@ it("embeds references for the reviewed passage without changing the writing scen
   );
   expect(view.queryByLabelText("Collapse references panel")).toBeNull();
   expect(view.queryByLabelText("Resize references panel")).toBeNull();
-  expect((view.container.querySelector("aside") as HTMLElement).style.width).toBe("100%");
+  const aside = view.container.querySelector("aside") as HTMLElement;
+  expect(aside.classList.contains("is-embedded")).toBe(true);
+  expect(aside.classList.contains("is-collapsed")).toBe(false);
   expect(currentProject.currentScene?.id).toBe("writing-scene");
   await view.rerender({ contextSceneId: "next-passage", embedded: true });
   await waitFor(() =>

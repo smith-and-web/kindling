@@ -160,8 +160,8 @@ JSON.stringify({
 
 Wait for the screenshot's settle marker, capture, then wait for `#qa-axe-done`
 and record `q.axeResult`. **Assert**: two prose rows, zero selected changes,
-Apply Sync disabled. **Expect**: clearly labeled Current/Incoming paragraphs,
-readable Newsreader text, retained paragraph wrapping, independently reachable
+the Apply changes button disabled. **Expect**: clearly labeled Current/Incoming
+paragraphs, readable Newsreader text, retained paragraph wrapping, independently reachable
 checkboxes and internal scrolling. Scroll the list to inspect the second row;
 long prose must not be reduced to a truncated single line.
 

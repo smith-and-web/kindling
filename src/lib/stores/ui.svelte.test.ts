@@ -47,6 +47,14 @@ describe("ui store", () => {
     vi.restoreAllMocks();
   });
 
+  describe("recent projects refresh", () => {
+    it("bumps the version the start screen reloads on", () => {
+      const before = ui.recentProjectsVersion;
+      ui.refreshRecentProjects();
+      expect(ui.recentProjectsVersion).toBe(before + 1);
+    });
+  });
+
   describe("view management", () => {
     it("should initialize with start view", () => {
       expect(ui.currentView).toBe("start");
@@ -237,7 +245,14 @@ describe("ui store", () => {
       ui.startImport();
       expect(ui.isImporting).toBe(true);
       expect(ui.importProgress).toBe(0);
-      expect(ui.importStatus).toBe("Starting import...");
+      expect(ui.importStatus).toBe("Starting import…");
+      expect(ui.importTitle).toBe("Importing");
+    });
+
+    it("should name non-import work in the progress dialog", () => {
+      ui.startImport("Opening sample project", "Creating the sample project…");
+      expect(ui.importTitle).toBe("Opening sample project");
+      expect(ui.importStatus).toBe("Creating the sample project…");
     });
 
     it("should update import progress", () => {

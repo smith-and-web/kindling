@@ -43,12 +43,14 @@ it.each([
         },
       ],
     });
-    const displayed = Array.from(palette.container.querySelectorAll("kbd"), (element) =>
-      element.textContent?.trim()
+    const displayed = Array.from(
+      palette.container.querySelectorAll(".palette-search kbd, [role=option] kbd"),
+      (element) => element.textContent?.trim()
     );
     expect(displayed).toEqual([paletteLabel, settingsLabel]);
     expect(palette.container.querySelector("svg.lucide-command")).toBeNull();
-    expect(palette.container.querySelector("svg.lucide-keyboard")).not.toBeNull();
+    // Rows name their category instead of repeating a keyboard glyph.
+    expect(palette.getByRole("option", { name: /Settings/ }).textContent).toContain("Help");
     if (platform !== "MacIntel") expect(palette.container.textContent).not.toMatch(/[⌘⌥⇧]/);
   }
 );

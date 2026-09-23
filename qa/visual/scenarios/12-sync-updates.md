@@ -70,10 +70,11 @@ return JSON.stringify({
 
 Asserts: `hasRename`, `hasEpilogue`, `hasNewBeat` and `confirm` all true.
 
-**Expect**: the preview lists the new scene and beat under New Items (all
+**Expect**: the preview lists the new scene and beat under New items (all
 selected) and the renamed chapter under Changes with its old and new title
 and its checkbox unselected: changes to existing items are opt-in so a
-writer's own edits are not overwritten by default. Apply Sync enabled.
+writer's own edits are not overwritten by default. The Apply button ("Apply N
+changes") is enabled.
 
 ## Call 5: apply and verify (DOM only, then screenshot 12-02)
 
@@ -132,9 +133,9 @@ return q.run([
 `wait_for` `#qa-settled-12-02-after-sync` (timeout 12000), then screenshot.
 
 Asserts from the log: `12-02-selection.footer` is `4 items selected`;
-`12-02-summary-dialog.text` contains `Chapters: 0 added, 1 updated`,
-`Scenes: 1 added` and `Beats: 2 added`; `12-02-shot.chapters` includes
-`Act 3: Resolution` and not `Act 3`; `12-02-shot.scenes` includes `Epilogue`
+`12-02-summary-dialog.text` contains `Chapters 0 added, 1 updated`,
+`Scenes 1 added` and `Beats 2 added` (label and counts are separate spans);
+`12-02-shot.chapters` includes `Act 3: Resolution` and not `Act 3`; `12-02-shot.scenes` includes `Epilogue`
 (verified 2026-09-05).
 
 **Expect**: sidebar shows the renamed chapter and the new scene under it;

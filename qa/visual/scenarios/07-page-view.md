@@ -26,10 +26,10 @@ return JSON.stringify(q.preflight());
 ```
 
 `wait_for` the settle marker `#qa-settled-07-01-page-view`, then screenshot.
-(The heading is uppercased by CSS, so a text wait for `Scene Prose` fails.)
+(The settle marker is the gate; the heading text is not needed.)
 
 **Expect**: the Beats list is replaced by a single full-page editor headed
-Scene Prose, in Newsreader, containing the beat prose concatenated (the
+Scene prose, in Newsreader, containing the beat prose concatenated (the
 `Unique prose` sentence from scenario 02 and the second beat's text). The
 Page toggle is the accent-filled one. Beat cards are gone.
 
@@ -58,8 +58,8 @@ return q.run([
     () =>
       q.mark("07-03-beats-back", {
         beats: q.state().beats,
-        pageHeader: !![...document.querySelectorAll("h2")].find(
-          (h) => h.textContent.trim() === "Scene Prose"
+        pageHeader: !![...document.querySelectorAll("h3")].find(
+          (h) => h.textContent.trim() === "Scene prose"
         ),
       }),
     0,

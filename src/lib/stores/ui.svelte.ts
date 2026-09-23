@@ -75,6 +75,7 @@ class UIStore {
   private _isImporting = $state(false);
   private _importProgress = $state(0);
   private _importStatus = $state("");
+  private _importTitle = $state("Importing");
   private _toast = $state<{ id: number; message: string } | null>(null);
   private _toastIdCounter = 0;
 
@@ -182,6 +183,10 @@ class UIStore {
     return this._importProgress;
   }
 
+  get importTitle() {
+    return this._importTitle;
+  }
+
   get importStatus() {
     return this._importStatus;
   }
@@ -222,10 +227,12 @@ class UIStore {
     this._sceneReferenceRefreshId += 1;
   }
 
-  startImport() {
+  /** `title` names the work in the progress dialog, e.g. "Opening sample project". */
+  startImport(title = "Importing", status = "Starting import…") {
     this._isImporting = true;
     this._importProgress = 0;
-    this._importStatus = "Starting import...";
+    this._importTitle = title;
+    this._importStatus = status;
   }
 
   updateImportProgress(progress: number, status: string) {
@@ -308,6 +315,16 @@ class UIStore {
     this._onboardingStep = "welcome";
     this._onboardingCompleted = false;
     localStorage.removeItem(ONBOARDING_COMPLETED_KEY);
+  }
+
+  // Bumped when the project library changes outside the start screen's own
+  // actions, so the recent list reloads.
+  private _recentProjectsVersion = $state(0);
+  get recentProjectsVersion() {
+    return this._recentProjectsVersion;
+  }
+  refreshRecentProjects() {
+    this._recentProjectsVersion += 1;
   }
 
   // Guidance getters/setters (Phase C)

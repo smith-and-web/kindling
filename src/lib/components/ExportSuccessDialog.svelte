@@ -7,9 +7,9 @@
 -->
 <script lang="ts">
   import { revealItemInDir } from "@tauri-apps/plugin-opener";
-  import { X, CheckCircle, FolderOpen } from "lucide-svelte";
+  import { CircleCheck, FolderOpen } from "lucide-svelte";
   import type { ExportResult } from "../types";
-  import Tooltip from "./Tooltip.svelte";
+  import DialogHeader from "./DialogHeader.svelte";
 
   let {
     result,
@@ -19,16 +19,25 @@
     onClose: () => void;
   } = $props();
 
+  let openError = $state<string | null>(null);
+
   async function openFolder() {
+    openError = null;
     try {
       await revealItemInDir(result.output_path);
     } catch (e) {
       console.error("Failed to open folder:", e);
+      openError = `Couldn’t open the folder: ${e instanceof Error ? e.message : String(e)}`;
     }
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape" || event.key === "Enter") {
+    // The scrim and the window both listen; handle each key press once.
+    if (event.defaultPrevented) return;
+    // Enter on a focused control activates that control (e.g. Open folder).
+    const onControl = event.target instanceof Element && event.target.closest("button, a");
+    if (event.key === "Escape" || (event.key === "Enter" && !onControl)) {
+      event.preventDefault();
       onClose();
     }
   }
@@ -42,9 +51,8 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<!-- Backdrop -->
 <div
-  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
+  class="dialog-scrim"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -52,35 +60,20 @@
   aria-labelledby="export-success-dialog-title"
   tabindex="-1"
 >
-  <!-- Dialog -->
-  <div
-    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-md mx-4 overflow-hidden"
-  >
-    <!-- Header -->
-    <div class="flex items-center justify-between px-4 py-3 border-b border-press-border">
-      <h2 id="export-success-dialog-title" class="text-press-body-lg font-medium text-press-text">
-        Export Complete
-      </h2>
-      <Tooltip text="Close" position="left">
-        <button
-          type="button"
-          onclick={onClose}
-          class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
-          aria-label="Close"
-        >
-          <X class="w-5 h-5" />
-        </button>
-      </Tooltip>
-    </div>
+  <div class="app-dialog-surface ka-dialog-narrow dialog-shell">
+    <DialogHeader
+      title="Export complete"
+      titleId="export-success-dialog-title"
+      {onClose}
+      closeLabel="Close"
+    />
 
-    <!-- Content -->
-    <div class="p-4 space-y-4">
-      <!-- Success Message -->
-      <div class="flex items-start gap-3">
-        <CheckCircle class="w-6 h-6 text-press-success flex-shrink-0 mt-0.5" />
-        <div>
-          <p class="text-press-text font-medium">Successfully exported:</p>
-          <ul class="mt-2 space-y-1 text-press-muted text-press-ui">
+    <div class="ka-dialog-body export-success">
+      <div class="ka-notice ka-notice--success od-row-top" role="status">
+        <CircleCheck class="w-5 h-5" aria-hidden="true" />
+        <div class="od-field od-fill">
+          <strong>Successfully exported:</strong>
+          <ul class="export-counts">
             {#if result.chapters_exported > 0}
               <li>{result.chapters_exported} chapter{result.chapters_exported === 1 ? "" : "s"}</li>
             {/if}
@@ -92,32 +85,49 @@
         </div>
       </div>
 
-      <!-- Location -->
-      <div>
-        <p class="text-press-ui font-medium text-press-muted mb-1">Location:</p>
-        <p class="text-press-ui text-press-text break-all bg-press-sunken rounded px-2 py-1.5">
-          {result.output_path}
-        </p>
+      <div class="od-field export-location">
+        <p class="ka-label">Saved to</p>
+        <div class="ka-code">
+          <code>{result.output_path}</code>
+        </div>
+        {#if openError}
+          <p class="ka-error" role="alert">{openError}</p>
+        {/if}
       </div>
     </div>
 
-    <!-- Footer -->
-    <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-press-border">
-      <button
-        type="button"
-        onclick={openFolder}
-        class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors flex items-center gap-2"
-      >
-        <FolderOpen class="w-4 h-4" />
-        Open Folder
-      </button>
-      <button
-        type="button"
-        onclick={onClose}
-        class="px-4 py-2 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors"
-      >
+    <footer class="ka-dialog-footer">
+      <button type="button" onclick={onClose} class="ka-button ka-button--secondary">
         Close
       </button>
-    </div>
+      <button type="button" onclick={openFolder} class="ka-button">
+        <FolderOpen class="w-5 h-5" aria-hidden="true" />
+        Open folder
+      </button>
+    </footer>
   </div>
 </div>
+
+<style>
+  .export-success {
+    display: grid;
+    gap: var(--space-m);
+  }
+  .export-counts {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font: var(--text-ui) / 1.5 var(--font-ui);
+    color: var(--color-text);
+  }
+  .export-location {
+    gap: var(--space-2xs);
+  }
+  .export-location p {
+    margin: 0;
+  }
+  .export-location .ka-label {
+    font: 500 var(--text-ui) / 1.5 var(--font-ui);
+    color: var(--color-text);
+  }
+</style>

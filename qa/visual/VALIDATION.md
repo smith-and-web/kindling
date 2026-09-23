@@ -138,10 +138,11 @@ The final complete runs had no timeouts.
 
 ## Remaining findings and scope
 
-The populated References list still has a **critical `aria-required-parent`**
-finding on `ReferencesPanel.svelte`'s `div[role="listitem"]` without its required
-list parent. It affects `08-02-reference-listed` in all three variants. The
-baseline entries document it; image acceptance does not waive the failing audit.
+The critical `aria-required-parent` finding on the populated References list
+(`08-02-reference-listed`, all three variants) was resolved in the Press reskin:
+the list and its items, including the "All references" heading row, now form a
+valid list. The 2026-09-23 baseline update's comparison passed all 147
+checkpoints in 334 seconds with no accessibility findings.
 
 This process covers web content. Native menus, OS dialogs, foreground focus
 appearance, real key delivery, hover/caret behavior and the other manual checks

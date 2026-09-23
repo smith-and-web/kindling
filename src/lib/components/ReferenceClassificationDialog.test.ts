@@ -181,4 +181,66 @@ describe("ReferenceClassificationDialog", () => {
       expect(onComplete).toHaveBeenCalledWith(mockProject);
     });
   });
+
+  it("keeps the table visible and shows the save-failure notice when saving fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    setupInvokeMocks();
+    const fallback = invokeMock.getMockImplementation()!;
+    invokeMock.mockImplementation((command: string, args?: InvokeArgs) =>
+      command === "reclassify_references"
+        ? Promise.reject(new Error("Database is locked"))
+        : fallback(command, args)
+    );
+    const onComplete = vi.fn();
+    const onClose = vi.fn();
+    render(ReferenceClassificationDialog, {
+      props: { projectId: "project-1", onClose, onComplete },
+    });
+
+    await screen.findByText("Alice");
+    const select = screen.getByRole("combobox", { name: "Type for Alice" }) as HTMLSelectElement;
+    await fireEvent.change(select, { target: { value: "locations" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Couldn’t save reference types");
+    expect(alert.textContent).toContain("Database is locked");
+    expect(alert.textContent).not.toContain("Couldn’t load references");
+
+    // The table and the writer's pending choice survive the failure so they can retry.
+    expect(screen.getByRole("table")).toBeTruthy();
+    expect(screen.getByText("Consortium")).toBeTruthy();
+    expect(select.value).toBe("locations");
+    expect(select.disabled).toBe(false);
+    expect(
+      (screen.getByRole("button", { name: "Apply changes" }) as HTMLButtonElement).disabled
+    ).toBe(false);
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it("uses a fallback save-failure message for a non-Error rejection", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    setupInvokeMocks();
+    const fallback = invokeMock.getMockImplementation()!;
+    invokeMock.mockImplementation((command: string, args?: InvokeArgs) =>
+      command === "reclassify_references" ? Promise.reject("locked") : fallback(command, args)
+    );
+    render(ReferenceClassificationDialog, {
+      props: { projectId: "project-1", onClose: vi.fn(), onComplete: vi.fn() },
+    });
+
+    await screen.findByText("Alice");
+    await fireEvent.change(screen.getByRole("combobox", { name: "Type for HQ" }), {
+      target: { value: "items" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Couldn’t save reference types");
+    expect(alert.textContent).toContain("Failed to save reference classifications");
+    expect(screen.getByRole("table")).toBeTruthy();
+    vi.restoreAllMocks();
+  });
 });

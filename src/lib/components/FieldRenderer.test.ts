@@ -84,13 +84,13 @@ it("preserves optional and disabled control semantics", async () => {
 it("names the project type and template groups", () => {
   render(NewProjectDialog, { onClose: vi.fn() });
   expect(
-    within(screen.getByRole("group", { name: "Project type" })).getByRole("button", {
+    within(screen.getByRole("group", { name: "Project type" })).getByRole("radio", {
       name: "Novel",
     })
   ).toBeTruthy();
   expect(
-    within(screen.getByRole("group", { name: "Structure template" })).getByRole("button", {
-      name: "Browse templates...",
+    within(screen.getByRole("group", { name: /^Structure template/ })).getByRole("button", {
+      name: "Browse templates…",
     })
   ).toBeTruthy();
 });

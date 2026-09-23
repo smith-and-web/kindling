@@ -17,8 +17,8 @@
   import {
     ChevronDown,
     ChevronRight,
-    ChevronsLeft,
-    ChevronsRight,
+    PanelLeftClose,
+    PanelLeftOpen,
     Clock,
     Folder,
     Home,
@@ -67,7 +67,6 @@
   import ExportDialog from "./ExportDialog.svelte";
   import ExportSuccessDialog from "./ExportSuccessDialog.svelte";
   import SnapshotsPanel from "./SnapshotsPanel.svelte";
-  import Tooltip from "./Tooltip.svelte";
   import BrandWordmark from "./BrandWordmark.svelte";
 
   import type { ComponentType } from "svelte";
@@ -174,12 +173,6 @@
     final: "Final",
   };
 
-  const sceneStatusClasses: Record<SceneStatus, string> = {
-    draft: "bg-press-border",
-    revised: "bg-press-warning",
-    final: "bg-press-success",
-  };
-
   let showNotesScenes = $state(true);
   let showTodoScenes = $state(true);
   let showUnusedScenes = $state(true);
@@ -265,8 +258,6 @@
   let currentDragOverElement: globalThis.HTMLElement | null = null;
 
   // Hover state for showing action buttons
-  let hoveredChapterId: string | null = $state(null);
-  let hoveredSceneId: string | null = $state(null);
 
   // Sync state (dialogs are now separate components)
   let loadingSyncPreview = $state(false);
@@ -760,7 +751,7 @@
         type: "chapter",
         id: chapter.id,
         title: chapter.title,
-        message: `This will delete "${chapter.title}" with ${counts.scene_count} scene${counts.scene_count !== 1 ? "s" : ""} and ${counts.beat_count} beat${counts.beat_count !== 1 ? "s" : ""}.`,
+        message: `This will delete “${chapter.title}” with ${counts.scene_count} scene${counts.scene_count !== 1 ? "s" : ""} and ${counts.beat_count} beat${counts.beat_count !== 1 ? "s" : ""}.`,
       };
     } catch (e) {
       console.error("Failed to get content counts:", e);
@@ -788,7 +779,7 @@
         type: "scene",
         id: scene.id,
         title: scene.title,
-        message: `This will delete "${scene.title}" with ${beatCount} beat${beatCount !== 1 ? "s" : ""}.`,
+        message: `This will delete “${scene.title}” with ${beatCount} beat${beatCount !== 1 ? "s" : ""}.`,
       };
     } catch (e) {
       console.error("Failed to get beat count:", e);
@@ -1301,50 +1292,73 @@
 
 <aside
   data-testid="sidebar"
-  class="bg-press-surface border-r border-press-border flex flex-col h-full transition-all duration-200"
-  class:w-80={!ui.sidebarCollapsed}
-  class:w-0={ui.sidebarCollapsed}
-  class:overflow-hidden={ui.sidebarCollapsed}
-  class:opacity-0={ui.sidebarCollapsed}
-  class:border-r-0={ui.sidebarCollapsed}
-  class:p-0={ui.sidebarCollapsed}
+  class="sidebar"
+  class:is-collapsed={ui.sidebarCollapsed}
+  aria-label="Project outline sidebar"
 >
+  {#if ui.sidebarCollapsed}
+    <div class="sb-rail">
+      <button
+        type="button"
+        onclick={toggleSidebar}
+        class="ka-button ka-button--ghost ka-icon-button"
+        aria-label="Expand sidebar"
+        title="Expand sidebar"
+      >
+        <PanelLeftOpen class="w-5 h-5" aria-hidden="true" />
+      </button>
+      <img
+        class="sb-rail-flame on-light"
+        src="/brand/kindling-flame.svg"
+        alt=""
+        width="24"
+        height="24"
+      />
+      <img
+        class="sb-rail-flame on-dark"
+        src="/brand/kindling-flame-reversed.svg"
+        alt=""
+        width="24"
+        height="24"
+      />
+    </div>
+  {/if}
   <!-- Header -->
-  <div class="p-4 border-b border-press-border">
-    <div class="flex items-center justify-between">
+  <div class="sb-head" inert={ui.sidebarCollapsed}>
+    <div class="sb-brand">
       <BrandWordmark />
-      <Tooltip text="Collapse sidebar" position="bottom">
-        <button
-          onclick={toggleSidebar}
-          class="text-press-muted hover:text-press-text p-1"
-          aria-label="Collapse sidebar"
-        >
-          <ChevronsLeft class="w-5 h-5" />
-        </button>
-      </Tooltip>
+      <button
+        type="button"
+        onclick={toggleSidebar}
+        class="ka-button ka-button--ghost ka-icon-button"
+        aria-label="Collapse sidebar"
+        title="Collapse sidebar"
+      >
+        <PanelLeftClose class="w-5 h-5" aria-hidden="true" />
+      </button>
     </div>
     {#if currentProject.value}
       <button
         type="button"
         data-testid="sidebar-home"
         onclick={goHome}
-        class="mt-3 mb-3 w-full flex items-center gap-2 px-3 py-2 text-press-ui text-press-text bg-press-sunken hover:bg-press-accent-wash rounded-md transition-colors"
+        class="ka-button ka-button--ghost sb-home"
         aria-label="Home — all projects"
         title="Return home to all projects"
       >
-        <Home class="w-4 h-4 text-press-accent-text" />
-        <span class="font-medium">Home</span>
-        <span class="ml-auto text-press-eyebrow text-press-muted">All projects</span>
+        <Home class="w-5 h-5" aria-hidden="true" />
+        <span>Home</span>
+        <small>All projects</small>
       </button>
       <!-- Project name with action icons -->
-      <div class="flex items-center justify-between mt-2 gap-2">
-        <div class="flex items-center gap-2 min-w-0 flex-1">
-          <p class="text-press-text text-press-base font-semibold truncate">
+      <div class="sb-project">
+        <div class="sb-project-title">
+          <h2 class="sb-project-name" title={currentProject.value.name}>
             {currentProject.value.name}
-          </p>
+          </h2>
           {#if currentProject.value.project_type === "screenplay" && pageCountEstimate}
             <span
-              class="shrink-0 text-press-eyebrow text-press-muted bg-press-sunken px-1.5 py-0.5 rounded"
+              class="ka-badge"
               title="{pageCountEstimate.words} words · target: {pageCountEstimate.target}"
             >
               {pageCountEstimate.pages.toFixed(1)} / {pageCountEstimate.target}
@@ -1352,34 +1366,42 @@
           {/if}
         </div>
         <!-- Action icons (primary only; secondary behind more menu) -->
-        <div class="flex items-center gap-0.5 shrink-0">
+        <div class="sb-project-actions">
           {#if currentProject.value.source_path && supportsSync(currentProject.value.source_type)}
-            <Tooltip text="Sync from source" position="bottom">
-              <button
-                data-testid="sync-button"
-                onclick={handleSyncClick}
-                disabled={loadingSyncPreview}
-                class="p-1.5 text-press-muted hover:text-press-text hover:bg-press-sunken rounded transition-colors"
-                aria-label="Sync from source"
-              >
-                <RefreshCw class="w-4 h-4 {loadingSyncPreview ? 'animate-spin' : ''}" />
-              </button>
-            </Tooltip>
+            <button
+              type="button"
+              data-testid="sync-button"
+              onclick={handleSyncClick}
+              disabled={loadingSyncPreview}
+              aria-busy={loadingSyncPreview || undefined}
+              class="ka-button ka-button--ghost ka-icon-button"
+              aria-label="Sync from source"
+              title="Sync from source"
+            >
+              <RefreshCw
+                class="w-5 h-5 {loadingSyncPreview ? 'animate-spin' : ''}"
+                aria-hidden="true"
+              />
+            </button>
           {/if}
           <div class="relative" bind:this={moreMenuRef}>
-            <Tooltip text="More actions" position="bottom">
-              <button
-                onclick={() => (showMoreMenu = !showMoreMenu)}
-                class="p-1.5 text-press-muted hover:text-press-text hover:bg-press-sunken rounded transition-colors"
-                aria-label="More actions"
-                data-testid="more-actions-button"
-              >
-                <MoreVertical class="w-4 h-4" />
-              </button>
-            </Tooltip>
+            <button
+              type="button"
+              onclick={() => (showMoreMenu = !showMoreMenu)}
+              class="ka-button ka-button--ghost ka-icon-button"
+              aria-label="More actions"
+              title="More actions"
+              aria-haspopup="menu"
+              aria-expanded={showMoreMenu}
+              data-testid="more-actions-button"
+            >
+              <MoreVertical class="w-5 h-5" aria-hidden="true" />
+            </button>
             {#if showMoreMenu}
               <div
-                class="absolute right-0 mt-1 w-48 bg-press-surface border border-press-border rounded-lg shadow-press-overlay py-1 z-press-dropdown"
+                class="ka-menu-list app-popover sb-popover"
+                role="menu"
+                aria-label="Project actions"
               >
                 <button
                   data-testid="export-button"
@@ -1393,9 +1415,10 @@
                       };
                     }
                   }}
-                  class="w-full flex items-center gap-3 px-3 py-2 text-press-ui text-press-text hover:bg-press-sunken transition-colors"
+                  role="menuitem"
+                  class="sb-menuitem"
                 >
-                  <Download class="w-4 h-4 text-press-muted" />
+                  <Download class="w-5 h-5" aria-hidden="true" />
                   Export
                 </button>
                 <button
@@ -1404,9 +1427,10 @@
                     showMoreMenu = false;
                     showSnapshotsPanel = true;
                   }}
-                  class="w-full flex items-center gap-3 px-3 py-2 text-press-ui text-press-text hover:bg-press-sunken transition-colors"
+                  role="menuitem"
+                  class="sb-menuitem"
                 >
-                  <Clock class="w-4 h-4 text-press-muted" />
+                  <Clock class="w-5 h-5" aria-hidden="true" />
                   Snapshots
                 </button>
                 <button
@@ -1415,9 +1439,10 @@
                     showMoreMenu = false;
                     showArchivePanel = true;
                   }}
-                  class="w-full flex items-center gap-3 px-3 py-2 text-press-ui text-press-text hover:bg-press-sunken transition-colors"
+                  role="menuitem"
+                  class="sb-menuitem"
                 >
-                  <Archive class="w-4 h-4 text-press-muted" />
+                  <Archive class="w-5 h-5" aria-hidden="true" />
                   Archive
                 </button>
               </div>
@@ -1430,17 +1455,16 @@
   </div>
 
   <!-- Chapter/Scene Tree -->
-  <div class="flex-1 overflow-y-auto p-2">
+  <div class="sb-scroll" inert={ui.sidebarCollapsed}>
     {#if loading}
-      <div class="flex items-center justify-center p-4">
-        <span class="text-press-muted">Loading...</span>
+      <div class="ka-progress od-field sb-status" role="status">
+        <span>Opening project…</span>
+        <progress aria-label="Opening project"></progress>
       </div>
     {:else if currentProject.chapters.length === 0}
-      <div class="flex items-center justify-center p-4">
-        <span class="text-press-muted text-press-ui">No chapters found</span>
-      </div>
+      <p class="sb-status ka-help">No chapters yet. Add one below to start outlining.</p>
     {:else}
-      <nav class="space-y-1" aria-label="Project outline">
+      <nav class="sb-tree" aria-label="Project outline">
         {#each partGroups as group}
           <!-- Part header (if this group has a Part) -->
           {#if group.part}
@@ -1450,53 +1474,40 @@
             <div
               data-testid="part-item"
               data-drag-chapter={part.id}
-              class="select-none relative rounded-lg mt-4"
-              class:ring-2={dragOverId === part.id}
-              class:ring-press-focus={dragOverId === part.id}
-              onmouseenter={() => (hoveredChapterId = part.id)}
-              onmouseleave={() => (hoveredChapterId = null)}
+              class="sb-group sb-part"
+              class:is-drop-target={dragOverId === part.id}
             >
               <!-- Part row -->
               <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <div
-                class="w-full flex items-center gap-1 px-1 py-1.5 rounded-lg transition-colors group bg-press-accent-wash border-l-2 border-press-accent"
-                oncontextmenu={(e) => openContextMenu(e, "chapter", part)}
-              >
+              <div class="sb-row" oncontextmenu={(e) => openContextMenu(e, "chapter", part)}>
                 <!-- Drag handle -->
                 <div
                   data-testid="drag-handle"
                   onmousedown={(e) => onDragHandleMouseDown(e, "chapter", part.id)}
-                  class="cursor-grab active:cursor-grabbing p-0.5 text-press-muted hover:text-press-text transition-opacity"
-                  class:opacity-0={hoveredChapterId !== part.id}
-                  class:opacity-100={hoveredChapterId === part.id}
-                  role="button"
-                  tabindex="-1"
-                  aria-label="Drag to reorder"
+                  class="sb-grip"
+                  aria-hidden="true"
+                  title="Drag to reorder"
                 >
-                  <GripVertical class="w-3.5 h-3.5" />
+                  <GripVertical class="w-4 h-4" aria-hidden="true" />
                 </div>
 
                 <button
                   onclick={() => togglePartExpanded(part.id)}
-                  class="flex-1 flex items-center gap-1.5 text-left min-w-0"
+                  class="sb-row-main"
                   aria-expanded={isPartExpanded}
                 >
-                  <ChevronRight
-                    class="w-4 h-4 text-press-accent-text transition-transform shrink-0 {isPartExpanded
-                      ? 'rotate-90'
-                      : ''}"
-                  />
+                  <ChevronRight class="sb-chev" aria-hidden="true" />
                   {#if part.locked}
-                    <Lock class="w-3 h-3 text-press-warning shrink-0" />
+                    <Lock class="sb-glyph is-warning" aria-label="Locked" />
                   {:else if (part.planning_status ?? "fixed") === "flexible"}
-                    <CircleDot class="w-3 h-3 shrink-0 text-press-warning" />
+                    <CircleDot class="sb-glyph is-warning" aria-label="Flexible" />
                   {:else if (part.planning_status ?? "fixed") === "undefined"}
-                    <CircleDashed class="w-3 h-3 shrink-0 text-press-muted" />
+                    <CircleDashed class="sb-glyph" aria-label="Undefined" />
                   {/if}
                   <span
                     data-testid="part-title"
-                    class="font-semibold text-press-eyebrow uppercase tracking-wider truncate text-press-accent-text"
-                    class:text-press-disabled-text={part.locked}>{part.title}</span
+                    class="sb-row-title sb-part-title"
+                    class:is-locked={part.locked}>{part.title}</span
                   >
                 </button>
 
@@ -1504,12 +1515,11 @@
                 <button
                   data-testid="menu-button"
                   onclick={(e) => openContextMenu(e, "chapter", part)}
-                  class="p-1 text-press-muted hover:text-press-text transition-opacity shrink-0"
-                  class:opacity-0={hoveredChapterId !== part.id}
-                  class:opacity-100={hoveredChapterId === part.id}
+                  class="ka-button ka-button--ghost ka-icon-button sb-row-menu"
                   aria-label="{partLabel} menu"
+                  aria-haspopup="menu"
                 >
-                  <MoreVertical class="w-3.5 h-3.5" />
+                  <MoreVertical class="w-5 h-5" aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -1517,67 +1527,56 @@
 
           <!-- Chapters in this group (collapsible under Part) -->
           {#if !group.part || checkPartExpanded(group.part.id)}
-            <div class={group.part ? "ml-2" : ""}>
+            <div class:sb-part-children={group.part}>
               {#each group.chapters as chapter}
                 {@const isExpanded = isChapterExpanded(chapter.id)}
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
                   data-testid="chapter-item"
                   data-drag-chapter={chapter.id}
-                  class="select-none relative rounded-lg"
-                  class:ring-2={dragOverId === chapter.id}
-                  class:ring-press-focus={dragOverId === chapter.id}
-                  onmouseenter={() => (hoveredChapterId = chapter.id)}
-                  onmouseleave={() => (hoveredChapterId = null)}
+                  class="sb-group"
+                  class:is-drop-target={dragOverId === chapter.id}
                 >
                   <!-- Chapter row -->
                   <!-- svelte-ignore a11y_no_static_element_interactions -->
                   <div
-                    class="w-full flex flex-col gap-1 px-1 py-1.5 rounded-lg transition-colors group"
-                    class:bg-press-sunken={isExpanded}
-                    class:hover:bg-press-sunken={!isExpanded}
+                    class="sb-chapter"
                     oncontextmenu={(e) => openContextMenu(e, "chapter", chapter)}
                   >
-                    <div class="flex items-center gap-1">
+                    <div class="sb-row">
                       <!-- Drag handle -->
                       <div
                         data-testid="drag-handle"
                         onmousedown={(e) => onDragHandleMouseDown(e, "chapter", chapter.id)}
-                        class="cursor-grab active:cursor-grabbing p-0.5 text-press-muted hover:text-press-text transition-opacity"
-                        class:opacity-0={hoveredChapterId !== chapter.id}
-                        class:opacity-100={hoveredChapterId === chapter.id}
-                        role="button"
-                        tabindex="-1"
-                        aria-label="Drag to reorder"
+                        class="sb-grip"
+                        aria-hidden="true"
+                        title="Drag to reorder"
                       >
-                        <GripVertical class="w-3.5 h-3.5" />
+                        <GripVertical class="w-4 h-4" aria-hidden="true" />
                       </div>
 
                       <button
                         onclick={() => toggleChapter(chapter)}
-                        class="flex-1 flex items-center gap-1.5 text-left min-w-0"
+                        class="sb-row-main"
                         aria-expanded={isExpanded}
                       >
-                        <ChevronRight
-                          class="w-4 h-4 text-press-muted transition-transform shrink-0 {isExpanded
-                            ? 'rotate-90'
-                            : ''}"
-                        />
+                        <ChevronRight class="sb-chev" aria-hidden="true" />
                         {#if chapter.locked}
-                          <Lock class="w-3 h-3 text-press-warning shrink-0" />
+                          <Lock class="sb-glyph is-warning" aria-label="Locked" />
                         {:else if (chapter.planning_status ?? "fixed") === "flexible"}
-                          <CircleDot class="w-3 h-3 shrink-0 text-press-warning" />
+                          <CircleDot class="sb-glyph is-warning" aria-label="Flexible" />
                         {:else if (chapter.planning_status ?? "fixed") === "undefined"}
-                          <CircleDashed class="w-3 h-3 shrink-0 text-press-muted" />
+                          <CircleDashed class="sb-glyph" aria-label="Undefined" />
                         {/if}
                         <span
                           data-testid="chapter-title"
-                          class="font-medium text-press-ui truncate text-press-text"
-                          class:text-press-disabled-text={chapter.locked}>{chapter.title}</span
+                          class="sb-row-title sb-chapter-title"
+                          class:is-locked={chapter.locked}
+                          title={chapter.title}>{chapter.title}</span
                         >
                         {#if writing.value?.chapter_words?.[chapter.id] !== undefined}
-                          <span class="text-press-eyebrow text-press-muted shrink-0"
-                            >{writing.value.chapter_words[chapter.id].toLocaleString()} words</span
+                          <small class="sb-row-trail"
+                            >{writing.value.chapter_words[chapter.id].toLocaleString()} words</small
                           >
                         {/if}
                       </button>
@@ -1586,12 +1585,11 @@
                       <button
                         data-testid="menu-button"
                         onclick={(e) => openContextMenu(e, "chapter", chapter)}
-                        class="p-1 text-press-muted hover:text-press-text transition-opacity shrink-0"
-                        class:opacity-0={hoveredChapterId !== chapter.id}
-                        class:opacity-100={hoveredChapterId === chapter.id}
+                        class="ka-button ka-button--ghost ka-icon-button sb-row-menu"
                         aria-label="{chapterLabel} menu"
+                        aria-haspopup="menu"
                       >
-                        <MoreVertical class="w-3.5 h-3.5" />
+                        <MoreVertical class="w-5 h-5" aria-hidden="true" />
                       </button>
                     </div>
 
@@ -1600,26 +1598,25 @@
 
                       <!-- Chapter synopsis (Flexible/Undefined only) -->
                       {#if chapterPlanning !== "fixed"}
-                        <div class="pl-6 pr-1 mt-1">
+                        <div class="sb-synopsis">
                           {#if editingChapterSynopsisId === chapter.id}
                             <!-- svelte-ignore a11y_autofocus -->
                             <textarea
                               bind:value={chapterSynopsisText}
                               oninput={() => handleChapterSynopsisInput(chapter.id)}
                               onblur={() => finishEditingChapterSynopsis(chapter.id)}
-                              placeholder="{chapterLabel} synopsis..."
-                              class="w-full text-press-eyebrow text-press-text bg-press-sunken border border-press-accent rounded-md px-2.5 py-1.5 resize-none focus:outline-none focus:border-press-accent"
-                              rows="2"
+                              placeholder="{chapterLabel} synopsis…"
+                              aria-label="{chapterLabel} synopsis"
+                              rows="3"
                               autofocus
                             ></textarea>
                           {:else}
                             <button
                               onclick={() => startEditingChapterSynopsis(chapter)}
-                              class="w-full text-left text-press-eyebrow rounded-md px-2.5 py-1.5 transition-colors hover:bg-press-sunken {chapter.synopsis
-                                ? 'text-press-muted'
-                                : 'text-press-muted italic'}"
+                              class="sb-synopsis-text"
+                              class:is-empty={!chapter.synopsis}
                             >
-                              {chapter.synopsis || "Add synopsis..."}
+                              {chapter.synopsis || "Add synopsis…"}
                             </button>
                           {/if}
                         </div>
@@ -1627,19 +1624,17 @@
 
                       <!-- Undefined chapter: placeholder, no scene list -->
                       {#if chapterPlanning === "undefined"}
-                        <div class="ml-5 mt-2 pl-2 border-l border-press-border/60">
-                          <div
-                            class="px-2 py-3 rounded-md bg-press-surface/50 border border-dashed border-press-border text-center"
-                          >
-                            <CircleDashed class="w-5 h-5 text-press-muted mx-auto mb-1.5" />
-                            <p class="text-press-eyebrow text-press-muted">
+                        <div class="sb-children">
+                          <div class="sb-undefined">
+                            <p class="ka-help">
                               This chapter is undefined. Add a synopsis and scenes will appear when
                               you promote it to Flexible or Fixed.
                             </p>
                             {#if !chapter.locked}
                               <button
+                                type="button"
                                 onclick={() => setPlanningStatus("chapter", chapter, "flexible")}
-                                class="mt-2 px-2.5 py-1 rounded-md bg-press-accent-wash text-press-accent-text text-press-eyebrow font-medium hover:text-press-text transition-colors"
+                                class="ka-button ka-button--secondary sb-small-button"
                               >
                                 Switch to Flexible
                               </button>
@@ -1649,43 +1644,32 @@
 
                         <!-- Flexible chapter: simplified scene titles, no filters/drag -->
                       {:else if chapterPlanning === "flexible"}
-                        <div class="ml-5 mt-1.5 space-y-0.5 border-l border-press-border/60 pl-2">
+                        <div class="sb-children">
                           {#each filteredScenes as scene}
                             {@const isSelected = currentProject.currentScene?.id === scene.id}
                             <button
                               onclick={() => selectScene(scene)}
                               oncontextmenu={(e) => openContextMenu(e, "scene", scene)}
-                              class="w-full flex items-center gap-1.5 text-left px-2 py-1 rounded-md text-press-ui transition-colors min-w-0"
-                              class:bg-press-accent={isSelected}
-                              class:text-press-on-accent={isSelected}
-                              class:text-press-muted={!isSelected}
-                              class:hover:bg-press-sunken={!isSelected}
-                              class:hover:text-press-text={!isSelected}
+                              class="sb-row-main sb-scene-main"
+                              class:is-selected={isSelected}
+                              aria-current={isSelected ? "page" : undefined}
                             >
                               {#if (scene.planning_status ?? "fixed") === "flexible"}
-                                <CircleDot
-                                  class="w-3 h-3 shrink-0 {isSelected
-                                    ? 'text-press-on-accent'
-                                    : 'text-press-warning'}"
-                                />
+                                <CircleDot class="sb-glyph is-warning" aria-label="Flexible" />
                               {:else if (scene.planning_status ?? "fixed") === "undefined"}
-                                <CircleDashed
-                                  class="w-3 h-3 shrink-0 {isSelected
-                                    ? 'text-press-on-accent'
-                                    : 'text-press-muted'}"
-                                />
+                                <CircleDashed class="sb-glyph" aria-label="Undefined" />
                               {/if}
-                              <span class="truncate">{scene.title}</span>
+                              <span class="sb-row-title" title={scene.title}>{scene.title}</span>
                               {#if writing.value?.scene_words?.[scene.id] !== undefined}
-                                <span class="text-press-eyebrow text-press-muted"
-                                  >{writing.value.scene_words[scene.id].toLocaleString()} words</span
+                                <small class="sb-row-trail"
+                                  >{writing.value.scene_words[scene.id].toLocaleString()} words</small
                                 >
                               {/if}
                             </button>
                           {/each}
 
                           {#if creatingScene}
-                            <div class="px-2 py-1">
+                            <div class="sb-new-input">
                               <!-- svelte-ignore a11y_autofocus -->
                               <input
                                 data-testid="title-input"
@@ -1693,8 +1677,8 @@
                                 bind:value={newTitle}
                                 onkeydown={handleCreateKeydown}
                                 onblur={cancelCreate}
-                                placeholder="Scene title..."
-                                class="w-full px-2 py-1 text-press-ui bg-press-sunken border border-press-accent rounded focus:outline-none text-press-text"
+                                placeholder="Scene title…"
+                                aria-label="New scene title"
                                 autofocus
                               />
                             </div>
@@ -1702,24 +1686,23 @@
                             <button
                               data-testid="new-scene-button"
                               onclick={startCreatingScene}
-                              class="w-full flex items-center gap-2 px-2 py-1 rounded text-press-eyebrow text-press-muted hover:text-press-text hover:bg-press-sunken transition-colors"
+                              class="sb-row-main sb-new"
                             >
-                              <Plus class="w-3 h-3" />
-                              New Scene
+                              <Plus class="w-4 h-4" aria-hidden="true" />
+                              New scene
                             </button>
                           {/if}
 
                           {#if currentProject.scenes.length === 0 && !creatingScene}
-                            <span class="text-press-muted text-press-eyebrow px-2 py-1 italic"
-                              >No scenes yet</span
-                            >
+                            <span class="sb-empty">No scenes yet</span>
                           {/if}
 
                           {#if !chapter.locked}
-                            <div class="px-2 pt-1">
+                            <div class="sb-define">
                               <button
+                                type="button"
                                 onclick={() => setPlanningStatus("chapter", chapter, "fixed")}
-                                class="text-press-eyebrow text-press-accent-text hover:underline"
+                                class="ka-button ka-button--ghost sb-small-button"
                               >
                                 Define full structure
                               </button>
@@ -1729,81 +1712,57 @@
 
                         <!-- Fixed chapter: full scene list with filters, drag, icons -->
                       {:else}
-                        <div class="flex items-center gap-1 pl-6 mt-1">
-                          <!-- View toggle pills -->
-                          <div
-                            class="flex bg-press-sunken rounded-md overflow-hidden border border-press-border"
-                          >
-                            <button
-                              type="button"
-                              class={`px-2.5 py-1 text-press-eyebrow font-medium transition-colors ${
-                                outlineViewFilter === "all"
-                                  ? "bg-press-accent text-press-on-accent"
-                                  : "text-press-muted hover:text-press-text"
-                              }`}
-                              onclick={() => (outlineViewFilter = "all")}
-                              title="Show all scenes"
-                            >
-                              All
-                            </button>
-                            <button
-                              type="button"
-                              class={`px-2.5 py-1 text-press-eyebrow font-medium transition-colors ${
-                                outlineViewFilter === "planned_only"
-                                  ? "bg-press-accent text-press-on-accent"
-                                  : "text-press-muted hover:text-press-text"
-                              }`}
-                              onclick={() => (outlineViewFilter = "planned_only")}
-                              title="Show only planned scenes"
-                            >
-                              Planned
-                            </button>
-                            <button
-                              type="button"
-                              class={`px-2.5 py-1 text-press-eyebrow font-medium transition-colors ${
-                                outlineViewFilter === "next_5"
-                                  ? "bg-press-accent text-press-on-accent"
-                                  : "text-press-muted hover:text-press-text"
-                              }`}
-                              onclick={() => (outlineViewFilter = "next_5")}
-                              title="Show next 5 scenes"
-                            >
-                              Next 5
-                            </button>
-                          </div>
+                        <div class="sb-filter">
+                          <fieldset class="ka-segments sb-filter-segments">
+                            <legend class="ka-sr">Show scenes</legend>
+                            <div class="ka-segment-track">
+                              {#each [{ value: "all", label: "All", title: "Show all scenes" }, { value: "planned_only", label: "Planned", title: "Show only planned scenes" }, { value: "next_5", label: "Next 5", title: "Show next 5 scenes" }] as option (option.value)}
+                                <label
+                                  class="ka-segment"
+                                  class:ka-selected={outlineViewFilter === option.value}
+                                  title={option.title}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`outline-filter-${chapter.id}`}
+                                    value={option.value}
+                                    bind:group={outlineViewFilter}
+                                  />
+                                  <span>{option.label}</span>
+                                </label>
+                              {/each}
+                            </div>
+                          </fieldset>
 
                           <!-- Filter popover trigger -->
-                          <div class="relative ml-auto" bind:this={filterPopoverRef}>
+                          <div class="relative" bind:this={filterPopoverRef}>
                             <button
                               type="button"
                               onclick={() => (showFilterPopover = !showFilterPopover)}
-                              class={`p-1.5 rounded transition-colors ${
-                                hasActiveFilters
-                                  ? "text-press-accent-text bg-press-accent-wash"
-                                  : "text-press-muted hover:text-press-text hover:bg-press-sunken"
-                              }`}
+                              class="ka-button ka-button--ghost ka-icon-button sb-filter-button"
+                              class:is-active={hasActiveFilters}
+                              aria-label={hasActiveFilters
+                                ? "Filter by type & status (filters on)"
+                                : "Filter by type & status"}
                               title="Filter by type & status"
+                              aria-expanded={showFilterPopover}
                             >
-                              <Filter class="w-3.5 h-3.5" />
+                              <Filter class="w-5 h-5" aria-hidden="true" />
                             </button>
                             {#if showFilterPopover}
-                              <div
-                                class="absolute right-0 top-full mt-1 w-56 bg-press-surface border border-press-border rounded-lg shadow-press-overlay p-3 z-press-dropdown space-y-3"
-                              >
-                                <div class="flex items-center justify-between">
-                                  <span
-                                    class="text-press-eyebrow font-semibold text-press-text uppercase tracking-wide"
-                                    >Filters</span
-                                  >
+                              <div class="app-popover sb-filter-popover">
+                                <div class="sb-filter-head">
+                                  <span class="sb-filter-heading">Filters</span>
                                   {#if hasActiveFilters}
                                     <button
+                                      type="button"
+                                      class="ka-button ka-button--ghost sb-small-button"
                                       onclick={() => {
                                         sceneStatusFilter = "all";
                                         showNotesScenes = true;
                                         showTodoScenes = true;
                                         showUnusedScenes = true;
                                       }}
-                                      class="text-press-eyebrow text-press-accent-text hover:underline"
                                     >
                                       Reset
                                     </button>
@@ -1811,23 +1770,19 @@
                                 </div>
 
                                 <!-- Type filter -->
-                                <div class="space-y-1.5">
-                                  <span class="text-press-eyebrow text-press-muted">Scene type</span
-                                  >
-                                  <div class="flex flex-wrap gap-1.5">
+                                <div class="sb-filter-field">
+                                  <span class="sb-filter-label">Scene type</span>
+                                  <div class="sb-filter-chips">
                                     {#each sceneTypeFilterOptions as option}
                                       {@const TypeIcon = option.icon}
                                       <button
                                         type="button"
-                                        class={`flex items-center gap-1.5 px-2 py-1 rounded-md text-press-eyebrow transition-colors ${
-                                          isSceneTypeVisible(option.type)
-                                            ? "bg-press-accent-wash text-press-accent-text border border-press-accent"
-                                            : "bg-press-sunken text-press-muted border border-transparent hover:text-press-text"
-                                        }`}
+                                        class="ka-tag sb-type-chip"
+                                        class:is-on={isSceneTypeVisible(option.type)}
                                         onclick={() => toggleSceneTypeVisible(option.type)}
                                         aria-pressed={isSceneTypeVisible(option.type)}
                                       >
-                                        <TypeIcon class="w-3 h-3" />
+                                        <TypeIcon class="w-4 h-4" aria-hidden="true" />
                                         {option.label}
                                       </button>
                                     {/each}
@@ -1835,44 +1790,39 @@
                                 </div>
 
                                 <!-- Status filter -->
-                                <div class="space-y-1.5">
-                                  <span class="text-press-eyebrow text-press-muted">Status</span>
-                                  <div class="relative">
-                                    <select
-                                      bind:value={sceneStatusFilter}
-                                      class="w-full appearance-none bg-press-sunken text-press-text text-press-eyebrow border border-press-border rounded-md px-2.5 py-1.5 focus:outline-none focus:border-press-accent cursor-pointer"
-                                      aria-label="Scene status filter"
-                                    >
-                                      {#each sceneStatusOptions as option}
-                                        <option value={option.value}>{option.label}</option>
-                                      {/each}
-                                    </select>
-                                    <ChevronDown
-                                      class="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-press-muted pointer-events-none"
-                                    />
-                                  </div>
+                                <div class="ka-field od-field sb-filter-field">
+                                  <label for={`scene-status-filter-${chapter.id}`}>Status</label>
+                                  <select
+                                    id={`scene-status-filter-${chapter.id}`}
+                                    bind:value={sceneStatusFilter}
+                                    aria-label="Scene status filter"
+                                  >
+                                    {#each sceneStatusOptions as option}
+                                      <option value={option.value}>{option.label}</option>
+                                    {/each}
+                                  </select>
                                 </div>
 
                                 <!-- Saved filters -->
                                 {#if savedFilters.length > 0}
-                                  <div class="border-t border-press-border pt-2 space-y-1">
-                                    <span class="text-press-eyebrow text-press-muted"
-                                      >Saved filters</span
-                                    >
+                                  <div class="sb-filter-section">
+                                    <span class="sb-filter-label">Saved filters</span>
                                     {#each savedFilters as filter}
-                                      <div class="flex items-center gap-1">
+                                      <div class="sb-saved-filter">
                                         <button
+                                          type="button"
                                           onclick={() => applySavedFilter(filter)}
-                                          class="flex-1 text-left text-press-eyebrow px-2 py-1 rounded hover:bg-press-sunken text-press-text truncate"
+                                          class="ka-button ka-button--ghost sb-saved-name"
                                         >
                                           {filter.name}
                                         </button>
                                         <button
+                                          type="button"
                                           onclick={() => deleteSavedFilter(filter.id)}
-                                          class="p-0.5 text-press-muted hover:text-press-error shrink-0"
+                                          class="ka-button ka-button--ghost ka-icon-button sb-danger-icon"
                                           aria-label="Delete saved filter {filter.name}"
                                         >
-                                          <Trash2 class="w-3 h-3" />
+                                          <Trash2 class="w-5 h-5" aria-hidden="true" />
                                         </button>
                                       </div>
                                     {/each}
@@ -1881,31 +1831,33 @@
 
                                 <!-- Save current filter -->
                                 {#if hasActiveFilters}
-                                  <div class="border-t border-press-border pt-2">
+                                  <div class="sb-filter-section">
                                     {#if showSaveFilterInput}
-                                      <div class="flex items-center gap-1">
+                                      <div class="sb-save-filter">
                                         <input
                                           type="text"
                                           bind:value={savedFilterName}
-                                          placeholder="Filter name..."
-                                          class="flex-1 bg-press-sunken text-press-text text-press-eyebrow rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-press-focus"
+                                          placeholder="Filter name…"
+                                          aria-label="Filter name"
                                           onkeydown={(e) =>
                                             e.key === "Enter" && saveCurrentFilter()}
                                         />
                                         <button
+                                          type="button"
                                           onclick={saveCurrentFilter}
                                           disabled={!savedFilterName.trim()}
-                                          class="text-press-eyebrow text-press-accent-text hover:underline disabled:no-underline px-1"
+                                          class="ka-button ka-button--secondary"
                                         >
                                           Save
                                         </button>
                                       </div>
                                     {:else}
                                       <button
+                                        type="button"
                                         onclick={() => (showSaveFilterInput = true)}
-                                        class="text-press-eyebrow text-press-accent-text hover:underline"
+                                        class="ka-button ka-button--ghost sb-small-button"
                                       >
-                                        Save current filter...
+                                        Save current filter…
                                       </button>
                                     {/if}
                                   </div>
@@ -1915,7 +1867,7 @@
                           </div>
                         </div>
 
-                        <div class="ml-5 mt-1.5 space-y-0.5 border-l border-press-border/60 pl-2">
+                        <div class="sb-children">
                           {#each filteredScenes as scene}
                             {@const isSelected = currentProject.currentScene?.id === scene.id}
                             {@const isLocked = scene.locked || chapter.locked}
@@ -1926,85 +1878,66 @@
                             <div
                               data-drag-scene={scene.id}
                               data-testid="scene-item"
-                              class="relative flex items-center gap-1 py-0.5"
-                              class:ring-2={dragOverId === scene.id}
-                              class:ring-press-focus={dragOverId === scene.id}
-                              onmouseenter={() => (hoveredSceneId = scene.id)}
-                              onmouseleave={() => (hoveredSceneId = null)}
+                              class="sb-row sb-scene"
+                              class:is-selected={isSelected}
+                              class:is-drop-target={dragOverId === scene.id}
                               oncontextmenu={(e) => openContextMenu(e, "scene", scene)}
                             >
                               <!-- Scene drag handle -->
                               <div
                                 data-testid="drag-handle"
                                 onmousedown={(e) => onDragHandleMouseDown(e, "scene", scene.id)}
-                                class="cursor-grab active:cursor-grabbing p-0.5 transition-opacity shrink-0"
-                                class:text-press-on-accent={isSelected}
-                                class:text-press-muted={!isSelected}
-                                class:opacity-0={hoveredSceneId !== scene.id}
-                                class:opacity-100={hoveredSceneId === scene.id}
-                                role="button"
-                                tabindex="-1"
-                                aria-label="Drag to reorder"
+                                class="sb-grip"
+                                aria-hidden="true"
+                                title="Drag to reorder"
                               >
-                                <GripVertical class="w-3 h-3" />
+                                <GripVertical class="w-4 h-4" aria-hidden="true" />
                               </div>
 
                               <button
                                 onclick={() => selectScene(scene)}
-                                class="flex-1 flex items-center gap-1.5 text-left px-2 py-1.5 rounded-md text-press-ui transition-colors min-w-0"
-                                class:bg-press-accent={isSelected}
-                                class:text-press-on-accent={isSelected}
-                                class:text-press-muted={!isSelected}
-                                class:hover:bg-press-sunken={!isSelected}
-                                class:hover:text-press-text={!isSelected}
+                                class="sb-row-main sb-scene-main"
+                                class:is-selected={isSelected}
+                                aria-current={isSelected ? "page" : undefined}
                               >
                                 <!-- Planning status / lock indicator (single leading icon) -->
                                 {#if isLocked}
-                                  <Lock
-                                    class="w-3 h-3 shrink-0 {isSelected
-                                      ? 'text-press-on-accent'
-                                      : 'text-press-warning'}"
-                                  />
+                                  <Lock class="sb-glyph is-warning" aria-label="Locked" />
                                 {:else if planningStatus === "flexible"}
-                                  <CircleDot
-                                    class="w-3 h-3 shrink-0 {isSelected
-                                      ? 'text-press-on-accent'
-                                      : 'text-press-warning'}"
-                                  />
+                                  <CircleDot class="sb-glyph is-warning" aria-label="Flexible" />
                                 {:else if planningStatus === "undefined"}
-                                  <CircleDashed
-                                    class="w-3 h-3 shrink-0 {isSelected
-                                      ? 'text-press-on-accent'
-                                      : 'text-press-muted'}"
-                                  />
+                                  <CircleDashed class="sb-glyph" aria-label="Undefined" />
                                 {/if}
                                 <span
                                   data-testid="scene-title"
-                                  class="truncate flex-1"
-                                  class:text-press-disabled-text={isLocked}>{scene.title}</span
+                                  class="sb-row-title"
+                                  class:is-locked={isLocked}
+                                  title={scene.title}>{scene.title}</span
                                 >
-                                {#if writing.value?.scene_words?.[scene.id] !== undefined}
-                                  <span class="text-press-eyebrow shrink-0"
-                                    >{writing.value.scene_words[scene.id].toLocaleString()} words</span
-                                  >
-                                {/if}
-                                <!-- Trailing badges: scene type + status dot -->
-                                <span class="flex items-center gap-1 shrink-0 ml-auto">
+                                <!-- Trailing metadata: count, scene type, status (shape + text) -->
+                                <span class="sb-row-trail">
+                                  {#if writing.value?.scene_words?.[scene.id] !== undefined}
+                                    <small
+                                      >{writing.value.scene_words[scene.id].toLocaleString()} words</small
+                                    >
+                                  {/if}
                                   {#if sceneType !== "normal"}
                                     {@const SceneTypeIcon = sceneTypeFilterOptions.find(
                                       (option) => option.type === sceneType
                                     )?.icon}
                                     {#if SceneTypeIcon}
                                       <SceneTypeIcon
-                                        class={`w-3 h-3 ${isSelected ? "text-press-on-accent" : "text-press-muted"}`}
-                                        title={sceneTypeLabels[sceneType as SceneType]}
+                                        class="sb-glyph"
+                                        aria-label={sceneTypeLabels[sceneType as SceneType]}
                                       />
                                     {/if}
                                   {/if}
                                   <span
-                                    class={`w-1.5 h-1.5 rounded-full ${sceneStatusClasses[sceneStatus]} ${sceneStatus === "draft" ? "opacity-40" : ""}`}
+                                    class="sb-status-dot is-{sceneStatus}"
                                     title={sceneStatusLabels[sceneStatus]}
                                   ></span>
+                                  <span class="ka-sr">Status: {sceneStatusLabels[sceneStatus]}</span
+                                  >
                                 </span>
                               </button>
 
@@ -2012,21 +1945,18 @@
                               <button
                                 data-testid="menu-button"
                                 onclick={(e) => openContextMenu(e, "scene", scene)}
-                                class="p-0.5 transition-opacity shrink-0"
-                                class:text-press-on-accent={isSelected}
-                                class:text-press-muted={!isSelected}
-                                class:opacity-0={hoveredSceneId !== scene.id}
-                                class:opacity-100={hoveredSceneId === scene.id}
+                                class="ka-button ka-button--ghost ka-icon-button sb-row-menu"
                                 aria-label="Scene menu"
+                                aria-haspopup="menu"
                               >
-                                <MoreVertical class="w-3 h-3" />
+                                <MoreVertical class="w-5 h-5" aria-hidden="true" />
                               </button>
                             </div>
                           {/each}
 
                           <!-- New Scene Button or Input -->
                           {#if creatingScene}
-                            <div class="px-2 py-1">
+                            <div class="sb-new-input">
                               <!-- svelte-ignore a11y_autofocus -->
                               <input
                                 data-testid="title-input"
@@ -2034,8 +1964,8 @@
                                 bind:value={newTitle}
                                 onkeydown={handleCreateKeydown}
                                 onblur={cancelCreate}
-                                placeholder="Scene title..."
-                                class="w-full px-2 py-1 text-press-ui bg-press-sunken border border-press-accent rounded focus:outline-none text-press-text"
+                                placeholder="Scene title…"
+                                aria-label="New scene title"
                                 autofocus
                               />
                             </div>
@@ -2043,21 +1973,17 @@
                             <button
                               data-testid="new-scene-button"
                               onclick={startCreatingScene}
-                              class="w-full flex items-center gap-2 px-2 py-1 rounded text-press-eyebrow text-press-muted hover:text-press-text hover:bg-press-sunken transition-colors"
+                              class="sb-row-main sb-new"
                             >
-                              <Plus class="w-3 h-3" />
-                              New Scene
+                              <Plus class="w-4 h-4" aria-hidden="true" />
+                              New scene
                             </button>
                           {/if}
 
                           {#if currentProject.scenes.length === 0 && !creatingScene}
-                            <span class="text-press-muted text-press-eyebrow px-2 py-1 italic"
-                              >No scenes yet</span
-                            >
+                            <span class="sb-empty">No scenes yet</span>
                           {:else if filteredScenes.length === 0 && !creatingScene}
-                            <span class="text-press-muted text-press-eyebrow px-2 py-1 italic"
-                              >No scenes match filters</span
-                            >
+                            <span class="sb-empty">No scenes match these filters</span>
                           {/if}
                         </div>
                       {/if}
@@ -2069,9 +1995,8 @@
           {/if}
         {/each}
 
-        <!-- New Chapter/Part Button or Input -->
         {#if creatingChapter || creatingPart}
-          <div class="px-2 py-1">
+          <div class="sb-new-input">
             <!-- svelte-ignore a11y_autofocus -->
             <input
               data-testid="title-input"
@@ -2079,92 +2004,100 @@
               bind:value={newTitle}
               onkeydown={handleCreateKeydown}
               onblur={cancelCreate}
-              placeholder={creatingPart ? `${partLabel} title...` : `${chapterLabel} title...`}
-              class="w-full px-2 py-1 text-press-ui bg-press-sunken border border-press-accent rounded focus:outline-none text-press-text"
+              placeholder={creatingPart ? `${partLabel} title…` : `${chapterLabel} title…`}
+              aria-label={creatingPart ? `New ${partLabel} title` : `New ${chapterLabel} title`}
               autofocus
             />
-          </div>
-        {:else}
-          <!-- Split button: New Chapter (default) with dropdown for New Part -->
-          <div class="relative mt-2" bind:this={newButtonRef}>
-            <div
-              class="flex items-stretch rounded-lg bg-press-sunken border border-press-border hover:border-press-accent transition-colors"
-            >
-              <!-- Main action: New Chapter/Sequence -->
-              <button
-                data-testid="new-chapter-button"
-                onclick={startCreatingChapter}
-                class="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors rounded-l-lg"
-              >
-                <Plus class="w-4 h-4" />
-                New {chapterLabel}
-              </button>
-              <!-- Dropdown trigger -->
-              <button
-                data-testid="new-dropdown-button"
-                onclick={() => (showNewDropdown = !showNewDropdown)}
-                class="px-2 py-2 text-press-muted hover:text-press-text transition-colors border-l border-press-border hover:bg-press-surface rounded-r-lg"
-                aria-label="More options"
-              >
-                <ChevronDown class="w-4 h-4" />
-              </button>
-            </div>
-
-            <!-- Dropdown menu -->
-            {#if showNewDropdown}
-              <div
-                class="absolute left-0 right-0 mt-1 bg-press-surface border border-press-border rounded-lg shadow-press-overlay py-1 z-press-dropdown"
-              >
-                <button
-                  data-testid="dropdown-new-chapter"
-                  onclick={startCreatingChapter}
-                  class="w-full flex items-center gap-2 px-3 py-2 text-press-ui text-press-text hover:bg-press-sunken transition-colors"
-                >
-                  <Folder class="w-4 h-4" />
-                  New {chapterLabel}
-                </button>
-                <button
-                  data-testid="dropdown-new-part"
-                  onclick={startCreatingPart}
-                  class="w-full flex items-center gap-2 px-3 py-2 text-press-ui text-press-text hover:bg-press-sunken transition-colors"
-                >
-                  <BookOpen class="w-4 h-4" />
-                  New {partLabel}
-                </button>
-              </div>
-            {/if}
           </div>
         {/if}
       </nav>
     {/if}
   </div>
-  {#if onOpenSettings}
-    <footer class="shrink-0 border-t border-press-border px-3 py-2" inert={ui.sidebarCollapsed}>
+  {#if currentProject.value}
+    <footer class="sb-foot" inert={ui.sidebarCollapsed}>
+      {#if !creatingChapter && !creatingPart}
+        <!-- Split button: New Chapter (default) with dropdown for New Part -->
+        <div class="relative" bind:this={newButtonRef}>
+          <div class="sb-split">
+            <!-- Main action: New Chapter/Sequence -->
+            <button
+              type="button"
+              data-testid="new-chapter-button"
+              onclick={startCreatingChapter}
+              class="ka-button ka-button--secondary"
+            >
+              <Plus class="w-5 h-5" aria-hidden="true" />
+              New {chapterLabel.toLowerCase()}
+            </button>
+            <!-- Dropdown trigger -->
+            <button
+              type="button"
+              data-testid="new-dropdown-button"
+              onclick={() => (showNewDropdown = !showNewDropdown)}
+              class="ka-button ka-button--secondary ka-icon-button"
+              aria-label="More options"
+              aria-haspopup="menu"
+              aria-expanded={showNewDropdown}
+            >
+              <ChevronDown class="w-5 h-5" aria-hidden="true" />
+            </button>
+          </div>
+
+          <!-- Dropdown menu -->
+          {#if showNewDropdown}
+            <div
+              class="ka-menu-list app-popover sb-popover sb-popover-up"
+              role="menu"
+              aria-label="Create"
+            >
+              <button
+                data-testid="dropdown-new-chapter"
+                onclick={startCreatingChapter}
+                role="menuitem"
+                class="sb-menuitem"
+              >
+                <Folder class="w-5 h-5" aria-hidden="true" />
+                New {chapterLabel.toLowerCase()}
+              </button>
+              <button
+                data-testid="dropdown-new-part"
+                onclick={startCreatingPart}
+                role="menuitem"
+                class="sb-menuitem"
+              >
+                <BookOpen class="w-5 h-5" aria-hidden="true" />
+                New {partLabel.toLowerCase()}
+              </button>
+            </div>
+          {/if}
+        </div>
+      {/if}
+      {#if onOpenSettings}
+        <button
+          type="button"
+          data-testid="sidebar-settings-button"
+          onclick={onOpenSettings}
+          class="ka-button ka-button--ghost sb-settings"
+        >
+          <Settings class="w-5 h-5" aria-hidden="true" />
+          Settings
+        </button>
+      {/if}
+    </footer>
+  {:else if onOpenSettings}
+    <footer class="sb-foot" inert={ui.sidebarCollapsed}>
       <button
         type="button"
         data-testid="sidebar-settings-button"
         onclick={onOpenSettings}
-        class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-press-ui text-press-muted hover:bg-press-sunken hover:text-press-text transition-colors"
+        class="ka-button ka-button--ghost sb-settings"
       >
-        <Settings class="w-4 h-4" />
+        <Settings class="w-5 h-5" aria-hidden="true" />
         Settings
       </button>
     </footer>
   {/if}
 </aside>
-
-<!-- Collapsed sidebar toggle -->
-{#if ui.sidebarCollapsed}
-  <Tooltip text="Expand sidebar" position="right">
-    <button
-      onclick={toggleSidebar}
-      class="fixed left-0 top-1/2 -translate-y-1/2 bg-press-surface p-2 rounded-r-lg text-press-muted hover:text-press-text z-press-raised"
-      aria-label="Expand sidebar"
-    >
-      <ChevronsRight class="w-5 h-5" />
-    </button>
-  </Tooltip>
-{/if}
 
 <!-- Sync Preview Dialog -->
 {#if showSyncDialog && syncPreview && currentProject.value}
@@ -2179,7 +2112,7 @@
 <!-- Delete Confirmation Dialog -->
 {#if deleteDialog}
   <ConfirmDialog
-    title="Delete {deleteDialog.type === 'chapter' ? 'Chapter' : 'Scene'}"
+    title="Delete {deleteDialog.type === 'chapter' ? 'chapter' : 'scene'}"
     message={deleteDialog.message}
     onConfirm={executeDelete}
     onCancel={() => (deleteDialog = null)}
@@ -2257,3 +2190,549 @@
 {#if exportResult}
   <ExportSuccessDialog result={exportResult} onClose={() => (exportResult = null)} />
 {/if}
+
+<style>
+  /* Press workspace sidebar: surface column, hairline groups, 44px rows. */
+  .sidebar {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    flex: none;
+    width: 304px;
+    min-height: 0;
+    height: 100%;
+    background: var(--color-surface);
+    border-right: var(--border-hair);
+    color: var(--color-text);
+    font: var(--text-ui) / 1.5 var(--font-ui);
+  }
+  .sidebar > * {
+    min-width: 0;
+  }
+  .sidebar.is-collapsed {
+    display: block;
+    width: 56px;
+  }
+  /* Compact windows (about 1100 wide): the writing column keeps the room. */
+  @media (max-width: 1280px) {
+    .sidebar:not(.is-collapsed) {
+      width: 256px;
+    }
+  }
+  .sidebar.is-collapsed > :not(.sb-rail) {
+    display: none;
+  }
+  .sb-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2xs);
+    padding: var(--space-2xs) 6px;
+  }
+  .sb-rail-flame {
+    width: 24px;
+    height: 24px;
+    margin: 10px 0;
+  }
+  .on-dark {
+    display: none;
+  }
+  :global([data-theme="dark"]) .sidebar .on-light {
+    display: none;
+  }
+  :global([data-theme="dark"]) .sidebar .on-dark {
+    display: block;
+  }
+
+  .sb-head {
+    padding: 0 var(--space-xs);
+  }
+  .sb-brand {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2xs) 0 var(--space-2xs) var(--space-3xs);
+  }
+  .sb-home {
+    width: 100%;
+    justify-content: flex-start;
+    padding: var(--space-2xs) var(--space-xs);
+  }
+  .sb-home small {
+    margin-left: auto;
+    font-size: var(--text-small);
+    color: var(--color-text-muted);
+  }
+  .sb-project {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2xs);
+    margin-top: var(--space-2xs);
+    padding: var(--space-2xs) 0 var(--space-2xs) var(--space-xs);
+    border-top: var(--border-hair);
+  }
+  /* The name gets the full row (two lines before it clamps); a screenplay's
+     page estimate sits under it rather than squeezing it. */
+  .sb-project-title {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3xs);
+    min-width: 0;
+    flex: 1;
+  }
+  .sb-project-name {
+    margin: 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow-wrap: anywhere;
+    font: 550 var(--text-h3) / var(--leading-tight) var(--font-display);
+    letter-spacing: var(--tracking-tight);
+  }
+  .sb-project-actions {
+    display: flex;
+    align-items: center;
+    flex: none;
+  }
+
+  .sb-scroll {
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 0 var(--space-xs) var(--space-s);
+  }
+  .sb-status {
+    margin: var(--space-s) var(--space-xs);
+  }
+  .sb-tree {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3xs);
+    margin-top: var(--space-xs);
+  }
+  .sb-part {
+    margin-top: var(--space-s);
+  }
+  .sb-part-children {
+    margin-left: var(--space-xs);
+    padding-left: var(--space-2xs);
+    border-left: var(--border-hair);
+  }
+
+  /* A row: optional grip cue, the full-width main target, a trailing menu
+     that replaces the trailing metadata on hover/focus without shifting. */
+  .sb-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    border-radius: var(--radius-xs);
+  }
+  .sb-row-main {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    flex: 1;
+    min-width: 0;
+    min-height: var(--control-target);
+    padding: var(--space-2xs) var(--space-xs) var(--space-2xs) var(--space-2xs);
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--color-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  @media (hover: hover) {
+    .sb-row-main:not(.is-selected):hover {
+      background: var(--color-surface-sunken);
+    }
+  }
+  .sb-row-main.is-selected {
+    background: var(--color-accent-text);
+    color: var(--color-on-accent);
+  }
+  .sb-row-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sb-row-title.is-locked {
+    color: var(--color-text-muted);
+  }
+  .is-selected .sb-row-title.is-locked {
+    color: inherit;
+  }
+  .sb-chapter-title {
+    font-weight: 500;
+  }
+  .sb-part-title {
+    font: 550 var(--text-ui) / 1.3 var(--font-display);
+    letter-spacing: var(--tracking-tight);
+  }
+  .sb-row-trail {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    flex: none;
+    font-size: var(--text-small);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .sb-row-trail small {
+    font-size: inherit;
+  }
+  .sb-chapter-title + .sb-row-trail::after {
+    content: "";
+    width: 8px;
+  }
+  .is-selected .sb-row-trail {
+    color: inherit;
+  }
+  .sb-row:hover .sb-row-trail,
+  .sb-row:focus-within .sb-row-trail {
+    visibility: hidden;
+  }
+  .sb-row-menu {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: var(--control-target);
+    min-height: var(--control-target);
+    padding: 0;
+    color: var(--color-text-muted);
+    opacity: 0;
+  }
+  .sb-row:hover > .sb-row-menu,
+  .sb-row:focus-within > .sb-row-menu {
+    opacity: 1;
+  }
+  .sb-row.is-selected > .sb-row-menu {
+    color: var(--color-on-accent);
+  }
+  @media (hover: hover) {
+    .sb-row.is-selected > .sb-row-menu:hover {
+      background: transparent;
+      box-shadow: inset 0 0 0 1px currentColor;
+    }
+  }
+  .sb-grip {
+    position: absolute;
+    left: -14px;
+    top: 50%;
+    display: flex;
+    width: 14px;
+    margin-top: -8px;
+    color: var(--color-text-muted);
+    cursor: grab;
+    opacity: 0;
+  }
+  .sb-grip:active {
+    cursor: grabbing;
+  }
+  .sb-row:hover > .sb-grip,
+  .sb-row:focus-within > .sb-grip {
+    opacity: 1;
+  }
+  .is-drop-target > .sb-row::before,
+  .sb-row.is-drop-target::before,
+  .sb-group.is-drop-target > .sb-chapter > .sb-row::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -3px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--color-accent-text);
+  }
+  .sidebar :global(.sb-chev) {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    color: var(--color-text-muted);
+    transition: transform var(--ka-motion) ease-out;
+  }
+  .sidebar [aria-expanded="true"] > :global(.sb-chev) {
+    transform: rotate(90deg);
+  }
+  .sidebar :global(.sb-glyph) {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    color: var(--color-text-muted);
+  }
+  .sidebar :global(.sb-glyph.is-warning) {
+    color: var(--color-warning);
+  }
+  .sidebar .is-selected :global(.sb-glyph) {
+    color: inherit;
+  }
+
+  /* Status: colour plus shape. Draft is a hollow ring; revised and final fill. */
+  .sb-status-dot {
+    width: 8px;
+    height: 8px;
+    flex: none;
+    border-radius: 50%;
+  }
+  .sb-status-dot.is-draft {
+    box-shadow: inset 0 0 0 1.5px var(--color-text-muted);
+  }
+  .sb-status-dot.is-revised {
+    background: var(--color-warning);
+  }
+  .sb-status-dot.is-final {
+    background: var(--color-success);
+  }
+  .is-selected .sb-status-dot.is-draft {
+    box-shadow: inset 0 0 0 1.5px currentColor;
+  }
+  .is-selected .sb-status-dot:is(.is-revised, .is-final) {
+    background: currentColor;
+  }
+
+  .sb-children {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    gap: 2px;
+    margin: var(--space-3xs) 0 var(--space-2xs) var(--space-xs);
+    padding-left: var(--space-2xs);
+    border-left: var(--border-hair);
+  }
+  .sb-new {
+    color: var(--color-text-muted);
+  }
+  .sb-new:hover {
+    color: var(--color-text);
+  }
+  .sb-empty {
+    padding: var(--space-3xs) var(--space-2xs);
+    font-size: var(--text-small);
+    color: var(--color-text-muted);
+  }
+  .sb-new-input {
+    padding: var(--space-3xs) 0;
+  }
+  .sb-new-input input,
+  .sb-save-filter input {
+    width: 100%;
+    min-height: var(--control-target);
+    padding: var(--space-2xs) var(--space-xs);
+    font-size: var(--text-ui);
+  }
+  .sb-synopsis {
+    margin: 0 0 var(--space-3xs) calc(var(--space-l) - 4px);
+  }
+  .sb-synopsis textarea {
+    width: 100%;
+    padding: var(--space-2xs) var(--space-xs);
+    font-size: var(--text-small);
+    resize: vertical;
+  }
+  .sb-synopsis-text {
+    width: 100%;
+    min-height: var(--control-target);
+    padding: var(--space-2xs) var(--space-xs);
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--color-text-muted);
+    font: italic var(--text-small) / 1.5 var(--font-body);
+    text-align: left;
+    cursor: text;
+  }
+  .sb-synopsis-text:hover {
+    background: var(--color-surface-sunken);
+  }
+  .sb-undefined {
+    display: grid;
+    gap: var(--space-2xs);
+    padding: var(--space-2xs);
+  }
+  .sb-define {
+    padding-top: var(--space-3xs);
+  }
+  .sb-small-button {
+    justify-self: start;
+    font-size: var(--text-small);
+    padding-inline: var(--space-xs);
+  }
+
+  /* Scene filter: the shared segmented control at label scale. */
+  /* Aligned with the scene rows below it (indent + rule + row padding). */
+  .sb-filter {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    margin: var(--space-3xs) 0 var(--space-3xs) calc(var(--space-xs) + var(--space-2xs) + 1px);
+  }
+  .sb-filter-segments {
+    flex: 1;
+    min-width: 0;
+  }
+  .sb-filter-segments .ka-segment-track {
+    flex-wrap: nowrap;
+  }
+  /* Sized to their labels (Press segments share width equally, which
+     crowds "Planned" in the compact sidebar). */
+  .sb-filter-segments .ka-segment {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: var(--space-2xs) 6px;
+    font-size: var(--text-small);
+    white-space: nowrap;
+  }
+  /* In the compact sidebar the filter gives up its indent so all three
+     segments keep their padding. */
+  @media (max-width: 1280px) {
+    .sb-filter {
+      margin-left: var(--space-3xs);
+    }
+  }
+  .sb-filter-button.is-active {
+    color: var(--color-accent-text);
+    box-shadow: inset 0 0 0 1px var(--color-accent-text);
+  }
+  .sb-filter-popover {
+    position: absolute;
+    right: 0;
+    top: calc(100% + var(--space-3xs));
+    z-index: var(--z-dropdown);
+    display: grid;
+    gap: var(--space-s);
+    width: 260px;
+    padding: var(--space-s);
+  }
+  .sb-filter-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .sb-filter-heading {
+    font: 550 var(--text-ui) / 1.3 var(--font-display);
+  }
+  .sb-filter-field {
+    display: grid;
+    gap: var(--space-3xs);
+  }
+  .sb-filter-label,
+  .sb-filter-field label {
+    font: 500 var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  .sb-filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3xs);
+  }
+  .sb-type-chip {
+    font-size: var(--text-small);
+    color: var(--color-text-muted);
+    background: transparent;
+  }
+  .sb-type-chip.is-on {
+    color: var(--color-accent-text);
+    border-color: var(--color-accent-text);
+    background: var(--color-accent-wash);
+  }
+  .sb-filter-section {
+    display: grid;
+    gap: var(--space-3xs);
+    padding-top: var(--space-2xs);
+    border-top: var(--border-hair);
+  }
+  .sb-saved-filter {
+    display: flex;
+    align-items: center;
+  }
+  .sb-saved-name {
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-start;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sb-danger-icon:hover {
+    color: var(--color-error);
+    background: var(--color-error-wash) !important;
+  }
+  .sb-save-filter {
+    display: flex;
+    gap: var(--space-3xs);
+  }
+
+  /* Menus anchored to their trigger. */
+  .sb-popover {
+    position: absolute;
+    right: 0;
+    top: calc(100% + var(--space-3xs));
+    z-index: var(--z-dropdown);
+    margin: 0;
+    width: 232px;
+  }
+  .sb-popover-up {
+    top: auto;
+    bottom: calc(100% + var(--space-3xs));
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+  /* Icon then label, left-aligned (Press spaces menu buttons apart for a
+     trailing value; these items have none). */
+  .sb-menuitem {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--space-xs);
+    width: 100%;
+    min-height: var(--control-target);
+    padding: var(--space-2xs) var(--space-xs);
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--color-text);
+    font: var(--text-ui) / 1.5 var(--font-ui);
+    text-align: left;
+    cursor: pointer;
+  }
+  .sb-menuitem :global(svg) {
+    color: var(--color-text-muted);
+  }
+  @media (hover: hover) {
+    .sb-menuitem:hover {
+      background: var(--color-surface-sunken);
+    }
+  }
+
+  .sb-foot {
+    display: grid;
+    gap: var(--space-3xs);
+    padding: var(--space-xs);
+    border-top: var(--border-hair);
+  }
+  .sb-split {
+    display: flex;
+  }
+  .sb-split .ka-button:first-child {
+    flex: 1;
+    border-radius: var(--radius-xs) 0 0 var(--radius-xs);
+  }
+  .sb-split .ka-button:last-child {
+    border-left: 0;
+    border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  }
+  .sb-settings {
+    justify-content: flex-start;
+  }
+</style>

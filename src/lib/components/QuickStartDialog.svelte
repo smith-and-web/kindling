@@ -8,6 +8,7 @@
   - References panel
 -->
 <script lang="ts">
+  import DialogHeader from "./DialogHeader.svelte";
   import { shortcuts } from "../stores/shortcuts.svelte";
   import {
     BookOpen,
@@ -18,7 +19,6 @@
     PenTool,
     User,
     Users,
-    X,
     Zap,
   } from "lucide-svelte";
 
@@ -34,63 +34,55 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-  class="fixed inset-0 bg-press-overlay flex items-center justify-center z-press-modal p-4"
+  class="dialog-scrim"
   role="dialog"
   aria-modal="true"
   aria-labelledby="quick-start-title"
   tabindex="-1"
 >
   <div
-    class="app-dialog-surface bg-press-surface rounded-xl shadow-press-overlay max-w-2xl w-full max-h-[85vh] flex flex-col"
+    class="app-dialog-surface ka-dialog-default dialog-shell quick-start"
     data-testid="quick-start-dialog"
   >
-    <div class="flex items-center justify-between p-6 border-b border-press-border shrink-0">
-      <h2 id="quick-start-title" class="text-press-h3 font-heading font-semibold text-press-text">
-        Quick Start
-      </h2>
-      <button
-        onclick={onClose}
-        class="p-2 text-press-muted hover:text-press-text hover:bg-press-sunken rounded-lg transition-colors"
-        aria-label="Close"
-        data-testid="quick-start-close"
-      >
-        <X class="w-5 h-5" />
-      </button>
-    </div>
+    <DialogHeader
+      title="Quick start"
+      titleId="quick-start-title"
+      {onClose}
+      closeLabel="Close"
+      closeTestId="quick-start-close"
+    />
 
-    <div class="overflow-y-auto p-6 space-y-6">
+    <div class="ka-dialog-body quick-start-body">
       <!-- Import -->
-      <section>
-        <h3 class="text-press-ui font-semibold text-press-text uppercase tracking-wide mb-3">
-          Import Your Outline
-        </h3>
-        <p class="font-prose text-press-body text-press-text mb-3 max-w-press-measure">
-          Kindling works with your existing outline. Import from the Start Screen or File → Import.
+      <section class="ka-group">
+        <h3 class="ka-group-title">Import your outline</h3>
+        <p class="font-press-ui text-press-base text-press-text mb-3 max-w-press-measure">
+          kindling works with your existing outline. Import from the Start Screen or File → Import.
         </p>
         <ul class="space-y-2 text-press-ui text-press-muted">
           <li class="flex items-start gap-2">
-            <Kanban class="w-4 h-4 text-press-accent-text shrink-0 mt-0.5" />
+            <Kanban class="w-4 h-4 shrink-0 mt-0.5 quick-start-icon" />
             <span><strong class="text-press-text">Plottr</strong> — .pltr files</span>
           </li>
           <li class="flex items-start gap-2">
-            <PenTool class="w-4 h-4 text-press-accent-text shrink-0 mt-0.5" />
+            <PenTool class="w-4 h-4 shrink-0 mt-0.5 quick-start-icon" />
             <span><strong class="text-press-text">yWriter 7</strong> — .yw7 files</span>
           </li>
           <li class="flex items-start gap-2">
-            <FileText class="w-4 h-4 text-press-accent-text shrink-0 mt-0.5" />
+            <FileText class="w-4 h-4 shrink-0 mt-0.5 quick-start-icon" />
             <span
               ><strong class="text-press-text">Markdown</strong> — Single .md file with # Chapter, ##
               Scene, - Beat structure</span
             >
           </li>
           <li class="flex items-start gap-2">
-            <BookOpen class="w-4 h-4 text-press-accent-text shrink-0 mt-0.5" />
+            <BookOpen class="w-4 h-4 shrink-0 mt-0.5 quick-start-icon" />
             <span
               ><strong class="text-press-text">Longform</strong> — Obsidian vault or index file</span
             >
           </li>
           <li class="flex items-start gap-2">
-            <FileText class="w-4 h-4 text-press-accent-text shrink-0 mt-0.5" />
+            <FileText class="w-4 h-4 shrink-0 mt-0.5 quick-start-icon" />
             <span
               ><strong class="text-press-text">Scrivener 3</strong> — .scriv project bundles</span
             >
@@ -99,21 +91,19 @@
       </section>
 
       <!-- Sidebar -->
-      <section>
-        <h3 class="text-press-ui font-semibold text-press-text uppercase tracking-wide mb-3">
-          Sidebar — Chapters & Scenes
-        </h3>
-        <p class="font-prose text-press-body text-press-text mb-3 max-w-press-measure">
+      <section class="ka-group">
+        <h3 class="ka-group-title">Sidebar — chapters and scenes</h3>
+        <p class="font-press-ui text-press-base text-press-text mb-3 max-w-press-measure">
           The left sidebar shows your project structure. Click a chapter to expand or collapse its
           scenes. Click a scene to load it in the editor.
         </p>
         <ul class="space-y-2 text-press-ui text-press-muted">
           <li class="flex items-start gap-2">
-            <ChevronDown class="w-4 h-4 text-press-accent-text shrink-0 mt-0.5" />
+            <ChevronDown class="w-4 h-4 shrink-0 mt-0.5 quick-start-icon" />
             <span>Chapters group related scenes together</span>
           </li>
           <li class="flex items-start gap-2">
-            <FileText class="w-4 h-4 text-press-accent-text shrink-0 mt-0.5" />
+            <FileText class="w-4 h-4 shrink-0 mt-0.5 quick-start-icon" />
             <span>Scenes are your primary writing units — each has a synopsis and beats</span>
           </li>
           <li class="flex items-start gap-2">
@@ -124,24 +114,22 @@
       </section>
 
       <!-- Scene Panel -->
-      <section>
-        <h3 class="text-press-ui font-semibold text-press-text uppercase tracking-wide mb-3">
-          Scene Panel — Synopsis & Beats
-        </h3>
-        <p class="font-prose text-press-body text-press-text mb-3 max-w-press-measure">
+      <section class="ka-group">
+        <h3 class="ka-group-title">Scene panel — synopsis and beats</h3>
+        <p class="font-press-ui text-press-base text-press-text mb-3 max-w-press-measure">
           When you select a scene, the main area shows its synopsis and beats. Beats are the key
           story moments — expand each to write prose.
         </p>
         <ul class="space-y-2 text-press-ui text-press-muted">
           <li class="flex items-start gap-2">
-            <Zap class="w-4 h-4 text-press-accent-text shrink-0 mt-0.5" />
+            <Zap class="w-4 h-4 shrink-0 mt-0.5 quick-start-icon" />
             <span
               ><strong class="text-press-text">Synopsis</strong> — Brief overview of the scene (from your
               outline)</span
             >
           </li>
           <li class="flex items-start gap-2">
-            <Zap class="w-4 h-4 text-press-accent-text shrink-0 mt-0.5" />
+            <Zap class="w-4 h-4 shrink-0 mt-0.5 quick-start-icon" />
             <span
               ><strong class="text-press-text">Beats</strong> — Key moments; click to expand and write
               prose</span
@@ -164,39 +152,35 @@
       </section>
 
       <!-- References -->
-      <section>
-        <h3 class="text-press-ui font-semibold text-press-text uppercase tracking-wide mb-3">
-          References Panel
-        </h3>
-        <p class="font-prose text-press-body text-press-text mb-3 max-w-press-measure">
+      <section class="ka-group">
+        <h3 class="ka-group-title">References panel</h3>
+        <p class="font-press-ui text-press-base text-press-text mb-3 max-w-press-measure">
           The right panel shows characters and locations linked to the current scene. Use it to keep
           track of who appears where.
         </p>
         <ul class="space-y-2 text-press-ui text-press-muted">
           <li class="flex items-start gap-2">
-            <User class="w-4 h-4 text-press-accent-text shrink-0 mt-0.5" />
+            <User class="w-4 h-4 shrink-0 mt-0.5 quick-start-icon" />
             <span
               ><strong class="text-press-text">Characters</strong> — Who appears in this scene</span
             >
           </li>
           <li class="flex items-start gap-2">
-            <MapPin class="w-4 h-4 text-press-accent-text shrink-0 mt-0.5" />
+            <MapPin class="w-4 h-4 shrink-0 mt-0.5 quick-start-icon" />
             <span
               ><strong class="text-press-text">Locations</strong> — Where the scene takes place</span
             >
           </li>
           <li class="flex items-start gap-2">
-            <Users class="w-4 h-4 text-press-accent-text shrink-0 mt-0.5" />
-            <span>Link characters and locations from your outline, or add them in Kindling</span>
+            <Users class="w-4 h-4 shrink-0 mt-0.5 quick-start-icon" />
+            <span>Link characters and locations from your outline, or add them in kindling</span>
           </li>
         </ul>
       </section>
 
       <!-- Tips -->
-      <section>
-        <h3 class="text-press-ui font-semibold text-press-text uppercase tracking-wide mb-3">
-          Tips
-        </h3>
+      <section class="ka-group">
+        <h3 class="ka-group-title">Tips</h3>
         <ul class="space-y-2 text-press-ui text-press-muted">
           <li>
             <strong class="text-press-text">{shortcuts.label("export") || "Export"}</strong> — Export
@@ -215,13 +199,23 @@
       </section>
     </div>
 
-    <div class="p-6 border-t border-press-border shrink-0">
-      <button
-        onclick={onClose}
-        class="w-full py-2 px-4 bg-press-accent hover:bg-press-accent-text text-press-on-accent font-medium rounded-lg transition-colors"
-      >
-        Got it
-      </button>
-    </div>
+    <footer class="ka-dialog-footer">
+      <button type="button" onclick={onClose} class="ka-button">Got it</button>
+    </footer>
   </div>
 </div>
+
+<style>
+  .quick-start {
+    height: min(720px, calc(100dvh - 48px));
+  }
+  .quick-start-body h3 {
+    margin: 0 0 var(--space-3xs);
+  }
+  .quick-start-body p {
+    margin: 0;
+  }
+  .quick-start-body :global(.quick-start-icon) {
+    color: var(--color-text-muted);
+  }
+</style>

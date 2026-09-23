@@ -1,9 +1,9 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
-  import { BookOpen, ChevronDown, ChevronRight, Layout, Loader2, X } from "lucide-svelte";
+  import { BookOpen, Check, ChevronRight, Layout } from "lucide-svelte";
   import type { ProjectType, StoryTemplate } from "../types";
-  import Tooltip from "./Tooltip.svelte";
+  import DialogHeader from "./DialogHeader.svelte";
 
   let {
     projectType = "novel",
@@ -71,7 +71,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
+  class="dialog-scrim"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -79,135 +79,203 @@
   aria-labelledby="template-browser-title"
   tabindex="-1"
 >
-  <div
-    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-2xl mx-4 overflow-hidden max-h-[80vh] flex flex-col"
-  >
-    <div class="flex items-center justify-between px-4 py-3 border-b border-press-border shrink-0">
-      <h2 id="template-browser-title" class="text-press-body-lg font-medium text-press-text">
-        Story Structure Templates
-      </h2>
-      <Tooltip text="Close" position="left">
-        <button
-          type="button"
-          onclick={onClose}
-          class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
-          aria-label="Close"
-          data-testid="template-close"
-        >
-          <X class="w-5 h-5" />
-        </button>
-      </Tooltip>
-    </div>
+  <div class="app-dialog-surface ka-dialog-default dialog-shell templates">
+    <DialogHeader
+      title="Story structure templates"
+      titleId="template-browser-title"
+      {onClose}
+      closeLabel="Close"
+      closeTestId="template-close"
+    />
 
-    <div class="flex-1 overflow-y-auto p-4">
+    <div class="ka-dialog-body">
       {#if loading}
-        <div class="flex items-center justify-center py-12">
-          <Loader2 class="w-6 h-6 animate-spin text-press-muted" />
+        <div class="ka-progress od-field" role="status">
+          <span>Loading templates…</span>
+          <progress aria-label="Loading templates"></progress>
         </div>
       {:else if filteredTemplates.length === 0}
-        <p class="text-press-muted text-center py-8">No templates available.</p>
+        <div class="ka-empty od-stack">
+          <h4>No templates available</h4>
+          <p>You can still start from a blank structure and add chapters yourself.</p>
+        </div>
       {:else}
-        <div class="space-y-2">
+        <ul class="template-list">
           {#each filteredTemplates as template}
-            <div
-              class="rounded-lg border-2 transition-colors {selectedId === template.id
-                ? 'border-press-accent bg-press-accent-wash'
-                : 'border-press-border hover:border-press-accent'}"
-            >
+            {@const selected = selectedId === template.id}
+            {@const expanded = expandedId === template.id}
+            <li class="template" class:is-selected={selected}>
               <button
                 type="button"
                 onclick={() => {
                   selectedId = template.id;
                   toggleExpand(template.id);
                 }}
-                class="w-full text-left px-4 py-3"
+                class="template-main"
+                aria-pressed={selected}
+                aria-expanded={expanded}
               >
-                <div class="flex items-start gap-3">
-                  <div
-                    class="shrink-0 mt-0.5 p-1.5 rounded-lg {template.bundled
-                      ? 'bg-press-accent-wash text-press-accent-text'
-                      : 'bg-press-sunken text-press-muted'}"
-                  >
-                    {#if template.bundled}
-                      <Layout class="w-4 h-4" />
-                    {:else}
-                      <BookOpen class="w-4 h-4" />
-                    {/if}
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2">
-                      <span class="font-medium text-press-text">{template.name}</span>
-                      <span class="text-press-eyebrow text-press-muted"
-                        >{totalBeats(template)} beats</span
-                      >
-                      {#if template.source}
-                        <span class="text-press-eyebrow text-press-muted">· {template.source}</span>
-                      {/if}
-                    </div>
-                    {#if template.description}
-                      <p class="text-press-ui text-press-muted mt-1 line-clamp-2">
-                        {template.description}
-                      </p>
-                    {/if}
-                  </div>
-                  <div class="shrink-0 mt-1 text-press-muted">
-                    {#if expandedId === template.id}
-                      <ChevronDown class="w-4 h-4" />
-                    {:else}
-                      <ChevronRight class="w-4 h-4" />
-                    {/if}
-                  </div>
-                </div>
+                <span class="template-icon" aria-hidden="true">
+                  {#if template.bundled}
+                    <Layout class="w-5 h-5" />
+                  {:else}
+                    <BookOpen class="w-5 h-5" />
+                  {/if}
+                </span>
+                <span class="template-text">
+                  <span class="template-name">{template.name}</span>
+                  <small>
+                    {totalBeats(template)} beats{#if template.source}
+                      · {template.source}{/if}
+                  </small>
+                  {#if template.description}
+                    <span class="template-desc">{template.description}</span>
+                  {/if}
+                </span>
+                {#if selected}
+                  <Check class="w-5 h-5 template-check" aria-hidden="true" />
+                {/if}
+                <ChevronRight class="w-5 h-5 template-chev" aria-hidden="true" />
               </button>
 
-              {#if expandedId === template.id}
-                <div class="px-4 pb-3 ml-10">
-                  <div class="border-l-2 border-press-border pl-3 space-y-1">
-                    {#each template.structure as part}
-                      <div>
-                        <p class="text-press-eyebrow font-medium text-press-accent-text">
-                          {part.title}
-                        </p>
+              {#if expanded}
+                <div class="template-structure">
+                  {#each template.structure as part}
+                    <div>
+                      <p class="template-part">{part.title}</p>
+                      <ul>
                         {#each part.children as chapter}
-                          <div class="ml-3 text-press-eyebrow text-press-muted py-0.5">
+                          <li>
                             {chapter.title}
                             {#if chapter.synopsis}
-                              <span class="text-press-muted"> — {chapter.synopsis}</span>
+                              <span> — {chapter.synopsis}</span>
                             {/if}
-                          </div>
+                          </li>
                         {/each}
-                      </div>
-                    {/each}
-                  </div>
+                      </ul>
+                    </div>
+                  {/each}
                 </div>
               {/if}
-            </div>
+            </li>
           {/each}
-        </div>
+        </ul>
       {/if}
     </div>
 
-    <div class="flex items-center justify-between px-4 py-3 border-t border-press-border shrink-0">
-      <p class="text-press-eyebrow text-press-muted">
+    <footer class="ka-dialog-footer">
+      <p class="ka-help ka-dialog-footer-start">
         {filteredTemplates.length} template{filteredTemplates.length !== 1 ? "s" : ""} available
       </p>
-      <div class="flex items-center gap-2">
-        <button
-          type="button"
-          onclick={onClose}
-          class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onclick={handleSelect}
-          disabled={!selectedTemplate}
-          class="px-4 py-2 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors"
-        >
-          Use Template
-        </button>
-      </div>
-    </div>
+      <button type="button" onclick={onClose} class="ka-button ka-button--secondary">
+        Cancel
+      </button>
+      <button type="button" onclick={handleSelect} disabled={!selectedTemplate} class="ka-button">
+        Use template
+      </button>
+    </footer>
   </div>
 </div>
+
+<style>
+  .templates {
+    height: min(720px, calc(100dvh - 48px));
+  }
+  .template-list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: var(--border-hair);
+  }
+  .template {
+    border-bottom: var(--border-hair);
+  }
+  .template-main {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-xs);
+    width: 100%;
+    min-height: 60px;
+    padding: var(--space-xs) var(--space-2xs);
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--color-text);
+    font: var(--text-ui) / 1.5 var(--font-ui);
+    text-align: left;
+    cursor: pointer;
+  }
+  @media (hover: hover) {
+    .template-main:hover {
+      background: var(--color-surface-sunken);
+    }
+  }
+  .template.is-selected .template-main {
+    box-shadow: inset 3px 0 0 var(--color-accent-text);
+  }
+  .template-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border: var(--border-hair);
+    border-radius: var(--radius-s);
+    color: var(--color-text-muted);
+  }
+  .template-text {
+    display: grid;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+  .template-name {
+    font-weight: 500;
+  }
+  .template-text small,
+  .template-desc {
+    font-size: var(--text-small);
+    color: var(--color-text-muted);
+  }
+  .template-desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .templates :global(.template-check) {
+    flex: none;
+    margin-top: 6px;
+    color: var(--color-accent-text);
+  }
+  .templates :global(.template-chev) {
+    flex: none;
+    margin-top: 6px;
+    color: var(--color-text-muted);
+    transition: transform var(--ka-motion) ease-out;
+  }
+  .template-main[aria-expanded="true"] :global(.template-chev) {
+    transform: rotate(90deg);
+  }
+  .template-structure {
+    display: grid;
+    gap: var(--space-2xs);
+    margin: 0 0 var(--space-xs) 52px;
+    padding-left: var(--space-xs);
+    border-left: var(--border-hair);
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  .template-part {
+    margin: 0;
+    font-weight: 600;
+    color: var(--color-text);
+  }
+  .template-structure ul {
+    margin: 0;
+    padding-left: var(--space-xs);
+    list-style: none;
+  }
+</style>

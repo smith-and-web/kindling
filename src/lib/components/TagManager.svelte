@@ -1,10 +1,10 @@
 <script lang="ts">
+  import { tagColor } from "../utils/tagColor";
   import { onDestroy, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { Loader2, Pencil, Plus, Trash2, X, Check } from "lucide-svelte";
   import pressTokens from "../../styles/press/tokens.json";
   import type { Tag } from "../types";
-  import Tooltip from "./Tooltip.svelte";
 
   let {
     projectId,
@@ -21,6 +21,11 @@
   let error = $state<string | null>(null);
 
   let editingTag = $state<Partial<Tag> | null>(null);
+
+  /** Land keyboard users on the editor (and scroll it into view) when it opens. */
+  function focusOnMount(node: HTMLElement) {
+    node.focus();
+  }
   let editMode = $state<"create" | "edit">("create");
   let saving = $state(false);
   $effect(() => {
@@ -134,260 +139,180 @@
       saving = false;
     }
   }
-
-  const inputClass =
-    "w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 text-press-ui focus:outline-none focus:border-press-accent";
 </script>
 
-<div class="space-y-3">
-  <div class="flex items-center justify-between">
-    <h3 class="text-press-ui font-medium text-press-text">Tags</h3>
+{#snippet tagRow(tag: Tag, depth: number)}
+  {@const children = getChildTags(tag.id)}
+  <li>
+    <div class="ka-tagrow">
+      <span
+        class="ka-swatch"
+        class:ka-swatch--none={!tag.color}
+        style:--swatch={tagColor(tag.color) ?? "transparent"}
+        aria-hidden="true"
+      ></span>
+      <span class="ka-name">{tag.name}</span>
+      {#if children.length > 0}
+        <span class="ka-badge" title={`${children.length} child tags`}>{children.length}</span>
+      {/if}
+      <div class="ka-row">
+        {#if depth < 2}
+          <button
+            type="button"
+            onclick={() => openCreateForm(tag.id)}
+            class="ka-button ka-button--ghost ka-icon-button"
+            aria-label="Add child tag"
+            title="Add child tag"
+            disabled={!!editingTag}
+          >
+            <Plus class="w-5 h-5" aria-hidden="true" />
+          </button>
+        {/if}
+        <button
+          type="button"
+          onclick={() => openEditForm(tag)}
+          class="ka-button ka-button--ghost ka-icon-button"
+          aria-label="Edit tag"
+          title="Edit tag"
+          disabled={!!editingTag}
+        >
+          <Pencil class="w-5 h-5" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onclick={() => deleteTag(tag.id)}
+          class="ka-button ka-button--ghost ka-icon-button tag-delete"
+          aria-label="Delete tag"
+          title="Delete tag"
+        >
+          <Trash2 class="w-5 h-5" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+    {#if children.length > 0}
+      <ul>
+        {#each children as child (child.id)}
+          {@render tagRow(child, depth + 1)}
+        {/each}
+      </ul>
+    {/if}
+  </li>
+{/snippet}
+
+<div class="tags">
+  <div class="tags-head">
+    <p class="ka-help">Tags nest up to three levels.</p>
     <button
       type="button"
       onclick={() => openCreateForm()}
-      class="text-press-muted hover:text-press-text text-press-eyebrow flex items-center gap-1"
+      class="ka-button ka-button--secondary"
       disabled={!!editingTag}
     >
-      <Plus class="w-3 h-3" />
+      <Plus class="w-5 h-5" aria-hidden="true" />
       New tag
     </button>
   </div>
 
   {#if loading}
-    <p class="text-press-eyebrow text-press-muted">Loading tags...</p>
+    <p class="ka-help" role="status">Loading tags…</p>
   {:else if error}
-    <p class="text-press-eyebrow text-press-error">{error}</p>
+    <p class="ka-error" role="alert">{error}</p>
   {:else if tags.length === 0 && !editingTag}
-    <p class="text-press-eyebrow text-press-muted">No tags defined yet.</p>
+    <p class="ka-help">No tags defined yet.</p>
   {:else}
-    <div class="space-y-0.5">
-      {#each getRootTags() as tag}
-        {@const children = getChildTags(tag.id)}
-        <div>
-          <div
-            class="flex items-center gap-2 py-1.5 px-2 bg-press-sunken rounded-lg text-press-ui group"
-          >
-            {#if tag.color}
-              <span class="w-3 h-3 rounded-full shrink-0" style:background-color={tag.color}></span>
-            {:else}
-              <span class="w-3 h-3 rounded-full shrink-0 bg-press-border"></span>
-            {/if}
-            <span class="flex-1 text-press-text truncate">{tag.name}</span>
-            {#if children.length > 0}
-              <span class="text-press-eyebrow text-press-muted">{children.length}</span>
-            {/if}
-            <div
-              class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <Tooltip text="Add child" position="bottom">
-                <button
-                  onclick={() => openCreateForm(tag.id)}
-                  class="p-0.5 text-press-muted hover:text-press-text"
-                  aria-label="Add child tag"
-                >
-                  <Plus class="w-3 h-3" />
-                </button>
-              </Tooltip>
-              <Tooltip text="Edit" position="bottom">
-                <button
-                  onclick={() => openEditForm(tag)}
-                  class="p-0.5 text-press-muted hover:text-press-text"
-                  aria-label="Edit tag"
-                >
-                  <Pencil class="w-3 h-3" />
-                </button>
-              </Tooltip>
-              <Tooltip text="Delete" position="bottom">
-                <button
-                  onclick={() => deleteTag(tag.id)}
-                  class="p-0.5 text-press-muted hover:text-press-error"
-                  aria-label="Delete tag"
-                >
-                  <Trash2 class="w-3 h-3" />
-                </button>
-              </Tooltip>
-            </div>
-          </div>
-          {#if children.length > 0}
-            <div class="ml-4 mt-0.5 space-y-0.5">
-              {#each children as child}
-                {@const grandchildren = getChildTags(child.id)}
-                <div>
-                  <div
-                    class="flex items-center gap-2 py-1 px-2 bg-press-sunken rounded text-press-ui group"
-                  >
-                    {#if child.color}
-                      <span
-                        class="w-2.5 h-2.5 rounded-full shrink-0"
-                        style:background-color={child.color}
-                      ></span>
-                    {:else}
-                      <span class="w-2.5 h-2.5 rounded-full shrink-0 bg-press-border"></span>
-                    {/if}
-                    <span class="flex-1 text-press-text truncate text-press-eyebrow"
-                      >{child.name}</span
-                    >
-                    <div
-                      class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      {#if grandchildren.length === 0}
-                        <Tooltip text="Add child" position="bottom">
-                          <button
-                            onclick={() => openCreateForm(child.id)}
-                            class="p-0.5 text-press-muted hover:text-press-text"
-                            aria-label="Add child tag"
-                          >
-                            <Plus class="w-3 h-3" />
-                          </button>
-                        </Tooltip>
-                      {/if}
-                      <Tooltip text="Edit" position="bottom">
-                        <button
-                          onclick={() => openEditForm(child)}
-                          class="p-0.5 text-press-muted hover:text-press-text"
-                          aria-label="Edit tag"
-                        >
-                          <Pencil class="w-3 h-3" />
-                        </button>
-                      </Tooltip>
-                      <Tooltip text="Delete" position="bottom">
-                        <button
-                          onclick={() => deleteTag(child.id)}
-                          class="p-0.5 text-press-muted hover:text-press-error"
-                          aria-label="Delete tag"
-                        >
-                          <Trash2 class="w-3 h-3" />
-                        </button>
-                      </Tooltip>
-                    </div>
-                  </div>
-                  {#if grandchildren.length > 0}
-                    <div class="ml-4 mt-0.5 space-y-0.5">
-                      {#each grandchildren as gc}
-                        <div
-                          class="flex items-center gap-2 py-1 px-2 bg-press-sunken rounded text-press-eyebrow group"
-                        >
-                          {#if gc.color}
-                            <span
-                              class="w-2 h-2 rounded-full shrink-0"
-                              style:background-color={gc.color}
-                            ></span>
-                          {:else}
-                            <span class="w-2 h-2 rounded-full shrink-0 bg-press-border"></span>
-                          {/if}
-                          <span class="flex-1 text-press-text truncate">{gc.name}</span>
-                          <div
-                            class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <Tooltip text="Edit" position="bottom">
-                              <button
-                                onclick={() => openEditForm(gc)}
-                                class="p-0.5 text-press-muted hover:text-press-text"
-                                aria-label="Edit tag"
-                              >
-                                <Pencil class="w-3 h-3" />
-                              </button>
-                            </Tooltip>
-                            <Tooltip text="Delete" position="bottom">
-                              <button
-                                onclick={() => deleteTag(gc.id)}
-                                class="p-0.5 text-press-muted hover:text-press-error"
-                                aria-label="Delete tag"
-                              >
-                                <Trash2 class="w-3 h-3" />
-                              </button>
-                            </Tooltip>
-                          </div>
-                        </div>
-                      {/each}
-                    </div>
-                  {/if}
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </div>
+    <ul class="ka-tagtree">
+      {#each getRootTags() as tag (tag.id)}
+        {@render tagRow(tag, 0)}
       {/each}
-    </div>
+    </ul>
   {/if}
 
   {#if editingTag}
-    <div class="bg-press-sunken rounded-lg p-3 space-y-3 border border-press-accent">
-      <div class="flex items-center justify-between">
-        <span class="text-press-ui font-medium text-press-text">
-          {editMode === "create" ? "New Tag" : "Edit Tag"}
-        </span>
-        <button onclick={cancelEdit} class="p-1 text-press-muted hover:text-press-text">
-          <X class="w-4 h-4" />
+    <div class="ka-tagedit">
+      <div class="tags-edit-head">
+        <h4>{editMode === "create" ? "New tag" : "Edit tag"}</h4>
+        <button
+          type="button"
+          onclick={cancelEdit}
+          class="ka-button ka-button--ghost ka-icon-button"
+          aria-label="Close tag editor"
+          title="Close tag editor"
+        >
+          <X class="w-5 h-5" aria-hidden="true" />
         </button>
       </div>
 
-      <div>
-        <label class="block text-press-eyebrow text-press-muted mb-1" for="tag-name">Name</label>
+      <div class="ka-field od-field">
+        <label for="tag-name">Name</label>
         <input
           id="tag-name"
           type="text"
+          use:focusOnMount
           bind:value={editingTag.name}
-          class={inputClass}
-          placeholder="e.g. Flashback, Action, Romance..."
+          placeholder="e.g. Flashback, Action, Romance…"
           disabled={saving}
         />
       </div>
 
-      <fieldset>
-        <legend class="block text-press-eyebrow text-press-muted mb-1">Color</legend>
-        <div class="flex flex-wrap gap-1.5">
-          <button
-            onclick={() => {
-              if (editingTag) editingTag.color = null;
-            }}
-            class="w-6 h-6 rounded-full border-2 flex items-center justify-center"
-            class:border-press-accent={!editingTag.color}
-            class:border-transparent={!!editingTag.color}
-            style:background-color="var(--color-surface-sunken)"
-            aria-label="No color"
+      <fieldset class="ka-swatches">
+        <legend>Color</legend>
+        <button
+          type="button"
+          onclick={() => {
+            if (editingTag) editingTag.color = null;
+          }}
+          class="ka-swatch-option ka-swatch-option--none swatch-button"
+          class:is-selected={!editingTag.color}
+          aria-pressed={!editingTag.color}
+          aria-label="No color"
+          title="No color"
+        >
+          <span
+            >{#if !editingTag.color}<Check class="w-4 h-4" aria-hidden="true" />{/if}</span
           >
-            {#if !editingTag.color}
-              <Check class="w-3 h-3 text-press-muted" />
-            {/if}
-          </button>
-          {#each PRESET_COLORS as preset (preset.name)}
-            {@const color = preset.color}
-            <button
-              onclick={() => {
-                if (editingTag) editingTag.color = color;
-              }}
-              class="w-6 h-6 rounded-full border-2 flex items-center justify-center"
-              class:border-press-on-accent={editingTag.color === color}
-              class:border-transparent={editingTag.color !== color}
-              style:background-color={color}
-              aria-label={preset.name}
+        </button>
+        {#each PRESET_COLORS as preset (preset.name)}
+          {@const color = preset.color}
+          <button
+            type="button"
+            onclick={() => {
+              if (editingTag) editingTag.color = color;
+            }}
+            class="ka-swatch-option swatch-button"
+            class:is-selected={editingTag.color === color}
+            style:--swatch={tagColor(color)}
+            aria-pressed={editingTag.color === color}
+            aria-label={preset.name}
+            title={preset.name}
+          >
+            <span
+              >{#if editingTag.color === color}<Check
+                  class="w-4 h-4"
+                  aria-hidden="true"
+                />{/if}</span
             >
-              {#if editingTag.color === color}
-                <Check class="w-3 h-3 text-press-on-accent" />
-              {/if}
-            </button>
-          {/each}
-        </div>
+          </button>
+        {/each}
       </fieldset>
 
-      <div class="flex justify-end gap-2">
+      <div class="ka-row tags-edit-actions">
         <button
+          type="button"
           onclick={cancelEdit}
-          class="px-3 py-1.5 text-press-ui text-press-muted hover:text-press-text"
+          class="ka-button ka-button--secondary"
           disabled={saving}
         >
           Cancel
         </button>
         <button
+          type="button"
           onclick={saveTag}
-          class="px-3 py-1.5 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text flex items-center gap-1.5"
+          class="ka-button"
           disabled={saving || !editingTag.name?.trim()}
+          aria-busy={saving || undefined}
         >
           {#if saving}
-            <Loader2 class="w-3.5 h-3.5 animate-spin" />
-          {:else}
-            <Check class="w-3.5 h-3.5" />
+            <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
           {/if}
           {editMode === "create" ? "Add" : "Save"}
         </button>
@@ -395,3 +320,51 @@
     </div>
   {/if}
 </div>
+
+<style>
+  .tags {
+    display: grid;
+    gap: var(--space-s);
+  }
+  .tags-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-s);
+  }
+  .tags-head .ka-help {
+    margin: 0;
+  }
+  .tags-edit-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: calc(-1 * var(--space-2xs)) calc(-1 * var(--space-2xs)) 0 0;
+  }
+  .tags-edit-head h4 {
+    margin: 0;
+    font: 600 var(--text-base) / 1.5 var(--font-ui);
+    color: var(--color-text);
+  }
+  .tags-edit-actions {
+    justify-content: flex-end;
+  }
+  .swatch-button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .swatch-button.is-selected > span {
+    outline: 2px solid var(--color-text);
+    outline-offset: 2px;
+  }
+  .swatch-button:focus-visible {
+    outline: 2px solid var(--color-accent-text);
+    outline-offset: 1px;
+  }
+  @media (hover: hover) {
+    .tag-delete:hover {
+      color: var(--color-error);
+    }
+  }
+</style>

@@ -97,10 +97,10 @@ export class Runner {
     await this.wait("document.querySelector('[data-testid=\"import-section\"]')");
   }
   async refreshEmptyStart() {
-    // Deletion through IPC does not refresh StartScreen's cached recent list.
-    // Its real View all action fetches the empty library again.
+    // Deletion through IPC does not refresh the start screen's cached recent
+    // list, so ask the app to reload it from the (now empty) library.
     if (await this.js("return !!document.querySelector('[data-testid=recent-projects]');")) {
-      await this.click('[data-testid="recent-projects"] button');
+      await this.js("window.__KINDLING_TEST__.refreshRecentProjects();");
       await this.wait("!document.querySelector('[data-testid=recent-projects]')");
     }
   }

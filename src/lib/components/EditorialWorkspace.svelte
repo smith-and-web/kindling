@@ -19,8 +19,7 @@
   import type { ReviewItem } from "../utils/reviewItems";
   import {
     Search,
-    ChevronLeft,
-    ChevronDown,
+    ArrowLeft,
     ChevronRight,
     MoreHorizontal,
     PanelLeftClose,
@@ -33,6 +32,10 @@
     FolderOpen,
     FileOutput,
     RotateCcw,
+    Loader2,
+    TriangleAlert,
+    CheckCircle2,
+    MessageSquare,
   } from "lucide-svelte";
   import EditorialManuscript from "./EditorialManuscript.svelte";
   import { EditorialSaves } from "../utils/editorialSaves";
@@ -204,6 +207,31 @@
   const navigation = $derived(
     sources.filter((s, i) => !sources.slice(0, i).some((p) => p.scene_id === s.scene_id))
   );
+  // Scene navigation grouped under its chapter, in manuscript order.
+  const chapterGroups = $derived(
+    navigation.reduce<{ chapter: string; scenes: EditorialSource[] }[]>((groups, source, i) => {
+      if (i === 0 || source.chapter_id !== navigation[i - 1].chapter_id)
+        groups.push({ chapter: source.chapter, scenes: [] });
+      groups[groups.length - 1].scenes.push(source);
+      return groups;
+    }, [])
+  );
+  const exportChapters = $derived(
+    exportSources.filter(
+      (s, i) => !exportSources.slice(0, i).some((p) => p.chapter_id === s.chapter_id)
+    )
+  );
+  // Why the primary export is unavailable, shown under it (never a bare disabled button).
+  const exportBlocked = $derived(
+    !exportSources.length
+      ? "This project has no scenes to include yet."
+      : !roundName.trim()
+        ? "Name the review round to export it."
+        : exportScope === "selected" && !selectedChapters.length
+          ? "Choose at least one chapter."
+          : ""
+  );
+  let exporting = $state(false);
   const visibleEntries = $derived(
     feedback?.entries.filter((e) => filter === "all" || e.decision === filter) ?? []
   );
@@ -754,11 +782,11 @@
       const selected =
         path ??
         (await open({
-          title: "Open a Kindling review or feedback file",
+          title: "Open a kindling review or feedback file",
           multiple: false,
           filters: [
             {
-              name: "Kindling editorial files",
+              name: "kindling editorial files",
               extensions: ["kindling-review", "kindling-feedback"],
             },
           ],
@@ -858,11 +886,19 @@
 
   async function exportReview() {
     if (exportScope === "selected" && !selectedChapters.length) return;
+    exporting = true;
+    try {
+      await exportPackage();
+    } finally {
+      exporting = false;
+    }
+  }
+  async function exportPackage() {
     await action(async () => {
       const path = await save({
         title: "Export for editorial review",
         defaultPath: `${roundName}.kindling-review`,
-        filters: [{ name: "Kindling review", extensions: ["kindling-review"] }],
+        filters: [{ name: "kindling review", extensions: ["kindling-review"] }],
       });
       if (!path) return;
       const created = await invoke<EditorialRound>("export_editorial_review", {
@@ -1014,7 +1050,7 @@
         defaultPath: `${round.title} — ${round.name} — ${session.name || "review"}${recovery ? " — recovery.kindling-review" : ".kindling-feedback"}`,
         filters: [
           {
-            name: recovery ? "Kindling recovery review" : "Kindling feedback",
+            name: recovery ? "kindling recovery review" : "kindling feedback",
             extensions: [recovery ? "kindling-review" : "kindling-feedback"],
           },
         ],
@@ -1029,7 +1065,7 @@
         path,
       });
       if (recovery) {
-        notice = `Recovery review saved to ${path}. Open it in Kindling to resume your work, then export feedback normally.`;
+        notice = `Recovery review saved to ${path}. Open it in kindling to resume your work, then export feedback normally.`;
         return;
       }
       notice = `Feedback saved to ${path}. Return this file to the writer. You can continue reviewing and export another response later.`;
@@ -1044,7 +1080,7 @@
       const path = await save({
         title: "Send replies and decisions to your editor",
         defaultPath: `${round!.title} — ${round!.name} — reply to ${reviewer.name}.kindling-review`,
-        filters: [{ name: "Kindling review response", extensions: ["kindling-review"] }],
+        filters: [{ name: "kindling review response", extensions: ["kindling-review"] }],
       });
       if (!path) return;
       await invoke("export_editorial_reply", { roundId: feedback.round.id, reviewerId, path });
@@ -1215,32 +1251,31 @@
   }}
 >
   <header class="workspace-header">
+    <button
+      type="button"
+      class="ka-button ka-button--ghost ka-icon-button"
+      aria-label={packageReturn
+        ? "Return to revisions"
+        : local
+          ? "Return to writing"
+          : "Close review"}
+      title={packageReturn ? "Return to revisions" : local ? "Return to writing" : "Close review"}
+      disabled={busy}
+      onclick={back}><ArrowLeft class="w-5 h-5" aria-hidden="true" /></button
+    >
     <div class="heading">
-      <button
-        class="icon"
-        aria-label={packageReturn
-          ? "Return to revisions"
-          : local
-            ? "Return to writing"
-            : "Close review"}
-        title={packageReturn ? "Return to revisions" : local ? "Return to writing" : "Close review"}
-        disabled={busy}
-        onclick={back}><ChevronLeft size={18} /></button
-      >
-      <div>
-        {#if round?.title && (screen === "export" || focusedSource?.scene)}
-          <span class="eyebrow">{round.title}</span>
-        {/if}
-        <h1>
-          {screen === "export"
-            ? "Review packages"
-            : focusedSource?.scene || round?.title || "Editorial review"}
-        </h1>
-      </div>
+      {#if round?.title && (screen === "export" || focusedSource?.scene)}
+        <span class="crumb">{round.title}</span>
+      {/if}
+      <h1>
+        {screen === "export"
+          ? "Review packages"
+          : focusedSource?.scene || round?.title || "Editorial review"}
+      </h1>
     </div>
     <div class="workspace-actions">
-      {#if local && focusedReview && screen !== "export"}<span class="compact-select"
-          ><select
+      {#if local && focusedReview && screen !== "export"}<div class="ka-field bar-field">
+          <select
             aria-label="Revision status"
             disabled={busy || focusedSource?.locked}
             value={focusedReview.data.status}
@@ -1248,12 +1283,12 @@
             >{#each Object.entries(revisionStatuses) as [value, label]}<option {value}
                 >{label}</option
               >{/each}</select
-          ><ChevronDown size={14} /></span
-        >{/if}
+          >
+        </div>{/if}
       {#if session}<span class="save-state" role="status">{savedState}</span>{/if}
       {#if screen === "review" || screen === "feedback"}
-        {#if local}<span class="compact-select"
-            ><select
+        {#if local}<div class="ka-field bar-field">
+            <select
               aria-label="Editor mode"
               value={screen}
               disabled={busy}
@@ -1264,18 +1299,23 @@
               }}
               ><option value="writing">Writing</option><option value="feedback">Reviewing</option
               ><option value="review">Suggesting</option></select
-            ><ChevronDown size={14} /></span
-          >{:else}<span class="mode">{session ? "Suggesting" : "Reviewing feedback"}</span>{/if}
+            >
+          </div>{:else}<span class="ka-badge mode"
+            >{session ? "Suggesting" : "Reviewing feedback"}</span
+          >{/if}
         <button
-          class="icon"
+          type="button"
+          class="ka-button ka-button--ghost ka-icon-button"
           title="Find in manuscript"
           aria-label="Find in manuscript"
-          onclick={focusSearch}><Search size={18} /></button
+          onclick={focusSearch}><Search class="w-5 h-5" aria-hidden="true" /></button
         >
         <button
+          type="button"
           bind:this={menuTrigger}
-          class="icon"
+          class="ka-button ka-button--ghost ka-icon-button"
           aria-label="Manuscript actions"
+          title="Manuscript actions"
           aria-haspopup="menu"
           aria-expanded={!!menuPosition}
           onclick={(event) => {
@@ -1284,7 +1324,7 @@
             event.stopPropagation();
             const rect = menuTrigger!.getBoundingClientRect();
             menuPosition = menuPosition ? null : { x: rect.right, y: rect.bottom };
-          }}><MoreHorizontal size={20} /></button
+          }}><MoreHorizontal class="w-5 h-5" aria-hidden="true" /></button
         >
         {#if active && menuPosition}
           <ContextMenu
@@ -1297,117 +1337,170 @@
       {/if}
     </div>
   </header>
-  {#if error}<div role="alert" class="workspace-error">
-      <p>{error}</p>
-      {#if session}<button onclick={() => flush().catch(() => {})}>Retry saving</button><button
-          onclick={() => returnFeedback(true)}>Export recovery copy</button
-        >{/if}
+  {#if error}<div role="alert" class="ka-notice ka-notice--error od-row-top workspace-message">
+      <TriangleAlert class="w-5 h-5" aria-hidden="true" />
+      <div class="od-field od-fill">
+        <p>{error}</p>
+        {#if session}<div class="ka-row">
+            <button
+              type="button"
+              class="ka-button ka-button--secondary"
+              onclick={() => flush().catch(() => {})}>Retry saving</button
+            ><button
+              type="button"
+              class="ka-button ka-button--ghost"
+              onclick={() => returnFeedback(true)}>Export recovery copy</button
+            >
+          </div>{/if}
+      </div>
     </div>{/if}
-  {#if notice}<p role="status" class="workspace-notice">{notice}</p>{/if}
+  {#if notice}<div role="status" class="ka-notice ka-notice--success od-row-top workspace-message">
+      <CheckCircle2 class="w-5 h-5" aria-hidden="true" />
+      <p class="od-fill">{notice}</p>
+    </div>{/if}
   {#if screen === "export"}
-    <div class="package-layout">
-      <section class="package-form" aria-labelledby="package-title">
-        <h2 id="package-title">Send a manuscript for review</h2>
-        <p class="package-description">
-          Create a file your editor can open in Kindling. They can read, suggest edits, and return
-          their feedback without an account.
-        </p>
-        <label
-          >Review round<input
-            bind:value={roundName}
-            placeholder="Developmental edit — September"
-          /></label
-        >
-        <label
-          ><span>Brief for your editor <span class="optional">Optional</span></span><textarea
-            bind:value={brief}
-            placeholder="What would you like your editor to focus on?"
-            rows="4"
-          ></textarea></label
-        >
-        <fieldset class="package-scope">
-          <legend>Manuscript to include</legend>
-          <label class="scope-choice"
-            ><input
-              type="radio"
-              name="editorial-package-scope"
-              bind:group={exportScope}
-              value="all"
-            />Entire manuscript</label
-          >
-          <label class="scope-choice"
-            ><input
-              type="radio"
-              name="editorial-package-scope"
-              bind:group={exportScope}
-              value="selected"
-            />Selected chapters</label
-          >
-          {#if exportScope === "selected"}
-            <div class="chapter-choices">
-              {#each exportSources.filter((s, i) => !exportSources
-                    .slice(0, i)
-                    .some((p) => p.chapter_id === s.chapter_id)) as chapter}
-                <label class="scope-choice"
-                  ><input
-                    type="checkbox"
-                    value={chapter.chapter_id}
-                    bind:group={selectedChapters}
-                  />{chapter.chapter}</label
-                >
-              {/each}
-              {#if !selectedChapters.length}<p class="scope-hint">
-                  Choose at least one chapter.
-                </p>{/if}
+    <div class="package-scroll">
+      <div class="package-layout">
+        <section class="package-form" aria-labelledby="package-title">
+          <div class="package-intro">
+            <h2 id="package-title">Send a manuscript for review</h2>
+            <p class="package-description">
+              Create a file your editor can open in kindling. They can read, suggest edits, and
+              return their feedback without an account.
+            </p>
+          </div>
+          <div class="ka-field od-field">
+            <label for="editorial-round-name">Review round</label>
+            <input
+              id="editorial-round-name"
+              bind:value={roundName}
+              placeholder="Developmental edit — September"
+              aria-invalid={!roundName.trim() || undefined}
+              aria-describedby={!roundName.trim() ? "editorial-round-name-error" : undefined}
+            />
+            {#if !roundName.trim()}<p class="ka-error" id="editorial-round-name-error">
+                Enter a name for this review round.
+              </p>{/if}
+          </div>
+          <div class="ka-field od-field">
+            <label for="editorial-brief"
+              >Brief for your editor <span class="ka-optional">(optional)</span></label
+            >
+            <textarea
+              id="editorial-brief"
+              bind:value={brief}
+              placeholder="What would you like your editor to focus on?"
+              rows="4"
+            ></textarea>
+          </div>
+          <fieldset class="package-scope">
+            <legend>Manuscript to include</legend>
+            <label class="ka-check"
+              ><input
+                type="radio"
+                name="editorial-package-scope"
+                bind:group={exportScope}
+                value="all"
+              />Entire manuscript</label
+            >
+            <label class="ka-check"
+              ><input
+                type="radio"
+                name="editorial-package-scope"
+                bind:group={exportScope}
+                value="selected"
+              />Selected chapters</label
+            >
+            {#if exportScope === "selected"}
+              <div class="chapter-choices">
+                {#each exportChapters as chapter}
+                  <label class="ka-check"
+                    ><input
+                      type="checkbox"
+                      value={chapter.chapter_id}
+                      bind:group={selectedChapters}
+                    />{chapter.chapter}</label
+                  >
+                {/each}
+              </div>
+            {/if}
+          </fieldset>
+          <div class="package-export">
+            <div>
+              <button
+                type="button"
+                class="ka-button"
+                disabled={busy || !!exportBlocked}
+                aria-busy={exporting || undefined}
+                aria-describedby={exportBlocked ? "editorial-export-blocked" : undefined}
+                onclick={exportReview}
+                >{#if exporting}<Loader2
+                    class="w-5 h-5 animate-spin"
+                    aria-hidden="true"
+                  />{:else}<Download class="w-5 h-5" aria-hidden="true" />{/if}{exporting
+                  ? "Exporting package…"
+                  : "Export review package"}</button
+              >
             </div>
-          {/if}
-        </fieldset>
-        <div class="package-export">
-          <button
-            class="primary-action"
-            disabled={busy ||
-              !roundName.trim() ||
-              !exportSources.length ||
-              (exportScope === "selected" && !selectedChapters.length)}
-            onclick={exportReview}><FileOutput size={16} />Export review package</button
-          >
-          <p class="scope-hint">Save the file, then share it with your editor.</p>
-        </div>
-      </section>
-      <aside class="package-rounds" aria-label="Review rounds">
-        <h2>Continue a review</h2>
-        <button class="open-package" disabled={busy} onclick={() => openFile()}
-          ><FolderOpen size={16} />Open review or feedback file…</button
-        >
-        <p class="scope-hint">
-          Open returned feedback to review suggestions and send your decisions back.
-        </p>
-        <h3>Review rounds</h3>
-        {#if rounds.length}
-          <ul>
-            {#each rounds as item}<li>
-                <button
-                  class="round-link"
-                  aria-label={item.name}
-                  disabled={busy}
-                  onclick={() => openRound(item.id)}
-                  ><span>{item.name}</span><time datetime={item.created_at}
-                    >{new Date(item.created_at).toLocaleString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                      second: "2-digit",
-                    })}</time
-                  ><ChevronRight size={16} /></button
-                >
-              </li>{/each}
-          </ul>
-        {:else}<p class="scope-hint">
-            Your review rounds will appear here after you export a package.
-          </p>{/if}
-      </aside>
+            {#if exportBlocked}<p class="ka-help" id="editorial-export-blocked">
+                {exportBlocked}
+              </p>{/if}
+            <p class="ka-help">Save the file, then share it with your editor.</p>
+          </div>
+        </section>
+        <aside class="package-rounds" aria-label="Review rounds">
+          <section class="side-group" aria-labelledby="editorial-continue-title">
+            <h2 id="editorial-continue-title">Continue a review</h2>
+            <div>
+              <button
+                type="button"
+                class="ka-button ka-button--secondary"
+                disabled={busy}
+                onclick={() => openFile()}
+                ><FolderOpen class="w-5 h-5" aria-hidden="true" />Open review or feedback file…</button
+              >
+            </div>
+            <p class="ka-help">
+              Open returned feedback to review suggestions and send your decisions back.
+            </p>
+          </section>
+          <section class="side-group" aria-labelledby="editorial-rounds-title">
+            <h2 id="editorial-rounds-title">Review rounds</h2>
+            {#if rounds.length}
+              <ul class="round-rows">
+                {#each rounds as item}<li>
+                    <button
+                      type="button"
+                      class="round-link"
+                      aria-label={item.name}
+                      disabled={busy}
+                      onclick={() => openRound(item.id)}
+                      ><span class="round-text"
+                        ><span class="round-title">{item.name}</span><time
+                          datetime={item.created_at}
+                          >{new Date(item.created_at).toLocaleString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })}</time
+                        ></span
+                      ><ChevronRight class="w-5 h-5" aria-hidden="true" /></button
+                    >
+                  </li>{/each}
+              </ul>
+            {:else}
+              <div class="ka-empty od-stack">
+                <MessageSquare class="w-7 h-7" aria-hidden="true" />
+                <h3>No review rounds yet</h3>
+                <p>Your review rounds will appear here after you export a package.</p>
+              </div>
+            {/if}
+          </section>
+        </aside>
+      </div>
     </div>
   {:else if screen === "preview" && received}
     {@const sceneCount = new Set(received.round.sources.map((s) => s.scene_id)).size}
@@ -1415,53 +1508,74 @@
       (c) => c.kind === "suggestion"
     ).length}
     {@const commentCount = received.session!.changes.filter((c) => c.kind === "comment").length}
-    <div class="package-layout feedback-preview">
-      <section class="feedback-summary" aria-labelledby="feedback-heading">
-        <h2 id="feedback-heading">Feedback from {received.session!.name}</h2>
-        <p class="package-description">
-          Bring your editor’s feedback into the original review round, then read it alongside your
-          manuscript.
-        </p>
-        <ul class="feedback-counts" aria-label="Feedback in this file">
-          <li>
-            <strong>{sceneCount}</strong>{sceneCount === 1 ? "scene included" : "scenes included"}
-          </li>
-          <li>
-            <strong>{suggestionCount}</strong>{suggestionCount === 1 ? "suggestion" : "suggestions"}
-          </li>
-          <li><strong>{commentCount}</strong>{commentCount === 1 ? "comment" : "comments"}</li>
-        </ul>
-        <div class="feedback-next">
-          <h3>What happens next</h3>
-          <p>
-            Read comments, reply to your editor, and accept or reject suggestions. If you’ve
-            rewritten a passage, Kindling helps you place its feedback before applying an edit.
-          </p>
-          <p>
-            You can work through the feedback at your own pace and export your replies and decisions
-            when you’re ready.
-          </p>
-        </div>
-        <div class="package-export">
-          <button class="primary-action" disabled={busy} onclick={importFeedback}
-            ><FolderOpen size={16} />Import and review feedback</button
-          >
-          <p class="scope-hint">Your manuscript changes only when you accept a suggestion.</p>
-        </div>
-      </section>
-      <aside class="package-rounds feedback-details" aria-label="Review details">
-        <h2>Review details</h2>
-        <dl>
-          <dt>Manuscript</dt>
-          <dd>{received.round.title}</dd>
-          <dt>Review round</dt>
-          <dd>{received.round.name}</dd>
-        </dl>
-        {#if received.round.brief.trim()}
-          <h3>Your original brief</h3>
-          <p class="brief">{received.round.brief}</p>
-        {/if}
-      </aside>
+    <div class="package-scroll">
+      <div class="package-layout feedback-preview">
+        <section class="package-form feedback-summary" aria-labelledby="feedback-heading">
+          <div class="package-intro">
+            <h2 id="feedback-heading">Feedback from {received.session!.name}</h2>
+            <p class="package-description">
+              Bring your editor’s feedback into the original review round, then read it alongside
+              your manuscript.
+            </p>
+          </div>
+          <ul class="feedback-counts" aria-label="Feedback in this file">
+            <li>
+              <strong>{sceneCount}</strong>{sceneCount === 1 ? "scene included" : "scenes included"}
+            </li>
+            <li>
+              <strong>{suggestionCount}</strong>{suggestionCount === 1
+                ? "suggestion"
+                : "suggestions"}
+            </li>
+            <li><strong>{commentCount}</strong>{commentCount === 1 ? "comment" : "comments"}</li>
+          </ul>
+          <div class="feedback-next">
+            <h3>What happens next</h3>
+            <p>
+              Read comments, reply to your editor, and accept or reject suggestions. If you’ve
+              rewritten a passage, kindling helps you place its feedback before applying an edit.
+            </p>
+            <p>
+              You can work through the feedback at your own pace and export your replies and
+              decisions when you’re ready.
+            </p>
+          </div>
+          <div class="package-export">
+            <div>
+              <button
+                type="button"
+                class="ka-button"
+                disabled={busy}
+                aria-busy={busy || undefined}
+                onclick={importFeedback}
+                ><FolderOpen class="w-5 h-5" aria-hidden="true" />Import and review feedback</button
+              >
+            </div>
+            <p class="ka-help">Your manuscript changes only when you accept a suggestion.</p>
+          </div>
+        </section>
+        <aside class="package-rounds feedback-details" aria-label="Review details">
+          <section class="side-group">
+            <h2>Review details</h2>
+            <dl class="ka-facts">
+              <div>
+                <dt>Manuscript</dt>
+                <dd>{received.round.title}</dd>
+              </div>
+              <div>
+                <dt>Review round</dt>
+                <dd>{received.round.name}</dd>
+              </div>
+            </dl>
+          </section>
+          {#if received.round.brief.trim()}
+            <section class="side-group">
+              <h2>Your original brief</h2>
+              <p class="brief">{received.round.brief}</p>
+            </section>
+          {/if}
+        </aside>
+      </div>
     </div>
   {:else if round && (session || feedback)}
     <div class="workspace-layout">
@@ -1469,62 +1583,87 @@
           <div class="nav-title">
             <BrandWordmark />
             <button
-              class="icon"
+              type="button"
+              class="ka-button ka-button--ghost ka-icon-button"
               aria-label="Hide manuscript navigation"
-              onclick={() => (showNavigation = false)}><PanelLeftClose size={16} /></button
+              title="Hide manuscript navigation"
+              onclick={() => (showNavigation = false)}
+              ><PanelLeftClose class="w-5 h-5" aria-hidden="true" /></button
             >
           </div>
           <div class="nav-context">
             <h2>{round.title}</h2>
             <p class="round-name">{round.name}</p>
           </div>
-          {#if round.brief}<details>
+          {#if round.brief}<details class="ka-disclosure nav-brief">
               <summary>Writer’s brief</summary>
               <p class="brief">{round.brief}</p>
             </details>{/if}
-          {#each navigation as source, index}{#if index === 0 || source.chapter_id !== navigation[index - 1].chapter_id}<h3
-              >
-                {source.chapter}
-              </h3>{/if}<button
-              class="scene-link"
-              aria-current={focusedScene === source.scene_id ? "location" : undefined}
-              onclick={() => {
-                focusedScene = source.scene_id;
-                prose?.navigate(source.id);
-              }}>{source.scene}</button
-            >{/each}
+          <div class="ka-tree nav-tree">
+            {#each chapterGroups as group}
+              <h3 class="nav-chapter">{group.chapter}</h3>
+              <ul class="ka-tree-list nav-scenes">
+                {#each group.scenes as source}<li>
+                    <button
+                      type="button"
+                      class="scene-link"
+                      class:ka-tree-selected={focusedScene === source.scene_id}
+                      aria-current={focusedScene === source.scene_id ? "location" : undefined}
+                      onclick={() => {
+                        focusedScene = source.scene_id;
+                        prose?.navigate(source.id);
+                      }}>{source.scene}</button
+                    >
+                  </li>{/each}
+              </ul>
+            {/each}
+          </div>
         </nav>{/if}
       <section class="manuscript-region" aria-label="Manuscript">
         {#if showSearch}<div class="search-bar">
-            <Search size={16} /><input
-              type="search"
-              aria-label="Find in manuscript"
-              bind:value={search}
-              placeholder="Find in manuscript"
-              oninput={() => {
-                searchIndex = 0;
-                searchCount = prose?.find(search, 0) ?? 0;
-              }}
-              onkeydown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  findNext(e.shiftKey ? -1 : 1);
-                }
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  closeSearch();
-                }
-              }}
-            /><span aria-live="polite"
+            <div class="ka-field search-field">
+              <span class="ka-input-icon"
+                ><Search class="ka-icon w-5 h-5" aria-hidden="true" /><input
+                  type="search"
+                  aria-label="Find in manuscript"
+                  bind:value={search}
+                  placeholder="Find in manuscript"
+                  oninput={() => {
+                    searchIndex = 0;
+                    searchCount = prose?.find(search, 0) ?? 0;
+                  }}
+                  onkeydown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      findNext(e.shiftKey ? -1 : 1);
+                    }
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      closeSearch();
+                    }
+                  }}
+                /></span
+              >
+            </div>
+            <span class="search-count" aria-live="polite"
               >{search
                 ? searchCount
                   ? `${(((searchIndex % searchCount) + searchCount) % searchCount) + 1} of ${searchCount}`
                   : "No matches"
                 : ""}</span
-            ><button disabled={!searchCount} onclick={() => findNext(-1)}>Previous</button><button
+            ><button
+              type="button"
+              class="ka-button ka-button--ghost"
+              disabled={!searchCount}
+              onclick={() => findNext(-1)}>Previous</button
+            ><button
+              type="button"
+              class="ka-button ka-button--ghost"
               disabled={!searchCount}
               onclick={() => findNext(1)}>Next</button
-            ><button onclick={closeSearch}>Done</button>
+            ><button type="button" class="ka-button ka-button--secondary" onclick={closeSearch}
+              >Done</button
+            >
           </div>{/if}
         <div class="manuscript-column">
           {#key `${round.id}:${manuscriptVersion}`}
@@ -1551,21 +1690,25 @@
             >
               {#snippet toolbar()}
                 {#if !local && !showNavigation}<button
-                    class="icon"
+                    type="button"
+                    class="ka-button ka-button--ghost ka-icon-button"
                     aria-label="Show manuscript navigation"
-                    onclick={() => (showNavigation = true)}><PanelLeftOpen size={16} /></button
+                    title="Show manuscript navigation"
+                    onclick={() => (showNavigation = true)}
+                    ><PanelLeftOpen class="w-5 h-5" aria-hidden="true" /></button
                   >{/if}
-                <span class="compact-select"
-                  ><select
-                    class="compact-control"
+                <div class="ka-field markup-field">
+                  <label for="editorial-markup">Markup</label>
+                  <select
+                    id="editorial-markup"
                     aria-label="Markup view"
                     value={markup ? "all" : "simple"}
                     onchange={(e) => (markup = e.currentTarget.value === "all")}
                     ><option value="simple">Simple markup</option><option value="all"
                       >All markup</option
                     ></select
-                  ><ChevronDown size={14} /></span
-                >
+                  >
+                </div>
               {/snippet}
             </EditorialManuscript>
           {/key}
@@ -1601,18 +1744,20 @@
               <div class="review-menu-group" role="group" aria-label="Current review round">
                 <p class="review-menu-caption">Review round · {feedback.round.name}</p>
                 <button
+                  type="button"
                   class="accept-decision"
                   aria-label="Accept visible suggestions in this round"
                   disabled={busy}
                   onclick={() => decide(suggestions, "accepted")}
-                  ><Check size={16} />Accept visible suggestions</button
+                  ><Check class="w-5 h-5" aria-hidden="true" />Accept visible suggestions</button
                 >
                 <button
+                  type="button"
                   class="reject-decision"
                   aria-label="Reject visible suggestions in this round"
                   disabled={busy}
                   onclick={() => decide(suggestions, "rejected")}
-                  ><X size={16} />Reject visible suggestions</button
+                  ><X class="w-5 h-5" aria-hidden="true" />Reject visible suggestions</button
                 >
               </div>
             {/if}
@@ -1620,37 +1765,39 @@
               <div class="review-menu-group" role="group" aria-label="Active scene prose">
                 <p class="review-menu-caption">Active scene prose</p>
                 <button
+                  type="button"
                   class="accept-decision"
                   aria-label="Accept visible suggestions on active scene prose"
                   disabled={busy}
                   onclick={() => bulkLegacy("accepted")}
-                  ><Check size={16} />Accept visible suggestions</button
+                  ><Check class="w-5 h-5" aria-hidden="true" />Accept visible suggestions</button
                 ><button
+                  type="button"
                   class="reject-decision"
                   aria-label="Reject visible suggestions on active scene prose"
                   disabled={busy}
                   onclick={() => bulkLegacy("rejected")}
-                  ><X size={16} />Reject visible suggestions</button
+                  ><X class="w-5 h-5" aria-hidden="true" />Reject visible suggestions</button
                 >
               </div>
             {/if}
             <div class="review-menu-group">
-              <button disabled={busy} onclick={() => openRound(feedback!.round.id)}
-                ><RefreshCw size={16} />Refresh manuscript</button
+              <button type="button" disabled={busy} onclick={() => openRound(feedback!.round.id)}
+                ><RefreshCw class="w-5 h-5" aria-hidden="true" />Refresh manuscript</button
               >
             </div>
             {#if reviewers.length}
               <div class="review-menu-group">
-                <label class="review-menu-field"
-                  >Send to editor<span class="compact-select"
-                    ><select class="compact-control" bind:value={replyReviewer}
-                      >{#each reviewers as reviewer}<option value={reviewer.id}
-                          >{reviewer.name}</option
-                        >{/each}</select
-                    ><ChevronDown size={14} /></span
-                  ></label
-                ><button disabled={busy} onclick={sendWriterReply}
-                  ><Download size={16} />Export replies and decisions</button
+                <div class="ka-field review-menu-field">
+                  <label for="editorial-reply-reviewer">Send to editor</label>
+                  <select id="editorial-reply-reviewer" bind:value={replyReviewer}
+                    >{#each reviewers as reviewer}<option value={reviewer.id}
+                        >{reviewer.name}</option
+                      >{/each}</select
+                  >
+                </div>
+                <button type="button" disabled={busy} onclick={sendWriterReply}
+                  ><Download class="w-5 h-5" aria-hidden="true" />Export replies and decisions</button
                 >
               </div>
             {/if}
@@ -1693,78 +1840,65 @@
     height: 100%;
     color: var(--color-text);
     background: var(--color-bg);
-    font-family: var(--font-ui);
-    font-size: var(--text-small);
+    font: var(--text-ui) / 1.5 var(--font-ui);
   }
   .editorial-workspace.active {
     display: flex;
   }
+
+  /* App bar: 72px, hairline, back · crumb over title · actions. */
   .workspace-header {
     display: flex;
     flex-shrink: 0;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--space-s);
-    padding: var(--space-s) var(--space-m);
-    border-bottom: 1px solid var(--color-border);
-    background: var(--color-surface);
-  }
-  .heading,
-  .workspace-actions {
-    display: flex;
     align-items: center;
     gap: var(--space-xs);
+    min-height: 72px;
+    padding: var(--space-xs) var(--space-m) var(--space-xs) var(--space-s);
+    border-bottom: var(--border-hair);
+    background: var(--color-bg);
   }
   .heading {
+    display: grid;
     min-width: 0;
+    flex: 1;
   }
-  .eyebrow,
+  .crumb,
   .save-state,
   .round-name {
+    font: var(--text-small) / 1.3 var(--font-ui);
     color: var(--color-text-muted);
-    font-size: var(--text-eyebrow);
+  }
+  .crumb {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   h1 {
-    font-family: var(--font-display);
-    font-size: var(--text-h3);
     margin: 0;
-  }
-  h2,
-  h3 {
-    font-size: var(--text-small);
-    margin: var(--space-s) 0;
-  }
-  button {
-    padding: var(--space-2xs) var(--space-xs);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-s);
-    background: transparent;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 550 var(--text-h3) / 1.25 var(--font-display);
+    letter-spacing: var(--tracking-tight);
     color: var(--color-text);
-    font: inherit;
-    cursor: pointer;
   }
-  button:hover {
-    background: var(--color-surface-sunken);
-  }
-  button:disabled {
-    color: var(--color-disabled-text);
-    background: var(--color-disabled-bg);
-    cursor: default;
-  }
-  .icon {
-    border: 0;
+  .workspace-actions {
     display: flex;
-    padding: var(--space-2xs);
+    flex: none;
+    align-items: center;
+    gap: var(--space-2xs);
+    margin-left: auto;
   }
-  input,
-  textarea,
-  select {
-    font-size: var(--text-base);
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-  .workspace-actions select {
+  .bar-field {
     width: auto;
+  }
+  .bar-field select {
+    width: auto;
+    padding-block: var(--space-2xs);
+    font-size: var(--text-ui);
+  }
+  .mode {
+    font-size: var(--text-ui);
   }
   .workspace-actions :global([data-testid="context-menu"]) {
     width: 22rem;
@@ -1773,32 +1907,224 @@
   .workspace-actions :global([data-testid="context-menu"] svg) {
     flex-shrink: 0;
   }
-  .compact-select {
-    display: inline-grid;
-    align-items: center;
+
+  .workspace-message {
+    flex-shrink: 0;
+    margin: var(--space-xs) var(--space-m) 0;
   }
-  .compact-select select {
-    grid-area: 1 / 1;
-    appearance: none;
+  .workspace-message p {
+    margin: 0;
+    overflow-wrap: anywhere;
   }
-  .compact-select :global(svg) {
-    grid-area: 1 / 1;
-    justify-self: end;
-    margin-right: var(--space-2xs);
-    pointer-events: none;
+  .workspace-message .ka-row {
+    margin-top: var(--space-2xs);
+  }
+
+  /* Review packages: a 960px frame, main column + 340px side column. */
+  .package-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+  .package-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    max-width: var(--page-frame-editorial);
+    margin: 0 auto;
+    padding: calc(var(--space-l) + var(--space-s)) var(--page-gutter);
+    overflow-wrap: anywhere;
+  }
+  .package-form {
+    display: grid;
+    align-content: start;
+    gap: var(--space-m);
+    padding-right: calc(var(--space-l) + var(--space-s));
+    border-right: var(--border-hair);
+  }
+  .package-intro {
+    display: grid;
+    gap: var(--space-xs);
+  }
+  .package-form h2 {
+    margin: 0;
+    font: 550 var(--text-h2) / 1.2 var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
+  }
+  .package-description {
+    max-width: var(--measure);
+    font: var(--text-base) / 1.6 var(--font-ui);
     color: var(--color-text-muted);
   }
-  /* Compact desktop review controls, as requested; full setup forms retain their scale. */
-  .workspace-actions select,
-  .search-bar input,
-  .compact-control {
-    font-size: var(--text-small);
+  .package-scope {
+    display: grid;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .package-scope legend {
+    padding: 0;
+    margin-bottom: var(--space-3xs);
+    font: 500 var(--text-ui) / 1.4 var(--font-ui);
+    color: var(--color-text);
+  }
+  .package-scope > .ka-check {
+    border-bottom: var(--border-hair);
+    cursor: pointer;
+  }
+  .package-scope > .ka-check:last-of-type {
+    border-bottom: 0;
+  }
+  .package-scope .ka-check {
+    cursor: pointer;
+  }
+  .chapter-choices {
+    display: grid;
+    padding-left: var(--space-l);
+  }
+  .package-export {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-2xs);
+    padding-top: var(--space-m);
+    border-top: var(--border-hair);
+  }
+  .package-rounds {
+    display: grid;
+    align-content: start;
+    gap: var(--space-l);
+    padding-left: var(--space-xl);
+  }
+  .side-group {
+    display: grid;
+    gap: var(--space-xs);
+  }
+  .package-rounds h2 {
+    margin: 0;
+    font: 550 var(--text-h3) / 1.25 var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
+  }
+  .round-rows {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: var(--border-hair);
+  }
+  .round-rows > li {
+    border-bottom: var(--border-hair);
+  }
+  .round-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-s);
+    width: 100%;
+    min-height: 52px;
+    padding: var(--space-xs) var(--space-2xs) var(--space-xs) 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--color-text);
+    font: var(--text-ui) / 1.5 var(--font-ui);
+    text-align: left;
+    cursor: pointer;
+  }
+  .round-link:focus-visible {
+    outline-offset: -2px;
+  }
+  .round-text {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+  }
+  .round-link time {
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  .round-link :global(svg) {
+    flex: none;
+    color: var(--color-text-muted);
+  }
+  @media (hover: hover) {
+    .round-link:not(:disabled):hover {
+      background: var(--color-surface-sunken);
+    }
+  }
+  .package-rounds .ka-empty {
+    padding: 0;
+  }
+  .package-rounds .ka-empty h3 {
+    margin: 0;
+    font: 550 var(--text-h3) / 1.25 var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
+  }
+  .package-rounds .ka-empty p {
+    font-size: var(--text-ui);
+  }
+  @media (max-width: 1280px) {
+    .package-layout {
+      grid-template-columns: minmax(0, 1fr) 300px;
+      padding: var(--space-l) var(--space-m);
+    }
+    .package-form {
+      padding-right: var(--space-l);
+    }
+    .package-rounds {
+      padding-left: var(--space-l);
+    }
+  }
+  @media (max-width: 860px) {
+    .package-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .package-form {
+      padding: 0 0 var(--space-l);
+      border-right: 0;
+    }
+    .package-rounds {
+      padding: var(--space-l) 0 0;
+      border-top: var(--border-hair);
+    }
+  }
+
+  /* Feedback file preview reuses the package frame. */
+  .feedback-counts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-s);
+    margin: 0;
+    padding: var(--space-m) 0;
+    list-style: none;
+    border-block: var(--border-hair);
+    color: var(--color-text-muted);
+  }
+  .feedback-counts strong {
+    display: block;
+    font: 500 var(--text-h2) / 1.2 var(--font-display);
+    color: var(--color-text);
+  }
+  .feedback-next {
+    display: grid;
+    gap: var(--space-xs);
+    max-width: var(--measure);
     line-height: var(--leading);
-    padding: var(--space-3xs) var(--space-2xs);
   }
-  .compact-select select {
-    padding-right: var(--space-l);
+  .feedback-next h3 {
+    margin: 0;
+    font: 600 var(--text-base) / 1.5 var(--font-ui);
+    letter-spacing: 0;
+    color: var(--color-text);
   }
+  .brief {
+    margin: 0;
+    white-space: pre-wrap;
+    line-height: var(--leading-relaxed);
+  }
+
+  /* Reviewing: scene navigation · manuscript desk · feedback panel. */
   .workspace-layout {
     display: flex;
     flex: 1;
@@ -1806,65 +2132,80 @@
     min-width: 0;
   }
   .manuscript-nav {
-    width: 20rem;
-    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-s);
+    flex: none;
+    width: 280px;
     padding: var(--space-s);
-    box-sizing: border-box;
     overflow: auto;
-    border-right: 1px solid var(--color-border);
+    border-right: var(--border-hair);
     background: var(--color-surface);
+  }
+  @media (max-width: 1280px) {
+    .manuscript-nav {
+      width: 220px;
+    }
   }
   .nav-title {
     display: flex;
     align-items: center;
     justify-content: space-between;
-  }
-  .scene-link {
-    display: block;
-    width: 100%;
-    text-align: left;
-    border: 0;
-    margin-block: var(--space-3xs);
+    gap: var(--space-2xs);
+    padding-left: var(--space-3xs);
   }
   .nav-context {
-    padding-block: var(--space-s);
-    border-bottom: 1px solid var(--color-border);
-    margin-bottom: var(--space-s);
-  }
-  .nav-context h2,
-  .manuscript-nav h3 {
-    font-family: var(--font-ui);
-    font-weight: 600;
-    font-size: var(--text-ui);
-    line-height: var(--leading-tight);
-    margin: 0;
-  }
-  .nav-context .round-name {
-    margin: var(--space-2xs) 0 0;
+    display: grid;
+    padding-bottom: var(--space-s);
+    border-bottom: var(--border-hair);
   }
   .nav-context h2 {
-    font-size: var(--text-base);
+    margin: 0;
+    overflow-wrap: anywhere;
+    font: 550 var(--text-h3) / 1.25 var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
   }
-  .manuscript-nav h3 {
-    margin-top: var(--space-m);
-    margin-bottom: var(--space-2xs);
+  .nav-context .round-name {
+    margin: 0;
   }
-  .manuscript-nav .scene-link {
-    padding-left: var(--space-m);
-    color: var(--color-text-muted);
+  .nav-brief > summary {
+    width: 100%;
   }
-  .manuscript-nav .scene-link[aria-current="location"] {
-    color: var(--color-accent-text);
-    background: var(--color-accent-wash);
+  .nav-brief .brief {
+    padding-top: var(--space-2xs);
+    font: var(--text-ui) / 1.6 var(--font-ui);
   }
+  .nav-tree {
+    display: grid;
+    gap: var(--space-3xs);
+  }
+  .nav-chapter {
+    margin: var(--space-xs) 0 var(--space-3xs);
+    padding-inline: var(--space-xs);
+    overflow-wrap: anywhere;
+    font: 600 var(--text-ui) / 1.4 var(--font-ui);
+    letter-spacing: 0;
+    color: var(--color-text);
+  }
+  .nav-chapter:first-child {
+    margin-top: 0;
+  }
+  .nav-scenes {
+    gap: var(--space-3xs);
+  }
+  .scene-link {
+    overflow-wrap: anywhere;
+  }
+
   .manuscript-region {
+    display: flex;
+    flex-direction: column;
     flex: 1;
     min-width: 0;
     min-height: 0;
-    display: flex;
-    flex-direction: column;
     overflow: hidden;
-    padding-inline: var(--space-m);
+    background: var(--color-surface-sunken);
   }
   .manuscript-column {
     flex: 1;
@@ -1876,16 +2217,33 @@
     flex-shrink: 0;
     align-items: center;
     gap: var(--space-2xs);
-    padding: var(--space-xs);
-    background: var(--color-surface);
-    border-bottom: 1px solid var(--color-border);
+    padding: var(--space-2xs) var(--space-m);
+    border-bottom: var(--border-hair);
+    background: var(--color-bg);
   }
-  .search-bar input {
+  .search-field {
     flex: 1;
     min-width: 0;
   }
-  .search-bar span {
+  .search-count {
     white-space: nowrap;
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .markup-field {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    width: auto;
+  }
+  .markup-field label {
+    white-space: nowrap;
+  }
+  .markup-field select {
+    width: auto;
+    padding-block: var(--space-2xs);
+    font-size: var(--text-ui);
   }
   .accept-decision:not(:disabled) {
     color: var(--color-success);
@@ -1893,203 +2251,7 @@
   .reject-decision:not(:disabled) {
     color: var(--color-error);
   }
-  .workspace-error {
-    padding: var(--space-xs) var(--space-m);
-    border-bottom: 1px solid var(--color-error);
-    background: var(--color-surface);
-  }
-  .workspace-error p {
-    margin: 0 0 var(--space-2xs);
-  }
-  .workspace-notice {
-    padding: var(--space-2xs) var(--space-m);
-    margin: 0;
-    border-bottom: 1px solid var(--color-border);
-  }
-  .package-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(15rem, 19rem);
-    gap: var(--space-xl);
-    width: min(68rem, 100%);
-    padding: var(--space-xl);
-    margin-inline: auto;
-    overflow: auto;
-  }
-  .package-form h2,
-  .feedback-summary h2 {
-    font-family: var(--font-display);
-    font-size: var(--text-h2);
-    margin: 0 0 var(--space-xs);
-  }
-  .package-description {
-    color: var(--color-text-muted);
-    line-height: var(--leading);
-    margin-bottom: var(--space-l);
-  }
-  .package-form > label {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2xs);
-    margin-bottom: var(--space-m);
-  }
-  .optional {
-    color: var(--color-text-muted);
-    font-size: var(--text-eyebrow);
-    margin-left: var(--space-2xs);
-  }
-  .package-form input:not([type]),
-  .package-form textarea {
-    width: 100%;
-    padding: var(--space-2xs) var(--space-xs);
-    font-size: var(--text-small);
-    line-height: var(--leading);
-  }
-  .package-scope {
-    border: 0;
-    padding: 0;
-    margin-bottom: var(--space-m);
-  }
-  .package-scope legend {
-    margin-bottom: var(--space-2xs);
-  }
-  .scope-choice {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2xs);
-    padding-block: var(--space-2xs);
-    cursor: pointer;
-  }
-  .chapter-choices {
-    padding-left: var(--space-m);
-    margin-left: var(--space-2xs);
-    border-left: 1px solid var(--color-border);
-  }
-  .scope-hint {
-    color: var(--color-text-muted);
-    font-size: var(--text-eyebrow);
-    line-height: var(--leading);
-    margin-block: var(--space-2xs);
-  }
-  .package-export {
-    border-top: 1px solid var(--color-border);
-    padding-top: var(--space-m);
-  }
-  .primary-action,
-  .open-package {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2xs);
-    padding: var(--space-xs) var(--space-s);
-  }
-  .primary-action {
-    background: var(--color-accent);
-    color: var(--color-on-accent);
-    border-color: var(--color-accent);
-  }
-  .primary-action:hover {
-    background: var(--color-accent-text);
-  }
-  .package-rounds {
-    border-left: 1px solid var(--color-border);
-    padding-left: var(--space-l);
-  }
-  .package-rounds h2,
-  .package-rounds h3 {
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
-    margin-top: 0;
-  }
-  .package-rounds h3 {
-    margin-top: var(--space-l);
-  }
-  .open-package {
-    width: 100%;
-    text-align: left;
-  }
-  .package-rounds ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  .round-link {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--space-3xs) var(--space-2xs);
-    text-align: left;
-    border: 0;
-    border-bottom: 1px solid var(--color-border);
-    border-radius: 0;
-    width: 100%;
-    padding: var(--space-xs) 0;
-    overflow-wrap: anywhere;
-  }
-  .round-link time {
-    grid-column: 1;
-    font-size: var(--text-eyebrow);
-    color: var(--color-text-muted);
-  }
-  .round-link :global(svg) {
-    grid-column: 2;
-    grid-row: 1 / 3;
-    align-self: center;
-  }
-  @media (max-width: 1100px) {
-    .package-layout {
-      gap: var(--space-l);
-      padding: var(--space-l);
-    }
-  }
-  .feedback-preview {
-    align-items: start;
-    overflow-wrap: anywhere;
-  }
-  .feedback-counts {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--space-s);
-    list-style: none;
-    padding: var(--space-m) 0;
-    margin: 0;
-    border-block: 1px solid var(--color-border);
-  }
-  .feedback-counts strong {
-    display: block;
-    font-family: var(--font-display);
-    font-size: var(--text-h2);
-    font-weight: 500;
-  }
-  .feedback-next {
-    margin-block: var(--space-l);
-    line-height: var(--leading);
-  }
-  .feedback-next h3 {
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
-    margin-bottom: var(--space-xs);
-  }
-  .feedback-next p + p {
-    margin-top: var(--space-xs);
-  }
-  .feedback-details dt {
-    color: var(--color-text-muted);
-    font-size: var(--text-eyebrow);
-    margin-top: var(--space-s);
-  }
-  .feedback-details dd {
-    margin: var(--space-2xs) 0 0;
-  }
-  @media (max-width: 800px) {
-    .feedback-preview {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .feedback-details {
-      border-left: 0;
-      border-top: 1px solid var(--color-border);
-      padding: var(--space-m) 0 0;
-    }
-  }
-  .brief {
-    white-space: pre-wrap;
-    line-height: var(--leading-relaxed);
+  .review-menu-field select {
+    font-size: var(--text-ui);
   }
 </style>

@@ -1,47 +1,124 @@
 #!/usr/bin/env bash
-# Sync the canonical Press source into this repo as one-way, read-only mirrors.
+# Vendor a Press snapshot into this repo as one-way, read-only mirrors.
+#
+# SOURCE OF TRUTH IS ../press (smith-and-web/press, the @kindling/design-system
+# package). The retired ../brand-assets folder is NOT a source; never sync from
+# it. Change a token, stylesheet, component, font or brand asset in Press and
+# re-run this. Nothing this script writes may be hand-edited:
+# `npm run check:design-system` fails CI if a mirrored byte changes.
+#
+# WHY COPY RATHER THAN INSTALL THE TARBALL
+# `npm pack` on Press is ~33MB because reference/ carries QA baseline images no
+# consumer reads. We copy the subset the app consumes and record a SHA-256 per
+# file in src/styles/press/MANIFEST.json, so a clean checkout builds and
+# verifies with no sibling checkout present.
+#
+# WHAT IS COPIED
+#   design-system/{tokens.css,tokens.json}                     canonical tokens
+#   design-system/components.css                                foundation: global
+#                                  form controls, selection, scrollbars, grain,
+#                                  .app-prose-sheet / .app-dialog-surface
+#   design-system/application.css                               ka-* control layer
+#   design-system/svelte/                                       Svelte 5 components
+#   design-system/fonts-web.css -> src/styles/press/fonts.css   with /fonts/ URLs
+#   assets/fonts/web/*.woff2 -> static/fonts/                   bundled, offline
+#   licenses/{fraunces,inter,newsreader} -> static/fonts/licenses/
+#   licenses/LUCIDE.txt -> src/styles/press/svelte/
+#   assets/svg/* -> static/brand/                               lowercase artwork
+#   assets/favicon/{favicon.svg,favicon-32.png} -> static/
+#   DESIGN.md -> DESIGN_GUIDE.md                                the design contract
+#
+# WHAT IS NOT COPIED
+#   design-system/website.*        marketing layer, no route in the app
+#   design-system/fonts.css        canonical TTFs (~3.1MB); the WOFF2 encodings
+#                                  are lossless and a third of the size
+#   reference/, ui_kits/, preview/ catalog surfaces — read them in ../press
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SOURCE="$REPO_ROOT/../brand-assets/design-system"
+SRC="$REPO_ROOT/../press"
+DS="$SRC/design-system"
 DEST="$REPO_ROOT/src/styles/press"
-BRAND_SVG="$REPO_ROOT/../brand-assets/svg"
-FAVICON_DIR="$REPO_ROOT/../brand-assets/favicon"
-APP_ICON_DIR="$REPO_ROOT/../brand-assets/app-icons"
-APP_ICON="$APP_ICON_DIR/app-icon-1024.png"
+FONTS="$REPO_ROOT/static/fonts"
+BRAND="$REPO_ROOT/static/brand"
 
-if [ ! -d "$SOURCE" ]; then
-  echo "error: canonical design system not found at $SOURCE" >&2
-  echo "       clone brand-assets as a sibling of this repo, then re-run." >&2
+if [ ! -d "$DS" ]; then
+  echo "error: Press not found at $SRC" >&2
+  echo "       clone smith-and-web/press as a sibling of this repo, then re-run." >&2
   exit 1
 fi
 
-node "$SOURCE/generate-tokens.mjs" --check
-mkdir -p "$DEST" "$REPO_ROOT/static/brand"
+# The source must be self-consistent before we copy it.
+node "$DS/generate-tokens.mjs" --check
 
-for file in tokens.css tokens.json components.css generate-tokens.mjs; do
-  cp "$SOURCE/$file" "$DEST/$file"
-  echo "synced src/styles/press/$file"
+# --- Tokens and the application control layer --------------------------------
+mkdir -p "$DEST"
+for f in tokens.css tokens.json components.css application.css; do
+  cp "$DS/$f" "$DEST/$f"
+  echo "synced src/styles/press/$f"
 done
+# Press's token generator writes a reference/ artefact that only exists in
+# Press; tokens.json is mirrored as a byte copy and verified by hash instead.
+rm -f "$DEST/generate-tokens.mjs"
 
-cp "$SOURCE/DESIGN_GUIDE.md" "$REPO_ROOT/DESIGN_GUIDE.md"
-cp "$BRAND_SVG/kindling-mark.svg" "$REPO_ROOT/static/brand/kindling-mark.svg"
-cp "$BRAND_SVG/kindling-mark-reversed.svg" "$REPO_ROOT/static/brand/kindling-mark-reversed.svg"
-cp "$BRAND_SVG/kindling-favicon.svg" "$REPO_ROOT/static/brand/kindling-flame.svg"
-cp "$BRAND_SVG/kindling-favicon-reversed.svg" "$REPO_ROOT/static/brand/kindling-flame-reversed.svg"
-cp "$BRAND_SVG/kindling-favicon.svg" "$REPO_ROOT/static/favicon.svg"
-cp "$BRAND_SVG/kindling-favicon.svg" "$REPO_ROOT/static/app-icon.svg"
-cp "$FAVICON_DIR/favicon-32.png" "$REPO_ROOT/static/favicon.png"
-echo "synced DESIGN_GUIDE.md, theme-aware brand marks, and favicon"
+# --- Svelte components -------------------------------------------------------
+# Copied intact so their relative imports (./icons, ./types) keep resolving.
+# The app imports them through the $press alias: `import { Button } from "$press/svelte"`.
+rm -rf "$DEST/svelte"
+mkdir -p "$DEST/svelte"
+cp -R "$DS/svelte/." "$DEST/svelte/"
+cp "$SRC/licenses/LUCIDE.txt" "$DEST/svelte/LUCIDE.txt"
+echo "synced src/styles/press/svelte/ ($(find "$DEST/svelte" -type f | wc -l | tr -d ' ') files)"
 
+# --- Fonts -------------------------------------------------------------------
+# Lossless WOFF2 encodings of Press's canonical variable TTFs, produced by
+# Press's own `npm run fonts:build`: same axes, weights, italics and glyph
+# coverage. The app previously vendored narrower Fontsource subsets under the
+# same family names; that second declaration authority is retired.
+rm -rf "$FONTS"
+mkdir -p "$FONTS/licenses"
+cp "$SRC"/assets/fonts/web/*.woff2 "$FONTS/"
+cp -R "$SRC/licenses/fraunces" "$SRC/licenses/inter" "$SRC/licenses/newsreader" "$FONTS/licenses/"
+{
+  echo "/* Generated by scripts/sync-design-system.sh from ../press/design-system/fonts-web.css."
+  echo "   Font URLs are rewritten to the app's bundled static/fonts/. Do not hand-edit. */"
+  sed 's#\.\./assets/fonts/web/#/fonts/#g' "$DS/fonts-web.css" | grep -v '^/\*\|^   '
+} > "$DEST/fonts.css"
+echo "synced static/fonts/ and src/styles/press/fonts.css"
+
+# --- Brand artwork -----------------------------------------------------------
+# Approved lowercase originals at their intrinsic ratios. Never redraw, recolour
+# or crop one. The flame keeps the `kindling-flame` name the app already uses.
+mkdir -p "$BRAND"
+rm -f "$BRAND"/*.svg
+for f in kindling-mark.svg kindling-mark-reversed.svg kindling-mark-mono.svg \
+         kindling-mark-mono-reversed.svg kindling-wordmark.svg kindling-wordmark-reversed.svg \
+         kindling-lockup-stacked.svg kindling-lockup-stacked-reversed.svg \
+         kindling-lockup-stacked-mono.svg; do
+  cp "$SRC/assets/svg/$f" "$BRAND/$f"
+done
+cp "$SRC/assets/svg/kindling-favicon.svg" "$BRAND/kindling-flame.svg"
+cp "$SRC/assets/svg/kindling-favicon-reversed.svg" "$BRAND/kindling-flame-reversed.svg"
+cp "$SRC/assets/favicon/favicon.svg" "$REPO_ROOT/static/favicon.svg"
+cp "$SRC/assets/favicon/favicon.svg" "$REPO_ROOT/static/app-icon.svg"
+cp "$SRC/assets/favicon/favicon-32.png" "$REPO_ROOT/static/favicon.png"
+echo "synced static/brand/ and favicons"
+
+# --- Guidance ----------------------------------------------------------------
+# DESIGN.md is the contract. Its links into docs/ resolve in ../press.
+cp "$SRC/DESIGN.md" "$REPO_ROOT/DESIGN_GUIDE.md"
+echo "synced DESIGN_GUIDE.md"
+
+# --- Derived files -----------------------------------------------------------
 node "$REPO_ROOT/scripts/generate-press-theme.mjs"
+node "$REPO_ROOT/scripts/check-design-system.mjs" --write
 
 if [ "${1:-}" = "--with-app-icons" ]; then
-  npm run tauri -- icon "$APP_ICON" --output "$REPO_ROOT/src-tauri/icons"
-  cp "$APP_ICON_DIR/kindling.icns" "$REPO_ROOT/src-tauri/icons/icon.icns"
+  npm run tauri -- icon "$SRC/assets/app-icons/app-icon-1024.png" --output "$REPO_ROOT/src-tauri/icons"
+  cp "$SRC/assets/app-icons/kindling.icns" "$REPO_ROOT/src-tauri/icons/icon.icns"
   echo "regenerated Tauri icons from the canonical Press app icon"
 fi
 
-echo "done. edit canonical files in brand-assets, never the mirrors in this repo."
+echo "done. these are read-only copies — edit them in ../press and re-run this."

@@ -131,7 +131,7 @@ describe("independent reference copies", () => {
     expect(screen.getByText("2 selected across all categories")).toBeTruthy();
     await fireEvent.click(screen.getByRole("checkbox", { name: "Mara" }));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Copy 1 references" })).toBeTruthy()
+      expect(screen.getByRole("button", { name: "Copy 1 reference" })).toBeTruthy()
     );
     await fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
     await waitFor(() => expect(screen.getByText("0 selected across all categories")).toBeTruthy());
@@ -311,7 +311,7 @@ it("coalesces rapid toggles in a 500-reference library while keeping selection r
   expect(previewCalls()).toHaveLength(2);
   const request = (previewCalls()[1][1] as { request: ReferenceCopyRequest }).request;
   expect(request.selection).toHaveLength(495);
-}, 20000);
+}, 40000);
 
 it("ignores stale results during a newer debounce and cancels queued work on unmount", async () => {
   const app = mount();

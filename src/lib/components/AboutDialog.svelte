@@ -1,12 +1,13 @@
 <script lang="ts">
   import { getVersion } from "@tauri-apps/api/app";
   import { openUrl } from "@tauri-apps/plugin-opener";
-  import { X, ExternalLink, Flame, Send } from "lucide-svelte";
+  import { ChevronRight, ExternalLink, Send } from "lucide-svelte";
+  import DialogHeader from "./DialogHeader.svelte";
   import { onMount } from "svelte";
 
   let { onClose, onSendFeedback }: { onClose: () => void; onSendFeedback: () => void } = $props();
 
-  let version = $state("...");
+  let version = $state("…");
 
   onMount(async () => {
     try {
@@ -22,88 +23,168 @@
     }
   }
 
+  let linkError = $state<string | null>(null);
+
   async function openLink(url: string) {
-    await openUrl(url);
+    linkError = null;
+    try {
+      await openUrl(url);
+    } catch (error) {
+      linkError = `Couldn’t open the link: ${error}`;
+    }
   }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-  class="fixed inset-0 bg-press-overlay flex items-center justify-center z-press-modal p-4"
+  class="dialog-scrim"
   role="dialog"
   aria-modal="true"
   aria-labelledby="about-title"
   tabindex="-1"
 >
-  <div
-    class="app-dialog-surface bg-press-surface rounded-xl shadow-press-overlay max-w-sm w-full flex flex-col"
-    data-testid="about-dialog"
-  >
-    <div class="flex items-center justify-between p-5 border-b border-press-border shrink-0">
-      <h2 id="about-title" class="text-press-body-lg font-heading font-semibold text-press-text">
-        About Kindling
-      </h2>
-      <button
-        onclick={onClose}
-        class="p-1 rounded hover:bg-press-sunken text-press-muted transition-colors"
-        aria-label="Close"
-        data-testid="about-close"
-      >
-        <X class="w-5 h-5" />
-      </button>
-    </div>
+  <div class="app-dialog-surface ka-dialog-narrow dialog-shell" data-testid="about-dialog">
+    <DialogHeader
+      title="About kindling"
+      titleId="about-title"
+      {onClose}
+      closeLabel="Close"
+      closeTestId="about-close"
+    />
 
-    <div class="p-5 flex flex-col items-center text-center gap-4">
-      <div class="w-14 h-14 rounded-2xl bg-press-accent-wash flex items-center justify-center">
-        <Flame class="w-8 h-8 text-press-accent-text" />
+    <div class="ka-dialog-body about">
+      <div class="about-identity">
+        <img class="on-light" src="/brand/kindling-mark.svg" alt="" width="88" height="50" />
+        <img
+          class="on-dark"
+          src="/brand/kindling-mark-reversed.svg"
+          alt=""
+          width="88"
+          height="50"
+        />
+        <p class="about-tagline">Spark your draft — bridge the gap between outline and prose.</p>
       </div>
 
-      <div>
-        <h3 class="text-press-body-lg font-heading font-semibold text-press-text">Kindling</h3>
-        <p class="text-press-ui text-press-muted mt-0.5">Version {version}</p>
-      </div>
+      <dl class="ka-facts">
+        <div>
+          <dt>Version</dt>
+          <dd>{version}</dd>
+        </div>
+      </dl>
 
-      <p class="font-prose text-press-body text-press-text leading-relaxed max-w-press-measure">
-        Spark your draft &mdash; Bridge the gap between outline and prose.
-      </p>
+      <ul class="about-links">
+        <li>
+          <button type="button" onclick={onSendFeedback} class="about-link">
+            <Send class="w-5 h-5" aria-hidden="true" />
+            <span>Send feedback</span>
+            <ChevronRight class="w-5 h-5" aria-hidden="true" />
+          </button>
+        </li>
+        <li>
+          <button
+            type="button"
+            onclick={() => openLink("https://github.com/smith-and-web/kindling")}
+            class="about-link"
+          >
+            <ExternalLink class="w-5 h-5" aria-hidden="true" />
+            <span>GitHub repository</span>
+          </button>
+        </li>
+        <li>
+          <button
+            type="button"
+            onclick={() => openLink("https://github.com/smith-and-web/kindling/issues/new")}
+            class="about-link"
+          >
+            <ExternalLink class="w-5 h-5" aria-hidden="true" />
+            <span>Report an issue</span>
+          </button>
+        </li>
+        <li>
+          <button
+            type="button"
+            onclick={() => openLink("https://github.com/smith-and-web/kindling/releases")}
+            class="about-link"
+          >
+            <ExternalLink class="w-5 h-5" aria-hidden="true" />
+            <span>Release notes</span>
+          </button>
+        </li>
+      </ul>
+      {#if linkError}
+        <p class="ka-error" role="alert">{linkError}</p>
+      {/if}
 
-      <div class="w-full border-t border-press-border pt-4 flex flex-col gap-2">
-        <button
-          onclick={onSendFeedback}
-          class="flex items-center gap-2 w-full px-3 py-2 text-press-ui text-press-muted hover:text-press-text hover:bg-press-sunken rounded-lg transition-colors"
-        >
-          <Send class="w-4 h-4 shrink-0" />
-          Send Feedback
-        </button>
-        <button
-          onclick={() => openLink("https://github.com/smith-and-web/kindling")}
-          class="flex items-center gap-2 w-full px-3 py-2 text-press-ui text-press-muted hover:text-press-text hover:bg-press-sunken rounded-lg transition-colors"
-        >
-          <ExternalLink class="w-4 h-4 shrink-0" />
-          GitHub Repository
-        </button>
-        <button
-          onclick={() => openLink("https://github.com/smith-and-web/kindling/issues/new")}
-          class="flex items-center gap-2 w-full px-3 py-2 text-press-ui text-press-muted hover:text-press-text hover:bg-press-sunken rounded-lg transition-colors"
-        >
-          <ExternalLink class="w-4 h-4 shrink-0" />
-          Report an Issue
-        </button>
-        <button
-          onclick={() => openLink("https://github.com/smith-and-web/kindling/releases")}
-          class="flex items-center gap-2 w-full px-3 py-2 text-press-ui text-press-muted hover:text-press-text hover:bg-press-sunken rounded-lg transition-colors"
-        >
-          <ExternalLink class="w-4 h-4 shrink-0" />
-          Release Notes
-        </button>
-      </div>
-    </div>
-
-    <div
-      class="px-5 py-3 border-t border-press-border text-center text-press-eyebrow text-press-muted shrink-0"
-    >
-      &copy; 2026 Josh Smith
+      <p class="ka-help">&copy; 2026 Josh Smith</p>
     </div>
   </div>
 </div>
+
+<style>
+  .about {
+    display: grid;
+    gap: var(--space-s);
+  }
+  .about-identity {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-xs);
+  }
+  .about-identity img {
+    display: block;
+    width: 88px;
+    height: auto;
+  }
+  .on-dark {
+    display: none !important;
+  }
+  :global([data-theme="dark"]) .about-identity .on-light {
+    display: none !important;
+  }
+  :global([data-theme="dark"]) .about-identity .on-dark {
+    display: block !important;
+  }
+  .about-tagline {
+    margin: 0;
+    max-width: var(--measure);
+    font: italic var(--text-body) / var(--leading-relaxed) var(--font-body);
+    color: var(--color-text);
+  }
+  .about-links {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: var(--border-hair);
+  }
+  .about-links li {
+    border-bottom: var(--border-hair);
+  }
+  .about-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    width: 100%;
+    min-height: var(--control-target);
+    padding: var(--space-2xs) var(--space-3xs);
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--color-text);
+    font: var(--text-ui) / 1.5 var(--font-ui);
+    text-align: left;
+    cursor: pointer;
+  }
+  .about-link span {
+    flex: 1;
+  }
+  .about-link :global(svg) {
+    color: var(--color-text-muted);
+  }
+  @media (hover: hover) {
+    .about-link:hover {
+      background: var(--color-surface-sunken);
+    }
+  }
+</style>

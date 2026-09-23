@@ -404,6 +404,9 @@ export async function openContextMenuFor(element) {
   if (!(await menuButton.isExisting())) {
     throw new Error("Menu button not found in element");
   }
+  // The button is revealed by CSS :hover on its own row. An expanded chapter's centre
+  // can sit over a scene row, so hover the button itself before clicking it.
+  await menuButton.moveTo();
 
   // Force click even if not visually displayed (opacity:0 is still clickable)
   await menuButton.click();

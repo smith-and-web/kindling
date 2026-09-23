@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Kindling</title>
+    <title>kindling</title>
     <!-- Render startup feedback before the application module is available. -->
     <link rel="stylesheet" href="/src/startup.css" />
     <script>
@@ -18,10 +18,10 @@
     </script>
   </head>
   <body>
-    <div id="app" inert aria-busy="true"></div>
+    <div id="app" class="press-app" inert aria-busy="true"></div>
     <div id="startup-loading" role="status" aria-live="polite">
       <span class="startup-spinner" aria-hidden="true"></span>
-      <span id="startup-message">Starting Kindling…</span>
+      <span id="startup-message">Starting kindling…</span>
       <button id="startup-retry" type="button" hidden>Try again</button>
     </div>
     <script type="module" src="/src/startup.ts"></script>

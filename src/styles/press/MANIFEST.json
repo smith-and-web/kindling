@@ -1,0 +1,332 @@
+{
+  "package": "@kindling/design-system",
+  "version": "0.12.0",
+  "commit": "4eddda72f4dea3217cf003e1911def342b7a4279",
+  "snapshot": "commit",
+  "note": "Taken from ../press at 4eddda72f4dea3217cf003e1911def342b7a4279 with a clean working tree.",
+  "syncedAt": "2026-09-22T23:43:05Z",
+  "generator": "scripts/sync-design-system.sh -> scripts/check-design-system.mjs --write",
+  "verify": "npm run check:design-system",
+  "files": [
+    {
+      "path": "src/styles/press/application.css",
+      "bytes": 17490,
+      "sha256": "e99fc288afffecad58ad1ef8bfbc93d074303f997a687c64bfccfdcaebe5ce38"
+    },
+    {
+      "path": "src/styles/press/components.css",
+      "bytes": 33257,
+      "sha256": "c8527980578ad9e3a7f5609f9092ec4eff6d0e994484c6eb93fd46ac5f89b304"
+    },
+    {
+      "path": "src/styles/press/fonts.css",
+      "bytes": 1013,
+      "sha256": "a4d318003b802659145ba94cd6f846acf94fd37d6374865f6935ecdcb39a3441"
+    },
+    {
+      "path": "src/styles/press/tailwind.css",
+      "bytes": 3856,
+      "sha256": "0a570f0b2d4573bb3d63d99cdc7dff33e75f00a5d1d31d89767eb5908603435a"
+    },
+    {
+      "path": "src/styles/press/tokens.css",
+      "bytes": 9215,
+      "sha256": "5ee21db19225e63e294c1b2549704b3d096074a2c5459bb5683cf1cda4a58c11"
+    },
+    {
+      "path": "src/styles/press/tokens.json",
+      "bytes": 12533,
+      "sha256": "31ba3f8c4c576853b4c7b9720c2529e97df20b83d3c2e61b06cd7d98496c73ab"
+    },
+    {
+      "path": "src/styles/press/svelte/Badge.svelte",
+      "bytes": 192,
+      "sha256": "236c621d88d7661738131b4c0e9552d933c9a7ad727b3b63bc12c709949cdc48"
+    },
+    {
+      "path": "src/styles/press/svelte/BeatItem.svelte",
+      "bytes": 470,
+      "sha256": "41b25350c2e88920bb538531011e4186a61c48d20538aaec2c6fe85575ec8fd6"
+    },
+    {
+      "path": "src/styles/press/svelte/Button.svelte",
+      "bytes": 535,
+      "sha256": "ee6138360d7e9ab2683a1522bc6f7ef32e8e5f439b268b6f7c2f6ff62bed39ba"
+    },
+    {
+      "path": "src/styles/press/svelte/Checkbox.svelte",
+      "bytes": 548,
+      "sha256": "b49f432707b094754c1f341991738a8e84e260bc5864e2a0bb3d1630535a88f7"
+    },
+    {
+      "path": "src/styles/press/svelte/CommandPalette.svelte",
+      "bytes": 1885,
+      "sha256": "155a664cf9110d4dd11748ed0dd73b034bc631d89313d3e7103a6358d186b121"
+    },
+    {
+      "path": "src/styles/press/svelte/Dialog.svelte",
+      "bytes": 1002,
+      "sha256": "a7c8ce3ab8147756e31e5e83ba6241c3ee49373aba3ae505179a741aedae8681"
+    },
+    {
+      "path": "src/styles/press/svelte/EmptyState.svelte",
+      "bytes": 350,
+      "sha256": "e4ba0467867a3464aa05b73a4be9389383de083054915b125fe011e58cd76100"
+    },
+    {
+      "path": "src/styles/press/svelte/Field.svelte",
+      "bytes": 1801,
+      "sha256": "634a67cb8bccb7499ea1022414af3681b6a839e08b13e8601cb8f1740ba03c7c"
+    },
+    {
+      "path": "src/styles/press/svelte/Icon.svelte",
+      "bytes": 444,
+      "sha256": "38504aa3d7c846b10af2d9441c6fe4fdf527622fe27bc228cbbc3c4c61497f07"
+    },
+    {
+      "path": "src/styles/press/svelte/IconButton.svelte",
+      "bytes": 407,
+      "sha256": "aeec9a56312ffee605868c347a9a8c80854681c4df2b340b937722937ae02e53"
+    },
+    {
+      "path": "src/styles/press/svelte/LUCIDE.txt",
+      "bytes": 2004,
+      "sha256": "668dcc52803480e0a026b31140a4cae668772663cd764e5991d252eef03f98db"
+    },
+    {
+      "path": "src/styles/press/svelte/ManuscriptSurface.svelte",
+      "bytes": 331,
+      "sha256": "6e12b60c06fd2fa8b1d2c8878e1db3373488484d9362ad21e54f760772690a15"
+    },
+    {
+      "path": "src/styles/press/svelte/Menu.svelte",
+      "bytes": 1627,
+      "sha256": "ddf89203c1968bc7e2b8b3d1008209db59a8fbd459d11f8be5477396f132abf2"
+    },
+    {
+      "path": "src/styles/press/svelte/NavigationTree.svelte",
+      "bytes": 1109,
+      "sha256": "6574d67ceb3de570fbb05196b32c10ff8a70d38d3e370368af5a560e13322f05"
+    },
+    {
+      "path": "src/styles/press/svelte/Notice.svelte",
+      "bytes": 517,
+      "sha256": "fd5b1e8568cff5bdb3204cda44be1110011511a70310793d583dd9d1f65407d1"
+    },
+    {
+      "path": "src/styles/press/svelte/Panel.svelte",
+      "bytes": 519,
+      "sha256": "694727f3b4c86ead1afd2a329bf58d2fc8e453ae9a21ca7ff6ec8b20ad34d930"
+    },
+    {
+      "path": "src/styles/press/svelte/Progress.svelte",
+      "bytes": 423,
+      "sha256": "d1ae1afd5d146f642f7e77af93fc86cf400ffcd6ceeb399c2d85a659cb389af6"
+    },
+    {
+      "path": "src/styles/press/svelte/SearchResults.svelte",
+      "bytes": 1683,
+      "sha256": "ca95fa817990f4cbfa2e0c96c9b004274627e87b478416306d9029e206944027"
+    },
+    {
+      "path": "src/styles/press/svelte/SegmentedControl.svelte",
+      "bytes": 569,
+      "sha256": "caea68c8a3664152f14f743c05f5462f26af87aecb80dc4e0cb76ef3b1a313cc"
+    },
+    {
+      "path": "src/styles/press/svelte/Select.svelte",
+      "bytes": 676,
+      "sha256": "eed405d586d7d28be25859183812b718f797093921bd678f66e27d8623ebeaaf"
+    },
+    {
+      "path": "src/styles/press/svelte/ShortcutRecorder.svelte",
+      "bytes": 1769,
+      "sha256": "2e8ef5e1fdfc079a22db71f60ebc4daff119cc38fd05c4fa88c4058a2a1a05ef"
+    },
+    {
+      "path": "src/styles/press/svelte/StatGroup.svelte",
+      "bytes": 368,
+      "sha256": "36e5e33cac74bfd783802ca565831780363c1bbefb30e40acd21a958f30dd5d0"
+    },
+    {
+      "path": "src/styles/press/svelte/Tabs.svelte",
+      "bytes": 1518,
+      "sha256": "065fad61d72caec0a1123a9e1774a0be4adfeaa44bbec4f096c7e42fa875a4b2"
+    },
+    {
+      "path": "src/styles/press/svelte/TagPicker.svelte",
+      "bytes": 1400,
+      "sha256": "9f2f0c4569f63ed986a66ec5a1c6ba07cbd514a188cb5f3670d99801616fd7a0"
+    },
+    {
+      "path": "src/styles/press/svelte/editor/NovelEditor.svelte",
+      "bytes": 9301,
+      "sha256": "d1c3775220b4af33bc9137598a6da0a439503958769d6628a7e0f72bdb6b6e68"
+    },
+    {
+      "path": "src/styles/press/svelte/editor/ProseToolbar.svelte",
+      "bytes": 4556,
+      "sha256": "214537bed2b4d3757db704aad8d8d356edf2b635bccd573a0b6dbf374dd60245"
+    },
+    {
+      "path": "src/styles/press/svelte/editor/icons.ts",
+      "bytes": 1733,
+      "sha256": "87fbbf897b4b4af1f928e27c6abc22edace1f5939195ba6487fa604e321efcc7"
+    },
+    {
+      "path": "src/styles/press/svelte/editor/index.ts",
+      "bytes": 272,
+      "sha256": "66342d9ef6f2ca6767d4b0ab0744a0f8a463bee566d105765b4ac76d531f55e9"
+    },
+    {
+      "path": "src/styles/press/svelte/editor/keyboardFormatting.ts",
+      "bytes": 2113,
+      "sha256": "5ce490cbc954f0709c0f778660c173119924f078c268657c2b0f18c2423bad9f"
+    },
+    {
+      "path": "src/styles/press/svelte/editor/keyboardShortcuts.ts",
+      "bytes": 3912,
+      "sha256": "1097b6b853babf28bf52f9fa397ecab807aa4a103c3f7043f4e5068f866c24c4"
+    },
+    {
+      "path": "src/styles/press/svelte/editor/types.ts",
+      "bytes": 365,
+      "sha256": "a22a26e968a7bed406bd02b7dbebdbaeaa7a56448cf73d57230f61827d1d7a34"
+    },
+    {
+      "path": "src/styles/press/svelte/icons.ts",
+      "bytes": 3927,
+      "sha256": "18255992fac81b7291bd867712ca5d46e59b726d2d5721ce97fd0fe6fce8dfe0"
+    },
+    {
+      "path": "src/styles/press/svelte/index.ts",
+      "bytes": 1382,
+      "sha256": "117789d1f8b51383a432737c21d59fee887e9c94f7e5042d21aa331cd0f37198"
+    },
+    {
+      "path": "src/styles/press/svelte/types.ts",
+      "bytes": 520,
+      "sha256": "e193ec028452fc6b473af1bf764cfa71c55317fc72179d00aa82a5d3da1d2d0e"
+    },
+    {
+      "path": "static/fonts/Fraunces-Variable.woff2",
+      "bytes": 205888,
+      "sha256": "da722bdda0bd373890add1433edef8596aa1c5fab39baaf15284ca52f6e3edbd"
+    },
+    {
+      "path": "static/fonts/Inter-Variable-Italic.woff2",
+      "bytes": 386108,
+      "sha256": "c7c5944376e0d1cf070d5bc17d0eac8f47f05b42a3d2fb94700a5cfb758b424e"
+    },
+    {
+      "path": "static/fonts/Inter-Variable.woff2",
+      "bytes": 350348,
+      "sha256": "42426531a64068352acf2295ca6efc4dca331a60cbecbae56101f623f2e6ed31"
+    },
+    {
+      "path": "static/fonts/Newsreader-Variable-Italic.woff2",
+      "bytes": 239268,
+      "sha256": "0e23efb5db59cfe8eb3e8bc36580d45e1a5a18ee93306d0318fee022eb050ab6"
+    },
+    {
+      "path": "static/fonts/Newsreader-Variable.woff2",
+      "bytes": 215060,
+      "sha256": "d55bdae1b13430cbb23b9c1f76af762da5aa86993643fafa0f589c4043cc5809"
+    },
+    {
+      "path": "static/fonts/licenses/fraunces/EMBEDDED-NOTICE.txt",
+      "bytes": 534,
+      "sha256": "fb2b83b286d1b5062822018e01ceab33bdce0eb6f1abb575a1d3e3346f48409b"
+    },
+    {
+      "path": "static/fonts/licenses/fraunces/OFL.txt",
+      "bytes": 4391,
+      "sha256": "bdf4c22802eaf804f998195871c6b8938aac2ac14b2d78a8bd66a6f1eced833b"
+    },
+    {
+      "path": "static/fonts/licenses/inter/OFL.txt",
+      "bytes": 4377,
+      "sha256": "5b9321a4298cfeb6b34354164a1c3afc3db114569984c502b9b35d988fd58c57"
+    },
+    {
+      "path": "static/fonts/licenses/newsreader/OFL.txt",
+      "bytes": 4394,
+      "sha256": "fdfad38143ec470553cae82a1e45320bdd1b9ec70415d37bd0171051d8a4ded8"
+    },
+    {
+      "path": "static/brand/kindling-flame-reversed.svg",
+      "bytes": 869,
+      "sha256": "5b218696641fa8fc593b717344fd46db0cf7fc270ab352387e87728e1274f642"
+    },
+    {
+      "path": "static/brand/kindling-flame.svg",
+      "bytes": 869,
+      "sha256": "2dfb1b3269345c89efb8ec72e81f72b3e541a90196be04bd739d3310c2ae19dd"
+    },
+    {
+      "path": "static/brand/kindling-lockup-stacked-mono.svg",
+      "bytes": 36439,
+      "sha256": "36573626ec60afa624caead28ae89b5cdb1e30ebd91b2c24cce04adfa6c9923b"
+    },
+    {
+      "path": "static/brand/kindling-lockup-stacked-reversed.svg",
+      "bytes": 36443,
+      "sha256": "acca71b871384a94c38f10309723970d5333efff0c3bff1f8db037b2d40ad9fd"
+    },
+    {
+      "path": "static/brand/kindling-lockup-stacked.svg",
+      "bytes": 36440,
+      "sha256": "bddb1bb472cc7eb345a2bab44b6c92be06abb1918ded3236d493e2ea22e38ce9"
+    },
+    {
+      "path": "static/brand/kindling-mark-mono-reversed.svg",
+      "bytes": 11313,
+      "sha256": "518f0bbfa250e7041828c03db22fa3dbb4a36408a02f2c3b1c506daa929f54d5"
+    },
+    {
+      "path": "static/brand/kindling-mark-mono.svg",
+      "bytes": 11308,
+      "sha256": "258e36fa32bef6fd122fe04dd4f8212374ed2d8888addfecf802b32d0af5eb9f"
+    },
+    {
+      "path": "static/brand/kindling-mark-reversed.svg",
+      "bytes": 11316,
+      "sha256": "2219b00381be7954ca355449e17549d8d1338112fa7d8289c7f9e1c66280b326"
+    },
+    {
+      "path": "static/brand/kindling-mark.svg",
+      "bytes": 11305,
+      "sha256": "cea461e70032e0a405a44f0d150ebb2cb1245abb9f0c2aec59ecea909a538b61"
+    },
+    {
+      "path": "static/brand/kindling-wordmark-reversed.svg",
+      "bytes": 25166,
+      "sha256": "0a08992d0f81468b34b3f3cf2541bbd53711d02e4cdfc1a5ec2ee52c20d333c6"
+    },
+    {
+      "path": "static/brand/kindling-wordmark.svg",
+      "bytes": 25166,
+      "sha256": "ba24bc5207dfc39381c6b6815171c2c9ebae38b63d73640da5721a4870625ed6"
+    },
+    {
+      "path": "static/favicon.svg",
+      "bytes": 869,
+      "sha256": "2dfb1b3269345c89efb8ec72e81f72b3e541a90196be04bd739d3310c2ae19dd"
+    },
+    {
+      "path": "static/favicon.png",
+      "bytes": 660,
+      "sha256": "afaef181b2b12b88c35e10e7465ff7d7d9026a3673f0215302822bda3e39cd12"
+    },
+    {
+      "path": "static/app-icon.svg",
+      "bytes": 869,
+      "sha256": "2dfb1b3269345c89efb8ec72e81f72b3e541a90196be04bd739d3310c2ae19dd"
+    },
+    {
+      "path": "DESIGN_GUIDE.md",
+      "bytes": 15223,
+      "sha256": "21b15ea99c5991cd7793aea44393e08592d02dd66dfc48ea97c40214a6625719"
+    }
+  ]
+}

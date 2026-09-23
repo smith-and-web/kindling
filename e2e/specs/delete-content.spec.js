@@ -52,7 +52,9 @@ describe("Delete Chapters and Scenes (#16)", () => {
   describe("Delete Confirmation Dialog", () => {
     it("should show menu button on chapter hover", async () => {
       const chapter = await $('[data-testid="chapter-item"]');
-      await chapter.moveTo();
+      // Hover-only controls follow CSS :hover on the chapter's own row, not the whole
+      // group (which includes its scenes when expanded), so hover the row's title.
+      await (await chapter.$('[data-testid="chapter-title"]')).moveTo();
 
       const menuButton = await chapter.$('[data-testid="menu-button"]');
       expect(await menuButton.isDisplayed()).toBe(true);

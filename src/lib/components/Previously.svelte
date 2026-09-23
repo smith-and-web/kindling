@@ -74,21 +74,17 @@
 </script>
 
 {#if previous || actions || error}
-  <div class="mb-6" aria-busy={loading}>
-    <div class="flex flex-wrap items-center gap-x-6 gap-y-2" role="group" aria-label="Scene tools">
+  <div class="previously" aria-busy={loading}>
+    <div class="previously-tools" role="group" aria-label="Scene tools">
       {#if previous}
         <button
           type="button"
           onclick={toggle}
           aria-expanded={!collapsed}
           aria-controls="previously-content"
-          class="flex items-center gap-2 py-1 text-press-ui font-press-ui text-press-muted hover:text-press-text"
+          class="ka-button ka-button--ghost previously-toggle"
         >
-          <ChevronDown
-            class={collapsed ? "w-4 h-4 -rotate-90" : "w-4 h-4"}
-            strokeWidth={1}
-            aria-hidden="true"
-          />
+          <ChevronDown class={collapsed ? "w-5 h-5 -rotate-90" : "w-5 h-5"} aria-hidden="true" />
           Previously
         </button>
       {/if}
@@ -99,31 +95,67 @@
         id="previously-content"
         aria-label="Previously"
         data-testid="previously"
-        class="mt-4 space-y-3"
+        class="previously-body"
       >
-        <h2 class="font-heading text-press-h3 text-press-text break-words">{title}</h2>
+        <h2>{title}</h2>
         {#if synopsis}
-          <p
-            class="font-prose text-press-body text-press-text max-w-press-measure whitespace-pre-wrap break-words"
-          >
+          <p>
             {synopsis}
           </p>
         {/if}
         {#if previous.excerpt}
-          <blockquote
-            class="font-prose text-press-body text-press-text max-w-press-measure italic break-words"
-          >
+          <blockquote>
             {previous.excerpt}
           </blockquote>
         {/if}
       </section>
     {:else if error}
-      <p role="status" class="mt-3 text-press-ui text-press-muted">
+      <p role="status" class="ka-help previously-error">
         Could not load previous scene context.
-        <button type="button" onclick={() => retry++} class="underline text-press-text"
+        <button type="button" onclick={() => retry++} class="ka-button ka-button--ghost"
           >Retry</button
         >
       </p>
     {/if}
   </div>
 {/if}
+
+<style>
+  .previously {
+    margin-bottom: var(--space-m);
+  }
+  .previously-toggle {
+    margin-left: calc(-1 * var(--space-s));
+    color: var(--color-text-muted);
+  }
+  .previously-body {
+    display: grid;
+    gap: var(--space-xs);
+    margin-top: var(--space-2xs);
+    padding: var(--space-s) 0 var(--space-s) var(--space-s);
+    border-left: 2px solid var(--color-border);
+  }
+  .previously-body h2 {
+    margin: 0;
+    font: 550 var(--text-h3) / var(--leading-tight) var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+  }
+  .previously-body :where(p, blockquote) {
+    margin: 0;
+    max-width: var(--measure);
+    font: var(--text-body) / var(--leading-relaxed) var(--font-body);
+    color: var(--color-text);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .previously-body blockquote {
+    font-style: italic;
+  }
+  .previously-error {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+  }
+</style>

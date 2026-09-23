@@ -1,4 +1,4 @@
-/* Kindling — Press design tokens */
+/* kindling — Press design tokens */
 :root {
   /* ===== Palette — raw brand colours ===== */
   --paper:#F4EFE6; --raised:#FBF8F1; --sunken:#ECE4D6;
@@ -96,7 +96,7 @@
   --font-ui:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   --font-mono:'Monaco','Menlo','Consolas',monospace;
 
-  --text-hero:clamp(2rem,6vw,3rem);      /* 32 -> 48 */
+  --text-hero:clamp(2rem,6vw,3.75rem);   /* 32 -> 60 */
   --text-h1:clamp(2rem,5.5vw,2.75rem);   /* 32 -> 44 */
   --text-h2:clamp(1.5rem,4vw,2rem);      /* 24 -> 32 */
   --text-h3:1.25rem;                      /* 20 */
@@ -124,7 +124,14 @@
      --measure is the reading column; headings and figures break out wider. */
   --measure:36rem;         /* 576px ~= 85 characters (68ch) of Newsreader at 17px */
   --page-frame:1120px;     /* outer editorial frame */
+  --page-frame-editorial:960px;  /* reading pages: hero and sections share this */
   --page-gutter:32px;
+
+  /* Minimum interactive target for a standalone control. Applies to pointer
+     and touch alike — touch-capable laptops and tablets are the common case,
+     not an edge one. Reach it with min-block-size and inline-flex so a label
+     keeps its own type size rather than being padded out of scale. */
+  --control-target:44px;
 
   /* ===== Paper grain =====
      A monochrome fractal-noise tile laid behind content so paper reads as

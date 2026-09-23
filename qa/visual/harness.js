@@ -150,11 +150,14 @@
     i.dispatchEvent(new Event("input", { bubbles: true }));
     return true;
   };
-  /** Close the dialog whose heading has this id (several dialogs share aria-label="Close"). */
+  /** Close the dialog whose heading has this id (close buttons are "Close" or "Close <title>"). */
   qa.closeDialog = (titleId) => {
     const h = need(document.getElementById(titleId), `dialog title #${titleId}`);
     const dlg = h.closest('[role="dialog"]') || h.parentElement.parentElement;
-    need(dlg.querySelector('[aria-label="Close"]'), "dialog close button").click();
+    need(
+      dlg.querySelector('[aria-label="Close"], [aria-label^="Close "]'),
+      "dialog close button"
+    ).click();
     return true;
   };
   /** Keyboard shortcut on the window (App.svelte listens for meta+k, meta+e). */
@@ -349,9 +352,9 @@
     ].map((e) => e.textContent.trim()),
     panel: $('[data-testid="scene-panel"] [data-testid="scene-title"]')?.textContent.trim() ?? null,
     selected:
-      [...document.querySelectorAll('[data-testid="scene-item"] button.bg-press-accent')].map((b) =>
-        b.textContent.trim()
-      )[0] ?? null,
+      $(
+        '[data-testid="scene-item"] button[aria-current="page"] [data-testid="scene-title"]'
+      )?.textContent.trim() ?? null,
     beats: all("beat-header").length,
     editors: all("beat-prose-editor").length,
     saving: !!$('[data-testid="save-indicator"]'),
@@ -470,10 +473,7 @@
       theme: document.documentElement.dataset.theme,
       body: probe("body", document.body),
       sidebar: probe("sidebar", $('[data-testid="sidebar"]')),
-      references: probe(
-        "references",
-        [...document.querySelectorAll("aside")].find((a) => a.className.includes("border-l"))
-      ),
+      references: probe("references", $('aside[aria-label="References"]')),
       select: probe("select", $('[data-testid="scene-panel"] select')),
       prose: probe("prose", $(".novel-editor-content")),
       chapterTitle: probe("chapterTitle", $('[data-testid="chapter-title"]')),

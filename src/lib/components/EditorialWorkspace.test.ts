@@ -884,7 +884,7 @@ describe("editorial workspace", () => {
     });
     const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
     await view.component.openFile("/feedback.kindling-feedback");
-    expect(document.querySelector(".workspace-header .eyebrow")).toBeNull();
+    expect(document.querySelector(".workspace-header .crumb")).toBeNull();
     expect(view.getByRole("heading", { name: "Feedback from Rowan" })).toBeTruthy();
     expect(view.getByLabelText("Feedback in this file").textContent).toContain("1scene included");
     expect(view.getByLabelText("Feedback in this file").textContent).toContain("1suggestion");

@@ -67,10 +67,10 @@ async function start() {
     document.getElementById("startup-loading")?.remove();
     focusAfterStartup();
   } catch (error) {
-    console.error("Kindling could not start:", error);
+    console.error("kindling could not start:", error);
     document.getElementById("startup-loading")?.setAttribute("role", "alert");
     const message = document.getElementById("startup-message");
-    if (message) message.textContent = "Kindling couldn’t start. Please try again.";
+    if (message) message.textContent = "kindling couldn’t start. Please try again.";
     const spinner = document.querySelector<HTMLElement>(".startup-spinner");
     if (spinner) spinner.hidden = true;
     const retry = document.getElementById("startup-retry");

@@ -240,7 +240,7 @@
 
 <dialog
   bind:this={dialog}
-  class="app-dialog-surface find-dialog"
+  class="app-dialog-surface ka-dialog-default find-dialog"
   aria-labelledby="find-title"
   oncancel={(event) => {
     event.preventDefault();
@@ -251,74 +251,91 @@
   }}
 >
   <DialogHeader title="Find and Replace" titleId="find-title" {onClose} disabled={busy} />
-  <div class="find-content">
-    <fieldset disabled={busy || loadFailed} class="flex flex-col gap-3">
-      <label class="flex flex-col gap-1"
-        >Find
-        <input
-          bind:this={findInput}
-          bind:value={query}
-          oninput={reset}
-          onkeydown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              navigate(event.shiftKey ? -1 : 1);
-            }
-          }}
-          type="text"
-        />
-      </label>
-      <div class="flex flex-wrap items-center gap-4">
-        <label
-          >Search in
-          <select bind:value={scope} onchange={reset}>
-            <option value="scene" disabled={!sceneId}>Current scene</option>
-            <option value="project">Entire project</option>
-          </select>
-        </label>
-        <label
-          ><input type="checkbox" bind:checked={caseSensitive} onchange={reset} /> Match case</label
-        >
-        <label
-          ><input type="checkbox" bind:checked={wholeWord} onchange={reset} /> Whole words</label
-        >
-        <label><input type="checkbox" bind:checked={replacing} /> Replace</label>
-      </div>
-      {#if replacing}
-        <label class="flex flex-col gap-1"
-          >Replace with
-          <input type="text" bind:value={replacement} oninput={() => (confirming = false)} />
-        </label>
-      {/if}
-      <p class="text-press-muted text-press-small">
-        Searches visible prose in Fixed scenes. Flexible, Undefined and archived scenes are
-        excluded; locked scenes are searchable but cannot be replaced.
-      </p>
-      <div class="flex items-center gap-3">
-        <p role="status" class="flex-1">
+  <div class="ka-dialog-body find-body">
+    <fieldset disabled={busy || loadFailed} class="find-form">
+      <div class="ka-field od-field">
+        <label for="find-query">Find</label>
+        <div class="find-query">
+          <input
+            id="find-query"
+            bind:this={findInput}
+            bind:value={query}
+            oninput={reset}
+            onkeydown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                navigate(event.shiftKey ? -1 : 1);
+              }
+            }}
+            type="text"
+            aria-describedby="find-status"
+          />
+          <button
+            type="button"
+            class="ka-button ka-button--secondary"
+            disabled={!results.length}
+            onclick={() => navigate(-1)}
+            title="Previous match (Shift+Enter)">Previous</button
+          >
+          <button
+            type="button"
+            class="ka-button ka-button--secondary"
+            disabled={!results.length}
+            onclick={() => navigate(1)}
+            title="Next match (Enter)">Next</button
+          >
+        </div>
+        <p id="find-status" role="status" class="ka-help">
           {busy
             ? "Loading prose…"
             : query
               ? `${results.length} ${results.length === 1 ? "match" : "matches"}`
               : "Enter text to find."}
         </p>
-        <button type="button" disabled={!results.length} onclick={() => navigate(-1)}
-          >Previous</button
-        >
-        <button type="button" disabled={!results.length} onclick={() => navigate(1)}>Next</button>
       </div>
+      <div class="find-options">
+        <div class="ka-field od-field find-scope">
+          <label for="find-scope">Search in</label>
+          <select id="find-scope" bind:value={scope} onchange={reset}>
+            <option value="scene" disabled={!sceneId}>Current scene</option>
+            <option value="project">Entire project</option>
+          </select>
+        </div>
+        <div class="ka-checks">
+          <label class="ka-check"
+            ><input type="checkbox" bind:checked={caseSensitive} onchange={reset} /> Match case</label
+          >
+          <label class="ka-check"
+            ><input type="checkbox" bind:checked={wholeWord} onchange={reset} /> Whole words</label
+          >
+          <label class="ka-check"><input type="checkbox" bind:checked={replacing} /> Replace</label>
+        </div>
+      </div>
+      {#if replacing}
+        <div class="ka-field od-field">
+          <label for="find-replacement">Replace with</label>
+          <input
+            id="find-replacement"
+            type="text"
+            bind:value={replacement}
+            oninput={() => (confirming = false)}
+          />
+        </div>
+      {/if}
+      <p class="ka-help">
+        Searches visible prose in Fixed scenes. Flexible, Undefined and archived scenes are
+        excluded; locked scenes are searchable but cannot be replaced.
+      </p>
       {#if active}
-        <div class="result-preview">
-          {#if onOpenScene}<button type="button" onclick={openScene} class="mb-3">Open scene</button
-            >{/if}
-          <p class="text-press-small text-press-muted mb-2">
+        <div class="ka-results find-result">
+          <p class="find-location">
             {Math.min(selected + 1, results.length)} of {results.length} · {active.doc
               .chapter_title} /
             {active.doc.scene_title}{active.doc.beat_title !== null
               ? ` / ${active.doc.beat_title}`
               : ""}{active.doc.locked ? " · Locked" : active.readOnly ? " · Unsaved draft" : ""}
           </p>
-          <p class="font-prose text-press-body whitespace-pre-wrap break-words">
+          <p class="find-excerpt">
             {active.match.from > 100 ? "…" : ""}{active.text.slice(
               Math.max(0, active.match.from - 100),
               active.match.from
@@ -328,50 +345,49 @@
               ? "…"
               : ""}
           </p>
+          {#if onOpenScene}<button
+              type="button"
+              class="ka-button ka-button--ghost find-open"
+              onclick={openScene}>Open scene</button
+            >{/if}
         </div>
       {:else if query && !busy && !error}
-        <p>
+        <p class="ka-help">
           {results.length
             ? "No more matches ahead. Use Next or Previous to continue."
             : "No matches found."}
         </p>
       {/if}
-      {#if replacing}
-        <div class="flex flex-wrap gap-3">
-          <button type="button" disabled={!active || active.readOnly} onclick={() => replace(false)}
-            >Replace match</button
-          >
-          <button type="button" disabled={!editableCount} onclick={() => (confirming = true)}
-            >Replace all</button
-          >
-          <button
-            type="button"
-            disabled={!undo.length}
-            onclick={() => apply(undo[undo.length - 1], true)}>Undo replacement</button
-          >
-        </div>
-        {#if confirming}
-          <div class="result-preview">
-            <p>
-              Replace {editableCount} matches in {scope === "project"
-                ? "the entire project"
-                : "the current scene"}? {results.length - editableCount} locked or unsaved matches will
-              be skipped.
-            </p>
-            <div class="flex gap-3 mt-3">
-              <button type="button" onclick={() => replace(true)}>Confirm replace all</button>
-              <button type="button" onclick={() => (confirming = false)}>Cancel</button>
-            </div>
+      {#if replacing && confirming}
+        <div class="ka-notice ka-notice--warning" role="status">
+          <p>
+            Replace {editableCount} matches in {scope === "project"
+              ? "the entire project"
+              : "the current scene"}? {results.length - editableCount} locked or unsaved matches will
+            be skipped.
+          </p>
+          <div class="ka-row">
+            <button type="button" class="ka-button" onclick={() => replace(true)}
+              >Confirm replace all</button
+            >
+            <button
+              type="button"
+              class="ka-button ka-button--secondary"
+              onclick={() => (confirming = false)}>Cancel</button
+            >
           </div>
-        {/if}
+        </div>
       {/if}
     </fieldset>
-    {#if message}<p role="status" class="mt-3">{message}</p>{/if}
-    {#if error}<p role="alert" class="text-press-error mt-3">{error}</p>{/if}
+    {#if message}<p role="status" class="ka-help">{message}</p>{/if}
+    {#if error}<p role="alert" class="ka-error">{error}</p>{/if}
     {#if loadFailed || pendingDrafts.length}
-      <div class="mt-3 flex flex-col gap-3">
-        <button type="button" disabled={busy} onclick={() => load(true)}
-          >{loadFailed ? "Retry loading" : "Retry saving drafts"}</button
+      <div class="ka-notice ka-notice--warning find-drafts">
+        <button
+          type="button"
+          class="ka-button ka-button--secondary"
+          disabled={busy}
+          onclick={() => load(true)}>{loadFailed ? "Retry loading" : "Retry saving drafts"}</button
         >
         {#if pendingDrafts.length}
           <p>
@@ -382,17 +398,17 @@
             replaced.
           </p>
           {#each pendingDrafts as draft, index}
-            <details>
+            <details class="ka-disclosure">
               <summary>Unsaved {draft.kind === "beat" ? "beat" : "scene"} {index + 1}</summary>
-              <label class="flex flex-col gap-1 mt-3"
-                >Draft text (select to copy)
+              <div class="ka-field od-field">
+                <label for={`find-draft-${index}`}>Draft text (select to copy)</label>
                 <textarea
+                  id={`find-draft-${index}`}
                   readonly
                   rows="5"
-                  class="w-full bg-press-sunken text-press-text p-3"
                   value={proseText(draft.prose)}
                 ></textarea>
-              </label>
+              </div>
             </details>
           {/each}
           {#if onDiscardDrafts}
@@ -401,17 +417,26 @@
                 Discard these unsaved drafts? Their changes will be lost. Copy any text you want to
                 keep first.
               </p>
-              <div class="flex gap-3">
-                <button type="button" disabled={busy} onclick={discardDrafts}
-                  >Confirm discard drafts</button
+              <div class="ka-row">
+                <button
+                  type="button"
+                  class="ka-button ka-button--danger"
+                  disabled={busy}
+                  onclick={discardDrafts}>Confirm discard drafts</button
                 >
-                <button type="button" disabled={busy} onclick={() => (confirmingDiscard = false)}
-                  >Keep drafts</button
+                <button
+                  type="button"
+                  class="ka-button ka-button--secondary"
+                  disabled={busy}
+                  onclick={() => (confirmingDiscard = false)}>Keep drafts</button
                 >
               </div>
             {:else}
-              <button type="button" disabled={busy} onclick={() => (confirmingDiscard = true)}
-                >Discard unsaved drafts…</button
+              <button
+                type="button"
+                class="ka-button ka-button--ghost"
+                disabled={busy}
+                onclick={() => (confirmingDiscard = true)}>Discard unsaved drafts…</button
               >
             {/if}
           {/if}
@@ -419,63 +444,97 @@
       </div>
     {/if}
   </div>
+  {#if replacing}
+    <footer class="ka-dialog-footer">
+      <button
+        type="button"
+        class="ka-button ka-button--ghost ka-dialog-footer-start"
+        disabled={busy || !undo.length}
+        onclick={() => apply(undo[undo.length - 1], true)}>Undo replacement</button
+      >
+      <button
+        type="button"
+        class="ka-button ka-button--secondary"
+        disabled={busy || !editableCount || confirming}
+        onclick={() => (confirming = true)}>Replace all</button
+      >
+      <button
+        type="button"
+        class="ka-button"
+        disabled={busy || !active || active.readOnly || confirming}
+        onclick={() => replace(false)}>Replace match</button
+      >
+    </footer>
+  {/if}
 </dialog>
 
 <style>
   .find-dialog {
-    width: min(46rem, calc(100vw - var(--space-l)));
-    max-height: calc(100vh - var(--space-l));
-    overflow: hidden;
-    padding: 0;
-    color: var(--color-text);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-m);
-    font-family: var(--font-ui);
-    font-size: var(--text-ui);
+    max-height: calc(100dvh - 48px);
     margin: auto;
+    padding: 0;
+    overflow: hidden;
   }
   .find-dialog[open] {
     display: flex;
     flex-direction: column;
   }
-  .find-content {
-    padding: var(--space-l);
-    overflow-y: auto;
-    min-height: 0;
-  }
   .find-dialog::backdrop {
     background: var(--color-overlay-scrim);
   }
-  input[type="text"],
-  select {
-    padding: var(--space-xs) var(--space-s);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-s);
-    background: var(--color-surface-sunken);
-    color: var(--color-text);
+  .find-body {
+    display: grid;
+    gap: var(--space-s);
+  }
+  .find-form {
+    display: grid;
+    gap: var(--space-s);
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .find-query {
+    display: flex;
+    gap: var(--space-2xs);
+  }
+  .find-query input {
+    flex: 1;
     min-width: 0;
   }
-  button {
-    padding: var(--space-xs) var(--space-s);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-s);
-    cursor: pointer;
+  .find-options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-2xs) var(--space-m);
   }
-  button:hover {
-    background: var(--color-surface-sunken);
+  .find-scope {
+    width: auto;
+    min-width: 200px;
   }
-  button:disabled {
+  .find-result {
+    display: grid;
+    gap: var(--space-2xs);
+    padding-block: var(--space-s);
+    border-top: var(--border-hair);
+  }
+  .find-location {
+    margin: 0;
+    font: var(--text-small) / 1.5 var(--font-ui);
     color: var(--color-text-muted);
-    cursor: default;
   }
-  .result-preview {
-    border-block: 1px solid var(--color-border);
-    padding-block: var(--space-m);
+  .find-excerpt {
+    margin: 0;
+    max-width: var(--measure);
+    font: var(--text-body) / var(--leading-relaxed) var(--font-body);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
-  mark {
-    background: var(--color-accent-wash);
-    color: var(--color-text);
-    outline: 1px solid var(--color-accent);
+  .find-open {
+    justify-self: start;
+    margin-left: calc(-1 * var(--space-s));
+  }
+  .find-drafts {
+    justify-items: start;
   }
 </style>

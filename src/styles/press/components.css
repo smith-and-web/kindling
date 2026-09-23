@@ -1,4 +1,4 @@
-/* Kindling — Press components. Load AFTER tokens.css (reads its custom properties). */
+/* kindling — Press components. Load AFTER tokens.css (reads its custom properties). */
 
 * { margin:0; padding:0; box-sizing:border-box; }
 
@@ -23,14 +23,20 @@ h1,h2,h3,h4 { font-family:var(--font-display); font-optical-sizing:auto; font-we
 /* Left-aligned by default: every interior hero carries a paragraph-length
    stand-first, and centring is licensed only for lines of one line or less.
    Add .ceremonial for a genuinely short, centred dead-end hero. */
-.page-hero { padding:140px 24px 60px; max-width:960px; margin:0 auto; }
+/* One editorial frame. A page's hero and its sections must share a left edge —
+   960px against 900px put them 30px apart on every editorial page, which reads
+   as a mistake rather than a deliberate break, and a consumer's own list frame
+   made a third edge. `--page-frame-editorial` is narrower than `--page-frame`
+   on purpose: these pages are read, not composed, and a reading column wants a
+   tighter measure than a marketing band. Change it in one place. */
+.page-hero { padding:140px 24px 60px; max-width:var(--page-frame-editorial); margin:0 auto; }
 .page-hero.ceremonial { text-align:center; }
 .page-hero h1 { font-size:var(--text-hero); letter-spacing:var(--tracking-tight); margin-bottom:16px; }
 .page-hero-subtext { font-family:var(--font-body); font-size:var(--text-body-lg); color:var(--color-text); line-height:var(--leading-relaxed); margin-bottom:32px; max-width:var(--measure); }
 .page-hero.ceremonial .page-hero-subtext { margin-left:auto; margin-right:auto; }
 
 /* ---- Content sections ---- */
-.content-section { padding:80px 24px; max-width:900px; margin:0 auto; }
+.content-section { padding:80px 24px; max-width:var(--page-frame-editorial); margin:0 auto; }
 .content-section.alt { background:var(--color-surface-sunken); }
 .content-section h2 { font-size:var(--text-h2); margin-bottom:16px; }
 .content-section h3 { font-size:var(--text-h3); font-weight:500; margin:24px 0 12px; }
@@ -93,18 +99,19 @@ body::before {
   opacity: var(--grain-strength);
 }
 
-/* Full-bleed sunken bands. The shared .content-section is a 900px centred
-   block, so its *alt* (sunken) variant reads as an inset box rather than a
-   band. Let the alt variant fill the width and re-centre its content with
-   padding — an edge-to-edge band, no per-page markup change. (.cta-section is
-   already full-width in the component layer, so it needs no break-out.)
-   The paper .content-section's text column is 900px minus its 24px side padding
-   = 852px, so match that here (not 900) or the alt text sits 24px left of the
-   paper sections and the margins won't line up. */
+/* Full-bleed sunken bands. The shared .content-section is a centred block, so
+   its *alt* (sunken) variant reads as an inset box rather than a band. Let the
+   alt variant fill the width and re-centre its content with padding — an
+   edge-to-edge band, no per-page markup change. (.cta-section is already
+   full-width in the component layer, so it needs no break-out.)
+   The content column is derived from the frame rather than written out: this
+   was a hard-coded 852px, and the moment --page-frame-editorial moved, every
+   alt band sat 30px right of the paper sections around it. */
 .content-section.alt {
+  --content-column: calc(var(--page-frame-editorial) - 48px);
   max-width: none;
-  padding-left: max(24px, calc((100% - 852px) / 2));
-  padding-right: max(24px, calc((100% - 852px) / 2));
+  padding-left: max(24px, calc((100% - var(--content-column)) / 2));
+  padding-right: max(24px, calc((100% - var(--content-column)) / 2));
 }
 
 .editorial {
@@ -158,6 +165,49 @@ body::before {
   font-size: var(--text-body-lg);
   color: var(--color-text);
   line-height: var(--leading-relaxed);
+}
+
+/* Aligned section head — the running label holds its own column beside the
+   heading, so a run of sections shares one vertical reading edge and the page
+   reads as a set article rather than a stack of unrelated blocks. Opt in with
+   the modifier; `.section-lead` alone stays the stacked form. */
+.section-lead--aligned {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  column-gap: var(--space-2xl);
+  align-items: start;
+  /* The heading column carries its own measure, so the block spans the frame. */
+  max-width: none;
+}
+.section-lead--aligned > .kicker { margin-bottom: 0; }
+.section-lead--aligned h2 { max-width: 24ch; text-wrap: balance; }
+.section-lead--aligned .section-standfirst {
+  margin-top: var(--space-m);
+  max-width: var(--measure);
+}
+
+/* Trust band — a full-bleed statement row on raised surface between hairlines.
+   A band, not a card: it steps the surface without a border-radius or shadow. */
+.trust-band {
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+.trust-band-items {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-m);
+  padding: var(--space-l) 0;
+  margin: 0;
+  list-style: none;
+}
+.trust-band-items > li {
+  min-width: 0;
+  text-align: center;
+  text-wrap: balance;
+  font-family: var(--font-ui);
+  font-size: var(--text-ui);
+  color: var(--color-text-muted);
 }
 
 /* Feature sequence — figure beside prose, hairline-separated rows.
@@ -272,6 +322,11 @@ body::before {
 .spotlight-item {
   padding: var(--space-m) 0;
   border-top: 1px solid var(--color-border);
+  /* Column so a trailing .spotlight-action can be pushed to a shared bottom
+     edge — otherwise links sit ragged wherever each paragraph happens to end. */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 .spotlight-item h3 {
   font-family: var(--font-display);
@@ -285,13 +340,45 @@ body::before {
   color: var(--color-text);
   line-height: var(--leading);
 }
+/* Pushed to the bottom of its item so a row of actions aligns across columns. */
+.spotlight-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-target);
+  margin-top: auto;
+  padding-top: var(--space-s);
+  font-family: var(--font-ui);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+.spotlight-action:hover { text-decoration: underline; text-underline-offset: 4px; }
 
 @media (max-width: 768px) {
+  .section-lead--aligned {
+    grid-template-columns: 1fr;
+    row-gap: var(--space-s);
+  }
+  .trust-band-items {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .trust-band-items > li { text-align: left; }
   .feature-row,
   .feature-pair,
   .spotlight-list {
     grid-template-columns: 1fr;
     gap: var(--space-l);
+  }
+  /* The 440px cap exists to balance a figure against the prose beside it. Once
+     rows stack there is no adjacent column to match, and the figure is now full
+     width — so the cap stops balancing anything and just crops the bottom off
+     the screenshot. Measured at 768px it removed 127px, about a quarter of the
+     image, taking the editor controls with it. Release the cap when stacked;
+     the mounted-print mat, ring and lift are unchanged. */
+  .feature-figure img {
+    max-height: none;
+    object-fit: contain;
   }
   .feature-row.reverse .feature-prose { order: 0; }
   .feature-pair > .feature-prose + .feature-prose {
@@ -320,37 +407,56 @@ body::before {
 /* ---- Buttons ---- */
 .download-buttons { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:16px; }
 .download-buttons.single { grid-template-columns:1fr; justify-items:center; }
+/* The foundation's name for the marketing call to action. It is the same role
+   and the same treatment as `.pw-button` in the website layer and the same
+   family as `.ka-button` in the application: accent-text fill, 4px radius,
+   Inter label, inset-ring hover, --color-disabled-* and a 44px target. Through
+   0.9.0 it was a third button system — terracotta fill, 8px radius, a hover
+   colour swap, a glow focus ring and a nowrap label. Prefer `.pw-button` in new
+   work; this name stays for consumers on the foundation alone. */
 .download-btn {
   display:inline-flex; align-items:center; justify-content:center; gap:8px;
-  padding:14px 20px; font-family:var(--font-ui); font-size:var(--text-ui); font-weight:500;
-  background:var(--color-accent); color:var(--color-on-accent); border:none;
-  border-radius:var(--radius-m); text-decoration:none; cursor:pointer;
-  transition:background-color var(--transition), transform var(--transition-fast); white-space:nowrap;
+  min-block-size:var(--control-target); padding:12px 24px; max-width:100%;
+  font-family:var(--font-ui); font-size:var(--text-base); font-weight:500; line-height:var(--leading);
+  background:var(--color-accent-text); color:var(--color-on-accent); border:1px solid transparent;
+  border-radius:var(--radius-xs); text-decoration:none; cursor:pointer; text-align:center;
+  white-space:normal; overflow-wrap:break-word;
+  transition:transform var(--transition-fast);
 }
-.download-btn:hover { background:var(--color-accent-text); }
+.download-btn:hover { box-shadow:inset 0 0 0 1px currentColor; }
 .download-btn:active { transform:scale(.98); }
-.download-btn:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.download-btn:focus-visible { outline:2px solid var(--color-accent-text); outline-offset:3px; box-shadow:none; }
+.download-btn:disabled { background:var(--color-disabled-bg); color:var(--color-disabled-text); border-color:var(--color-disabled-border); cursor:not-allowed; }
 .download-btn svg { width:18px; height:18px; flex-shrink:0; }
-.download-btn.secondary { background:var(--color-surface); border:1px solid var(--color-border); color:var(--color-text); }
-.download-btn.secondary:hover { border-color:var(--color-accent); background:var(--color-surface-sunken); }
+.download-btn.secondary { background:var(--color-surface-sunken); border-color:var(--color-border); color:var(--color-text); }
+.download-btn.secondary:hover { box-shadow:inset 0 0 0 1px currentColor; }
 
 /* ---- Signup form ---- */
 .signup-container { background:var(--color-surface); border-radius:var(--radius-2xl); padding:24px 28px; border:1px solid var(--color-border); }
+/* The field and the action are the same roles as `.ka-field`'s input and
+   `.download-btn`; only the row arrangement is this pattern's own. Through
+   0.9.0 they were a fourth copy: paper fill, 8px radius, a glow focus ring and
+   a terracotta button with a hover colour swap. Adding `.ka-field` and
+   `.download-btn` to the markup is the better move in new work — these rules
+   stay so an existing `.signup-form` does not look like a different system. */
 .signup-form { display:flex; gap:12px; }
 .signup-form input[type="email"] {
-  flex:1; padding:14px 16px; font-size:var(--text-base); font-family:var(--font-ui);
-  border:1px solid var(--color-border); border-radius:var(--radius-m);
-  background:var(--color-bg); color:var(--color-text); outline:none; transition:border-color var(--transition),box-shadow var(--transition);
+  flex:1; min-width:0; min-block-size:var(--control-target); padding:12px; font-size:var(--text-base); font-family:var(--font-ui); line-height:1.5;
+  border:1px solid var(--color-control-border-hover); border-radius:var(--radius-m);
+  background:var(--color-surface-sunken); color:var(--color-text); box-shadow:none;
 }
-.signup-form input[type="email"]:focus { border-color:var(--color-accent); box-shadow:var(--focus-ring); }
+.signup-form input[type="email"]:focus-visible { outline:2px solid var(--color-accent-text); outline-offset:3px; }
 .signup-form input[type="email"]::placeholder { color:var(--color-text-muted); }
+.signup-form input[type="email"][aria-invalid="true"] { border-color:var(--color-error); }
 .signup-form button {
-  padding:14px 24px; font-size:var(--text-base); font-family:var(--font-ui); font-weight:500;
-  background:var(--color-accent); color:var(--color-on-accent); border:none; border-radius:var(--radius-m);
-  cursor:pointer; transition:background-color var(--transition),transform var(--transition-fast); white-space:nowrap;
+  min-block-size:var(--control-target); padding:12px 24px; font-size:var(--text-base); font-family:var(--font-ui); font-weight:500; line-height:var(--leading);
+  background:var(--color-accent-text); color:var(--color-on-accent); border:1px solid transparent; border-radius:var(--radius-xs);
+  cursor:pointer; transition:transform var(--transition-fast); white-space:nowrap;
 }
-.signup-form button:hover { background:var(--color-accent-text); }
+.signup-form button:hover { box-shadow:inset 0 0 0 1px currentColor; }
 .signup-form button:active { transform:scale(.98); }
+.signup-form button:focus-visible { outline:2px solid var(--color-accent-text); outline-offset:3px; }
+.signup-form button:disabled { background:var(--color-disabled-bg); color:var(--color-disabled-text); border-color:var(--color-disabled-border); cursor:not-allowed; }
 
 /* ===== Application surfaces =====
    These are the shared primitives for the desktop app. They intentionally use
@@ -624,15 +730,26 @@ html {
 /* ---- Navbar ---- */
 .navbar { position:fixed; top:0; left:0; right:0; z-index:var(--z-sticky); background:var(--color-nav-scrim); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border-bottom:1px solid var(--color-border); padding:0 24px; }
 .navbar-container { max-width:1100px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; height:64px; width:100%; }
-.navbar-logo { display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--color-text); flex-shrink:0; }
-.navbar-logo svg { height:26px; width:auto; display:block; }
+.navbar-logo { display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--color-text); flex-shrink:0; min-block-size:var(--control-target); }
+/* Brand assets keep their intrinsic ratio; never recolour or crop an original. */
+.navbar-logo svg,.navbar-logo img { height:26px; width:auto; display:block; }
 .navbar-logo span { font-family:var(--font-display); font-size:var(--text-h3); font-weight:600; }
 .navbar-links { display:flex; align-items:center; gap:8px; }
-.navbar-link { font-family:var(--font-ui); font-size:var(--text-ui); font-weight:500; color:var(--color-text-muted); text-decoration:none; padding:8px 14px; border-radius:var(--radius-s); transition:color var(--transition),background-color var(--transition); }
+/* Standalone controls meet the target contract. inline-flex + min-block-size
+   rather than extra padding, so the label keeps its own type size. */
+.navbar-link { display:inline-flex; align-items:center; min-block-size:var(--control-target); font-family:var(--font-ui); font-size:var(--text-ui); font-weight:500; color:var(--color-text-muted); text-decoration:none; padding:8px 14px; border-radius:var(--radius-s); transition:color var(--transition),background-color var(--transition); }
 .navbar-link:hover { color:var(--color-text); background:var(--color-surface); }
 .navbar-link.active { color:var(--color-text); box-shadow:inset 0 -2px 0 0 var(--color-accent); }
-.navbar-cta { font-family:var(--font-ui); font-size:var(--text-small); font-weight:500; color:var(--color-on-accent); background:var(--color-accent); text-decoration:none; padding:8px 16px; border-radius:var(--radius-s); margin-left:8px; transition:background-color var(--transition); }
-.navbar-cta:hover { background:var(--color-accent-text); }
+/* The header action, at the operational control's size. Same family as
+   `.download-btn` and `.ka-button`; prefer `.pw-header`/`.pw-nav` with a
+   `.pw-button` in new work. */
+.navbar-cta { display:inline-flex; align-items:center; justify-content:center; min-block-size:var(--control-target); font-family:var(--font-ui); font-size:var(--text-ui); font-weight:500; color:var(--color-on-accent); background:var(--color-accent-text); text-decoration:none; padding:8px 16px; border:1px solid transparent; border-radius:var(--radius-xs); margin-left:8px; transition:transform var(--transition-fast); }
+.navbar-cta:hover { box-shadow:inset 0 0 0 1px currentColor; }
+/* A header download sits beside the page's own primary action. Only one
+   primary-styled control belongs in a viewport, so the persistent header copy
+   steps down while the in-content invitation keeps the fill. */
+.navbar-cta--secondary { color:var(--color-text); background:var(--color-surface-sunken); border-color:var(--color-border); }
+.navbar-cta--secondary:hover { box-shadow:inset 0 0 0 1px currentColor; }
 
 /* ---- Footer ---- */
 footer.site-footer { padding:40px 24px; text-align:center; border-top:1px solid var(--color-border); }

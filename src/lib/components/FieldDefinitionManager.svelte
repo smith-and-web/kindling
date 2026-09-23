@@ -1,9 +1,8 @@
 <script lang="ts">
   import { onDestroy, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { GripVertical, Pencil, Plus, Trash2, X, Loader2, Check } from "lucide-svelte";
+  import { Pencil, Plus, Trash2, X, Loader2 } from "lucide-svelte";
   import type { FieldDefinition, FieldType, FieldEntityType } from "../types";
-  import Tooltip from "./Tooltip.svelte";
 
   let {
     projectId,
@@ -174,94 +173,98 @@
     editingDef?.field_type === "select" || editingDef?.field_type === "multiselect"
   );
 
-  const inputClass =
-    "w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 text-press-ui focus:outline-none focus:border-press-accent";
+  // Display the field type the way the editor names it ("Multi-select", not "multi_select").
+  function typeLabel(type: string) {
+    const normalized = type === "multi_select" ? "multiselect" : type;
+    return FIELD_TYPES.find((option) => option.value === normalized)?.label ?? type;
+  }
 </script>
 
-<div class="space-y-3">
-  <div class="flex items-center justify-between">
-    <h3 class="text-press-ui font-medium text-press-text">{entityLabel} Fields</h3>
+<section class="fields" aria-labelledby={`fields-${entityType}`}>
+  <div class="fields-head">
+    <h4 id={`fields-${entityType}`} class="ka-group-title fields-title">{entityLabel} fields</h4>
     <button
       type="button"
       onclick={openCreateForm}
-      class="text-press-muted hover:text-press-text text-press-eyebrow flex items-center gap-1"
+      class="ka-button ka-button--secondary"
       disabled={!!editingDef}
     >
-      <Plus class="w-3 h-3" />
+      <Plus class="w-5 h-5" aria-hidden="true" />
       Add field
     </button>
   </div>
 
   {#if loading}
-    <p class="text-press-eyebrow text-press-muted">Loading fields...</p>
+    <p class="ka-help" role="status">Loading fields…</p>
   {:else if error}
-    <p class="text-press-eyebrow text-press-error">{error}</p>
+    <p class="ka-error" role="alert">{error}</p>
   {:else if definitions.length === 0 && !editingDef}
-    <p class="text-press-eyebrow text-press-muted">No custom fields defined yet.</p>
+    <p class="ka-help">No custom fields defined yet.</p>
   {:else}
-    <div class="space-y-1">
+    <ul class="ka-tagtree">
       {#each definitions as def}
-        <div class="flex items-center gap-2 py-1.5 px-2 bg-press-sunken rounded-lg text-press-ui">
-          <GripVertical class="w-3.5 h-3.5 text-press-muted shrink-0" />
-          <span class="flex-1 text-press-text truncate">{def.name}</span>
-          <span class="text-press-eyebrow text-press-muted capitalize">{def.field_type}</span>
-          {#if def.required}
-            <span class="text-press-eyebrow text-press-error">req</span>
-          {/if}
-          <Tooltip text="Edit" position="bottom">
-            <button
-              onclick={() => openEditForm(def)}
-              class="p-1 text-press-muted hover:text-press-text"
-              aria-label="Edit field"
-            >
-              <Pencil class="w-3.5 h-3.5" />
-            </button>
-          </Tooltip>
-          <Tooltip text="Delete" position="bottom">
-            <button
-              onclick={() => deleteDefinition(def.id)}
-              class="p-1 text-press-muted hover:text-press-error"
-              aria-label="Delete field"
-            >
-              <Trash2 class="w-3.5 h-3.5" />
-            </button>
-          </Tooltip>
-        </div>
+        <li>
+          <div class="ka-tagrow">
+            <span class="ka-name">{def.name}</span>
+            <span class="ka-help fields-type">{typeLabel(def.field_type)}</span>
+            {#if def.required}
+              <span class="ka-badge">Required</span>
+            {/if}
+            <div class="ka-row">
+              <button
+                type="button"
+                onclick={() => openEditForm(def)}
+                class="ka-button ka-button--ghost ka-icon-button"
+                aria-label="Edit field"
+                title="Edit field"
+              >
+                <Pencil class="w-5 h-5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onclick={() => deleteDefinition(def.id)}
+                class="ka-button ka-button--ghost ka-icon-button fields-delete"
+                aria-label="Delete field"
+                title="Delete field"
+              >
+                <Trash2 class="w-5 h-5" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        </li>
       {/each}
-    </div>
+    </ul>
   {/if}
 
   {#if editingDef}
-    <div class="bg-press-sunken rounded-lg p-3 space-y-3 border border-press-accent">
-      <div class="flex items-center justify-between">
-        <span class="text-press-ui font-medium text-press-text">
-          {editMode === "create" ? "New Field" : "Edit Field"}
-        </span>
-        <button onclick={cancelEdit} class="p-1 text-press-muted hover:text-press-text">
-          <X class="w-4 h-4" />
+    <div class="ka-tagedit">
+      <div class="fields-edit-head">
+        <h5>{editMode === "create" ? "New field" : "Edit field"}</h5>
+        <button
+          type="button"
+          onclick={cancelEdit}
+          class="ka-button ka-button--ghost ka-icon-button"
+          aria-label="Close field editor"
+          title="Close field editor"
+        >
+          <X class="w-5 h-5" aria-hidden="true" />
         </button>
       </div>
 
-      <div>
-        <label class="block text-press-eyebrow text-press-muted mb-1" for="field-name">Name</label>
+      <div class="ka-field od-field">
+        <label for="field-name">Name</label>
         <input
           id="field-name"
           type="text"
           bind:value={editingDef.name}
-          class={inputClass}
-          placeholder="e.g. Age, Genre, Status..."
+          placeholder="e.g. Age, Genre, Status…"
           disabled={saving}
         />
       </div>
 
-      <div>
-        <label class="block text-press-eyebrow text-press-muted mb-1" for="field-type">Type</label>
-        <select
-          id="field-type"
-          bind:value={editingDef.field_type}
-          class={inputClass}
-          disabled={saving}
-        >
+      <div class="ka-field od-field">
+        <label for="field-type">Type</label>
+        <select id="field-type" bind:value={editingDef.field_type} disabled={saving}>
           {#each FIELD_TYPES as ft}
             <option value={ft.value}>{ft.label}</option>
           {/each}
@@ -269,82 +272,110 @@
       </div>
 
       {#if needsOptions}
-        <div>
-          <label class="block text-press-eyebrow text-press-muted mb-1" for="field-options">
-            Options (comma-separated)
-          </label>
+        <div class="ka-field od-field">
+          <label for="field-options">Options (comma-separated)</label>
           <input
             id="field-options"
             type="text"
             value={optionsText}
             oninput={handleOptionsChange}
-            class={inputClass}
             placeholder="Option A, Option B, Option C"
             disabled={saving}
           />
         </div>
       {/if}
 
-      <div>
-        <label class="block text-press-eyebrow text-press-muted mb-1" for="field-default">
-          Default value
-        </label>
+      <div class="ka-field od-field">
+        <label for="field-default">Default value <span class="ka-optional">(optional)</span></label>
         <input
           id="field-default"
           type="text"
           bind:value={editingDef.default_value}
-          class={inputClass}
           placeholder="Optional"
           disabled={saving}
         />
       </div>
 
-      <div class="flex items-center gap-4">
-        <label
-          class="inline-flex items-center gap-1.5 text-press-ui text-press-text cursor-pointer"
-        >
-          <input
-            type="checkbox"
-            class="accent-accent"
-            bind:checked={editingDef.required}
-            disabled={saving}
-          />
+      <div class="ka-checks">
+        <label class="ka-check">
+          <input type="checkbox" bind:checked={editingDef.required} disabled={saving} />
           Required
         </label>
-        <label
-          class="inline-flex items-center gap-1.5 text-press-ui text-press-text cursor-pointer"
-        >
-          <input
-            type="checkbox"
-            class="accent-accent"
-            bind:checked={editingDef.visible}
-            disabled={saving}
-          />
+        <label class="ka-check">
+          <input type="checkbox" bind:checked={editingDef.visible} disabled={saving} />
           Visible
         </label>
       </div>
 
-      <div class="flex justify-end gap-2">
+      <div class="ka-row fields-edit-actions">
         <button
+          type="button"
           onclick={cancelEdit}
-          class="px-3 py-1.5 text-press-ui text-press-muted hover:text-press-text"
+          class="ka-button ka-button--secondary"
           disabled={saving}
         >
           Cancel
         </button>
         <button
+          type="button"
           onclick={saveDefinition}
-          class="px-3 py-1.5 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text flex items-center gap-1.5"
+          class="ka-button"
           disabled={saving || !editingDef.name?.trim()}
+          aria-busy={saving || undefined}
         >
           {#if saving}
-            <Loader2 class="w-3.5 h-3.5 animate-spin" />
-          {:else}
-            <Check class="w-3.5 h-3.5" />
+            <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
           {/if}
           {editMode === "create" ? "Add" : "Save"}
         </button>
       </div>
     </div>
   {/if}
-</div>
+</section>
+
+<style>
+  .fields {
+    display: grid;
+    gap: var(--space-s);
+  }
+  .fields + :global(.fields) {
+    margin-top: var(--space-m);
+    padding-top: var(--space-m);
+    border-top: var(--border-hair);
+  }
+  .fields-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-s);
+  }
+  .fields-title {
+    margin: 0;
+  }
+  /* The next group's rule closes the list; don't double it. */
+  .ka-tagtree > li:last-child > .ka-tagrow {
+    border-bottom: 0;
+  }
+  .fields-type {
+    margin: 0;
+  }
+  .fields-edit-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: calc(-1 * var(--space-2xs)) calc(-1 * var(--space-2xs)) 0 0;
+  }
+  .fields-edit-head h5 {
+    margin: 0;
+    font: 600 var(--text-base) / 1.5 var(--font-ui);
+    color: var(--color-text);
+  }
+  .fields-edit-actions {
+    justify-content: flex-end;
+  }
+  @media (hover: hover) {
+    .fields-delete:hover {
+      color: var(--color-error);
+    }
+  }
+</style>

@@ -26,7 +26,9 @@ describe("Drag and Drop Reordering (#14)", () => {
   describe("Chapter Reordering", () => {
     it("should show drag handle on hover", async () => {
       const chapter = await $('[data-testid="chapter-item"]');
-      await chapter.moveTo();
+      // Hover-only controls follow CSS :hover on the chapter's own row, not the whole
+      // group (which includes its scenes when expanded), so hover the row's title.
+      await (await chapter.$('[data-testid="chapter-title"]')).moveTo();
 
       const handle = await chapter.$('[data-testid="drag-handle"]');
       expect(await handle.isDisplayed()).toBe(true);
@@ -54,7 +56,8 @@ describe("Drag and Drop Reordering (#14)", () => {
       expect(chapters.length).toBeGreaterThanOrEqual(2);
       await dragWithMouseEvents(chapters[0], chapters[1], async () => {
         await browser.waitUntil(
-          async () => (await chapters[1].getAttribute("class")).split(/\s+/).includes("ring-2"),
+          async () =>
+            (await chapters[1].getAttribute("class")).split(/\s+/).includes("is-drop-target"),
           { timeout: 3000, timeoutMsg: "Drop target did not show its drag indicator" }
         );
       });

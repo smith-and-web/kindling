@@ -6,10 +6,10 @@
 -->
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { X, Plus, Pencil, RefreshCw, Loader2 } from "lucide-svelte";
+  import { CheckCheck, CircleAlert, Loader2 } from "lucide-svelte";
   import { SvelteSet } from "svelte/reactivity";
-  import type { SyncPreview, ReimportSummary } from "../types";
-  import Tooltip from "./Tooltip.svelte";
+  import type { SyncPreview, ReimportSummary, SyncChange } from "../types";
+  import DialogHeader from "./DialogHeader.svelte";
 
   interface Props {
     projectId: string;
@@ -72,6 +72,22 @@
     selectedAdditions.clear();
   }
 
+  const selectedCount = $derived(selectedAdditions.size + selectedChanges.size);
+  const hasNothingToSync = $derived(
+    syncPreview.additions.length === 0 && syncPreview.changes.length === 0
+  );
+
+  const FIELD_LABELS: Record<SyncChange["field"], string> = {
+    title: "Title",
+    synopsis: "Synopsis",
+    content: "Content",
+    prose: "Prose",
+  };
+
+  function kindLabel(itemType: string): string {
+    return itemType.charAt(0).toUpperCase() + itemType.slice(1);
+  }
+
   async function applySync() {
     syncing = true;
     error = null;
@@ -93,274 +109,369 @@
 
 <div
   data-testid="sync-preview-dialog"
-  class="fixed inset-0 bg-press-overlay flex items-center justify-center z-press-modal p-6 md:p-10"
+  class="dialog-scrim"
   role="dialog"
   aria-modal="true"
+  aria-labelledby="sync-dialog-title"
   tabindex="-1"
 >
-  <div
-    class="app-dialog-surface bg-press-surface rounded-2xl w-full h-full max-w-7xl flex flex-col shadow-press-overlay border border-press-border overflow-hidden"
-  >
-    <!-- Header -->
-    <div class="flex items-center justify-between px-8 py-6 border-b border-press-border/50">
-      <div>
-        <h2 class="text-press-h2 font-heading font-semibold text-press-text">Sync from Source</h2>
-        <p class="text-press-muted text-press-ui mt-1">Review and select items to import</p>
-      </div>
-      <Tooltip text="Close" position="left">
-        <button
-          data-testid="sync-dialog-close"
-          onclick={onClose}
-          class="p-2 text-press-muted hover:text-press-text rounded-lg hover:bg-press-sunken transition-colors"
-          aria-label="Close"
-        >
-          <X class="w-6 h-6" />
-        </button>
-      </Tooltip>
+  <div class="app-dialog-surface ka-dialog-default dialog-shell sync">
+    <DialogHeader
+      title="Sync with outline"
+      titleId="sync-dialog-title"
+      subtitle="Review and select items to import"
+      {onClose}
+      closeLabel="Close"
+      closeTestId="sync-dialog-close"
+      disabled={syncing}
+    />
+
+    <div class="ka-dialog-body sync-body">
+      {#if hasNothingToSync}
+        <div class="ka-empty od-stack">
+          <CheckCheck class="w-7 h-7" aria-hidden="true" />
+          <h4>All synced</h4>
+          <p>Your project already matches the outline file.</p>
+        </div>
+      {:else}
+        <p class="sync-intro">
+          kindling compared your project with the outline file. New items are selected; changes to
+          existing items are opt-in so your own edits are not overwritten.
+        </p>
+
+        <div class="sync-summary" aria-label="Summary of changes">
+          {#if syncPreview.additions.length > 0}
+            <span class="ka-badge ka-badge--success">{syncPreview.additions.length} added</span>
+          {/if}
+          {#if syncPreview.changes.length > 0}
+            <span class="ka-badge">{syncPreview.changes.length} changed</span>
+          {/if}
+        </div>
+
+        {#if syncPreview.additions.length > 0}
+          <section class="ka-group sync-group" aria-labelledby="sync-additions-title">
+            <div class="sync-group-head">
+              <h3 class="ka-group-title" id="sync-additions-title">New items</h3>
+              <span class="sync-count"
+                >{selectedAdditions.size} of {syncPreview.additions.length} selected</span
+              >
+              <span class="sync-bulk">
+                <button
+                  type="button"
+                  onclick={selectAllAdditions}
+                  class="ka-button ka-button--ghost"
+                  aria-label="Select all new items"
+                  title="Select all">All</button
+                >
+                <button
+                  type="button"
+                  onclick={deselectAllAdditions}
+                  class="ka-button ka-button--ghost"
+                  aria-label="Deselect all new items"
+                  title="Deselect all">None</button
+                >
+              </span>
+            </div>
+            <ul class="sync-list">
+              {#each syncPreview.additions as addition (addition.id)}
+                <li>
+                  <label class="sync-row">
+                    <input
+                      type="checkbox"
+                      checked={selectedAdditions.has(addition.id)}
+                      onchange={() => toggleAddition(addition.id)}
+                      disabled={syncing}
+                    />
+                    <span class="sync-type"
+                      ><span class="ka-badge ka-badge--success">Added</span></span
+                    >
+                    <span class="sync-text">
+                      <span class="ka-label sync-name"
+                        >{kindLabel(addition.item_type)} · {addition.title}</span
+                      >
+                      {#if addition.parent_title}
+                        <span class="sync-meta">in {addition.parent_title}</span>
+                      {/if}
+                    </span>
+                  </label>
+                </li>
+              {/each}
+            </ul>
+          </section>
+        {/if}
+
+        {#if syncPreview.changes.length > 0}
+          <section class="ka-group sync-group" aria-labelledby="sync-changes-title">
+            <div class="sync-group-head">
+              <h3 class="ka-group-title" id="sync-changes-title">Changes</h3>
+              <span class="sync-count"
+                >{selectedChanges.size} of {syncPreview.changes.length} selected</span
+              >
+              <span class="sync-bulk">
+                <button
+                  type="button"
+                  onclick={selectAllChanges}
+                  class="ka-button ka-button--ghost"
+                  aria-label="Select all changes"
+                  title="Select all">All</button
+                >
+                <button
+                  type="button"
+                  onclick={deselectAllChanges}
+                  class="ka-button ka-button--ghost"
+                  aria-label="Deselect all changes"
+                  title="Deselect all">None</button
+                >
+              </span>
+            </div>
+            <ul class="sync-list">
+              {#each syncPreview.changes as change (change.id)}
+                <li>
+                  <label class="sync-row">
+                    <input
+                      type="checkbox"
+                      data-testid="sync-change-checkbox"
+                      data-change-id={change.id}
+                      checked={selectedChanges.has(change.id)}
+                      onchange={() => toggleChange(change.id)}
+                      disabled={syncing}
+                    />
+                    <span class="sync-type"><span class="ka-badge">Changed</span></span>
+                    <span class="sync-text">
+                      <span class="ka-label sync-name"
+                        >{kindLabel(change.item_type)} · {change.item_title}</span
+                      >
+                      <span class="sync-meta">{FIELD_LABELS[change.field] ?? change.field}</span>
+                      {#if change.field === "prose"}
+                        <span class="sync-prose" data-testid="sync-prose-diff">
+                          <span class="ka-help">
+                            Accepting replaces the prose shown below. Scene replacements without
+                            beat comments keep planning beats and put the incoming text in the first
+                            beat.
+                          </span>
+                          <span class="sync-version">
+                            <span class="sync-meta">Current prose</span>
+                            <span class="prose-review">{change.current_value || "(empty)"}</span>
+                          </span>
+                          <span class="sync-version">
+                            <span class="sync-meta">Incoming prose</span>
+                            <span class="prose-review">{change.new_value || "(empty)"}</span>
+                          </span>
+                        </span>
+                      {:else}
+                        <span class="sync-values">
+                          <span class="sync-value">
+                            <span class="sync-value-label">Current</span>
+                            <span class="sync-value-text">{change.current_value || "(empty)"}</span>
+                          </span>
+                          <span class="sync-value">
+                            <span class="sync-value-label">Incoming</span>
+                            <span class="sync-value-text">{change.new_value || "(empty)"}</span>
+                          </span>
+                        </span>
+                      {/if}
+                    </span>
+                  </label>
+                </li>
+              {/each}
+            </ul>
+          </section>
+        {/if}
+      {/if}
     </div>
 
-    <!-- Content - Two Column Layout -->
-    {#if syncPreview.additions.length === 0 && syncPreview.changes.length === 0}
-      <!-- No changes message -->
-      <div class="flex-1 flex items-center justify-center">
-        <div class="text-center py-12">
-          <div
-            class="w-16 h-16 rounded-full bg-press-success-wash flex items-center justify-center mx-auto mb-4"
-          >
-            <RefreshCw class="w-8 h-8 text-press-success" />
-          </div>
-          <p class="text-press-text text-press-body-lg font-medium">All synced!</p>
-          <p class="text-press-muted text-press-ui mt-1">
-            Your project is up to date with the source file.
-          </p>
-        </div>
-      </div>
-    {:else}
-      <div
-        class="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-press-border"
-      >
-        <!-- Left Column: Additions -->
-        <div class="flex flex-col min-h-0">
-          <div class="flex items-center justify-between px-6 py-4 border-b border-press-border/30">
-            <div class="flex items-center gap-3">
-              <div
-                class="w-8 h-8 rounded-lg bg-press-success-wash flex items-center justify-center"
-              >
-                <Plus class="w-4 h-4 text-press-success" />
-              </div>
-              <div>
-                <h3 class="text-press-ui font-medium text-press-text">New Items</h3>
-                <p class="text-press-eyebrow text-press-muted">
-                  {selectedAdditions.size} of {syncPreview.additions.length} selected
-                </p>
-              </div>
-            </div>
-            {#if syncPreview.additions.length > 0}
-              <div class="flex gap-2 text-press-eyebrow">
-                <Tooltip text="Select all" position="bottom">
-                  <button
-                    onclick={selectAllAdditions}
-                    class="text-press-muted hover:text-press-accent-text transition-colors"
-                    >All</button
-                  >
-                </Tooltip>
-                <span class="text-press-muted">|</span>
-                <Tooltip text="Deselect all" position="bottom">
-                  <button
-                    onclick={deselectAllAdditions}
-                    class="text-press-muted hover:text-press-accent-text transition-colors"
-                    >None</button
-                  >
-                </Tooltip>
-              </div>
-            {/if}
-          </div>
-
-          <div class="flex-1 overflow-y-auto p-4 space-y-2">
-            {#if syncPreview.additions.length === 0}
-              <div class="text-center py-12 text-press-muted">
-                <p>No new items to import</p>
-              </div>
-            {:else}
-              {#each syncPreview.additions as addition (addition.id)}
-                <label
-                  class="flex items-center gap-4 p-4 bg-press-sunken rounded-xl cursor-pointer hover:bg-press-sunken transition-colors group"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedAdditions.has(addition.id)}
-                    onchange={() => toggleAddition(addition.id)}
-                    class="w-5 h-5 rounded border-2 border-press-border bg-transparent text-press-accent-text focus:ring-press-focus focus:ring-offset-0 cursor-pointer"
-                  />
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2">
-                      <span
-                        class="px-2 py-0.5 text-press-eyebrow font-medium rounded-full bg-press-success-wash text-press-success uppercase"
-                      >
-                        {addition.item_type}
-                      </span>
-                      <span class="text-press-text font-medium truncate">{addition.title}</span>
-                    </div>
-                    {#if addition.parent_title}
-                      <p class="text-press-eyebrow text-press-muted mt-1">
-                        in {addition.parent_title}
-                      </p>
-                    {/if}
-                  </div>
-                </label>
-              {/each}
-            {/if}
-          </div>
-        </div>
-
-        <!-- Right Column: Changes -->
-        <div class="flex flex-col min-h-0">
-          <div class="flex items-center justify-between px-6 py-4 border-b border-press-border/30">
-            <div class="flex items-center gap-3">
-              <div
-                class="w-8 h-8 rounded-lg bg-press-warning-wash flex items-center justify-center"
-              >
-                <Pencil class="w-4 h-4 text-press-warning" />
-              </div>
-              <div>
-                <h3 class="text-press-ui font-medium text-press-text">Changes</h3>
-                <p class="text-press-eyebrow text-press-muted">
-                  {selectedChanges.size} of {syncPreview.changes.length} selected
-                </p>
-              </div>
-            </div>
-            {#if syncPreview.changes.length > 0}
-              <div class="flex gap-2 text-press-eyebrow">
-                <Tooltip text="Select all" position="bottom">
-                  <button
-                    onclick={selectAllChanges}
-                    class="text-press-muted hover:text-press-accent-text transition-colors"
-                    >All</button
-                  >
-                </Tooltip>
-                <span class="text-press-muted">|</span>
-                <Tooltip text="Deselect all" position="bottom">
-                  <button
-                    onclick={deselectAllChanges}
-                    class="text-press-muted hover:text-press-accent-text transition-colors"
-                    >None</button
-                  >
-                </Tooltip>
-              </div>
-            {/if}
-          </div>
-
-          <div class="flex-1 overflow-y-auto p-4 space-y-2">
-            {#if syncPreview.changes.length === 0}
-              <div class="text-center py-12 text-press-muted">
-                <p>No changes detected</p>
-              </div>
-            {:else}
-              {#each syncPreview.changes as change (change.id)}
-                <label
-                  class="flex items-start gap-4 p-4 bg-press-sunken rounded-xl cursor-pointer hover:bg-press-sunken transition-colors"
-                >
-                  <input
-                    type="checkbox"
-                    data-testid="sync-change-checkbox"
-                    data-change-id={change.id}
-                    checked={selectedChanges.has(change.id)}
-                    onchange={() => toggleChange(change.id)}
-                    class="mt-0.5 w-5 h-5 rounded border-2 border-press-border bg-transparent text-press-accent-text focus:ring-press-focus focus:ring-offset-0 cursor-pointer"
-                  />
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-2">
-                      <span
-                        class="px-2 py-0.5 text-press-eyebrow font-medium rounded-full bg-press-warning-wash text-press-warning uppercase"
-                      >
-                        {change.item_type}
-                      </span>
-                      <span class="text-press-text font-medium truncate">{change.item_title}</span>
-                      <span class="text-press-muted text-press-eyebrow">({change.field})</span>
-                    </div>
-                    {#if change.field === "prose"}
-                      <div class="space-y-3" data-testid="sync-prose-diff">
-                        <p class="text-press-small text-press-muted">
-                          Accepting replaces the prose shown below. Scene replacements without beat
-                          comments keep planning beats and put the incoming text in the first beat.
-                        </p>
-                        <div>
-                          <p class="text-press-small text-press-muted">Current prose</p>
-                          <div class="prose-review">{change.current_value || "(empty)"}</div>
-                        </div>
-                        <div>
-                          <p class="text-press-small text-press-muted">Incoming prose</p>
-                          <div class="prose-review">{change.new_value || "(empty)"}</div>
-                        </div>
-                      </div>
-                    {:else}
-                      <div class="text-press-ui space-y-1 font-mono">
-                        <div class="flex gap-2 text-press-error">
-                          <span class="flex-shrink-0">-</span>
-                          <span class="line-through text-press-disabled-text truncate"
-                            >{change.current_value || "(empty)"}</span
-                          >
-                        </div>
-                        <div class="flex gap-2 text-press-success">
-                          <span class="flex-shrink-0">+</span>
-                          <span class="truncate">{change.new_value || "(empty)"}</span>
-                        </div>
-                      </div>
-                    {/if}
-                  </div>
-                </label>
-              {/each}
-            {/if}
+    {#if error}
+      <div class="sync-alert">
+        <div class="ka-notice ka-notice--error od-row-top" role="alert">
+          <CircleAlert class="w-5 h-5" aria-hidden="true" />
+          <div class="od-field od-fill">
+            <strong>Sync failed: {error}</strong>
+            <p>
+              Nothing was changed. Check that the outline file is still available, then try again.
+            </p>
           </div>
         </div>
       </div>
     {/if}
 
-    {#if error}<p role="alert" class="px-8 text-press-error">Sync failed: {error}</p>{/if}
-
-    <!-- Footer -->
-    <div
-      class="flex items-center justify-between px-8 py-5 border-t border-press-border/50 bg-press-sunken"
-    >
-      <p class="text-press-muted text-press-ui">
-        {selectedAdditions.size + selectedChanges.size} item{selectedAdditions.size +
-          selectedChanges.size !==
-        1
-          ? "s"
-          : ""} selected
-      </p>
-      <div class="flex gap-4">
+    <footer class="ka-dialog-footer">
+      {#if hasNothingToSync}
+        <button type="button" onclick={onClose} class="ka-button ka-button--secondary">
+          Close
+        </button>
+      {:else}
+        <p class="ka-help ka-dialog-footer-start">
+          {selectedCount} item{selectedCount !== 1 ? "s" : ""} selected
+        </p>
         <button
+          type="button"
           onclick={onClose}
-          class="px-6 py-2.5 text-press-muted hover:text-press-text rounded-lg hover:bg-press-sunken transition-colors"
+          class="ka-button ka-button--secondary"
+          disabled={syncing}
         >
           Cancel
         </button>
         <button
+          type="button"
           data-testid="sync-confirm"
           onclick={applySync}
-          disabled={syncing || (selectedAdditions.size === 0 && selectedChanges.size === 0)}
-          class="px-6 py-2.5 bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors flex items-center gap-2"
+          disabled={syncing || selectedCount === 0}
+          aria-busy={syncing || undefined}
+          class="ka-button"
         >
           {#if syncing}
-            <Loader2 class="w-4 h-4 animate-spin" />
-            Syncing...
+            <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
+            Applying…
+          {:else if selectedCount === 0}
+            Apply changes
           {:else}
-            Apply Sync
+            Apply {selectedCount} change{selectedCount !== 1 ? "s" : ""}
           {/if}
         </button>
-      </div>
-    </div>
+      {/if}
+    </footer>
   </div>
 </div>
 
 <style>
+  .sync {
+    height: min(760px, calc(100dvh - 48px));
+  }
+  .sync-body {
+    display: grid;
+    align-content: start;
+    gap: var(--space-m);
+  }
+  .sync-body > .ka-group + .ka-group {
+    margin-top: 0;
+  }
+  .sync-intro {
+    margin: 0;
+    max-width: 60ch;
+    font: var(--text-ui) / 1.6 var(--font-ui);
+    color: var(--color-text);
+  }
+  .sync-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2xs);
+  }
+  .ka-empty h4 {
+    margin: 0;
+    font: 550 var(--text-h3) / 1.25 var(--font-display);
+  }
+  .ka-empty p {
+    margin: 0;
+  }
+  .sync-group {
+    gap: var(--space-2xs);
+    padding-top: 0;
+    border-top: 0;
+  }
+  .sync-group-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+  }
+  .sync-group-head .ka-group-title {
+    margin: 0;
+  }
+  .sync-count {
+    flex: 1 1 auto;
+    font: 400 var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  .sync-bulk {
+    display: flex;
+    gap: var(--space-3xs);
+    flex: none;
+  }
+  .sync-list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: var(--border-hair);
+  }
+  .sync-list > li {
+    border-bottom: var(--border-hair);
+  }
+  .sync-row {
+    display: grid;
+    grid-template-columns: 20px 96px minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-xs);
+    min-height: var(--control-target);
+    padding: var(--space-xs) var(--space-2xs);
+    cursor: pointer;
+  }
+  .sync-row > input {
+    margin-top: 2px;
+  }
+  .sync-type {
+    display: flex;
+  }
+  .sync-text {
+    display: grid;
+    gap: var(--space-3xs);
+    min-width: 0;
+  }
+  .sync-name {
+    font: 500 var(--text-ui) / 1.5 var(--font-ui);
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+  }
+  .sync-meta {
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  .sync-values {
+    display: grid;
+    gap: var(--space-3xs);
+  }
+  .sync-value {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: var(--space-2xs);
+    font: var(--text-small) / 1.5 var(--font-ui);
+  }
+  .sync-value-label {
+    color: var(--color-text-muted);
+  }
+  .sync-value-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+  }
+  .sync-prose {
+    display: grid;
+    gap: var(--space-xs);
+    margin-top: var(--space-2xs);
+  }
+  .sync-prose .ka-help {
+    display: block;
+  }
+  .sync-version {
+    display: grid;
+    gap: var(--space-3xs);
+  }
   .prose-review {
+    display: block;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    font-family: var(--font-body);
-    font-size: var(--text-body);
+    font: var(--text-body) / var(--leading-relaxed) var(--font-body);
     color: var(--color-text);
     max-width: var(--measure);
+  }
+  .sync-alert {
+    flex: none;
+    padding: 0 var(--space-m) var(--space-s);
+  }
+  .sync-alert p {
+    margin: 0;
   }
 </style>

@@ -18,9 +18,8 @@ return "part input";
 ```
 
 Next call: `q.fillTitle("Part One QA", "Enter")`, then `wait_for` selector
-`[data-testid="part-item"]` (the title is rendered uppercase by CSS, so a text
-wait fails), then `q.shot("06-01-part-created")`, `wait_for` its settle marker,
-and screenshot.
+`[data-testid="part-item"]`, then `q.shot("06-01-part-created")`, `wait_for`
+its settle marker, and screenshot.
 
 **Expect**: a `part-item` row above the chapters, visually distinct from a
 chapter (heavier or eyebrow typography, no chevron), with the same hover
@@ -38,7 +37,7 @@ return q.run([
     () => q.mark("06-02-rename-dialog", { open: !!document.getElementById("rename-dialog-title") }),
     0,
   ],
-  ["06-02-fill", () => q.fillPlaceholder("Enter name...", "Renamed Chapter QA")],
+  ["06-02-fill", () => q.fillPlaceholder("Enter name…", "Renamed Chapter QA")],
   ["06-02-save", () => q.click("rename-save"), 900],
   ["06-03-menu", () => q.openMenu("chapter-item", "Renamed Chapter QA"), 300],
   ["06-03-duplicate", () => q.menuItem("Duplicate"), 1200],
@@ -57,7 +56,7 @@ return q.run([
       q.mark("06-04-lock-state", {
         lockedTitles: [
           ...document.querySelectorAll(
-            '[data-testid="sidebar"] [data-testid="scene-title"].text-press-disabled-text'
+            '[data-testid="sidebar"] [data-testid="scene-title"].is-locked'
           ),
         ].map((e) => e.textContent.trim()),
       }),
@@ -97,7 +96,7 @@ Next call: `q.click("archive-button"); q.shot("06-05-archive-panel"); q.prefligh
 with a Restore action and a delete action per row; empty-state copy absent.
 
 Next call: `q.click("archive-restore")`, then `q.click("archive-close")`
-in the following call (several dialogs carry an `aria-label="Close"` button, so
+in the following call (close buttons are labelled `Close` or `Close <title>`, so
 always scope by title id). Assert `Renamed Chapter QA` is back in `chapters`.
 
 ## Call 4: part delete dialog (screenshot 06-06)

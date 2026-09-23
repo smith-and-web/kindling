@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { Loader2, User } from "lucide-svelte";
+  import { Loader2 } from "lucide-svelte";
   import type { AppSettings } from "../types";
 
   let { dirty = $bindable(false), busy = $bindable(false) }: { dirty?: boolean; busy?: boolean } =
@@ -93,122 +93,120 @@
   }
 </script>
 
-<div class="space-y-6" aria-busy={busy}>
-  <p class="text-press-ui text-press-muted">
+<div class="settings-pane" aria-busy={busy}>
+  <p class="settings-lede">
     Your author and contact details apply to manuscript title pages across all projects.
   </p>
-  {#if loading}<p role="status">Loading author details…</p>
+  {#if loading}<p role="status" class="ka-help">Loading author details…</p>
   {:else if loaded}
-    <!-- Section: Author Information -->
-    <fieldset>
-      <legend class="flex items-center gap-2 text-press-ui font-medium text-press-accent-text mb-3">
-        <User class="w-4 h-4" />
-        Author Information
-      </legend>
-      <div class="space-y-3">
-        <div>
-          <label for="author-name" class="block text-press-ui text-press-muted mb-1">
-            Author Name
-          </label>
+    <div class="ka-group">
+      <fieldset class="settings-fieldset">
+        <legend class="ka-group-title">Author information</legend>
+        <div class="ka-field od-field">
+          <label for="author-name">Author Name</label>
           <input
             id="author-name"
             type="text"
             bind:value={authorName}
             placeholder="Your legal name"
             disabled={saving}
-            class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
+            aria-describedby="author-name-help"
           />
-          <p class="text-press-eyebrow text-press-muted mt-1">
+          <p id="author-name-help" class="ka-help">
             Used in contact info on title pages. Projects can override this with a pen name.
           </p>
         </div>
-      </div>
-    </fieldset>
+      </fieldset>
+    </div>
 
-    <!-- Section: Contact Information -->
-    <fieldset>
-      <legend class="block text-press-ui font-medium text-press-accent-text mb-3"
-        >Contact Information</legend
-      >
-      <p class="text-press-eyebrow text-press-muted mb-3">
-        Optional details for manuscript title pages. Use any format that works for your country.
-      </p>
-      <div class="space-y-3">
-        <div>
-          <label for="address-line1" class="block text-press-ui text-press-muted mb-1">
-            Address Line 1
-          </label>
+    <div class="ka-group">
+      <fieldset class="settings-fieldset">
+        <legend class="ka-group-title">Contact information</legend>
+        <p class="ka-help">
+          Optional details for manuscript title pages. Use any format that works for your country.
+        </p>
+        <div class="ka-field od-field">
+          <label for="address-line1">Address Line 1</label>
           <input
             id="address-line1"
             type="text"
             bind:value={addressLine1}
             placeholder="Street address or PO Box"
             disabled={saving}
-            class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
           />
         </div>
-
-        <div>
-          <label for="address-line2" class="block text-press-ui text-press-muted mb-1">
-            Address Line 2
-          </label>
+        <div class="ka-field od-field">
+          <label for="address-line2">Address Line 2</label>
           <input
             id="address-line2"
             type="text"
             bind:value={addressLine2}
             placeholder="City, State/Province, Postal Code, Country"
             disabled={saving}
-            class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
           />
         </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label for="phone" class="block text-press-ui text-press-muted mb-1"> Phone </label>
+        <div class="settings-pair">
+          <div class="ka-field od-field">
+            <label for="phone">Phone</label>
             <input
               id="phone"
               type="tel"
               bind:value={phone}
               placeholder="+1 (555) 123-4567"
               disabled={saving}
-              class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
             />
           </div>
-
-          <div>
-            <label for="email" class="block text-press-ui text-press-muted mb-1"> Email </label>
+          <div class="ka-field od-field">
+            <label for="email">Email</label>
             <input
               id="email"
               type="email"
               bind:value={email}
               placeholder="author@email.com"
               disabled={saving}
-              class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
             />
           </div>
         </div>
-      </div>
-    </fieldset>
+      </fieldset>
+    </div>
 
-    <button
-      type="button"
-      onclick={handleSave}
-      disabled={saving}
-      class="px-4 py-2 bg-press-accent text-press-on-accent rounded-lg"
-      >{#if saving}<Loader2 class="w-4 h-4 animate-spin" />{:else}Save author details{/if}</button
-    >
-    {#if saved && !dirty}<p role="status" class="text-press-ui text-press-muted">
-        Author details saved.
-      </p>{/if}
+    <div class="settings-actions">
+      {#if saved && !dirty}<p role="status" class="ka-help">Author details saved.</p>{/if}
+      <button
+        type="button"
+        onclick={handleSave}
+        disabled={saving}
+        aria-busy={saving || undefined}
+        class="ka-button"
+        >{#if saving}<Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
+          Saving…{:else}Save author details{/if}</button
+      >
+    </div>
   {:else}
-    <button type="button" onclick={loadSettings} disabled={saving}
-      >Retry loading author details</button
-    >
-    <p class="text-press-ui text-press-muted">
-      If the settings file is damaged, reset author details to restore saving and exports. A
-      recovery copy of the original file will be kept.
-    </p>
-    <button type="button" onclick={resetSettings} disabled={saving}>Reset author details</button>
+    <div class="ka-notice ka-notice--warning od-row-top author-recovery">
+      <div class="od-field od-fill">
+        <strong>Author details couldn’t be loaded</strong>
+        <p>
+          If the settings file is damaged, reset author details to restore saving and exports. A
+          recovery copy of the original file will be kept.
+        </p>
+      </div>
+    </div>
+    <div class="settings-actions">
+      <button
+        type="button"
+        class="ka-button ka-button--secondary"
+        onclick={loadSettings}
+        disabled={saving}>Retry loading author details</button
+      >
+      <button
+        type="button"
+        class="ka-button ka-button--danger"
+        onclick={resetSettings}
+        disabled={saving}
+        aria-busy={saving || undefined}>Reset author details</button
+      >
+    </div>
   {/if}
-  {#if error}<p role="alert" class="text-press-ui text-press-error">{error}</p>{/if}
+  {#if error}<p role="alert" class="ka-error">{error}</p>{/if}
 </div>
