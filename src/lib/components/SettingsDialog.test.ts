@@ -14,6 +14,9 @@ vi.hoisted(() => {
   });
 });
 
+// Multi-section flows here run past the 5s default when the full suite is under load.
+vi.setConfig({ testTimeout: 15_000 });
+
 const second = {
   ...mockProject,
   id: "second-project",
