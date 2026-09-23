@@ -599,6 +599,21 @@
     switchingMode = true;
     try {
       await prepareForSearch();
+      if (
+        proseSaves
+          .draftsForRecovery(currentProject.value?.id ?? "")
+          .some((draft) =>
+            draft.kind === "page"
+              ? draft.id === scene.id
+              : currentProject.beats.some(
+                  (beat) => beat.scene_id === scene.id && beat.id === draft.id
+                )
+          )
+      ) {
+        throw new Error(
+          "Save, recover, or discard unsaved prose in Find and Replace before switching editor modes."
+        );
+      }
       if (currentProject.currentScene?.id !== scene.id || isLocked) return;
       beatViewRef?.flushOnSceneChange();
 

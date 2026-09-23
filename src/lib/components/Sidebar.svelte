@@ -833,11 +833,12 @@
   async function executeDeletePartAndChapters() {
     if (!partDeleteDialog) return;
     try {
-      // Delete child chapters first (in reverse order to avoid index issues)
-      for (const chapterId of [...partDeleteDialog.childChapterIds].reverse()) {
-        await invoke("delete_chapter", { chapterId });
+      const deletedIds = await invoke<string[]>("delete_part_and_chapters", {
+        partId: partDeleteDialog.partId,
+        expectedChildIds: partDeleteDialog.childChapterIds,
+      });
+      for (const chapterId of deletedIds) {
         currentProject.removeChapter(chapterId);
-        // Clear selection if we deleted the current chapter
         if (currentProject.currentChapter?.id === chapterId) {
           currentProject.setCurrentChapter(null);
           currentProject.setScenes([]);
@@ -845,11 +846,10 @@
           currentProject.setBeats([]);
         }
       }
-      // Then delete the Part itself
-      await invoke("delete_chapter", { chapterId: partDeleteDialog.partId });
-      currentProject.removeChapter(partDeleteDialog.partId);
     } catch (e) {
       console.error("Failed to delete part and chapters:", e);
+      ui.showError(`Failed to delete Part: ${String(e)}`);
+      await loadChapters();
     } finally {
       partDeleteDialog = null;
     }
@@ -1262,15 +1262,20 @@
   // Track isImporting state to properly handle chapter loading
   const isImporting = $derived(ui.isImporting);
 
+  let requestedChapterProject: string | null = null;
   $effect(() => {
-    // These reads establish dependencies
-    const project = currentProject.value;
-    const chaptersLoaded = currentProject.chapters.length > 0;
+    const projectId = currentProject.value?.id ?? null;
     const importing = isImporting;
-
-    if (project && !importing && !chaptersLoaded) {
-      loadChapters(true);
-      loadSavedFilters();
+    if (!projectId) {
+      requestedChapterProject = null;
+    } else if (!importing && requestedChapterProject !== projectId) {
+      requestedChapterProject = projectId;
+      // An empty result is loaded data. Loading reads and writes outline state,
+      // which must not become dependencies of this project-selection effect.
+      untrack(() => {
+        void loadChapters(true);
+        void loadSavedFilters();
+      });
     }
   });
 

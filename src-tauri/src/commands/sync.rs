@@ -181,6 +181,9 @@ fn reimport_project_with_connection(
             if let Some(existing) = db::find_chapter_by_source_id(&tx, &project_uuid, source_id)
                 .map_err(|e| e.to_string())?
             {
+                if existing.locked {
+                    continue;
+                }
                 // Update existing chapter
                 db::update_chapter(conn, &existing.id, &new_chapter.title, new_chapter.position)
                     .map_err(|e| e.to_string())?;
@@ -231,10 +234,16 @@ fn reimport_project_with_connection(
                 .get(parsed_chapter_source_id)
                 .ok_or_else(|| "Could not find DB chapter for scene".to_string())?;
 
+            if db_chapter.locked {
+                continue;
+            }
             // Try to find existing scene by source_id
             if let Some(existing) = db::find_scene_by_source_id(&tx, &db_chapter.id, source_id)
                 .map_err(|e| e.to_string())?
             {
+                if db::is_scene_locked(&tx, &existing.id).map_err(|e| e.to_string())? {
+                    continue;
+                }
                 // Update existing scene (preserving prose!)
                 db::update_scene(
                     conn,
@@ -287,9 +296,21 @@ fn reimport_project_with_connection(
         .filter_map(|s| s.source_id.as_ref().map(|sid| (s.id, sid.clone())))
         .collect();
 
+    let parsed_scene_chapters: HashMap<Uuid, Uuid> =
+        parsed.scenes.iter().map(|s| (s.id, s.chapter_id)).collect();
     // Process beats
     for new_beat in &parsed.beats {
         if let Some(source_id) = &new_beat.source_id {
+            // A new scene may have been skipped because its chapter was locked.
+            // Skip its descendants before requiring a database scene to exist.
+            if parsed_scene_chapters
+                .get(&new_beat.scene_id)
+                .and_then(|id| parsed_chapter_id_to_source.get(id))
+                .and_then(|sid| chapter_source_to_db.get(sid))
+                .is_some_and(|c| c.locked)
+            {
+                continue;
+            }
             // Find the DB scene this beat belongs to
             let parsed_scene_source_id = parsed_scene_id_to_source
                 .get(&new_beat.scene_id)
@@ -298,6 +319,9 @@ fn reimport_project_with_connection(
                 .get(parsed_scene_source_id)
                 .ok_or_else(|| "Could not find DB scene for beat".to_string())?;
 
+            if db::is_scene_locked(&tx, &db_scene.id).map_err(|e| e.to_string())? {
+                continue;
+            }
             // Try to find existing beat by source_id
             if let Some(existing) = db::find_beat_by_source_id(&tx, &db_scene.id, source_id)
                 .map_err(|e| e.to_string())?
@@ -493,9 +517,16 @@ pub(super) fn get_sync_preview_with_connection(
                         .map(|ch| ch.title.clone())
                 });
 
+            if parsed_chapter_id_to_source
+                .get(&new_scene.chapter_id)
+                .and_then(|sid| chapter_source_to_db.get(sid))
+                .is_some_and(|ch| ch.locked)
+            {
+                continue;
+            }
             if let Some(existing) = scene_source_to_db.get(source_id) {
                 // Skip locked scenes (or scenes in locked chapters)
-                if existing.locked {
+                if db::is_scene_locked(conn, &existing.id).map_err(|e| e.to_string())? {
                     continue;
                 }
                 // Check if parent chapter is locked
@@ -572,16 +603,27 @@ pub(super) fn get_sync_preview_with_connection(
                         .map(|sc| sc.title.clone())
                 });
 
+            if parsed_scene_map
+                .get(&new_beat.scene_id)
+                .and_then(|s| parsed_chapter_id_to_source.get(&s.chapter_id))
+                .and_then(|sid| chapter_source_to_db.get(sid))
+                .is_some_and(|ch| ch.locked)
+            {
+                continue;
+            }
             // Check if parent scene is locked
             if let Some(sc_source_id) = parsed_scene_id_to_source.get(&new_beat.scene_id) {
                 if let Some(sc) = scene_source_to_db.get(sc_source_id) {
-                    if sc.locked {
+                    if db::is_scene_locked(conn, &sc.id).map_err(|e| e.to_string())? {
                         continue;
                     }
                 }
             }
 
             if let Some(existing) = beat_source_to_db.get(source_id) {
+                if db::is_scene_locked(conn, &existing.scene_id).map_err(|e| e.to_string())? {
+                    continue;
+                }
                 // Check for content changes
                 if existing.content != new_beat.content {
                     preview.changes.push(SyncChange {
@@ -1091,16 +1133,14 @@ fn apply_sync_with_connection(
     for new_chapter in &parsed.chapters {
         if let Some(source_id) = &new_chapter.source_id {
             if let Some(existing) = chapter_source_to_db.get(source_id) {
+                if existing.locked {
+                    continue;
+                }
                 // Check if user accepted the title change
                 let change_id = format!("chapter-title-{}", existing.id);
                 if accepted_set.contains(&change_id) && existing.title != new_chapter.title {
-                    db::update_chapter(
-                        conn,
-                        &existing.id,
-                        &new_chapter.title,
-                        new_chapter.position,
-                    )
-                    .map_err(|e| e.to_string())?;
+                    db::update_chapter(conn, &existing.id, &new_chapter.title, existing.position)
+                        .map_err(|e| e.to_string())?;
                     summary.chapters_updated += 1;
                 }
             } else {
@@ -1156,9 +1196,7 @@ fn apply_sync_with_connection(
                     .get(&new_scene.chapter_id)
                     .ok_or_else(|| "Scene references unknown chapter".to_string())?;
             let Some(db_chapter) = chapter_source_to_db.get(parsed_chapter_source_id) else {
-                if matches!(project.source_type, crate::models::SourceType::Markdown)
-                    && !accepted_additions_set.contains(&format!("scene-{source_id}"))
-                {
+                if !accepted_additions_set.contains(&format!("scene-{source_id}")) {
                     continue;
                 }
                 return Err(
@@ -1166,10 +1204,16 @@ fn apply_sync_with_connection(
                 );
             };
 
+            if db_chapter.locked {
+                continue;
+            }
             if let Some(existing) = scene_source_to_db.get(source_id).filter(|s| {
                 !matches!(project.source_type, crate::models::SourceType::Markdown)
                     || s.chapter_id == db_chapter.id
             }) {
+                if db::is_scene_locked(&tx, &existing.id).map_err(|e| e.to_string())? {
+                    continue;
+                }
                 // Check which changes user accepted
                 let mut new_title = existing.title.clone();
                 let mut new_synopsis = existing.synopsis.clone();
@@ -1195,9 +1239,9 @@ fn apply_sync_with_connection(
                         &existing.id,
                         &new_title,
                         new_synopsis.as_deref(),
-                        new_scene.position,
-                        &new_scene.scene_type,
-                        &new_scene.scene_status,
+                        existing.position,
+                        &existing.scene_type,
+                        &existing.scene_status,
                     )
                     .map_err(|e| e.to_string())?;
                     summary.scenes_updated += 1;
@@ -1252,17 +1296,27 @@ fn apply_sync_with_connection(
         .filter_map(|b| b.source_id.clone().map(|sid| (sid, b)))
         .collect();
 
+    let parsed_scene_chapters: HashMap<Uuid, Uuid> =
+        parsed.scenes.iter().map(|s| (s.id, s.chapter_id)).collect();
     // Process beats
     for new_beat in &parsed.beats {
         if let Some(source_id) = &new_beat.source_id {
+            // A new scene may have been skipped because its chapter was locked.
+            // Skip its descendants before requiring a database scene to exist.
+            if parsed_scene_chapters
+                .get(&new_beat.scene_id)
+                .and_then(|id| parsed_chapter_id_to_source.get(id))
+                .and_then(|sid| chapter_source_to_db.get(sid))
+                .is_some_and(|c| c.locked)
+            {
+                continue;
+            }
             // Find the DB scene this beat belongs to
             let parsed_scene_source_id = parsed_scene_id_to_source
                 .get(&new_beat.scene_id)
                 .ok_or_else(|| "Beat references unknown scene".to_string())?;
             let Some(db_scene) = scene_source_to_db.get(parsed_scene_source_id) else {
-                if matches!(project.source_type, crate::models::SourceType::Markdown)
-                    && !accepted_additions_set.contains(&format!("beat-{source_id}"))
-                {
+                if !accepted_additions_set.contains(&format!("beat-{source_id}")) {
                     continue;
                 }
                 return Err(
@@ -1270,14 +1324,20 @@ fn apply_sync_with_connection(
                 );
             };
 
+            if db::is_scene_locked(&tx, &db_scene.id).map_err(|e| e.to_string())? {
+                continue;
+            }
             if let Some(existing) = beat_source_to_db.get(source_id).filter(|b| {
                 !matches!(project.source_type, crate::models::SourceType::Markdown)
                     || b.scene_id == db_scene.id
             }) {
+                if db::is_scene_locked(&tx, &existing.scene_id).map_err(|e| e.to_string())? {
+                    continue;
+                }
                 // Check if user accepted the content change
                 let change_id = format!("beat-content-{}", existing.id);
                 if accepted_set.contains(&change_id) && existing.content != new_beat.content {
-                    db::update_beat(&tx, &existing.id, &new_beat.content, new_beat.position)
+                    db::update_beat(&tx, &existing.id, &new_beat.content, existing.position)
                         .map_err(|e| e.to_string())?;
                     summary.beats_updated += 1;
                 }
@@ -2100,5 +2160,173 @@ mod source_regression_tests {
             .unwrap()
             .changes
             .is_empty());
+    }
+}
+
+#[cfg(test)]
+mod release_sync_tests {
+    use super::*;
+    use crate::models::{SceneStatus, SceneType};
+
+    fn fixture() -> (Connection, crate::parsers::ParsedPlottr) {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/hamlet.pltr");
+        let p = parse_plottr_file(path).unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        db::insert_project(&conn, &p.project).unwrap();
+        for c in &p.chapters {
+            db::insert_chapter(&conn, c).unwrap();
+        }
+        for s in &p.scenes {
+            db::insert_scene(&conn, s).unwrap();
+        }
+        for b in &p.beats {
+            db::insert_beat(&conn, b).unwrap();
+        }
+        (conn, p)
+    }
+
+    #[test]
+    fn accepted_title_preserves_unselected_scene_metadata_and_order() {
+        let (conn, p) = fixture();
+        let scene = &p.scenes[0];
+        db::update_scene(
+            &conn,
+            &scene.id,
+            "Local title",
+            Some("Local synopsis"),
+            42,
+            &SceneType::Notes,
+            &SceneStatus::Final,
+        )
+        .unwrap();
+        let summary = apply_sync_with_connection(
+            &conn,
+            p.project.id,
+            vec![format!("scene-title-{}", scene.id)],
+            vec![],
+        )
+        .unwrap();
+        let actual = db::get_scene_by_id(&conn, &scene.id).unwrap().unwrap();
+        assert_eq!(summary.scenes_updated, 1);
+        assert_eq!(actual.title, scene.title);
+        assert_eq!(actual.synopsis.as_deref(), Some("Local synopsis"));
+        assert_eq!(actual.position, 42);
+        assert_eq!(actual.scene_type, SceneType::Notes);
+        assert_eq!(actual.scene_status, SceneStatus::Final);
+    }
+
+    #[test]
+    fn chapter_lock_is_checked_in_preview_apply_and_reimport() {
+        let (conn, p) = fixture();
+        let beat = &p.beats[0];
+        let scene = p.scenes.iter().find(|s| s.id == beat.scene_id).unwrap();
+        db::update_beat(&conn, &beat.id, "Protected local prompt", beat.position).unwrap();
+        let id = format!("beat-content-{}", beat.id);
+        assert!(get_sync_preview_with_connection(&conn, p.project.id)
+            .unwrap()
+            .changes
+            .iter()
+            .any(|c| c.id == id));
+        db::lock_chapter(&conn, &scene.chapter_id).unwrap();
+        assert!(!get_sync_preview_with_connection(&conn, p.project.id)
+            .unwrap()
+            .changes
+            .iter()
+            .any(|c| c.id == id));
+        apply_sync_with_connection(&conn, p.project.id, vec![id.clone()], vec![]).unwrap();
+        reimport_project_with_connection(&conn, p.project.id).unwrap();
+        assert_eq!(
+            db::get_beats(&conn, &scene.id)
+                .unwrap()
+                .iter()
+                .find(|b| b.id == beat.id)
+                .unwrap()
+                .content,
+            "Protected local prompt"
+        );
+        db::unlock_chapter(&conn, &scene.chapter_id).unwrap();
+        apply_sync_with_connection(&conn, p.project.id, vec![id], vec![]).unwrap();
+        assert_eq!(
+            db::get_beats(&conn, &scene.id)
+                .unwrap()
+                .iter()
+                .find(|b| b.id == beat.id)
+                .unwrap()
+                .content,
+            beat.content
+        );
+    }
+
+    #[test]
+    fn locked_new_scene_does_not_abort_unrelated_sync_changes() {
+        for selective in [false, true] {
+            let (conn, p) = fixture();
+            let removed = p
+                .scenes
+                .iter()
+                .find(|s| p.beats.iter().any(|b| b.scene_id == s.id))
+                .unwrap();
+            let kept = p
+                .chapters
+                .iter()
+                .find(|c| c.id != removed.chapter_id)
+                .unwrap();
+            db::delete_scene(&conn, &removed.id).unwrap();
+            db::update_chapter(&conn, &kept.id, "Local title", kept.position).unwrap();
+            let preview = get_sync_preview_with_connection(&conn, p.project.id).unwrap();
+            assert!(preview.additions.iter().any(|a| a.item_type == "beat"));
+            db::lock_chapter(&conn, &removed.chapter_id).unwrap();
+            if selective {
+                apply_sync_with_connection(
+                    &conn,
+                    p.project.id,
+                    vec![format!("chapter-title-{}", kept.id)],
+                    preview.additions.iter().map(|a| a.id.clone()).collect(),
+                )
+                .unwrap();
+            } else {
+                reimport_project_with_connection(&conn, p.project.id).unwrap();
+            }
+            assert_eq!(
+                db::get_chapter_by_id(&conn, &kept.id)
+                    .unwrap()
+                    .unwrap()
+                    .title,
+                kept.title
+            );
+            assert!(db::get_scene_by_id(&conn, &removed.id).unwrap().is_none());
+        }
+    }
+
+    #[test]
+    fn rejected_parent_additions_do_not_abort_unrelated_plottr_changes() {
+        for reject_chapter in [true, false] {
+            let (conn, p) = fixture();
+            let kept = &p.chapters[0];
+            let removed = p
+                .scenes
+                .iter()
+                .find(|s| s.chapter_id != kept.id && p.beats.iter().any(|b| b.scene_id == s.id))
+                .unwrap();
+            if reject_chapter {
+                db::delete_chapter(&conn, &removed.chapter_id).unwrap();
+            } else {
+                db::delete_scene(&conn, &removed.id).unwrap();
+            }
+            db::update_chapter(&conn, &kept.id, "Local title", kept.position).unwrap();
+            let summary = apply_sync_with_connection(
+                &conn,
+                p.project.id,
+                vec![format!("chapter-title-{}", kept.id)],
+                vec![],
+            )
+            .unwrap();
+            assert_eq!(summary.chapters_updated, 1);
+            assert_eq!(summary.scenes_added, 0);
+            assert_eq!(summary.beats_added, 0);
+            assert!(db::get_scene_by_id(&conn, &removed.id).unwrap().is_none());
+        }
     }
 }

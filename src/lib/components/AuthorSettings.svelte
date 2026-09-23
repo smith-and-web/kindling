@@ -49,6 +49,20 @@
     }
   }
 
+  async function resetSettings() {
+    if (saving) return;
+    saving = true;
+    error = null;
+    try {
+      await invoke("reset_app_settings");
+      await loadSettings();
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    } finally {
+      saving = false;
+    }
+  }
+
   async function handleSave() {
     if (saving || !loaded) return;
     saving = true;
@@ -168,8 +182,31 @@
           Saving…{:else}Save author details{/if}</button
       >
     </div>
-  {:else}<button type="button" class="ka-button ka-button--secondary" onclick={loadSettings}
-      >Retry loading author details</button
-    >{/if}
+  {:else}
+    <div class="ka-notice ka-notice--warning od-row-top author-recovery">
+      <div class="od-field od-fill">
+        <strong>Author details couldn’t be loaded</strong>
+        <p>
+          If the settings file is damaged, reset author details to restore saving and exports. A
+          recovery copy of the original file will be kept.
+        </p>
+      </div>
+    </div>
+    <div class="settings-actions">
+      <button
+        type="button"
+        class="ka-button ka-button--secondary"
+        onclick={loadSettings}
+        disabled={saving}>Retry loading author details</button
+      >
+      <button
+        type="button"
+        class="ka-button ka-button--danger"
+        onclick={resetSettings}
+        disabled={saving}
+        aria-busy={saving || undefined}>Reset author details</button
+      >
+    </div>
+  {/if}
   {#if error}<p role="alert" class="ka-error">{error}</p>{/if}
 </div>

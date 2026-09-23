@@ -1027,7 +1027,7 @@ fn process_binder_children(
     scenes: &mut Vec<crate::models::Scene>,
     beats: &mut Vec<crate::models::Beat>,
     position: &mut i32,
-) {
+) -> Result<(), ScrivenerError> {
     use crate::models::{Beat, Chapter, Scene};
 
     for child in children {
@@ -1058,7 +1058,7 @@ fn process_binder_children(
                         scenes,
                         beats,
                         position,
-                    );
+                    )?;
                 } else {
                     let chapter = Chapter {
                         id: uuid::Uuid::new_v4(),
@@ -1076,7 +1076,7 @@ fn process_binder_children(
                     let mut scene_pos: i32 = 0;
                     for scene_item in &child.children {
                         if scene_item.item_type == "Text" {
-                            let prose = read_rtf_content(data_dir, &scene_item.uuid);
+                            let prose = read_rtf_content(data_dir, &scene_item.uuid)?;
                             let scene_id = uuid::Uuid::new_v4();
 
                             if let Some(ref prose_html) = prose {
@@ -1123,7 +1123,7 @@ fn process_binder_children(
                     planning_status: Default::default(),
                 };
 
-                let prose = read_rtf_content(data_dir, &child.uuid);
+                let prose = read_rtf_content(data_dir, &child.uuid)?;
                 let scene_id = uuid::Uuid::new_v4();
 
                 if let Some(ref prose_html) = prose {
@@ -1155,6 +1155,7 @@ fn process_binder_children(
             _ => {}
         }
     }
+    Ok(())
 }
 
 /// Parse a .scriv bundle directory into Kindling data structures
@@ -1176,6 +1177,15 @@ pub fn parse_scrivener_bundle(
         .to_string();
 
     let data_dir = scriv_path.join("Files").join("Data");
+    if data_dir.exists()
+        && !data_dir
+            .canonicalize()?
+            .starts_with(scriv_path.canonicalize()?)
+    {
+        return Err(ScrivenerError::InvalidStructure(
+            "Files/Data escapes the selected bundle".into(),
+        ));
+    }
 
     let mut project = Project::new(
         project_name,
@@ -1208,7 +1218,7 @@ pub fn parse_scrivener_bundle(
             &mut scenes,
             &mut beats,
             &mut position,
-        );
+        )?;
     }
 
     // If no explicit project type was set, use content-based detection:
@@ -1251,22 +1261,41 @@ fn find_scrivx_in_bundle(
 }
 
 /// Read and convert RTF content for a Scrivener document
-fn read_rtf_content(data_dir: &std::path::Path, uuid: &str) -> Option<String> {
-    let rtf_path = data_dir.join(uuid).join("content.rtf");
-    if rtf_path.exists() {
-        if let Ok(rtf) = std::fs::read_to_string(&rtf_path) {
-            let html = rtf_to_html(&rtf);
-            if html.is_empty() {
-                None
-            } else {
-                Some(html)
-            }
-        } else {
-            None
-        }
-    } else {
-        None
+fn read_rtf_content(
+    data_dir: &std::path::Path,
+    uuid: &str,
+) -> Result<Option<String>, ScrivenerError> {
+    // Scrivener identifiers are directory names, never user-supplied paths.
+    // Reject both platforms' separators even when importing on macOS/Linux.
+    // Older binder formats have no UUID/content path in Files/Data.
+    if uuid.is_empty() {
+        return Ok(None);
     }
+    if !uuid
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    {
+        return Err(ScrivenerError::InvalidStructure(
+            "Invalid binder content identifier".into(),
+        ));
+    }
+    let rtf_path = data_dir.join(uuid).join("content.rtf");
+    let canonical = match rtf_path.canonicalize() {
+        Ok(path) => path,
+        // Keep the existing empty-document fallback for absent/unreadable files.
+        // No file is read when its canonical location cannot be established.
+        Err(_) => return Ok(None),
+    };
+    if !canonical.starts_with(data_dir.canonicalize()?) {
+        return Err(ScrivenerError::InvalidStructure(
+            "Binder content escapes Files/Data".into(),
+        ));
+    }
+    let Ok(rtf) = std::fs::read_to_string(canonical) else {
+        return Ok(None);
+    };
+    let html = rtf_to_html(&rtf);
+    Ok((!html.is_empty()).then_some(html))
 }
 
 // =============================================================================
@@ -1862,5 +1891,57 @@ mod tests {
     #[test]
     fn test_html_escape() {
         assert_eq!(html_escape("a & b < c > d"), "a &amp; b &lt; c &gt; d");
+    }
+}
+
+#[cfg(test)]
+mod content_path_tests {
+    use super::*;
+    #[test]
+    fn content_identifiers_cannot_escape_the_bundle() {
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("Data");
+        std::fs::create_dir_all(data.join("SC-1")).unwrap();
+        std::fs::write(data.join("SC-1/content.rtf"), "{\\rtf1 Safe prose}").unwrap();
+        std::fs::write(dir.path().join("content.rtf"), "{\\rtf1 Outside prose}").unwrap();
+        for id in [
+            "..",
+            "../",
+            "../Data/SC-1",
+            "/tmp",
+            "C:\\outside",
+            "..\\outside",
+        ] {
+            assert!(read_rtf_content(&data, id).is_err(), "{id}");
+        }
+        assert!(read_rtf_content(&data, dir.path().to_str().unwrap()).is_err());
+        assert!(read_rtf_content(&data, "SC-1")
+            .unwrap()
+            .unwrap()
+            .contains("Safe prose"));
+        assert!(read_rtf_content(&data, "MISSING").unwrap().is_none());
+    }
+    #[test]
+    fn unreadable_or_legacy_documents_keep_the_empty_document_fallback() {
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("Data");
+        std::fs::create_dir_all(data.join("LEGACY")).unwrap();
+        std::fs::write(data.join("LEGACY/content.rtf"), b"{\\rtf1 \xff}").unwrap();
+        assert!(read_rtf_content(&data, "LEGACY").unwrap().is_none());
+        // An absent UUID must not resolve to Data/content.rtf.
+        std::fs::write(data.join("content.rtf"), "{\\rtf1 Not this document}").unwrap();
+        assert!(read_rtf_content(&data, "").unwrap().is_none());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn content_symlinks_cannot_escape_the_data_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("Data");
+        std::fs::create_dir_all(data.join("SC-1")).unwrap();
+        let outside = dir.path().join("outside.rtf");
+        std::fs::write(&outside, "{\\rtf1 Outside prose}").unwrap();
+        std::os::unix::fs::symlink(&outside, data.join("SC-1/content.rtf")).unwrap();
+        assert!(read_rtf_content(&data, "SC-1").is_err());
     }
 }

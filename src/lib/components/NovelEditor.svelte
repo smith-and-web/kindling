@@ -146,7 +146,7 @@
   // Update editable state when readonly prop changes
   $effect(() => {
     if (editor) {
-      editor.setEditable(!readonly);
+      editor.setEditable(!readonly, false);
     }
   });
 

@@ -54,3 +54,20 @@ it.each([
     if (platform !== "MacIntel") expect(palette.container.textContent).not.toMatch(/[⌘⌥⇧]/);
   }
 );
+
+it.each(["ArrowDown", "ArrowUp"])("recovers from an empty search after %s", async (key) => {
+  const { fireEvent } = await import("@testing-library/svelte");
+  const action = vi.fn();
+  const palette = render(CommandPalette, {
+    open: true,
+    commands: [{ id: "settings", label: "Settings", category: "Help", shortcut: "", action }],
+  });
+  const input = palette.getByRole("textbox");
+  await fireEvent.input(input, { target: { value: "no-such-command" } });
+  await fireEvent.keyDown(input, { key });
+  await fireEvent.keyDown(input, { key: "Enter" });
+  expect(action).not.toHaveBeenCalled();
+  await fireEvent.input(input, { target: { value: "Settings" } });
+  await fireEvent.keyDown(input, { key: "Enter" });
+  expect(action).toHaveBeenCalledOnce();
+});

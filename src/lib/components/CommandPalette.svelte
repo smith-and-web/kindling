@@ -83,13 +83,15 @@
 
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      selectedIndex = (selectedIndex + 1) % filteredCommands.length;
+      selectedIndex = filteredCommands.length ? (selectedIndex + 1) % filteredCommands.length : 0;
       return;
     }
 
     if (e.key === "ArrowUp") {
       e.preventDefault();
-      selectedIndex = (selectedIndex - 1 + filteredCommands.length) % filteredCommands.length;
+      selectedIndex = filteredCommands.length
+        ? (selectedIndex - 1 + filteredCommands.length) % filteredCommands.length
+        : 0;
       return;
     }
 
