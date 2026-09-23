@@ -19,14 +19,15 @@ return JSON.stringify(q.preflight());
 
 **Expect**: a centred dialog for a new Character with Name, optional
 Description and Notes, an attributes section with an add control, Cancel and
-a disabled Save until a name is entered.
+an enabled Save. Choosing Save with an empty name shows "Enter a name to
+continue." under Name (the field is marked invalid) and saves nothing.
 
 ## Call 2: create, then verify (DOM only, 08-02)
 
 ```js
 const q = window.__qa;
 return q.run([
-  ["08-02-fill", () => q.fillPlaceholder("Enter name...", "QA Character")],
+  ["08-02-fill", () => q.fillPlaceholder("Enter name…", "QA Character")],
   ["08-02-save", () => q.click("reference-save"), 1200],
   [
     "08-02-listed",
@@ -35,8 +36,8 @@ return q.run([
         tab: [...document.querySelectorAll("button")]
           .find((b) => /^Characters/.test(b.textContent.trim()))
           ?.textContent.trim(),
-        listed: !![...document.querySelectorAll("aside")]
-          .find((a) => a.className.includes("border-l"))
+        listed: !!document
+          .querySelector('aside[aria-label="References"]')
           ?.textContent.includes("QA Character"),
       }),
     0,
@@ -56,7 +57,8 @@ The dialog footer is Cancel and Save (verified 2026-09-05).
 
 `wait_for` `#qa-done-08` attached, then screenshot.
 
-Asserts: `08-02-panel.tab` is `Characters (1)` (or one more than before) and
+Asserts: `08-02-panel.tab` is `Characters1` (the count is a separate badge, so
+the label and number run together in `textContent`; or one more than before) and
 `listed === true`.
 
 **Expect**: the new character as a row in the References panel with its icon,

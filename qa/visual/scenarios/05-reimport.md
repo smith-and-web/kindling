@@ -27,12 +27,12 @@ all-synced state_. The case for a project without `source_path` is
 unimplemented in e2e too; record _not covered_.
 
 Assert in the next call: `hasSync === true`; dialog text matches
-`/(All synced|New Items|Changes)/i`; either `[data-testid="sync-confirm"]`
+`/(All synced|New items|Changes)/i`; either `[data-testid="sync-confirm"]`
 exists or the text says "All synced".
 
 **Expect**: a centred dialog with a Fraunces title, a close (X) control at
 top right, and either an "All synced" state with a check icon or grouped
-lists of New Items / Changes with checkboxes. No loading spinner left behind.
+lists of New items / Changes with checkboxes. No loading spinner left behind.
 The sync button itself sits in the sidebar header beside More actions,
 same size as its neighbours.
 

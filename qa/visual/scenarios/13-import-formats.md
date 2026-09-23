@@ -56,8 +56,7 @@ const q = window.__qa;
 q.importFixture("<repo>/src-tauri/tests/fixtures/parts_example.yw7", "ywriter");
 ```
 
-Wait for the creation marker, then `[data-testid="part-item"]`. Part headings
-may be uppercased by CSS. If Chapter 1 is hidden, click Part 1 to expand it.
+Wait for the creation marker, then `[data-testid="part-item"]`. If Chapter 1 is hidden, click Part 1 to expand it.
 Click `Chapter 1` only if its scenes are hidden; wait for `Scene 1`, then select
 it and wait for `[data-testid="scene-panel"]`.
 
@@ -73,7 +72,7 @@ Wait for `#qa-settled-13-02-ywriter-parts`, then screenshot.
 **Assert**: two parts containing three chapters overall; Chapter 1 has Scene 1
 and Scene 2; Sync is shown. **Expect**: part headings visually distinct from
 chapters, scenes indented under their chapter, the selected scene's title and
-metadata readable. Do not treat the capitalized Part labels as missing text.
+metadata readable.
 
 ## 13-03 Longform prose and references
 

@@ -33,23 +33,15 @@ return "more";
 Next call: `q.click("snapshots-button"); q.shot("10-02-snapshots-empty"); q.preflight()`.
 `wait_for` selector `#snapshots-panel-title`, then screenshot.
 
-**Expect**: panel titled Snapshots with a Create Snapshot button and the
+**Expect**: panel titled Snapshots with a Create snapshot button and the
 "No snapshots yet" empty state.
 
 ```js
 const q = window.__qa;
 return q.run([
   ["10-03-open", () => q.click("snapshot-create-button"), 400],
-  ["10-03-name", () => q.fillPlaceholder("Enter snapshot name...", "QA snapshot")],
-  [
-    "10-03-create",
-    () =>
-      q.clickText(
-        "Create Snapshot",
-        document.querySelector("h3")?.closest("div[role=dialog], div") ?? document
-      ),
-    1200,
-  ],
+  ["10-03-name", () => q.fillPlaceholder("e.g. Before the second-act rewrite", "QA snapshot")],
+  ["10-03-create", () => q.click("snapshot-confirm-create"), 1200],
   [
     "10-03-listed",
     () =>
@@ -70,9 +62,9 @@ return q.run([
 ]);
 ```
 
-The second `Create Snapshot` is the confirm button inside the create dialog;
-if `clickText` picks the panel button instead, scope it with the dialog's
-`h3` as above or use the disabled state to tell them apart.
+The create form opens inline in the panel (headed New snapshot) and hides the
+panel's Create snapshot button, so its confirm button is addressed by
+`snapshot-confirm-create`.
 
 `wait_for` `#qa-done-10a` attached, then screenshot. Assert `listed === true`,
 `empty === false`. Then `q.click("snapshots-close")`.
@@ -92,7 +84,7 @@ return JSON.stringify(q.preflight());
 `wait_for` selector `[aria-label="Command palette"]`, then screenshot.
 
 **Expect**: a centred palette with a search input ("Type a command or
-search...") and a list of commands in Inter, over a dimmed backdrop. Then
+search…") and a list of commands in Inter, over a dimmed backdrop. Then
 `q.key("Escape")` and assert the palette is gone.
 
 ## Call 4: read the log

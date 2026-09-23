@@ -72,7 +72,7 @@ Then `take_screenshot`.
 
 e2e: _should show inline input when clicking new scene button_
 
-**Expect**: `Auto Expand QA` shows an expanded state with its own New Scene
+**Expect**: `Auto Expand QA` shows an expanded state with its own New scene
 button; under Act 1 the scene input is indented at scene level, aligned with
 the scene rows above it, focus ring visible.
 
@@ -104,7 +104,7 @@ when pressing Escape_, _should auto-select newly created scene_.
 **Expect** (01-09): the sidebar row is filled with the accent colour and
 on-accent text; the scene panel header shows the same title in Fraunces with
 the chapter breadcrumb beneath; the Beats tab is active and the beat list is
-empty with an "Add Your First Beat" affordance.
+empty with an "Add your first beat" affordance.
 
 ## Call 5: read the log
 

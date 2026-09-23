@@ -19,7 +19,7 @@ e2e: _should launch and show the main element_
 
 **Expect**: a full window with no white flash or unstyled region. Background is
 the Press paper tone in light, the warm dark surface in dark. The window
-chrome title reads "Kindling".
+chrome title reads "kindling".
 
 ### 00-02 onboarding dismissal
 
@@ -41,9 +41,10 @@ e2e: _should show the start screen on initial launch_, _should show import optio
 - Screenshot `00-03-start-screen`.
 - Assert: `__qa.state().view === "start"`.
 
-**Expect**: the "Import an Outline" card with six import options
-(Plottr, Markdown, yWriter, Longform, Scrivener and novelWriter), each with an icon and label,
-none truncated. Brand mark and product name top-left. New Project, Sample Project and Open Review Package entry points align. Text uses Inter; the heading uses Fraunces.
+**Expect**: the "Import an outline" section with six import options
+(Plottr, Markdown, yWriter, Longform, Scrivener and novelWriter) as hairline rows, each a
+label with its file hint, none truncated. The stacked kindling lockup and "Spark your draft"
+head the left column. New project, Sample project and Open review package entry points align. Text uses Inter; the heading uses Fraunces.
 
 ### 00-04 recent projects
 

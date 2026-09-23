@@ -28,7 +28,7 @@ and a disabled Create until a name is entered.
 ```js
 const q = window.__qa;
 return q.run([
-  ["11-02-name", () => q.fillPlaceholder("Enter project name...", "QA Blank Project")],
+  ["11-02-name", () => q.fillPlaceholder("Enter project name…", "QA Blank Project")],
   ["11-02-create", () => q.createBlankProject(), 1800],
   [
     "11-02-editor",
@@ -62,7 +62,7 @@ equals `["Chapter 1"]` (a blank project starts with one default chapter).
 **Expect**: the editor shell with the new project's name in the sidebar
 header, no sync icon beside More actions, a single
 `Chapter 1` expanded with the undefined-planning hint and a "Switch to
-Flexible" affordance, the New Chapter button, and the scene panel empty state.
+Flexible" affordance, the New chapter button, and the scene panel empty state.
 
 ## Call 3: read the log, then delete the project
 
