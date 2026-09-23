@@ -282,6 +282,7 @@ pub fn run() {
             commands::get_chapter_content_counts,
             commands::get_scene_beat_count,
             commands::delete_chapter,
+            commands::delete_part_and_chapters,
             commands::delete_scene,
             commands::reimport_project,
             commands::get_sync_preview,
@@ -352,6 +353,7 @@ pub fn run() {
             // App settings commands
             commands::get_app_settings,
             commands::update_app_settings,
+            commands::reset_app_settings,
             // Custom field commands
             commands::get_field_definitions,
             commands::get_all_field_definitions,

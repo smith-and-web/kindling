@@ -300,3 +300,34 @@ it("keeps scroll saving and screenplay auto-selection working when sync supersed
   await session.flush();
   expect(disk.get(mockProject.id)?.scroll_position).toBe(110);
 });
+
+it("loads an empty chapter list once and stays settled after removing the last chapter", async () => {
+  vi.mocked(invoke).mockResolvedValue([]);
+  currentProject.setProject(mockProject);
+  render(Sidebar);
+  await waitFor(() =>
+    expect(vi.mocked(invoke).mock.calls.filter(([c]) => c === "get_chapters")).toHaveLength(1)
+  );
+  await tick();
+  currentProject.setChapters([chapter]);
+  await tick();
+  currentProject.setChapters([]);
+  await tick();
+  expect(vi.mocked(invoke).mock.calls.filter(([c]) => c === "get_chapters")).toHaveLength(1);
+  currentProject.setProject({ ...mockProject, id: "another-empty-project" });
+  await waitFor(() =>
+    expect(vi.mocked(invoke).mock.calls.filter(([c]) => c === "get_chapters")).toHaveLength(2)
+  );
+});
+
+it("does not emit prose updates when locking or unlocking an empty editor", async () => {
+  const onUpdate = vi.fn();
+  const view = render(NovelEditor, { content: "", readonly: false, onUpdate });
+  await tick();
+  onUpdate.mockClear();
+  await view.rerender({ readonly: true });
+  await tick();
+  await view.rerender({ readonly: false });
+  await tick();
+  expect(onUpdate).not.toHaveBeenCalled();
+});

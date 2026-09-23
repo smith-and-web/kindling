@@ -775,6 +775,44 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       return count as T;
     }
 
+    case "delete_part_and_chapters": {
+      const partId = getArg<string>(args, "partId");
+      const part = chapters.find((c) => c.id === partId && c.is_part && !c.archived);
+      if (!part) throw new Error("Part not found");
+      const ordered = chapters
+        .filter((c) => c.project_id === part.project_id && !c.archived)
+        .sort((a, b) => a.position - b.position);
+      const start = ordered.findIndex((c) => c.id === partId);
+      const group = [part];
+      for (const c of ordered.slice(start + 1)) {
+        if (c.is_part) break;
+        group.push(c);
+      }
+      const expected = getArg<string[]>(args, "expectedChildIds");
+      const actual = group.slice(1).map((c) => c.id);
+      if (
+        !expected ||
+        expected.length !== actual.length ||
+        new Set(expected).size !== expected.length ||
+        actual.some((id) => !expected.includes(id))
+      ) {
+        throw new Error(
+          "The Part's chapters changed since the confirmation. Review the refreshed outline before trying again."
+        );
+      }
+      if (group.some((c) => c.locked || scenes.some((s) => s.chapter_id === c.id && s.locked))) {
+        throw new Error(
+          "Cannot delete a Part containing a locked chapter or scene. Unlock it first."
+        );
+      }
+      const ids = group.map((c) => c.id);
+      const sceneIds = new Set(scenes.filter((s) => ids.includes(s.chapter_id)).map((s) => s.id));
+      chapters = chapters.filter((c) => !ids.includes(c.id));
+      scenes = scenes.filter((s) => !sceneIds.has(s.id));
+      beats = beats.filter((b) => !sceneIds.has(b.scene_id));
+      return ids as T;
+    }
+
     case "delete_chapter": {
       if (!chapterId) throw new Error("Missing chapterId");
       const ch = chapters.find((c) => c.id === chapterId);
@@ -1088,6 +1126,16 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
     }
 
     case "get_app_settings":
+      return appSettings as T;
+
+    case "reset_app_settings":
+      appSettings = {
+        author_name: null,
+        contact_address_line1: null,
+        contact_address_line2: null,
+        contact_phone: null,
+        contact_email: null,
+      };
       return appSettings as T;
 
     case "update_app_settings": {

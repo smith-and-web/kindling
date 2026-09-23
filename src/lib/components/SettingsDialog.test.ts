@@ -254,3 +254,30 @@ it("groups navigation by scope and keeps the project selector in the sidebar acr
   expect(within(projectGroup).getByRole("combobox", { name: "Project" })).toBe(selector);
   expect(currentProject.value?.id).toBe(mockProject.id);
 });
+
+it("resets damaged author settings and allows valid details to be saved", async () => {
+  const original = vi.mocked(invoke).getMockImplementation()!;
+  let damaged = true;
+  vi.mocked(invoke).mockImplementation((command, args) => {
+    if (command === "get_app_settings" && damaged) return Promise.reject("Invalid settings JSON");
+    if (command === "reset_app_settings") {
+      damaged = false;
+      return Promise.resolve({});
+    }
+    return original(command, args);
+  });
+  render(SettingsDialog, { onClose: vi.fn() });
+  await fireEvent.click(screen.getByRole("button", { name: "Author & Contact" }));
+  await screen.findByText("Invalid settings JSON");
+  await fireEvent.click(screen.getByRole("button", { name: "Reset author details" }));
+  await screen.findByLabelText("Author Name");
+  await fireEvent.input(screen.getByLabelText("Author Name"), {
+    target: { value: "Repaired Author" },
+  });
+  await fireEvent.click(screen.getByRole("button", { name: "Save author details" }));
+  await screen.findByText("Author details saved.");
+  expect(invoke).toHaveBeenCalledWith("reset_app_settings");
+  expect(invoke).toHaveBeenCalledWith("update_app_settings", {
+    settings: expect.objectContaining({ author_name: "Repaired Author" }),
+  });
+});

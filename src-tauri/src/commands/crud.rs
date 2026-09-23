@@ -346,6 +346,69 @@ pub async fn delete_chapter(chapter_id: String, state: State<'_, AppState>) -> R
     Ok(())
 }
 
+/// Delete the current Part group as one operation, validating before any deletion.
+#[tauri::command]
+pub async fn delete_part_and_chapters(
+    part_id: String,
+    expected_child_ids: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<Vec<String>, String> {
+    let id = Uuid::parse_str(&part_id).map_err(|e| e.to_string())?;
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let expected = expected_child_ids
+        .iter()
+        .map(|id| Uuid::parse_str(id).map_err(|e| e.to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+    delete_part_group(&conn, &id, &expected)
+}
+
+fn delete_part_group(
+    conn: &rusqlite::Connection,
+    part_id: &Uuid,
+    expected_child_ids: &[Uuid],
+) -> Result<Vec<String>, String> {
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    let project_id = db::get_chapter_project_id(&tx, part_id)
+        .map_err(|e| e.to_string())?
+        .ok_or("Part not found")?;
+    let chapters = db::get_chapters(&tx, &project_id).map_err(|e| e.to_string())?;
+    let start = chapters
+        .iter()
+        .position(|c| c.id == *part_id && c.is_part)
+        .ok_or("Part not found")?;
+    let group: Vec<_> = chapters[start..]
+        .iter()
+        .take(1)
+        .chain(chapters[start + 1..].iter().take_while(|c| !c.is_part))
+        .collect();
+    let actual: std::collections::HashSet<_> = group.iter().skip(1).map(|c| c.id).collect();
+    let expected: std::collections::HashSet<_> = expected_child_ids.iter().copied().collect();
+    if actual != expected || expected.len() != expected_child_ids.len() {
+        return Err("The Part's chapters changed since the confirmation. The outline has been refreshed; review it before trying again.".into());
+    }
+    for chapter in &group {
+        let has_locked_scene: bool = tx
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM scenes WHERE chapter_id = ?1 AND locked = 1)",
+                [chapter.id.to_string()],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+        if chapter.locked || has_locked_scene {
+            return Err(
+                "Cannot delete a Part containing a locked chapter or scene. Unlock it first."
+                    .into(),
+            );
+        }
+    }
+    for chapter in group.iter().rev() {
+        db::delete_chapter_in_transaction(&tx, &chapter.id).map_err(|e| e.to_string())?;
+    }
+    db::update_project_modified(&tx, &project_id).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(group.iter().map(|c| c.id.to_string()).collect())
+}
+
 // ============================================================================
 // Scene Commands
 // ============================================================================
@@ -2109,5 +2172,67 @@ mod unicode_split_tests {
             assert_eq!(html.chars().take(offset).collect::<String>(), first);
             assert_eq!(html.chars().skip(offset).collect::<String>(), second);
         }
+    }
+}
+
+#[cfg(test)]
+mod part_deletion_tests {
+    use super::*;
+    use crate::models::{Project, SourceType};
+
+    #[test]
+    fn part_deletion_validates_locks_and_rolls_back_storage_failures() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        let project = Project::new("Parts".into(), SourceType::Blank, None);
+        db::insert_project(&conn, &project).unwrap();
+        let part = Chapter::new(project.id, "Part".into(), 0).with_is_part(true);
+        let a = Chapter::new(project.id, "A".into(), 1);
+        let b = Chapter::new(project.id, "B".into(), 2);
+        let next = Chapter::new(project.id, "Next Part".into(), 3).with_is_part(true);
+        for ch in [&part, &a, &b, &next] {
+            db::insert_chapter(&conn, ch).unwrap();
+        }
+        let scene = Scene::new(b.id, "Keep prose".into(), None, 0);
+        db::insert_scene(&conn, &scene).unwrap();
+        db::update_scene_prose(&conn, &scene.id, "<p>Keep me</p>").unwrap();
+        assert!(delete_part_group(&conn, &part.id, &[b.id])
+            .unwrap_err()
+            .contains("changed"));
+        assert_eq!(db::get_chapters(&conn, &project.id).unwrap().len(), 4);
+        db::lock_chapter(&conn, &a.id).unwrap();
+        assert!(delete_part_group(&conn, &part.id, &[a.id, b.id])
+            .unwrap_err()
+            .contains("locked"));
+        assert_eq!(db::get_chapters(&conn, &project.id).unwrap().len(), 4);
+        assert_eq!(
+            db::get_scene_by_id(&conn, &scene.id)
+                .unwrap()
+                .unwrap()
+                .prose
+                .as_deref(),
+            Some("<p>Keep me</p>")
+        );
+        db::unlock_chapter(&conn, &a.id).unwrap();
+        db::lock_scene(&conn, &scene.id).unwrap();
+        assert!(delete_part_group(&conn, &part.id, &[a.id, b.id]).is_err());
+        db::archive_scene(&conn, &scene.id).unwrap();
+        assert!(delete_part_group(&conn, &part.id, &[a.id, b.id])
+            .unwrap_err()
+            .contains("locked"));
+        db::unlock_scene(&conn, &scene.id).unwrap();
+        conn.execute_batch("CREATE TEMP TRIGGER fail_part_delete BEFORE DELETE ON chapters WHEN OLD.title = 'A' BEGIN SELECT RAISE(ABORT, 'injected failure'); END;").unwrap();
+        assert!(delete_part_group(&conn, &part.id, &[a.id, b.id])
+            .unwrap_err()
+            .contains("injected failure"));
+        assert!(db::get_scene_by_id(&conn, &scene.id).unwrap().is_some());
+        assert_eq!(db::get_chapters(&conn, &project.id).unwrap().len(), 4);
+        conn.execute_batch("DROP TRIGGER fail_part_delete").unwrap();
+        assert_eq!(
+            delete_part_group(&conn, &part.id, &[a.id, b.id]).unwrap(),
+            vec![part.id.to_string(), a.id.to_string(), b.id.to_string()]
+        );
+        assert_eq!(db::get_chapters(&conn, &project.id).unwrap()[0].id, next.id);
+        assert!(db::get_scene_by_id(&conn, &scene.id).unwrap().is_none());
     }
 }

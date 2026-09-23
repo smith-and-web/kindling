@@ -938,3 +938,78 @@ it("does not restore when preparing pending drafts fails", async () => {
   const dialogs = screen.getAllByRole("dialog");
   expect(dialogs[dialogs.length - 1].contains(alert)).toBe(true);
 });
+
+it("requires recovery of a terminal beat draft before switching its scene to page mode", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  const scene = {
+    ...mockScenes[0],
+    editor_mode: "beat" as const,
+    planning_status: "fixed" as const,
+  };
+  const localBeat = { ...beat, scene_id: scene.id };
+  currentProject.setCurrentScene(scene);
+  currentProject.setBeats([localBeat]);
+  ui.setExpandedBeat(beat.id);
+  vi.mocked(invoke).mockImplementation(async (cmd) => {
+    if (cmd === "save_beat_prose") throw "Cannot edit a locked scene";
+    return [];
+  });
+  render(ScenePanel);
+  await vi.advanceTimersByTimeAsync(0);
+  editor().commands.setContent("<p>Keep this failed draft</p>");
+  await vi.advanceTimersByTimeAsync(500);
+  window.dispatchEvent(new CustomEvent("kindling:toggleEditorMode"));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(vi.mocked(invoke).mock.calls.some(([cmd]) => cmd === "switch_scene_editor_mode")).toBe(
+    false
+  );
+  expect(
+    proseSaves
+      .draftsForRecovery(mockProject.id)
+      .some((d) => d.prose.includes("Keep this failed draft"))
+  ).toBe(true);
+  vi.mocked(invoke).mockImplementation(async (cmd) =>
+    cmd === "switch_scene_editor_mode"
+      ? { ...scene, editor_mode: "page", prose: "<p>Keep this failed draft</p>" }
+      : []
+  );
+  await proseSaves.retryRecovered(mockProject.id);
+  window.dispatchEvent(new CustomEvent("kindling:toggleEditorMode"));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(currentProject.currentScene?.editor_mode).toBe("page");
+});
+
+it.each([false, true])(
+  "sends the confirmed Part membership and refreshes on rejection (%s)",
+  async (reject) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const part = { ...mockChapters[0], id: "part-P", title: "Part P", is_part: true, position: 0 };
+    const a = { ...mockChapters[0], id: "chapter-A", title: "A", is_part: false, position: 1 };
+    const b = { ...a, id: "chapter-B", title: "B", position: 2 };
+    const q = { ...part, id: "part-Q", title: "Part Q", position: 3 };
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === "get_chapters") return [part, a, b, q];
+      if (cmd === "delete_part_and_chapters") {
+        if (reject) throw "The Part's chapters changed";
+        return [part.id, a.id, b.id];
+      }
+      return [];
+    });
+    render(Sidebar);
+    await vi.advanceTimersByTimeAsync(0);
+    await fireEvent.contextMenu(screen.getByRole("button", { name: "Part P" }));
+    await fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    await fireEvent.click(screen.getByTestId("delete-part-and-chapters"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(invoke).toHaveBeenCalledWith("delete_part_and_chapters", {
+      partId: part.id,
+      expectedChildIds: [a.id, b.id],
+    });
+    expect(currentProject.chapters.map((c) => c.id)).toEqual(
+      reject ? [part.id, a.id, b.id, q.id] : [q.id]
+    );
+    expect(vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === "get_chapters")).toHaveLength(
+      reject ? 2 : 1
+    );
+  }
+);
