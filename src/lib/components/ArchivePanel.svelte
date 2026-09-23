@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { X, Archive, RotateCcw, Trash2, Loader2, Book, FileText } from "lucide-svelte";
+  import { Archive, CircleAlert, Loader2, TriangleAlert } from "lucide-svelte";
+  import { tick } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import type { Chapter, Scene, ArchivedItems } from "../types";
   import { currentProject } from "../stores/project.svelte";
-  import Tooltip from "./Tooltip.svelte";
+  import DialogHeader from "./DialogHeader.svelte";
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -13,10 +14,24 @@
   let error = $state<string | null>(null);
   let restoringId = $state<string | null>(null);
   let deletingId = $state<string | null>(null);
+  // Inline delete confirmation and per-row failure message.
+  let confirmingId = $state<string | null>(null);
+  let rowError = $state<{ id: string; message: string } | null>(null);
+  const deleteTriggers: Record<string, HTMLElement | null> = {};
 
   $effect(() => {
     loadArchivedItems();
   });
+
+  function messageOf(e: unknown, fallback: string): string {
+    if (e instanceof Error) return e.message;
+    if (typeof e === "string" && e) return e;
+    return fallback;
+  }
+
+  function focusOnMount(node: HTMLElement) {
+    node.focus();
+  }
 
   async function loadArchivedItems() {
     if (!currentProject.value) return;
@@ -31,7 +46,7 @@
       archivedChapters = items.chapters;
       archivedScenes = items.scenes;
     } catch (e) {
-      error = e instanceof Error ? e.message : "Failed to load archived items";
+      error = messageOf(e, "Failed to load archived items");
     } finally {
       loading = false;
     }
@@ -39,6 +54,7 @@
 
   async function restoreChapter(chapter: Chapter) {
     restoringId = chapter.id;
+    rowError = null;
     try {
       const restored = await invoke<Chapter>("restore_chapter", {
         chapterId: chapter.id,
@@ -46,7 +62,7 @@
       archivedChapters = archivedChapters.filter((c) => c.id !== chapter.id);
       currentProject.addChapter(restored);
     } catch (e) {
-      console.error("Failed to restore chapter:", e);
+      rowError = { id: chapter.id, message: messageOf(e, "Could not restore this chapter.") };
     } finally {
       restoringId = null;
     }
@@ -54,6 +70,7 @@
 
   async function restoreScene(scene: Scene) {
     restoringId = scene.id;
+    rowError = null;
     try {
       const restored = await invoke<Scene>("restore_scene", {
         sceneId: scene.id,
@@ -64,42 +81,56 @@
         currentProject.addScene(restored);
       }
     } catch (e) {
-      console.error("Failed to restore scene:", e);
+      rowError = { id: scene.id, message: messageOf(e, "Could not restore this scene.") };
     } finally {
       restoringId = null;
     }
   }
 
-  async function permanentDeleteChapter(chapter: Chapter) {
-    if (!confirm(`Permanently delete "${chapter.title}"? This cannot be undone.`)) {
+  function askDelete(id: string) {
+    if (confirmingId === id) {
+      void cancelDelete();
       return;
     }
+    rowError = null;
+    confirmingId = id;
+  }
 
+  async function cancelDelete() {
+    if (deletingId || !confirmingId) return;
+    const id = confirmingId;
+    confirmingId = null;
+    rowError = null;
+    await tick();
+    deleteTriggers[id]?.focus();
+  }
+
+  async function permanentDeleteChapter(chapter: Chapter) {
     deletingId = chapter.id;
+    rowError = null;
     try {
       await invoke("delete_chapter", { chapterId: chapter.id });
       archivedChapters = archivedChapters.filter((c) => c.id !== chapter.id);
+      confirmingId = null;
     } catch (e) {
-      console.error("Failed to delete chapter:", e);
+      rowError = { id: chapter.id, message: messageOf(e, "Could not delete this chapter.") };
     } finally {
       deletingId = null;
     }
   }
 
   async function permanentDeleteScene(scene: Scene) {
-    if (!confirm(`Permanently delete "${scene.title}"? This cannot be undone.`)) {
-      return;
-    }
-
     deletingId = scene.id;
+    rowError = null;
     try {
       await invoke("delete_scene", {
         sceneId: scene.id,
         chapterId: scene.chapter_id,
       });
       archivedScenes = archivedScenes.filter((s) => s.id !== scene.id);
+      confirmingId = null;
     } catch (e) {
-      console.error("Failed to delete scene:", e);
+      rowError = { id: scene.id, message: messageOf(e, "Could not delete this scene.") };
     } finally {
       deletingId = null;
     }
@@ -107,13 +138,18 @@
 
   function handleBackdropClick(event: MouseEvent) {
     if (event.target === event.currentTarget) {
-      onClose();
+      if (confirmingId) void cancelDelete();
+      else onClose();
     }
   }
 
   function handleKeydown(event: KeyboardEvent) {
+    // The scrim and the window both listen; handle each keypress once.
+    if (event.defaultPrevented) return;
     if (event.key === "Escape") {
-      onClose();
+      event.preventDefault();
+      if (confirmingId) void cancelDelete();
+      else onClose();
     }
   }
 
@@ -126,9 +162,102 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<!-- Backdrop -->
+{#snippet itemRow(
+  id: string,
+  title: string,
+  origin: string,
+  kind: "chapter" | "scene",
+  onRestore: () => void,
+  onDelete: () => void
+)}
+  {@const busy = restoringId === id || deletingId === id}
+  <li class="archive-row">
+    <div class="archive-main">
+      <div class="archive-text">
+        <p class="ka-label archive-name" id={`archive-${id}-name`}>{title}</p>
+        <p class="archive-meta">{origin}</p>
+      </div>
+      <div class="archive-actions">
+        <button
+          type="button"
+          onclick={onRestore}
+          disabled={busy}
+          aria-busy={restoringId === id || undefined}
+          aria-describedby={`archive-${id}-name`}
+          class="ka-button ka-button--secondary"
+          data-testid="archive-restore"
+        >
+          {#if restoringId === id}
+            <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
+            Restoring…
+          {:else}
+            Restore
+          {/if}
+        </button>
+        <button
+          bind:this={deleteTriggers[id]}
+          type="button"
+          onclick={() => askDelete(id)}
+          disabled={busy}
+          aria-describedby={`archive-${id}-name`}
+          aria-expanded={confirmingId === id}
+          aria-controls={confirmingId === id ? `archive-${id}-confirm` : undefined}
+          class="ka-button ka-button--danger"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+    {#if confirmingId === id}
+      <div
+        id={`archive-${id}-confirm`}
+        class="ka-notice ka-notice--warning od-row-top archive-confirm"
+        role="alertdialog"
+        aria-labelledby={`archive-${id}-confirm-title`}
+        aria-describedby={`archive-${id}-confirm-body`}
+      >
+        <TriangleAlert class="w-5 h-5" aria-hidden="true" />
+        <div class="od-field od-fill archive-confirm-body">
+          <strong id={`archive-${id}-confirm-title`}>Permanently delete “{title}”?</strong>
+          <p id={`archive-${id}-confirm-body`}>
+            This permanently deletes the {kind}. It cannot be undone.
+          </p>
+          {#if rowError?.id === id}<p class="ka-error" role="alert">{rowError.message}</p>{/if}
+          <div class="archive-actions-end">
+            <button
+              type="button"
+              onclick={cancelDelete}
+              disabled={deletingId !== null}
+              class="ka-button ka-button--ghost"
+              use:focusOnMount
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onclick={onDelete}
+              disabled={deletingId !== null}
+              aria-busy={deletingId === id || undefined}
+              class="ka-button ka-button--danger"
+            >
+              {#if deletingId === id}
+                <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
+                Deleting…
+              {:else}
+                Delete permanently
+              {/if}
+            </button>
+          </div>
+        </div>
+      </div>
+    {:else if rowError?.id === id}
+      <p class="ka-error" role="alert">{rowError.message}</p>
+    {/if}
+  </li>
+{/snippet}
+
 <div
-  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
+  class="dialog-scrim"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -136,153 +265,165 @@
   aria-labelledby="archive-panel-title"
   tabindex="-1"
 >
-  <!-- Panel -->
-  <div
-    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col overflow-hidden"
-  >
-    <!-- Header -->
-    <div class="flex items-center justify-between px-6 py-4 border-b border-press-border">
-      <div class="flex items-center gap-3">
-        <Archive class="w-5 h-5 text-press-accent-text" />
-        <h2 id="archive-panel-title" class="text-press-h3 font-medium text-press-text">Archive</h2>
-      </div>
-      <Tooltip text="Close" position="left">
-        <button
-          type="button"
-          onclick={onClose}
-          class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
-          aria-label="Close"
-          data-testid="archive-close"
-        >
-          <X class="w-5 h-5" />
-        </button>
-      </Tooltip>
-    </div>
+  <div class="app-dialog-surface ka-dialog-default dialog-shell">
+    <DialogHeader
+      title="Archive"
+      titleId="archive-panel-title"
+      subtitle={currentProject.value?.name}
+      {onClose}
+      closeTestId="archive-close"
+    />
 
-    <!-- Content -->
-    <div class="flex-1 overflow-y-auto p-6">
+    <div class="ka-dialog-body archive">
       {#if loading}
-        <div class="flex items-center justify-center py-12">
-          <Loader2 class="w-8 h-8 animate-spin text-press-accent-text" />
-        </div>
+        <p class="ka-help archive-loading" role="status">
+          <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
+          Loading archived items…
+        </p>
       {:else if error}
-        <div class="text-center py-12">
-          <p class="text-press-error">{error}</p>
+        <div class="ka-notice ka-notice--error od-row-top" role="alert">
+          <CircleAlert class="w-5 h-5" aria-hidden="true" />
+          <div class="od-field od-fill">
+            <strong>Could not load the archive</strong>
+            <p>{error}</p>
+          </div>
         </div>
       {:else if archivedChapters.length === 0 && archivedScenes.length === 0}
-        <div class="text-center py-12">
-          <Archive class="w-12 h-12 mx-auto text-press-muted mb-4" />
-          <p class="text-press-muted">No archived items</p>
-          <p class="text-press-muted text-press-ui mt-1">
-            Archived chapters and scenes will appear here
-          </p>
+        <div class="ka-empty od-stack archive-empty">
+          <Archive class="w-7 h-7" aria-hidden="true" />
+          <h4>No archived items</h4>
+          <p>Archived chapters and scenes will appear here.</p>
         </div>
       {:else}
-        <!-- Archived Chapters -->
+        <p class="ka-help archive-intro">
+          Restore puts an item back where it was. Delete removes it for good.
+        </p>
         {#if archivedChapters.length > 0}
-          <section class="mb-8">
-            <h3 class="text-press-ui font-medium text-press-muted uppercase tracking-wide mb-4">
-              Archived Chapters ({archivedChapters.length})
+          <section class="ka-group archive-group" aria-labelledby="archive-chapters-title">
+            <h3 id="archive-chapters-title" class="ka-group-title">
+              Archived chapters ({archivedChapters.length})
             </h3>
-            <div class="space-y-2">
+            <ul class="archive-list">
               {#each archivedChapters as chapter (chapter.id)}
-                <div class="flex items-center justify-between bg-press-sunken rounded-lg px-4 py-3">
-                  <div class="flex items-center gap-3">
-                    <Book class="w-4 h-4 text-press-muted" />
-                    <span class="text-press-text">{chapter.title}</span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onclick={() => restoreChapter(chapter)}
-                      disabled={restoringId === chapter.id || deletingId === chapter.id}
-                      class="flex items-center gap-1 px-2 py-1 text-press-ui text-press-accent-text hover:text-press-accent-text transition-colors"
-                      title="Restore"
-                      data-testid="archive-restore"
-                    >
-                      {#if restoringId === chapter.id}
-                        <Loader2 class="w-4 h-4 animate-spin" />
-                      {:else}
-                        <RotateCcw class="w-4 h-4" />
-                      {/if}
-                      <span>Restore</span>
-                    </button>
-                    <button
-                      type="button"
-                      onclick={() => permanentDeleteChapter(chapter)}
-                      disabled={restoringId === chapter.id || deletingId === chapter.id}
-                      class="flex items-center gap-1 px-2 py-1 text-press-ui text-press-error hover:text-press-error transition-colors"
-                      title="Delete permanently"
-                    >
-                      {#if deletingId === chapter.id}
-                        <Loader2 class="w-4 h-4 animate-spin" />
-                      {:else}
-                        <Trash2 class="w-4 h-4" />
-                      {/if}
-                      <span>Delete</span>
-                    </button>
-                  </div>
-                </div>
+                {@render itemRow(
+                  chapter.id,
+                  chapter.title,
+                  "Chapter",
+                  "chapter",
+                  () => restoreChapter(chapter),
+                  () => permanentDeleteChapter(chapter)
+                )}
               {/each}
-            </div>
+            </ul>
           </section>
         {/if}
 
-        <!-- Archived Scenes -->
         {#if archivedScenes.length > 0}
-          <section>
-            <h3 class="text-press-ui font-medium text-press-muted uppercase tracking-wide mb-4">
-              Archived Scenes ({archivedScenes.length})
+          <section class="ka-group archive-group" aria-labelledby="archive-scenes-title">
+            <h3 id="archive-scenes-title" class="ka-group-title">
+              Archived scenes ({archivedScenes.length})
             </h3>
-            <div class="space-y-2">
+            <ul class="archive-list">
               {#each archivedScenes as scene (scene.id)}
-                <div class="flex items-center justify-between bg-press-sunken rounded-lg px-4 py-3">
-                  <div class="flex items-center gap-3 min-w-0">
-                    <FileText class="w-4 h-4 text-press-muted flex-shrink-0" />
-                    <div class="min-w-0">
-                      <p class="text-press-text truncate">{scene.title}</p>
-                      <p class="text-press-muted text-press-eyebrow truncate">
-                        in {getParentChapterTitle(scene)}
-                      </p>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      type="button"
-                      onclick={() => restoreScene(scene)}
-                      disabled={restoringId === scene.id || deletingId === scene.id}
-                      class="flex items-center gap-1 px-2 py-1 text-press-ui text-press-accent-text hover:text-press-accent-text transition-colors"
-                      title="Restore"
-                      data-testid="archive-restore"
-                    >
-                      {#if restoringId === scene.id}
-                        <Loader2 class="w-4 h-4 animate-spin" />
-                      {:else}
-                        <RotateCcw class="w-4 h-4" />
-                      {/if}
-                      <span>Restore</span>
-                    </button>
-                    <button
-                      type="button"
-                      onclick={() => permanentDeleteScene(scene)}
-                      disabled={restoringId === scene.id || deletingId === scene.id}
-                      class="flex items-center gap-1 px-2 py-1 text-press-ui text-press-error hover:text-press-error transition-colors"
-                      title="Delete permanently"
-                    >
-                      {#if deletingId === scene.id}
-                        <Loader2 class="w-4 h-4 animate-spin" />
-                      {:else}
-                        <Trash2 class="w-4 h-4" />
-                      {/if}
-                      <span>Delete</span>
-                    </button>
-                  </div>
-                </div>
+                {@render itemRow(
+                  scene.id,
+                  scene.title,
+                  `Scene in ${getParentChapterTitle(scene)}`,
+                  "scene",
+                  () => restoreScene(scene),
+                  () => permanentDeleteScene(scene)
+                )}
               {/each}
-            </div>
+            </ul>
           </section>
         {/if}
       {/if}
     </div>
   </div>
 </div>
+
+<style>
+  .archive {
+    display: grid;
+    align-content: start;
+    gap: var(--space-s);
+  }
+  .archive-intro,
+  .archive-loading {
+    margin: 0;
+  }
+  .archive-loading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+  }
+  .archive-empty {
+    padding-block: var(--space-m);
+  }
+  .archive-empty h4 {
+    margin: 0;
+    font: 550 var(--text-h3) / 1.25 var(--font-display);
+    letter-spacing: var(--tracking-tight);
+  }
+  .archive-empty p {
+    margin: 0;
+  }
+  .archive-group .ka-group-title {
+    margin: 0 0 var(--space-2xs);
+  }
+  .archive-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: var(--border-hair);
+  }
+  .archive-row {
+    display: grid;
+    gap: var(--space-xs);
+    padding-block: var(--space-xs);
+    border-bottom: var(--border-hair);
+  }
+  .archive-row > .ka-error {
+    margin: 0;
+  }
+  .archive-main {
+    display: flex;
+    align-items: center;
+    gap: var(--space-s);
+    min-height: var(--control-target);
+  }
+  .archive-text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .archive-text p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .archive-name {
+    font: 500 var(--text-ui) / 1.5 var(--font-ui);
+    color: var(--color-text);
+  }
+  .archive-meta {
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  .archive-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    flex: none;
+  }
+  .archive-confirm-body {
+    gap: var(--space-xs);
+  }
+  .archive-confirm-body p {
+    margin: 0;
+  }
+  .archive-actions-end {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--space-2xs);
+  }
+</style>

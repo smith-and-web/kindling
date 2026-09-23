@@ -146,8 +146,11 @@ it("remembers Custom and the chosen profile across the standard dialog and works
   };
   let app = render(ClassicExportDialog, props);
   await tick();
-  await fireEvent.click(screen.getByTestId("export-format-custom"));
-  await fireEvent.change(screen.getByLabelText("Export profile"), { target: { value: "website" } });
+  const profile = () => screen.getByLabelText("Export profile") as HTMLSelectElement;
+  expect(profile().value).toBe("");
+  await fireEvent.change(profile(), { target: { value: "website" } });
+  expect(screen.getByRole("button", { name: /Open workspace/ })).toBeTruthy();
+  expect(screen.getByText("Output")).toBeTruthy();
   app.unmount();
   const workspace = await mount();
   expect((screen.getByLabelText("Export profile") as HTMLSelectElement).value).toBe("website");
@@ -155,13 +158,15 @@ it("remembers Custom and the chosen profile across the standard dialog and works
   workspace.unmount();
   app = render(ClassicExportDialog, props);
   await tick();
-  expect((screen.getByTestId("export-format-custom") as HTMLInputElement).checked).toBe(true);
-  expect((screen.getByLabelText("Export profile") as HTMLSelectElement).value).toBe("readers");
+  expect(profile().value).toBe("readers");
   await fireEvent.click(screen.getByTestId("export-format-docx"));
+  expect(profile().value).toBe("");
   app.unmount();
   render(ClassicExportDialog, props);
   await tick();
-  expect((screen.getByTestId("export-format-custom") as HTMLInputElement).checked).toBe(true);
+  expect(profile().value).toBe("readers");
+  await fireEvent.change(profile(), { target: { value: "" } });
+  expect((screen.getByTestId("export-format-docx") as HTMLInputElement).checked).toBe(true);
 });
 
 it("exports EPUB without first saving when an unfinished Word margin becomes hidden", async () => {

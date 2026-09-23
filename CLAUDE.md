@@ -55,7 +55,7 @@ npm test -- --coverage   # frontend tests with coverage gate
 npm run check            # svelte-check (types)
 npm run lint             # eslint src/
 npm run format:check     # prettier check
-npm run sync:design-system   # sync Press from the sibling brand-assets repo
+npm run sync:design-system   # sync Press from the sibling press repo (../press)
 npm run check:design-system  # fail if a synced file or generated bridge drifted
 # Add -- --with-app-icons when the canonical app-icon master changes.
 
@@ -68,18 +68,38 @@ npm run check:all        # everything CI checks (types, format, lint, rust fmt+c
 
 ## Press design system
 
-`../brand-assets/design-system/` is the canonical source for the app's colours,
-typography, spacing, states, elevation, and component foundations. Read
-`DESIGN_GUIDE.md` before changing UI. Never define a token locally or hand-edit
-anything under `src/styles/press/`; change Press upstream, regenerate
-`tokens.json`, then run `npm run sync:design-system` here. Light is the default
-theme and dark remains a supported app theme.
+`../press` ([smith-and-web/press](https://github.com/smith-and-web/press), the
+`@kindling/design-system` package) is the canonical source for the app's colours,
+typography, spacing, states, elevation, controls and brand artwork. The old
+`../brand-assets` repo is retired; never sync from it. Read `DESIGN_GUIDE.md`
+(a mirror of Press `DESIGN.md`) before changing UI, and
+`../press/docs/APPLICATION_COMPONENTS.md` for component APIs. Never define a
+token locally or hand-edit anything the sync writes; change Press upstream, then
+run `npm run sync:design-system` here. `npm run check:design-system` fails if a
+mirrored byte drifts from `src/styles/press/MANIFEST.json`.
+
+The mirror is `src/styles/press/`: `tokens.css` / `tokens.json`,
+`application.css` (the `ka-*` control layer, imported in `layer(components)`),
+`fonts.css` (Press WOFF2 faces bundled in `static/fonts/`), `svelte/` (the 22
+Press Svelte 5 components plus the editor entry, importable as
+`import { Button, Field } from "$press/svelte"`), and the generated Tailwind
+bridge `tailwind.css`. Brand SVGs live in `static/brand/`.
+
+The application surface is `.press-app` (set on `#app`): Inter controls,
+Fraunces headings, Newsreader manuscript; light, dark and system chrome, with
+the manuscript staying light paper (`--color-prose-*`) in dark mode. One
+implementation per control role: use the Press component or its `ka-*` class
+before writing a control by hand. Standalone controls are 44px
+(`min-h-press-target`). Focus is a 2px accent-text outline offset 3px.
+Disabled is a token pair, never opacity. Hairlines separate in-flow groups;
+shadows are for floating layers and the mounted manuscript sheet only.
 
 Use token-backed utilities from the generated Tailwind bridge. Never free-hand a
-hex, font family, font size, z-index, or reduced text opacity in app UI. Reading
-prose uses Newsreader, operational UI uses Inter, headings use Fraunces, and prose
-is capped by `--measure`. Verify shared-style changes through computed styles in
-both themes because component-scoped Svelte CSS can win the cascade.
+hex, font family, font size, z-index or reduced text opacity in app UI. The
+brand name is always lowercase `kindling` in displayed copy (release asset
+filenames and the `Kindling` productName stay as they are). Verify shared-style
+changes through computed styles in both themes because component-scoped Svelte
+CSS can win the cascade.
 
 ## Conventions
 
@@ -167,8 +187,9 @@ there. Verify anything touching the boundary with `npm run tauri dev`.
 ## Sensitive areas (touch only with explicit intent)
 
 - `src-tauri/src/db/schema.rs` — the SQLite schema. Changes affect existing user files.
-- `../brand-assets/design-system/` — canonical Press tokens and component styles.
-  Synced files in this repo are generated mirrors and must not be hand-edited.
+- `../press/design-system/` — canonical Press tokens, controls and components.
+  `src/styles/press/`, `static/fonts/`, `static/brand/` and `DESIGN_GUIDE.md` are
+  generated mirrors and must not be hand-edited.
 - `Cargo.lock` / `package-lock.json` — don't add or bump dependencies unsupervised.
 
 ## Automation: blacksmith

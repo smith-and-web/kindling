@@ -8,7 +8,7 @@
   import {
     FileText,
     History,
-    ChevronDown,
+    ChevronRight,
     Loader2,
     Plus,
     Pencil,
@@ -18,8 +18,7 @@
     Lightbulb,
     Info,
     X,
-    LayoutGrid,
-    AlignLeft,
+    List,
   } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import ConfirmDialog from "./ConfirmDialog.svelte";
@@ -109,6 +108,12 @@
   }
 
   const isScreenplay = $derived(currentProject.value?.project_type === "screenplay");
+  // The breadcrumb names the scene's own chapter: selecting or creating
+  // another chapter changes currentChapter before the scene changes.
+  const sceneChapter = $derived(
+    currentProject.chapters.find((c) => c.id === currentProject.currentScene?.chapter_id) ??
+      currentProject.currentChapter
+  );
 
   const scenePageEstimate = $derived.by(() => {
     if (!isScreenplay || !currentProject.currentScene) return null;
@@ -784,496 +789,422 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div data-testid="scene-panel" class="flex-1 flex flex-col h-full overflow-hidden">
+<div data-testid="scene-panel" class="scene">
   {#if currentProject.currentScene && currentProject.value}
     {@const scene = currentProject.currentScene}
     {@const projectId = currentProject.value.id}
-    <div use:trackSceneScroll={{ projectId, sceneId: scene.id }} class="flex-1 overflow-y-auto">
-      <div class="max-w-3xl mx-auto p-8">
-        <Previously refreshVersion={previousSceneVersion} bind:loading={previousSceneLoading}>
-          {#snippet actions()}
-            <button
-              type="button"
-              disabled={openingRevisions}
-              onclick={openRevisions}
-              class="flex items-center gap-2 py-1 text-press-ui font-press-ui text-press-muted hover:text-press-text"
-            >
-              <History class="w-4 h-4" strokeWidth={1} aria-hidden="true" />
-              {openingRevisions ? "Opening revisions…" : "Revisions"}
-            </button>
-          {/snippet}
-        </Previously>
+    {@const planning = scene.planning_status ?? "fixed"}
+    <div class="scene-top">
+      <button
+        type="button"
+        disabled={openingRevisions}
+        aria-busy={openingRevisions || undefined}
+        onclick={openRevisions}
+        class="ka-button ka-button--ghost"
+      >
+        <History class="w-5 h-5" aria-hidden="true" />
+        {openingRevisions ? "Opening revisions…" : "Revisions"}
+      </button>
+      {#if planning === "fixed"}
+        <div class="ka-segment-track scene-view" role="group" aria-label="View">
+          <button
+            type="button"
+            data-testid="view-beats"
+            onclick={() => switchEditorMode("beat")}
+            disabled={switchingMode || isLocked}
+            class="ka-segment"
+            class:ka-selected={scene.editor_mode === "beat"}
+            aria-pressed={scene.editor_mode === "beat"}
+            title="Beat cards"
+          >
+            <List class="w-5 h-5" aria-hidden="true" />
+            Beats
+          </button>
+          <button
+            type="button"
+            data-testid="view-page"
+            onclick={() => switchEditorMode("page")}
+            disabled={switchingMode || isLocked}
+            class="ka-segment"
+            class:ka-selected={scene.editor_mode === "page"}
+            aria-pressed={scene.editor_mode === "page"}
+            title="Full page prose"
+          >
+            <FileText class="w-5 h-5" aria-hidden="true" />
+            Page
+          </button>
+        </div>
+      {/if}
+    </div>
+    <div use:trackSceneScroll={{ projectId, sceneId: scene.id }} class="scene-scroll">
+      <div class="scene-col">
+        <Previously refreshVersion={previousSceneVersion} bind:loading={previousSceneLoading} />
         <!-- Scene Title -->
-        <header class="mb-8">
-          <div class="flex items-center gap-3 flex-wrap">
-            {#if isScreenplay && !isLocked}
-              <SluglineInput
-                value={scene.title}
-                onSave={(slugline) => saveSceneTitle(scene, slugline)}
-                locations={currentProject.locations}
-                disabled={metadataSaving}
-                class="flex-1 min-w-0"
-              />
-            {:else}
-              <h1
-                data-testid="scene-title"
-                class="text-press-h1 font-heading font-semibold text-press-text"
-              >
-                {scene.title}
-              </h1>
+        <header class="scene-header">
+          <p class="scene-eyebrow">
+            {#if sceneChapter}
+              <span>{isScreenplay ? "Sequence" : "Chapter"} · {sceneChapter.title}</span>
+            {/if}
+            {#if isScreenplay && scenePageEstimate !== null}
+              <span>~{scenePageEstimate.toFixed(1)} pages</span>
             {/if}
             {#if isLocked}
-              <span
-                class="flex items-center gap-1 px-2 py-1 bg-press-warning-wash text-press-warning rounded-lg text-press-ui"
-              >
-                <Lock class="w-4 h-4" />
+              <span class="ka-badge ka-badge--warning scene-locked">
+                <Lock class="w-4 h-4" aria-hidden="true" />
                 Locked
               </span>
             {/if}
-          </div>
-          {#if currentProject.currentChapter}
-            <p class="text-press-muted text-press-ui mt-1">
-              {currentProject.currentChapter.title}
-            </p>
+          </p>
+          {#if isScreenplay && !isLocked}
+            <SluglineInput
+              value={scene.title}
+              onSave={(slugline) => saveSceneTitle(scene, slugline)}
+              locations={currentProject.locations}
+              disabled={metadataSaving}
+              class="flex-1 min-w-0"
+            />
+          {:else}
+            <h1 data-testid="scene-title" class="scene-title">{scene.title}</h1>
           {/if}
-          {#if isScreenplay && scenePageEstimate !== null}
-            <span class="text-press-eyebrow text-press-muted mt-1">
-              ~{scenePageEstimate.toFixed(1)} pg
-            </span>
-          {/if}
-          <div class="mt-4 flex flex-wrap gap-4">
-            <div class="flex flex-col gap-1">
-              <label for="scene-type" class="text-press-eyebrow text-press-muted">Scene type</label>
-              <div class="relative">
-                <select
-                  id="scene-type"
-                  value={scene.scene_type ?? "normal"}
-                  onchange={(event) => handleSceneTypeChange(event, scene)}
-                  class="appearance-none bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus cursor-pointer"
-                  disabled={isLocked || metadataSaving}
-                >
-                  {#each sceneTypeOptions as option (option.value)}
-                    <option value={option.value}>{option.label}</option>
-                  {/each}
-                </select>
-                <ChevronDown
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-press-muted pointer-events-none"
-                />
-              </div>
-            </div>
-            <div class="flex flex-col gap-1">
-              <label for="scene-status" class="text-press-eyebrow text-press-muted">Status</label>
-              <div class="relative">
-                <select
-                  id="scene-status"
-                  value={scene.scene_status ?? "draft"}
-                  onchange={(event) => handleSceneStatusChange(event, scene)}
-                  class="appearance-none bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus cursor-pointer"
-                  disabled={isLocked || metadataSaving}
-                >
-                  {#each sceneStatusOptions as option (option.value)}
-                    <option value={option.value}>{option.label}</option>
-                  {/each}
-                </select>
-                <ChevronDown
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-press-muted pointer-events-none"
-                />
-              </div>
-            </div>
-            <div class="flex flex-col gap-1">
-              <Tooltip
-                text="Controls how much structure this scene has: Undefined → Flexible → Fixed"
-                position="top"
+          <div class="scene-meta">
+            <div class="ka-field od-field">
+              <label for="scene-type">Scene type</label>
+              <select
+                id="scene-type"
+                value={scene.scene_type ?? "normal"}
+                onchange={(event) => handleSceneTypeChange(event, scene)}
+                disabled={isLocked || metadataSaving}
               >
-                <label
-                  for="planning-status"
-                  class="text-press-eyebrow text-press-muted cursor-help flex items-center gap-1"
+                {#each sceneTypeOptions as option (option.value)}
+                  <option value={option.value}>{option.label}</option>
+                {/each}
+              </select>
+            </div>
+            <div class="ka-field od-field">
+              <label for="scene-status">Status</label>
+              <select
+                id="scene-status"
+                value={scene.scene_status ?? "draft"}
+                onchange={(event) => handleSceneStatusChange(event, scene)}
+                disabled={isLocked || metadataSaving}
+              >
+                {#each sceneStatusOptions as option (option.value)}
+                  <option value={option.value}>{option.label}</option>
+                {/each}
+              </select>
+            </div>
+            <div class="ka-field od-field">
+              <span class="scene-label-tip">
+                <label for="planning-status">Planning</label>
+                <Tooltip
+                  text="Controls how much structure this scene has: Undefined → Flexible → Fixed"
+                  position="top"
                 >
-                  Planning
-                  <Info class="w-3 h-3 text-press-muted" />
-                </label>
-              </Tooltip>
-              <div class="relative">
-                <select
-                  id="planning-status"
-                  value={scene.planning_status ?? "fixed"}
-                  onchange={(event) => handleScenePlanningStatusChange(event, scene)}
-                  class="appearance-none bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-press-accent focus:ring-1 focus:ring-press-focus cursor-pointer"
-                  disabled={isLocked || metadataSaving}
-                >
-                  {#each planningStatusOptions as option (option.value)}
-                    <option value={option.value}>{option.label}</option>
-                  {/each}
-                </select>
-                <ChevronDown
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-press-muted pointer-events-none"
-                />
-              </div>
+                  <button
+                    type="button"
+                    class="scene-tip"
+                    aria-label="About planning"
+                    aria-describedby="planning-status-help"
+                  >
+                    <Info class="w-4 h-4" aria-hidden="true" />
+                  </button>
+                </Tooltip>
+              </span>
+              <select
+                id="planning-status"
+                value={planning}
+                onchange={(event) => handleScenePlanningStatusChange(event, scene)}
+                disabled={isLocked || metadataSaving}
+                aria-describedby="planning-status-help"
+              >
+                {#each planningStatusOptions as option (option.value)}
+                  <option value={option.value}>{option.label}</option>
+                {/each}
+              </select>
+              <span id="planning-status-help" class="ka-sr"
+                >Controls how much structure this scene has: Undefined, Flexible or Fixed.</span
+              >
             </div>
           </div>
-          {#if (scene.planning_status ?? "fixed") === "fixed"}
-            <div class="flex flex-col gap-1">
-              <span class="text-press-eyebrow text-press-muted">View</span>
-              <div class="flex bg-press-sunken rounded-lg p-0.5">
-                <Tooltip text="Beat cards" position="top">
-                  <button
-                    data-testid="view-beats"
-                    onclick={() => switchEditorMode("beat")}
-                    disabled={switchingMode || isLocked}
-                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-press-ui transition-colors {scene.editor_mode ===
-                    'beat'
-                      ? 'bg-press-accent text-press-on-accent'
-                      : 'text-press-muted hover:text-press-text'}"
-                  >
-                    <LayoutGrid class="w-3.5 h-3.5" />
-                    Beats
-                  </button>
-                </Tooltip>
-                <Tooltip text="Full page prose" position="top">
-                  <button
-                    data-testid="view-page"
-                    onclick={() => switchEditorMode("page")}
-                    disabled={switchingMode || isLocked}
-                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-press-ui transition-colors {scene.editor_mode ===
-                    'page'
-                      ? 'bg-press-accent text-press-on-accent'
-                      : 'text-press-muted hover:text-press-text'}"
-                  >
-                    <AlignLeft class="w-3.5 h-3.5" />
-                    Page
-                  </button>
-                </Tooltip>
-              </div>
-            </div>
-          {/if}
           {#if metadataError}
-            <p class="text-press-eyebrow text-press-error mt-2">{metadataError}</p>
+            <p class="ka-error scene-meta-error" role="alert">{metadataError}</p>
+          {/if}
+
+          <!-- Scene tags -->
+          {#if currentProject.value}
+            <div class="scene-tags">
+              <span class="scene-tags-label">Tags</span>
+              <TagSelector
+                projectId={currentProject.value.id}
+                entityType="scene"
+                entityId={scene.id}
+                allTags={allProjectTags}
+                entityTagIds={sceneTagIds}
+                onTagsChanged={() => loadSceneTags(scene.id)}
+              />
+            </div>
           {/if}
         </header>
 
-        <!-- Scene tags -->
-        {#if currentProject.value}
-          <div class="mb-4 flex items-center gap-2">
-            <span class="text-press-eyebrow text-press-muted shrink-0">Tags</span>
-            <TagSelector
-              projectId={currentProject.value.id}
-              entityType="scene"
-              entityId={scene.id}
-              allTags={allProjectTags}
-              entityTagIds={sceneTagIds}
-              onTagsChanged={() => loadSceneTags(scene.id)}
-            />
-          </div>
-        {/if}
-
         <!-- Planning status guidance (first-time, shown once on any scene) -->
         {#if !ui.hasSeenTooltip("planningStatus")}
-          <div class="mb-6 px-4 py-3 bg-press-accent-wash border border-press-accent rounded-lg">
-            <div class="flex items-start gap-2.5">
-              <Lightbulb class="w-4 h-4 text-press-accent-text shrink-0 mt-0.5" />
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center justify-between gap-2">
-                  <p class="text-press-ui font-medium text-press-text">Rolling outline</p>
-                  <button
-                    onclick={() => ui.markTooltipSeen("planningStatus")}
-                    class="p-0.5 text-press-muted hover:text-press-text rounded transition-colors shrink-0"
-                    aria-label="Dismiss"
-                  >
-                    <X class="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <p class="text-press-eyebrow text-press-muted leading-relaxed mt-1 mb-2.5">
-                  The <strong class="text-press-text">Planning</strong> dropdown above controls how much
-                  structure this scene has. Use it to work through your story gradually:
-                </p>
-                <div class="grid grid-cols-3 gap-3">
-                  <div class="text-press-eyebrow">
-                    <span class="font-medium text-press-muted flex items-center gap-1"
-                      ><CircleDashed class="w-3 h-3" /> Undefined</span
-                    >
-                    <p class="text-press-muted mt-0.5">
-                      A placeholder — you know it exists but haven't planned it.
-                    </p>
-                  </div>
-                  <div class="text-press-eyebrow">
-                    <span class="font-medium text-press-warning flex items-center gap-1"
-                      ><CircleDot class="w-3 h-3" /> Flexible</span
-                    >
-                    <p class="text-press-muted mt-0.5">
-                      You have the gist — a synopsis and rough direction.
-                    </p>
-                  </div>
-                  <div class="text-press-eyebrow">
-                    <span class="font-medium text-press-text flex items-center gap-1">Fixed</span>
-                    <p class="text-press-muted mt-0.5">
-                      Full structure with beats, references, and notes.
-                    </p>
-                  </div>
-                </div>
-              </div>
+          <aside class="scene-guide" aria-labelledby="planning-guide-title">
+            <div class="scene-guide-head">
+              <Lightbulb class="w-5 h-5" aria-hidden="true" />
+              <h3 id="planning-guide-title">Rolling outline</h3>
+              <button
+                type="button"
+                onclick={() => ui.markTooltipSeen("planningStatus")}
+                class="ka-button ka-button--ghost ka-icon-button"
+                aria-label="Dismiss"
+                title="Dismiss"
+              >
+                <X class="w-5 h-5" aria-hidden="true" />
+              </button>
             </div>
-          </div>
+            <p class="scene-guide-lede">
+              The <strong>Planning</strong> menu above controls how much structure this scene has. Use
+              it to work through your story gradually:
+            </p>
+            <dl class="scene-guide-steps">
+              <div>
+                <dt><CircleDashed class="w-4 h-4" aria-hidden="true" /> Undefined</dt>
+                <dd>A placeholder — you know it exists but haven’t planned it.</dd>
+              </div>
+              <div>
+                <dt><CircleDot class="w-4 h-4 is-warning" aria-hidden="true" /> Flexible</dt>
+                <dd>You have the gist — a synopsis and rough direction.</dd>
+              </div>
+              <div>
+                <dt>Fixed</dt>
+                <dd>Full structure with beats, references and notes.</dd>
+              </div>
+            </dl>
+          </aside>
         {/if}
 
-        <!-- Undefined: Placeholder view -->
-        {#if (scene.planning_status ?? "fixed") === "undefined"}
-          <div
-            class="mb-8 p-6 bg-press-surface rounded-lg border border-dashed border-press-border"
-          >
-            <div class="flex items-start gap-3">
-              <div
-                class="w-8 h-8 rounded-full bg-press-border flex items-center justify-center shrink-0 mt-0.5"
-              >
-                <CircleDashed class="w-4 h-4 text-press-muted" />
-              </div>
-              <div>
-                <h3 class="text-press-ui font-medium text-press-text mb-1">Undefined scene</h3>
-                <p class="text-press-muted text-press-ui mb-1">
-                  This is a placeholder — you know it exists but haven't planned it yet.
-                </p>
-                <p class="text-press-muted text-press-eyebrow mb-3">
-                  Add a synopsis above to capture the gist, then promote it when you're ready to
-                  flesh it out.
-                </p>
-                {#if !isLocked}
-                  <div class="flex items-center gap-2">
-                    <button
-                      onclick={() => setScenePlanningStatus(scene, "flexible")}
-                      class="px-3 py-1.5 rounded-md bg-press-accent-wash text-press-accent-text text-press-ui font-medium hover:text-press-text transition-colors"
-                    >
-                      Switch to Flexible
-                    </button>
-                    <button
-                      onclick={() => setScenePlanningStatus(scene, "fixed")}
-                      class="px-3 py-1.5 rounded-md text-press-muted text-press-ui hover:text-press-text hover:bg-press-sunken transition-colors"
-                    >
-                      Go straight to Fixed
-                    </button>
-                  </div>
-                {/if}
-              </div>
-            </div>
-          </div>
-        {:else if (scene.planning_status ?? "fixed") === "flexible"}
-          <!-- Flexible: Synopsis + prompt to add beats -->
-          <div
-            class="mb-8 p-6 bg-press-surface rounded-lg border border-dashed border-press-border"
-          >
-            <div class="flex items-start gap-3">
-              <div
-                class="w-8 h-8 rounded-full bg-press-warning-wash flex items-center justify-center shrink-0 mt-0.5"
-              >
-                <CircleDot class="w-4 h-4 text-press-warning" />
-              </div>
-              <div>
-                <h3 class="text-press-ui font-medium text-press-text mb-1">Flexible scene</h3>
-                <p class="text-press-muted text-press-ui mb-1">
-                  You have an idea for this scene but haven't locked down the structure.
-                </p>
-                <p class="text-press-muted text-press-eyebrow mb-3">
-                  Use the synopsis to capture your intent. When you're ready to break it into beats,
-                  switch to Fixed.
-                </p>
-                {#if !isLocked}
+        <!-- Undefined / Flexible: what this planning level means and how to move on -->
+        {#if planning === "undefined"}
+          <section class="scene-planning" aria-labelledby="planning-undefined-title">
+            <CircleDashed class="w-5 h-5 scene-planning-icon" aria-hidden="true" />
+            <div class="scene-planning-body">
+              <h3 id="planning-undefined-title">Undefined scene</h3>
+              <p>This is a placeholder — you know it exists but haven’t planned it yet.</p>
+              <p class="ka-help">
+                Add a synopsis below to capture the gist, then promote it when you’re ready to flesh
+                it out.
+              </p>
+              {#if !isLocked}
+                <div class="scene-planning-actions">
                   <button
+                    type="button"
+                    onclick={() => setScenePlanningStatus(scene, "flexible")}
+                    class="ka-button ka-button--secondary"
+                  >
+                    Switch to Flexible
+                  </button>
+                  <button
+                    type="button"
                     onclick={() => setScenePlanningStatus(scene, "fixed")}
-                    class="px-3 py-1.5 rounded-md bg-press-accent-wash text-press-accent-text text-press-ui font-medium hover:text-press-text transition-colors"
+                    class="ka-button ka-button--ghost"
+                  >
+                    Go straight to Fixed
+                  </button>
+                </div>
+              {/if}
+            </div>
+          </section>
+        {:else if planning === "flexible"}
+          <section class="scene-planning" aria-labelledby="planning-flexible-title">
+            <CircleDot class="w-5 h-5 scene-planning-icon is-warning" aria-hidden="true" />
+            <div class="scene-planning-body">
+              <h3 id="planning-flexible-title">Flexible scene</h3>
+              <p>You have an idea for this scene but haven’t locked down the structure.</p>
+              <p class="ka-help">
+                Use the synopsis to capture your intent. When you’re ready to break it into beats,
+                switch to Fixed.
+              </p>
+              {#if !isLocked}
+                <div class="scene-planning-actions">
+                  <button
+                    type="button"
+                    onclick={() => setScenePlanningStatus(scene, "fixed")}
+                    class="ka-button ka-button--secondary"
                   >
                     Define beats
                   </button>
-                {/if}
-              </div>
+                </div>
+              {/if}
             </div>
-          </div>
+          </section>
         {/if}
 
         <!-- Locked Banner -->
         {#if isLocked}
-          <div class="mb-8 px-4 py-3 bg-press-warning-wash border border-press-warning rounded-lg">
-            <div class="flex items-center gap-2 text-press-warning">
-              <Lock class="w-4 h-4" />
-              <span class="font-medium">This scene is locked</span>
+          <div class="ka-notice ka-notice--warning od-row-top scene-locked-notice" role="status">
+            <Lock class="w-5 h-5 shrink-0" aria-hidden="true" />
+            <div class="od-field od-fill">
+              <strong>This scene is locked</strong>
+              <p>
+                {#if currentProject.currentChapter?.locked}
+                  The parent chapter is locked. Unlock the chapter to edit this scene.
+                {:else}
+                  Unlock this scene from the sidebar to make changes.
+                {/if}
+              </p>
             </div>
-            <p class="text-press-muted text-press-ui mt-1">
-              {#if currentProject.currentChapter?.locked}
-                The parent chapter is locked. Unlock the chapter to edit this scene.
-              {:else}
-                Unlock this scene from the sidebar to make changes.
-              {/if}
-            </p>
           </div>
         {/if}
 
         <!-- Synopsis (shown for all planning statuses) -->
-        <section class="mb-8">
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="text-press-ui font-semibold text-press-text uppercase tracking-wide">
-              Synopsis
-            </h2>
+        <section class="scene-section" aria-labelledby="synopsis-title">
+          <div class="scene-section-head">
+            <h3 id="synopsis-title">Synopsis</h3>
             {#if synopsis && !editingSynopsis && !isLocked}
-              <Tooltip text="Edit synopsis" position="left">
-                <button
-                  onclick={startEditingSynopsis}
-                  class="text-press-muted hover:text-press-text transition-colors p-1"
-                  aria-label="Edit synopsis"
-                >
-                  <Pencil class="w-3.5 h-3.5" />
-                </button>
-              </Tooltip>
+              <button
+                type="button"
+                onclick={startEditingSynopsis}
+                class="ka-button ka-button--ghost ka-icon-button"
+                aria-label="Edit synopsis"
+                title="Edit synopsis"
+              >
+                <Pencil class="w-5 h-5" aria-hidden="true" />
+              </button>
             {/if}
           </div>
           {#if editingSynopsis && !isLocked}
-            <div class="relative">
+            <div class="ka-field od-field scene-synopsis-field">
+              <label for="scene-synopsis" class="ka-sr">Synopsis</label>
               <textarea
-                class="w-full min-h-[100px] bg-press-sunken rounded-lg p-4 text-press-text font-prose italic leading-relaxed resize-y border border-press-accent focus:outline-none"
-                placeholder="Write a brief synopsis for this scene..."
+                id="scene-synopsis"
+                placeholder="Write a brief synopsis for this scene…"
                 bind:value={synopsisText}
                 oninput={(e) => handleSynopsisInput(e.currentTarget.value)}
+                aria-describedby="scene-synopsis-help"
               ></textarea>
-              {#if synopsisSave.saving}
-                <div class="absolute bottom-3 right-3 flex items-center gap-1.5 text-press-muted">
-                  <Loader2 class="w-3.5 h-3.5 animate-spin" />
-                  <span class="text-press-eyebrow">Saving...</span>
-                </div>
-              {/if}
-            </div>
-            <p class="text-press-muted text-press-eyebrow mt-2">
-              Press Escape to close. Changes are saved automatically.
-            </p>
-          {:else if synopsis}
-            <div class="bg-press-surface rounded-lg p-4 border-l-2 border-press-accent">
-              <p class="text-press-text font-prose italic">
-                {synopsis}
+              <p id="scene-synopsis-help" class="ka-help scene-synopsis-help">
+                {#if synopsisSave.saving}
+                  <Loader2 class="w-4 h-4 animate-spin" aria-hidden="true" />
+                  Saving…
+                {:else}
+                  Press Escape to close. Changes are saved automatically.
+                {/if}
               </p>
             </div>
+          {:else if synopsis}
+            <p class="scene-synopsis">{synopsis}</p>
           {:else if !isLocked}
             <button
+              type="button"
               onclick={startEditingSynopsis}
-              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-press-border text-press-muted hover:text-press-text hover:border-press-accent transition-colors"
+              class="ka-button ka-button--secondary"
             >
-              <Plus class="w-4 h-4" />
-              <span class="text-press-ui">Add Synopsis</span>
+              <Plus class="w-5 h-5" aria-hidden="true" />
+              Add synopsis
             </button>
           {:else}
-            <div
-              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-press-border text-press-muted"
-            >
-              <Lock class="w-4 h-4" />
-              <span class="text-press-ui">Scene is locked</span>
-            </div>
+            <p class="ka-help scene-quiet">
+              <Lock class="w-4 h-4" aria-hidden="true" /> Scene is locked
+            </p>
           {/if}
           {#if synopsisSave.error}
-            <div role="alert" class="mt-2 text-press-ui text-press-error">
+            <div role="alert" class="ka-notice ka-notice--error scene-inline-notice">
               <p>Synopsis not saved: {synopsisSave.error}. Your draft is kept for retry.</p>
               <button
+                type="button"
                 onclick={flushSynopsisSave}
                 disabled={synopsisSave.saving}
-                class="underline mt-1 disabled:opacity-50"
+                class="ka-button ka-button--secondary"
                 aria-label="Retry synopsis save">Retry saving</button
               >
             </div>
           {:else if synopsisSave.draft && !synopsisSave.saving}
-            <p role="status" class="mt-2 text-press-eyebrow text-press-muted">Unsaved changes</p>
+            <p role="status" class="ka-help">Unsaved changes</p>
           {/if}
         </section>
 
         <!-- References (Fixed only) -->
-        {#if (scene.planning_status ?? "fixed") === "fixed"}
-          <section class="mb-8">
-            <div class="flex items-center justify-between mb-2">
-              <h2 class="text-press-ui font-semibold text-press-text uppercase tracking-wide">
-                References
-              </h2>
+        {#if planning === "fixed"}
+          <section class="scene-section" aria-labelledby="scene-references-title">
+            <div class="scene-section-head">
+              <h3 id="scene-references-title">References</h3>
               {#if sceneReferenceLoading}
-                <span class="text-press-eyebrow text-press-muted">Loading…</span>
+                <span class="ka-help" role="status">Loading…</span>
               {/if}
             </div>
             {#if sceneReferenceError}
-              <p class="text-press-eyebrow text-press-error">{sceneReferenceError}</p>
+              <p class="ka-error" role="alert">{sceneReferenceError}</p>
             {:else}
               {@const hasSceneReferences = sceneReferenceOptions.some(
                 (option) => (sceneReferenceItems[option.id]?.length ?? 0) > 0
               )}
               {#if hasSceneReferences}
-                <div class="space-y-4">
+                <dl class="scene-refs">
                   {#each sceneReferenceOptions as option (option.id)}
                     {@const items = sceneReferenceItems[option.id] ?? []}
                     {#if items.length > 0}
                       {@const Icon = option.icon}
                       <div>
-                        <div class="flex items-center gap-2 text-press-eyebrow text-press-muted">
-                          <Icon class={`w-3.5 h-3.5 ${option.accentClass}`} />
-                          <span class="font-medium">{option.label}</span>
-                        </div>
-                        <div class="mt-2 flex flex-wrap gap-2">
+                        <dt><Icon class="w-4 h-4" aria-hidden="true" /> {option.label}</dt>
+                        <dd>
                           {#each items as item (item.id)}
-                            <span
-                              class="px-2 py-1 rounded-md bg-press-surface text-press-text text-press-eyebrow"
-                            >
-                              {item.name}
-                            </span>
+                            <span class="ka-badge">{item.name}</span>
                           {/each}
-                        </div>
+                        </dd>
                       </div>
                     {/if}
                   {/each}
-                </div>
+                </dl>
               {:else if !sceneReferenceLoading}
-                <div class="text-press-ui text-press-muted">No linked reference notes.</div>
+                <p class="ka-help">
+                  No items or other references linked yet. Characters and locations are in the
+                  references panel.
+                </p>
               {/if}
             {/if}
           </section>
         {/if}
 
         <!-- Discovery Notes (Fixed only) -->
-        {#if (scene.planning_status ?? "fixed") === "fixed"}
-          <section class="mb-8">
+        {#if planning === "fixed"}
+          <section class="scene-section" aria-labelledby="discovery-notes-title">
             <button
               type="button"
               onclick={() => (discoveryNotesVisible = !discoveryNotesVisible)}
-              class="flex items-center justify-between w-full mb-2 text-left group"
+              class="scene-disclose"
+              aria-expanded={discoveryNotesVisible}
+              aria-controls="discovery-notes-body"
             >
-              <h2
-                class="text-press-ui font-semibold text-press-text uppercase tracking-wide group-hover:text-press-text transition-colors"
-              >
-                Discovery Notes
-              </h2>
-              <span class="text-press-eyebrow text-press-muted">
+              <ChevronRight class="w-5 h-5 scene-chev" aria-hidden="true" />
+              <h3 id="discovery-notes-title">Discovery notes</h3>
+              <span class="scene-disclose-hint">
                 {discoveryNotesVisible ? "Hide" : "Show"}
-                {shortcuts.label("toggle_discovery_notes")}
+                <kbd>{shortcuts.label("toggle_discovery_notes")}</kbd>
               </span>
             </button>
             {#if discoveryNotesVisible}
-              {#if discoveryNotesLoading}
-                <p class="text-press-ui text-press-muted">Loading…</p>
-              {:else}
-                <div class="space-y-3">
-                  {#if !addingDiscoveryNote && !isLocked}
-                    <button
-                      type="button"
-                      onclick={startAddingDiscoveryNote}
-                      class="flex items-center gap-1 text-press-muted hover:text-press-text transition-colors text-press-ui"
-                    >
-                      <Plus class="w-3.5 h-3.5" />
-                      <span>Add note</span>
-                    </button>
-                  {/if}
+              <div id="discovery-notes-body" class="scene-notes">
+                {#if discoveryNotesLoading}
+                  <p class="ka-help" role="status">Loading…</p>
+                {:else}
                   {#if addingDiscoveryNote}
-                    <div class="flex flex-col gap-2 p-3 rounded-lg bg-press-surface">
+                    <div class="ka-field od-field scene-note-form">
+                      <label for="new-discovery-note" class="ka-sr">New discovery note</label>
                       <textarea
+                        id="new-discovery-note"
                         bind:value={newDiscoveryNoteContent}
                         placeholder="What did you discover?"
-                        rows="2"
-                        class="w-full px-3 py-2 rounded-md bg-press-sunken text-press-text text-press-ui placeholder:text-press-muted resize-none focus:outline-none focus:ring-2 focus:ring-press-focus"
+                        rows="3"
                       ></textarea>
-                      <div class="flex gap-2">
+                      <div class="ka-row">
                         <button
                           type="button"
                           onclick={createDiscoveryNote}
                           disabled={!newDiscoveryNoteContent.trim() || creatingDiscoveryNote}
-                          class="px-3 py-1.5 rounded-md bg-press-accent text-press-on-accent text-press-ui font-medium"
+                          aria-busy={creatingDiscoveryNote || undefined}
+                          class="ka-button"
                         >
-                          {creatingDiscoveryNote ? "Adding…" : "Add"}
+                          {creatingDiscoveryNote ? "Adding…" : "Add note"}
                         </button>
                         <button
                           type="button"
@@ -1281,100 +1212,114 @@
                             addingDiscoveryNote = false;
                             newDiscoveryNoteContent = "";
                           }}
-                          class="px-3 py-1.5 rounded-md bg-press-sunken text-press-muted text-press-ui hover:text-press-text"
+                          class="ka-button ka-button--ghost"
                         >
                           Cancel
                         </button>
                       </div>
                     </div>
                   {/if}
-                  {#each discoveryNotes as note}
-                    {@const isEditing = editingDiscoveryNoteId === note.id}
-                    <div class="p-3 rounded-lg bg-press-surface">
-                      {#if isEditing}
-                        <textarea
-                          bind:value={editingDiscoveryNoteContent}
-                          rows="2"
-                          class="w-full px-3 py-2 rounded-md bg-press-sunken text-press-text text-press-ui resize-none focus:outline-none focus:ring-2 focus:ring-press-focus mb-2"
-                        ></textarea>
-                        <div class="flex gap-2">
-                          <button
-                            type="button"
-                            onclick={() =>
-                              updateDiscoveryNote(note.id, editingDiscoveryNoteContent)}
-                            class="px-3 py-1.5 rounded-md bg-press-accent text-press-on-accent text-press-ui font-medium"
-                          >
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            onclick={() => {
-                              editingDiscoveryNoteId = null;
-                              editingDiscoveryNoteContent = "";
-                            }}
-                            class="px-3 py-1.5 rounded-md bg-press-sunken text-press-muted text-press-ui hover:text-press-text"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      {:else}
-                        <p
-                          class="font-prose text-press-body text-press-text whitespace-pre-wrap max-w-press-measure"
-                        >
-                          {note.content}
-                        </p>
-                        {#if note.tags && note.tags.length > 0}
-                          <div class="flex flex-wrap gap-1 mt-2">
-                            {#each note.tags as tag}
-                              <span
-                                class="px-1.5 py-0.5 rounded bg-press-sunken text-press-eyebrow text-press-muted"
+                  {#if discoveryNotes.length > 0}
+                    <ul class="scene-note-list">
+                      {#each discoveryNotes as note}
+                        {@const isEditing = editingDiscoveryNoteId === note.id}
+                        <li class="scene-note">
+                          {#if isEditing}
+                            <div class="ka-field od-field">
+                              <label for={`note-${note.id}`} class="ka-sr"
+                                >Edit discovery note</label
                               >
-                                {tag}
-                              </span>
-                            {/each}
-                          </div>
-                        {/if}
-                        <div class="flex gap-2 mt-2">
-                          <button
-                            type="button"
-                            onclick={() => {
-                              editingDiscoveryNoteId = note.id;
-                              editingDiscoveryNoteContent = note.content;
-                            }}
-                            class="text-press-eyebrow text-press-muted hover:text-press-text"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onclick={() => deleteDiscoveryNote(note.id)}
-                            class="text-press-eyebrow text-press-muted hover:text-press-error"
-                          >
-                            Delete
-                          </button>
-                          <button
-                            type="button"
-                            onclick={() => promoteNoteToBeat(note)}
-                            disabled={promotingNoteId === note.id}
-                            class="text-press-eyebrow text-press-muted hover:text-press-accent-text"
-                          >
-                            {promotingNoteId === note.id ? "Promoting…" : "Promote to beat"}
-                          </button>
-                        </div>
-                      {/if}
-                    </div>
-                  {/each}
-                  {#if discoveryNotes.length === 0 && !addingDiscoveryNote}
-                    <p class="text-press-ui text-press-muted">No discovery notes yet.</p>
+                              <textarea
+                                id={`note-${note.id}`}
+                                bind:value={editingDiscoveryNoteContent}
+                                rows="3"
+                              ></textarea>
+                            </div>
+                            <div class="ka-row">
+                              <button
+                                type="button"
+                                onclick={() =>
+                                  updateDiscoveryNote(note.id, editingDiscoveryNoteContent)}
+                                class="ka-button"
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                onclick={() => {
+                                  editingDiscoveryNoteId = null;
+                                  editingDiscoveryNoteContent = "";
+                                }}
+                                class="ka-button ka-button--ghost"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          {:else}
+                            <p class="scene-note-text">{note.content}</p>
+                            {#if note.tags && note.tags.length > 0}
+                              <div class="scene-note-tags">
+                                {#each note.tags as tag}
+                                  <span class="ka-badge">{tag}</span>
+                                {/each}
+                              </div>
+                            {/if}
+                            <div class="scene-note-actions">
+                              <button
+                                type="button"
+                                onclick={() => {
+                                  editingDiscoveryNoteId = note.id;
+                                  editingDiscoveryNoteContent = note.content;
+                                }}
+                                class="ka-button ka-button--ghost"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onclick={() => promoteNoteToBeat(note)}
+                                disabled={promotingNoteId === note.id}
+                                aria-busy={promotingNoteId === note.id || undefined}
+                                class="ka-button ka-button--ghost"
+                              >
+                                {promotingNoteId === note.id ? "Promoting…" : "Promote to beat"}
+                              </button>
+                              <button
+                                type="button"
+                                onclick={() => deleteDiscoveryNote(note.id)}
+                                class="ka-button ka-button--ghost scene-danger"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          {/if}
+                        </li>
+                      {/each}
+                    </ul>
+                  {:else if !addingDiscoveryNote}
+                    <p class="ka-help">
+                      No discovery notes yet. Capture what you find while drafting — notes are not
+                      part of the manuscript.
+                    </p>
                   {/if}
-                </div>
-              {/if}
+                  {#if !addingDiscoveryNote && !isLocked}
+                    <button
+                      type="button"
+                      onclick={startAddingDiscoveryNote}
+                      class="ka-button ka-button--secondary scene-add-note"
+                    >
+                      <Plus class="w-5 h-5" aria-hidden="true" />
+                      Add note
+                    </button>
+                  {/if}
+                {/if}
+              </div>
             {/if}
           </section>
         {/if}
 
         <!-- Page View (Fixed + Page mode) -->
-        {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode === "page"}
+        {#if planning === "fixed" && scene.editor_mode === "page"}
           {#key pageEditorVersion}
             <PageView
               projectId={currentProject.value?.id}
@@ -1389,7 +1334,7 @@
         {/if}
 
         <!-- Beats (Fixed + Beat mode only) -->
-        {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode !== "page"}
+        {#if planning === "fixed" && scene.editor_mode !== "page"}
           {#key revisionEditorVersion}
             <BeatView
               bind:this={beatViewRef}
@@ -1400,15 +1345,13 @@
         {/if}
 
         <!-- Scene Prose fallback (Fixed + Beat mode only, if exists and no beats) -->
-        {#if (scene.planning_status ?? "fixed") === "fixed" && scene.editor_mode !== "page" && scene.prose && currentProject.beats.length === 0}
-          <section class="mt-8">
-            <h2 class="text-press-ui font-semibold text-press-text uppercase tracking-wide mb-4">
-              Content
-            </h2>
-            <div class="bg-press-surface rounded-lg p-6">
-              <p class="text-press-text font-prose leading-relaxed whitespace-pre-wrap">
-                {scene.prose}
-              </p>
+        {#if planning === "fixed" && scene.editor_mode !== "page" && scene.prose && currentProject.beats.length === 0}
+          <section class="scene-section" aria-labelledby="scene-content-title">
+            <div class="scene-section-head">
+              <h3 id="scene-content-title">Content</h3>
+            </div>
+            <div class="app-prose-sheet scene-content-sheet">
+              <p>{scene.prose}</p>
             </div>
           </section>
         {/if}
@@ -1416,13 +1359,12 @@
     </div>
   {:else}
     <!-- Empty State -->
-    <div
-      data-testid="empty-state"
-      class="flex-1 flex flex-col items-center justify-center text-press-muted"
-    >
-      <FileText class="w-16 h-16 mb-4 opacity-50" strokeWidth={1.5} />
-      <p class="text-press-body-lg">Select a scene to start writing</p>
-      <p class="text-press-ui mt-1">Choose a scene from the sidebar to view its content</p>
+    <div data-testid="empty-state" class="scene-empty">
+      <div class="ka-empty od-stack">
+        <FileText class="w-7 h-7" aria-hidden="true" />
+        <h2>Select a scene to start writing</h2>
+        <p>Choose a scene from the sidebar to view its content.</p>
+      </div>
     </div>
   {/if}
   {#key currentProject.value?.id}
@@ -1442,3 +1384,373 @@
     onCancel={() => (showSwitchToBeatConfirm = false)}
   />
 {/if}
+
+<style>
+  .scene {
+    flex: 1;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+  .scene:has(> .scene-empty) {
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .scene-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-s);
+    padding: var(--space-xs) var(--space-m);
+    border-bottom: var(--border-hair);
+  }
+  .scene-view {
+    flex-wrap: nowrap;
+  }
+  .scene-view .ka-segment {
+    flex: none;
+    padding: var(--space-2xs) var(--space-s);
+  }
+  .scene-scroll {
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .scene-col {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: var(--space-l) var(--space-m) var(--space-3xl);
+  }
+
+  .scene-header {
+    margin-top: var(--space-2xs);
+  }
+  .scene-eyebrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-xs);
+    min-height: 24px;
+    margin: 0 0 var(--space-2xs);
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  .scene-locked {
+    gap: var(--space-3xs);
+  }
+  .scene-title {
+    margin: 0;
+    font: 550 var(--ka-heading) / var(--leading-tight) var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+  }
+  .scene-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-s);
+    margin-top: var(--space-m);
+  }
+  .scene-meta .ka-field {
+    flex: 1 1 136px;
+    width: auto;
+    min-width: 0;
+    max-width: 200px;
+    gap: var(--space-3xs);
+  }
+  .scene-meta .ka-field label {
+    font: 500 var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  .scene-meta .ka-field select {
+    padding: var(--space-2xs) var(--space-xs);
+  }
+  .scene-label-tip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3xs);
+    font: 500 var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  /* A 16px glyph with a 40px hit area: the one inline exception to 44px,
+     sitting inside a label row. */
+  .scene-tip {
+    position: relative;
+    display: inline-flex;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: help;
+  }
+  .scene-tip::after {
+    content: "";
+    position: absolute;
+    inset: -12px;
+  }
+  .scene-meta-error {
+    margin-top: var(--space-2xs);
+  }
+  .scene-tags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2xs);
+    margin-top: var(--space-s);
+  }
+  .scene-tags-label {
+    margin-right: var(--space-3xs);
+    font: 500 var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+
+  .scene-guide,
+  .scene-planning {
+    margin-top: var(--space-m);
+    padding: var(--space-s);
+    border: var(--border-hair);
+    border-radius: var(--radius-m);
+    background: var(--color-surface);
+  }
+  .scene-guide-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    margin: calc(-1 * var(--space-2xs)) calc(-1 * var(--space-2xs)) 0 0;
+    color: var(--color-text-muted);
+  }
+  .scene-guide-head h3,
+  .scene-planning-body h3 {
+    flex: 1;
+    margin: 0;
+    font: 550 var(--text-h3) / var(--leading-tight) var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
+  }
+  .scene-guide-lede {
+    margin: var(--space-2xs) 0 var(--space-s);
+    font: var(--text-ui) / 1.5 var(--font-ui);
+    color: var(--color-text);
+  }
+  .scene-guide-steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-s);
+    margin: 0;
+    font: var(--text-small) / 1.5 var(--font-ui);
+  }
+  .scene-guide-steps dt {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3xs);
+    font-weight: 500;
+    color: var(--color-text);
+  }
+  .scene-guide-steps dd {
+    margin: var(--space-3xs) 0 0;
+    color: var(--color-text-muted);
+  }
+  .scene :global(.is-warning) {
+    color: var(--color-warning);
+  }
+  .scene-planning {
+    display: flex;
+    gap: var(--space-xs);
+  }
+  .scene-planning :global(.scene-planning-icon) {
+    flex: none;
+    margin-top: 2px;
+    color: var(--color-text-muted);
+  }
+  .scene-planning-body {
+    display: grid;
+    gap: var(--space-2xs);
+    font: var(--text-ui) / 1.5 var(--font-ui);
+  }
+  .scene-planning-body p {
+    margin: 0;
+  }
+  .scene-planning-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2xs);
+    margin-top: var(--space-3xs);
+  }
+  .scene-locked-notice {
+    margin-top: var(--space-m);
+  }
+
+  .scene-section {
+    margin-top: var(--space-m);
+    padding-top: var(--space-s);
+    border-top: var(--border-hair);
+  }
+  .scene-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-s);
+    min-height: var(--control-target);
+    margin-bottom: var(--space-2xs);
+  }
+  .scene-section h3 {
+    margin: 0;
+    font: 550 var(--text-h3) / var(--leading-tight) var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
+  }
+  .scene-synopsis {
+    margin: 0;
+    max-width: var(--measure);
+    font: italic var(--text-body-lg) / var(--leading-relaxed) var(--font-body);
+    color: var(--color-text);
+    white-space: pre-wrap;
+  }
+  .scene-synopsis-field textarea {
+    min-height: 120px;
+    font: italic var(--text-body-lg) / var(--leading-relaxed) var(--font-body);
+  }
+  .scene-synopsis-help,
+  .scene-quiet {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3xs);
+  }
+  .scene-inline-notice {
+    margin-top: var(--space-2xs);
+    justify-items: start;
+  }
+
+  .scene-refs {
+    display: grid;
+    gap: var(--space-xs);
+    margin: 0;
+  }
+  .scene-refs > div {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: var(--space-m);
+    align-items: center;
+  }
+  .scene-refs dt {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3xs);
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  .scene-refs dd {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2xs);
+    margin: 0;
+  }
+
+  .scene-disclose {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    width: 100%;
+    min-height: var(--control-target);
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: none;
+    color: var(--color-text);
+    text-align: left;
+    cursor: pointer;
+  }
+  .scene-disclose h3 {
+    flex: 1;
+  }
+  .scene-disclose :global(.scene-chev) {
+    color: var(--color-text-muted);
+    transition: transform var(--ka-motion) ease-out;
+  }
+  .scene-disclose[aria-expanded="true"] :global(.scene-chev) {
+    transform: rotate(90deg);
+  }
+  .scene-disclose-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  .scene-disclose-hint kbd {
+    font: var(--text-small) / 1.4 var(--font-mono);
+  }
+  .scene-notes {
+    display: grid;
+    gap: var(--space-s);
+    margin-top: var(--space-2xs);
+  }
+  .scene-note-form {
+    gap: var(--space-2xs);
+  }
+  .scene-note-list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: var(--border-hair);
+  }
+  .scene-note {
+    display: grid;
+    gap: var(--space-2xs);
+    padding: var(--space-s) 0 var(--space-2xs);
+    border-bottom: var(--border-hair);
+  }
+  .scene-note-text {
+    margin: 0;
+    max-width: var(--measure);
+    font: var(--text-body) / var(--leading-relaxed) var(--font-body);
+    color: var(--color-text);
+    white-space: pre-wrap;
+  }
+  .scene-note-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3xs);
+  }
+  .scene-note-actions {
+    display: flex;
+    flex-wrap: wrap;
+    margin-left: calc(-1 * var(--space-s));
+  }
+  .scene-danger:hover {
+    color: var(--color-error);
+  }
+  .scene-add-note {
+    justify-self: start;
+  }
+  .scene-content-sheet {
+    padding: var(--space-xl);
+  }
+  .scene-content-sheet p {
+    max-width: var(--measure);
+    margin: 0 auto;
+    font: var(--text-body) / var(--leading-relaxed) var(--font-body);
+    white-space: pre-wrap;
+  }
+
+  .scene-empty {
+    display: grid;
+    place-items: center;
+    min-height: 0;
+    padding: var(--space-xl);
+  }
+  .scene-empty .ka-empty {
+    align-items: center;
+    text-align: center;
+  }
+  .scene-empty h2 {
+    margin: 0;
+    font: 550 var(--text-h3) / var(--leading-tight) var(--font-display);
+    color: var(--color-text);
+  }
+</style>

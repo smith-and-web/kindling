@@ -234,14 +234,15 @@ it("protects custom field drafts when their reference type is disabled", async (
 it("groups navigation by scope and keeps the project selector in the sidebar across areas", async () => {
   render(SettingsDialog, { onClose: vi.fn() });
   const nav = screen.getByRole("navigation", { name: "Settings areas" });
-  const shared = within(nav).getByRole("region", { name: "Kindling" });
+  const shared = within(nav).getByRole("region", { name: "kindling" });
   const projectGroup = within(nav).getByRole("region", { name: "Projects" });
-  expect(within(shared).getByRole("heading", { name: "Preferences" })).toBeTruthy();
+  // A lone subsection needs no eyebrow; the group heading already names it.
+  expect(within(shared).queryByRole("heading", { name: "Preferences" })).toBeNull();
   expect(within(projectGroup).getByRole("heading", { name: "Manuscript" })).toBeTruthy();
   expect(within(projectGroup).getByRole("heading", { name: "Reference Library" })).toBeTruthy();
   const selector = await within(projectGroup).findByRole("combobox", { name: "Project" });
   expect(screen.getAllByRole("combobox", { name: "Project" })).toHaveLength(1);
-  expect(screen.getByTestId("settings-location").textContent).toContain("Kindling / Preferences");
+  expect(screen.getByTestId("settings-location").textContent).toContain("kindling / Preferences");
   await fireEvent.change(selector, { target: { value: second.id } });
   expect(screen.getByRole("button", { name: "Project Details" }).getAttribute("aria-current")).toBe(
     "page"
@@ -253,4 +254,41 @@ it("groups navigation by scope and keeps the project selector in the sidebar acr
   expect(screen.getByTestId("settings-location").textContent).toContain("Reference Library");
   expect(within(projectGroup).getByRole("combobox", { name: "Project" })).toBe(selector);
   expect(currentProject.value?.id).toBe(mockProject.id);
+});
+
+it("starts each area at the top of the pane", async () => {
+  render(SettingsDialog, { onClose: vi.fn() });
+  const pane = document.querySelector(".ka-settings-pane") as HTMLElement;
+  pane.scrollTop = 400;
+  await fireEvent.click(screen.getByRole("button", { name: "Tags" }));
+  await waitFor(() => expect(pane.scrollTop).toBe(0));
+});
+
+it("brings tips back and launches the tour from Appearance & Guidance", async () => {
+  const { ui } = await import("../stores/ui.svelte");
+  ui.setGuidanceEnabled(true);
+  ui.markTooltipSeen("sidebar");
+  const onClose = vi.fn();
+  render(SettingsDialog, { onClose });
+
+  await fireEvent.click(screen.getByRole("button", { name: "Show tips again" }));
+  expect(ui.hasSeenTooltip("sidebar")).toBe(false);
+  expect(screen.getByText("Tips will appear again as you visit each area.")).toBeTruthy();
+
+  await fireEvent.click(screen.getByRole("button", { name: "Take the tour" }));
+  expect(onClose).toHaveBeenCalled();
+  expect(ui.showOnboarding).toBe(true);
+  expect(ui.onboardingStep).toBe("tour-sidebar");
+  ui.completeOnboarding();
+});
+
+it("explains why tips can't be shown again while guidance is off", async () => {
+  const { ui } = await import("../stores/ui.svelte");
+  ui.setGuidanceEnabled(false);
+  render(SettingsDialog, { onClose: vi.fn() });
+  expect(
+    (screen.getByRole("button", { name: "Show tips again" }) as HTMLButtonElement).disabled
+  ).toBe(true);
+  expect(screen.getByText("Turn on guidance tips to show them again.")).toBeTruthy();
+  ui.setGuidanceEnabled(true);
 });

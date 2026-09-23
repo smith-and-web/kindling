@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { X, Loader2 } from "lucide-svelte";
-  import Tooltip from "./Tooltip.svelte";
+  import { Loader2 } from "lucide-svelte";
+  import DialogHeader from "./DialogHeader.svelte";
 
   let {
     title,
@@ -64,9 +64,8 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<!-- Backdrop -->
 <div
-  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
+  class="dialog-scrim"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -74,53 +73,39 @@
   aria-labelledby="rename-dialog-title"
   tabindex="-1"
 >
-  <!-- Dialog -->
-  <div
-    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-md mx-4 overflow-hidden"
-  >
-    <!-- Header -->
-    <div class="flex items-center justify-between px-4 py-3 border-b border-press-border">
-      <h2 id="rename-dialog-title" class="text-press-body-lg font-medium text-press-text">
-        {title}
-      </h2>
-      <Tooltip text="Close" position="left">
-        <button
-          type="button"
-          onclick={onClose}
-          class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
-          aria-label="Close"
-          data-testid="rename-close"
-        >
-          <X class="w-5 h-5" />
-        </button>
-      </Tooltip>
+  <div class="app-dialog-surface ka-dialog-narrow dialog-shell">
+    <DialogHeader
+      {title}
+      titleId="rename-dialog-title"
+      {onClose}
+      closeLabel="Close"
+      closeTestId="rename-close"
+    />
+
+    <div class="ka-dialog-body">
+      <div class="ka-field od-field">
+        <label for="rename-input">Name</label>
+        <input
+          id="rename-input"
+          bind:this={inputRef}
+          bind:value={newName}
+          type="text"
+          placeholder="Enter name…"
+          disabled={saving}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "rename-error" : undefined}
+        />
+        {#if error}
+          <p id="rename-error" class="ka-error" role="alert">{error}</p>
+        {/if}
+      </div>
     </div>
 
-    <!-- Content -->
-    <div class="p-4">
-      <label for="rename-input" class="block text-press-ui font-medium text-press-muted mb-2">
-        Name
-      </label>
-      <input
-        id="rename-input"
-        bind:this={inputRef}
-        bind:value={newName}
-        type="text"
-        class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
-        placeholder="Enter name..."
-        disabled={saving}
-      />
-      {#if error}
-        <p class="mt-2 text-press-ui text-press-error">{error}</p>
-      {/if}
-    </div>
-
-    <!-- Footer -->
-    <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-press-border">
+    <footer class="ka-dialog-footer">
       <button
         type="button"
         onclick={onClose}
-        class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors"
+        class="ka-button ka-button--secondary"
         disabled={saving}
       >
         Cancel
@@ -129,15 +114,17 @@
         data-testid="rename-save"
         type="button"
         onclick={handleSave}
-        class="px-4 py-2 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors"
+        class="ka-button"
         disabled={saving || !newName.trim()}
+        aria-busy={saving || undefined}
       >
         {#if saving}
-          <Loader2 class="w-4 h-4 animate-spin" />
+          <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
+          Saving…
         {:else}
           Save
         {/if}
       </button>
-    </div>
+    </footer>
   </div>
 </div>

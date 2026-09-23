@@ -146,15 +146,21 @@
   }
 </script>
 
-<div class="space-y-5" aria-busy={busy}>
-  <p class="text-press-ui text-press-muted">
-    Changes here apply only to <strong class="text-press-text">{project.name}</strong>.
+<div class="settings-pane" aria-busy={busy}>
+  <p class="settings-lede">
+    Changes here apply only to <strong>{project.name}</strong>.
+    {#if section === "tags"}
+      Tag changes save as you make them.
+    {:else if section === "fields"}
+      Custom field changes save as you make them. Fields are listed for saved, enabled reference
+      types.
+    {/if}
   </p>
-  <div hidden={section !== "details"} class="space-y-4">
+  <div hidden={section !== "details"} class="settings-fields">
     <!-- Pen Name -->
-    <div>
-      <label for="author-pen-name" class="block text-press-ui text-press-muted mb-1">
-        Pen Name <span class="text-press-muted">(optional)</span>
+    <div class="ka-field od-field">
+      <label for="author-pen-name">
+        Pen Name <span class="ka-optional">(optional)</span>
       </label>
       <input
         id="author-pen-name"
@@ -162,17 +168,16 @@
         bind:value={authorPenName}
         placeholder="Leave blank to use your author name"
         disabled={saving}
-        class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
       />
-      <p class="text-press-eyebrow text-press-muted mt-1">
+      <p class="ka-help">
         If provided, this will be used as the byline on title pages instead of your author name.
       </p>
     </div>
 
     <!-- Genre -->
-    <div>
-      <label for="genre" class="block text-press-ui text-press-muted mb-1">
-        Genre <span class="text-press-muted">(optional)</span>
+    <div class="ka-field od-field">
+      <label for="genre">
+        Genre <span class="ka-optional">(optional)</span>
       </label>
       <input
         id="genre"
@@ -180,17 +185,14 @@
         bind:value={genre}
         placeholder="e.g., Literary Fiction, Science Fiction, Mystery"
         disabled={saving}
-        class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
       />
-      <p class="text-press-eyebrow text-press-muted mt-1">
-        Genre will be displayed on manuscript title pages.
-      </p>
+      <p class="ka-help">Genre will be displayed on manuscript title pages.</p>
     </div>
 
     <!-- Description -->
-    <div>
-      <label for="project-description" class="block text-press-ui text-press-muted mb-1">
-        Project Description <span class="text-press-muted">(optional)</span>
+    <div class="ka-field od-field">
+      <label for="project-description">
+        Project Description <span class="ka-optional">(optional)</span>
       </label>
       <textarea
         id="project-description"
@@ -198,14 +200,11 @@
         bind:value={description}
         placeholder="Short summary or notes about this project"
         disabled={saving}
-        class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent resize-none"
       ></textarea>
     </div>
 
-    <div>
-      <label for="daily-writing-goal" class="block text-press-ui text-press-muted mb-1"
-        >Daily writing goal</label
-      >
+    <div class="ka-field od-field">
+      <label for="daily-writing-goal">Daily writing goal</label>
       <input
         id="daily-writing-goal"
         type="number"
@@ -214,19 +213,18 @@
         step="1"
         bind:value={dailyGoal}
         disabled={saving || !goalLoaded}
-        class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2"
         aria-describedby="daily-goal-help"
       />
-      <p id="daily-goal-help" class="text-press-eyebrow text-press-muted mt-1">
+      <p id="daily-goal-help" class="ka-help">
         Net words added per day in this project. Set to 0 to turn off the goal. Changes apply today;
         earlier streak days keep their original goals.
       </p>
     </div>
 
     <!-- Word Target -->
-    <div>
-      <label for="word-target" class="block text-press-ui text-press-muted mb-1">
-        Word Target <span class="text-press-muted">(optional)</span>
+    <div class="ka-field od-field">
+      <label for="word-target">
+        Word Target <span class="ka-optional">(optional)</span>
       </label>
       <input
         id="word-target"
@@ -236,17 +234,16 @@
         bind:value={wordTarget}
         placeholder="e.g., 80000"
         disabled={saving}
-        class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
       />
     </div>
   </div>
-  <div hidden={section !== "references"} class="space-y-3">
-    <p class="text-press-ui text-press-muted">
+  <div hidden={section !== "references"} class="settings-fields">
+    <p class="ka-help">
       Choose which reference types appear in this project’s References panel. Disabling a type keeps
       its existing entries.
     </p>
     {#each REFERENCE_TYPE_OPTIONS as option (option.id)}
-      <label class="flex items-center gap-2 text-press-ui text-press-text">
+      <label class="ka-check">
         <input type="checkbox" value={option.id} bind:group={referenceTypes} disabled={saving} />
         {option.label}
       </label>
@@ -254,7 +251,6 @@
   </div>
   <div hidden={section !== "tags"}>
     {#if tagsVisited}
-      <p class="text-press-ui text-press-muted">Tag changes save as you make them.</p>
       <TagManager
         projectId={project.id}
         onState={(state) => (tagState = state)}
@@ -264,10 +260,6 @@
   </div>
   <div hidden={section !== "fields"}>
     {#if fieldsVisited}
-      <p class="text-press-ui text-press-muted">
-        Custom field changes save as you make them. Fields are listed for saved, enabled reference
-        types.
-      </p>
       {#each normalizeReferenceTypes(project.reference_types ?? DEFAULT_REFERENCE_TYPES) as refType (refType)}
         {@const mapping = REFERENCE_TYPE_OPTIONS.find((option) => option.id === refType)}
         {#if mapping}<FieldDefinitionManager
@@ -277,22 +269,22 @@
             onState={(state) => (fieldStates[refType] = state)}
             onChange={() => onSave({ ...project })}
           />{/if}
-      {:else}<p class="text-press-ui text-press-muted">
-          Enable reference types to configure custom fields.
-        </p>{/each}
+      {:else}<p class="ka-help">Enable reference types to configure custom fields.</p>{/each}
     {/if}
   </div>
   {#if section === "details" || section === "references"}
-    {#if error}<p role="alert" class="text-press-ui text-press-error">{error}</p>{/if}
-    <button
-      type="button"
-      onclick={handleSave}
-      disabled={saving}
-      class="px-4 py-2 bg-press-accent text-press-on-accent rounded-lg"
-      >{#if saving}<Loader2 class="w-4 h-4 animate-spin" />{:else}Save project changes{/if}</button
-    >
-    {#if saved && !dirty}<p role="status" class="text-press-ui text-press-muted">
-        Project changes saved.
-      </p>{/if}
+    {#if error}<p role="alert" class="ka-error">{error}</p>{/if}
+    <div class="settings-actions">
+      {#if saved && !dirty}<p role="status" class="ka-help">Project changes saved.</p>{/if}
+      <button
+        type="button"
+        onclick={handleSave}
+        disabled={saving}
+        aria-busy={saving || undefined}
+        class="ka-button"
+        >{#if saving}<Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
+          Saving…{:else}Save project changes{/if}</button
+      >
+    </div>
   {/if}
 </div>

@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { CircleAlert } from "lucide-svelte";
   import { exit } from "@tauri-apps/plugin-process";
   import { onMount, tick, untrack } from "svelte";
   import { runImport, type ImportType } from "./lib/utils/import";
@@ -19,6 +20,7 @@
   import ExportDialog from "./lib/components/ExportDialog.svelte";
   import ExportSuccessDialog from "./lib/components/ExportSuccessDialog.svelte";
   import ErrorToast from "./lib/components/ErrorToast.svelte";
+  import ImportProgressDialog from "./lib/components/ImportProgressDialog.svelte";
   import ConfirmDialog from "./lib/components/ConfirmDialog.svelte";
   import ImportLongformDialog from "./lib/components/ImportLongformDialog.svelte";
   import ReferenceClassificationDialog from "./lib/components/ReferenceClassificationDialog.svelte";
@@ -141,6 +143,7 @@
   // Reload projects when returning to start screen (currentProject becomes null)
   // or on initial load
   $effect(() => {
+    void ui.recentProjectsVersion;
     if (!currentProject.value) {
       loadRecentProjects();
     }
@@ -540,6 +543,7 @@
 </script>
 
 {#snippet errorToast()}
+  <ImportProgressDialog />
   {#if ui.toast}
     {#key ui.toast.id}
       <ErrorToast message={ui.toast.message} onDismiss={() => ui.clearToast()} />
@@ -615,18 +619,22 @@
 {/if}
 
 {#if synopsisSaves.failedCount && !discardQuitDrafts}
-  <div
-    role="alert"
-    class="fixed bottom-4 left-1/2 -translate-x-1/2 z-press-toast rounded-lg bg-press-surface border border-press-error p-4 shadow-lg text-press-ui"
-  >
-    <p class="text-press-error">Your synopsis changes have not been saved.</p>
-    <button
-      onclick={retrySynopses}
-      disabled={retryingSynopses || interactionBlocked}
-      aria-label="Retry all synopsis saves"
-      class="mt-2 underline text-press-text disabled:opacity-50"
-      >{retryingSynopses ? "Saving..." : "Retry saving"}</button
-    >
+  <div class="ka-toast-region synopsis-toast">
+    <div role="alert" class="ka-toast">
+      <CircleAlert class="w-5 h-5 ka-icon" aria-hidden="true" />
+      <div>
+        <strong>Your synopsis changes have not been saved.</strong>
+        <button
+          type="button"
+          onclick={retrySynopses}
+          disabled={retryingSynopses || interactionBlocked}
+          aria-busy={retryingSynopses || undefined}
+          aria-label="Retry all synopsis saves"
+          class="ka-button ka-button--secondary synopsis-retry"
+          >{retryingSynopses ? "Saving…" : "Retry saving"}</button
+        >
+      </div>
+    </div>
   </div>
 {/if}
 
@@ -637,11 +645,7 @@
   {/if}
 </div>
 
-<main
-  inert={interactionBlocked}
-  aria-busy={closePending || updatePending}
-  class="flex h-screen w-screen overflow-hidden bg-press-bg"
->
+<main inert={interactionBlocked} aria-busy={closePending || updatePending} class="app-main">
   {#if currentProject.value && (!editorial?.isOpen() || editorial?.isLocal())}
     <Sidebar
       onOpenSettings={() => (showSettings = true)}
@@ -802,6 +806,22 @@
 </div>
 
 <style>
+  .app-main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+    background: var(--color-bg);
+  }
+  .synopsis-toast {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+  }
+  .synopsis-retry {
+    margin-top: var(--space-2xs);
+  }
   .writing-surface {
     display: flex;
     flex: 1;

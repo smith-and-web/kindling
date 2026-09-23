@@ -31,60 +31,81 @@
 
 <div
   data-testid="part-delete-dialog"
-  class="fixed inset-0 bg-press-overlay flex items-center justify-center z-press-modal"
-  role="dialog"
+  class="dialog-scrim"
+  role="alertdialog"
   aria-modal="true"
   aria-labelledby="dialog-title"
   tabindex="-1"
 >
-  <div
-    class="app-dialog-surface bg-press-surface rounded-lg overflow-hidden max-w-md w-full mx-4 shadow-press-overlay"
-  >
+  <div class="app-dialog-surface ka-dialog-narrow dialog-shell">
     <DialogHeader title={`Delete ${partLabel}`} titleId="dialog-title" onClose={onCancel} />
-    <div class="p-6">
-      <p class="text-press-muted text-press-ui mb-2">
-        "{partTitle}" contains {childChapterCount}
-        {chapterLabel.toLowerCase()}{childChapterCount !== 1 ? "s" : ""}.
+    <div class="ka-dialog-body part-delete">
+      <p class="part-delete-lede">
+        “{partTitle}” contains {childChapterCount}
+        {chapterLabel.toLowerCase()}{childChapterCount !== 1 ? "s" : ""}. What would you like to do?
       </p>
-      <p class="text-press-muted text-press-ui mb-6">What would you like to do?</p>
 
-      <div class="space-y-3 mb-6">
-        <button
-          data-testid="delete-part-only"
-          onclick={onDeletePartOnly}
-          class="w-full text-left px-4 py-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors border border-transparent hover:border-press-accent"
-        >
-          <div class="font-medium text-press-text">Delete {partLabel} only</div>
-          <div class="text-press-eyebrow text-press-muted mt-1">
-            The {childChapterCount}
-            {chapterLabel.toLowerCase()}{childChapterCount !== 1 ? "s" : ""} will remain in the project
-          </div>
-        </button>
+      <button
+        type="button"
+        data-testid="delete-part-only"
+        onclick={onDeletePartOnly}
+        class="ka-button ka-button--secondary part-delete-choice"
+      >
+        <span>Delete {partLabel.toLowerCase()} only</span>
+        <small>
+          The {childChapterCount}
+          {chapterLabel.toLowerCase()}{childChapterCount !== 1 ? "s" : ""} will remain in the project.
+        </small>
+      </button>
 
-        <button
-          data-testid="delete-part-and-chapters"
-          onclick={onDeletePartAndChapters}
-          class="w-full text-left px-4 py-3 bg-press-error-wash rounded-lg hover:bg-press-error-wash transition-colors border border-press-error"
-        >
-          <div class="font-medium text-press-error">
-            Delete {partLabel} and all {chapterLabel.toLowerCase()}s
-          </div>
-          <div class="text-press-eyebrow text-press-error mt-1">
-            This will permanently delete the {partLabel} and its {childChapterCount}
-            {chapterLabel.toLowerCase()}{childChapterCount !== 1 ? "s" : ""}
-          </div>
-        </button>
-      </div>
-
-      <div class="flex justify-end">
-        <button
-          data-testid="dialog-cancel"
-          onclick={onCancel}
-          class="px-4 py-2 bg-press-sunken rounded hover:bg-press-sunken transition-colors text-press-text"
-        >
-          Cancel
-        </button>
-      </div>
+      <button
+        type="button"
+        data-testid="delete-part-and-chapters"
+        onclick={onDeletePartAndChapters}
+        class="ka-button ka-button--danger part-delete-choice"
+      >
+        <span>Delete {partLabel.toLowerCase()} and all {chapterLabel.toLowerCase()}s</span>
+        <small>
+          This permanently deletes the {partLabel.toLowerCase()} and its {childChapterCount}
+          {chapterLabel.toLowerCase()}{childChapterCount !== 1 ? "s" : ""}.
+        </small>
+      </button>
     </div>
+    <footer class="ka-dialog-footer">
+      <button
+        type="button"
+        data-testid="dialog-cancel"
+        onclick={onCancel}
+        class="ka-button ka-button--secondary"
+      >
+        Cancel
+      </button>
+    </footer>
   </div>
 </div>
+
+<style>
+  .part-delete {
+    display: grid;
+    gap: var(--space-2xs);
+  }
+  .part-delete-lede {
+    margin: 0 0 var(--space-2xs);
+    font: var(--text-ui) / 1.5 var(--font-ui);
+    color: var(--color-text);
+  }
+  .part-delete-choice {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-3xs);
+    width: 100%;
+    padding: var(--space-xs) var(--space-s);
+    text-align: left;
+  }
+  .part-delete-choice small {
+    font: 400 var(--text-small) / 1.4 var(--font-ui);
+  }
+  .ka-button--secondary.part-delete-choice small {
+    color: var(--color-text-muted);
+  }
+</style>

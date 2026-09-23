@@ -35,7 +35,7 @@ describe("independent reference transfers", () => {
     await openProject(destination.name);
     await $('[aria-label="Copy references from project…"]').click();
     await $('#copy-source').selectByAttribute("value", source.id);
-    const copy = await $('button=Copy 1 references'); await copy.waitForEnabled(); await copy.click();
+    const copy = await $('button=Copy 1 reference'); await copy.waitForEnabled(); await copy.click();
     await $('button=Done').waitForDisplayed(); await $('button=Done').click();
     const copied = (await invoke("get_references", {projectId:destination.id,referenceType:"characters"}))[0];
     expect(copied.id).not.toBe(reference); expect(copied.source_id).toBeNull();

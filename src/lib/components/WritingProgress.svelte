@@ -42,29 +42,32 @@
 
 {#if writing.value && writing.value.project_id === currentProject.value?.id}
   {@const stats = writing.value}
-  <div class="mt-3 space-y-1 text-press-eyebrow text-press-muted" data-testid="writing-progress">
+  <div class="progress" data-testid="writing-progress">
     <p>{stats.project_words.toLocaleString()} project words</p>
-    <p title="Net words added through saved edits today. Deletions reduce this total.">
-      Today: {stats.today_words.toLocaleString()}{#if stats.daily_goal > 0}
-        / {stats.daily_goal.toLocaleString()} words{:else}
-        words · goal off{/if}
-    </p>
-    {#if stats.daily_goal > 0}
-      <progress
-        class="w-full"
-        aria-label="Daily writing goal"
-        max={stats.daily_goal}
-        value={Math.max(0, stats.today_words)}
-      ></progress>
-    {/if}
-    <div class="flex items-center justify-between gap-2">
+    <div class="ka-progress progress-goal">
+      <p title="Net words added through saved edits today. Deletions reduce this total.">
+        Today: {stats.today_words.toLocaleString()}{#if stats.daily_goal > 0}&nbsp;/ {stats.daily_goal.toLocaleString()}
+          words{:else}
+          words · goal off{/if}
+      </p>
+      {#if stats.daily_goal > 0}
+        <progress
+          aria-label="Daily writing goal"
+          max={stats.daily_goal}
+          value={Math.max(0, stats.today_words)}
+        ></progress>
+      {/if}
+    </div>
+    <div class="ka-between progress-session">
       <span title="Net words saved in this project since opening the app or resetting."
         >Session: {stats.session_words.toLocaleString()} words</span
       >
       <button
-        class="text-press-muted hover:text-press-text"
+        type="button"
+        class="ka-button ka-button--ghost"
         onclick={reset}
         disabled={resetting}
+        aria-busy={resetting || undefined}
         aria-label="Reset writing session">Reset</button
       >
     </div>
@@ -72,23 +75,34 @@
   </div>
 {/if}
 {#if resetError}
-  <p role="alert" class="mt-2 text-press-eyebrow text-press-error">{resetError}</p>
+  <p role="alert" class="progress-error">{resetError}</p>
 {/if}
 
 <style>
-  progress {
-    appearance: none;
-    height: var(--space-3xs);
-    background: var(--color-surface-sunken);
-    border: none;
+  .progress {
+    display: grid;
+    gap: var(--space-2xs);
+    padding: var(--space-3xs) 0 var(--space-s) var(--space-xs);
+    border-bottom: var(--border-hair);
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
   }
-  progress::-webkit-progress-bar {
-    background: var(--color-surface-sunken);
+  .progress p {
+    margin: 0;
   }
-  progress::-webkit-progress-value {
-    background: var(--color-accent);
+  .progress-goal {
+    display: grid;
+    gap: var(--space-3xs);
   }
-  progress::-moz-progress-bar {
-    background: var(--color-accent);
+  .progress-session .ka-button {
+    min-height: var(--control-target);
+    margin-block: calc(-1 * var(--space-2xs));
+    padding: var(--space-2xs) var(--space-xs);
+    font-size: var(--text-small);
+  }
+  .progress-error {
+    margin: var(--space-2xs) 0 0 var(--space-xs);
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-error);
   }
 </style>

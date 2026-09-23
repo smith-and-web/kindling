@@ -2,7 +2,7 @@
   import DialogHeader from "./DialogHeader.svelte";
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { ChevronDown, History, Plus, RotateCcw } from "lucide-svelte";
+  import { History, Loader2, Lock, Plus, RotateCcw, TriangleAlert } from "lucide-svelte";
   import { proseText } from "../utils/proseSearch";
   import {
     activeDocuments,
@@ -39,6 +39,8 @@
   let before = $state(0);
   let after = $state(-1);
   let restoreIndex = $state<number | null>(null);
+  // Which write is in flight, so its button can say what it is doing.
+  let action = $state<"draft" | "restore" | null>(null);
   const oldDraft = $derived(review?.data.drafts[before]);
   const newDraft = $derived(after < 0 ? review : review?.data.drafts[after]);
   const comparison = $derived(
@@ -107,7 +109,10 @@
     if (!review || !name.trim()) return;
     const data = window.structuredClone(review.data);
     data.drafts.push(draftOf(review, name));
-    if (await save(data)) {
+    action = "draft";
+    const saved = await save(data);
+    action = null;
+    if (saved) {
       before = data.drafts.length - 1;
       name = "";
     }
@@ -117,7 +122,10 @@
     const next = review.data.drafts[restoreIndex];
     const data = window.structuredClone(review.data);
     data.drafts.push(draftOf(review, "Before restoring " + next.name));
-    if (await save(data, next)) restoreIndex = null;
+    action = "restore";
+    const saved = await save(data, next);
+    action = null;
+    if (saved) restoreIndex = null;
   }
   async function setStatus(status: string) {
     if (review) await save({ ...review.data, status });
@@ -126,6 +134,7 @@
 
 <dialog
   bind:this={dialog}
+  class="app-dialog-surface revisions-dialog"
   aria-labelledby="revisions-title"
   oncancel={(e) => {
     e.preventDefault();
@@ -140,44 +149,71 @@
     {onClose}
     disabled={busy}
   >
-    {#if review}<fieldset disabled={busy || locked}>
-        <label class="status-label"
-          >Revision status<span class="compact-select"
-            ><select value={review.data.status} onchange={(e) => setStatus(e.currentTarget.value)}
-              >{#each Object.entries(revisionStatuses) as [value, label]}<option {value}
-                  >{label}</option
-                >{/each}</select
-            ><ChevronDown size={14} /></span
-          ></label
+    {#if review}<fieldset disabled={busy || locked} class="status-field">
+        <label class="status-label" for="revision-status">Revision status</label>
+        <select
+          id="revision-status"
+          value={review.data.status}
+          onchange={(e) => setStatus(e.currentTarget.value)}
+          >{#each Object.entries(revisionStatuses) as [value, label]}<option {value}>{label}</option
+            >{/each}</select
         >
       </fieldset>{/if}
   </DialogHeader>
-  <nav aria-label="Revision views" class="history-tabs">
-    <button aria-pressed={tab === "history"} onclick={() => (tab = "history")}>Draft history</button
+  <nav aria-label="Revision views" class="ka-tablist history-tabs">
+    <button type="button" aria-pressed={tab === "history"} onclick={() => (tab = "history")}
+      >Draft history</button
     >
-    <button aria-pressed={tab === "overview"} onclick={() => (tab = "overview")}>All scenes</button>
+    <button type="button" aria-pressed={tab === "overview"} onclick={() => (tab = "overview")}
+      >All scenes</button
+    >
   </nav>
-  {#if error}<p role="alert" class="history-error">{error}</p>{/if}
+  {#if error}<p role="alert" class="ka-error history-error">{error}</p>{/if}
   {#if !review}
-    <div class="history-empty">
-      <p>{busy ? "Loading revisions…" : "Could not load revisions."}</p>
-      {#if !busy}<button onclick={load}>Retry</button>{/if}
+    <div class="ka-empty od-stack history-empty">
+      {#if busy}
+        <p class="history-loading">
+          <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />Loading revisions…
+        </p>
+      {:else}
+        <p>Could not load revisions.</p>
+        <button type="button" class="ka-button ka-button--secondary" onclick={load}>Retry</button>
+      {/if}
     </div>
   {:else}
-    {#if locked}<p class="locked-notice">This scene is locked. History is read-only.</p>{/if}
+    {#if locked}
+      <div class="ka-notice ka-notice--warning od-row-top locked-notice" role="status">
+        <Lock class="w-5 h-5" aria-hidden="true" />
+        <p>This scene is locked. History is read-only.</p>
+      </div>
+    {/if}
     {#if tab === "history"}
       <div class="history-layout">
         <aside class="draft-list" aria-label="Saved drafts">
-          <h3>Saved drafts <span>{review.data.drafts.length}</span></h3>
+          <h3 class="draft-list-title">
+            Saved drafts <span class="ka-badge">{review.data.drafts.length}</span>
+          </h3>
           <fieldset disabled={busy || locked} class="save-draft">
-            <label>Draft name<input bind:value={name} placeholder="Post-editor pass" /></label>
-            <button disabled={!name.trim()} onclick={createDraft}
-              ><Plus size={14} />Save named draft</button
+            <div class="ka-field od-field">
+              <label for="revision-draft-name">Draft name</label>
+              <input id="revision-draft-name" bind:value={name} placeholder="Post-editor pass" />
+            </div>
+            <button
+              type="button"
+              class="ka-button ka-button--secondary"
+              disabled={!name.trim()}
+              aria-busy={action === "draft" || undefined}
+              onclick={createDraft}
+              >{#if action === "draft"}<Loader2
+                  class="w-5 h-5 animate-spin"
+                  aria-hidden="true"
+                />{:else}<Plus class="w-5 h-5" aria-hidden="true" />{/if}Save named draft</button
             >
           </fieldset>
           <div class="draft-entries">
             {#each review.data.drafts.map((draft, index) => ({ draft, index })).reverse() as item}
               <button
+                type="button"
                 class="draft-entry"
                 aria-pressed={before === item.index}
                 onclick={() => {
@@ -194,43 +230,66 @@
         </aside>
         <section class="draft-detail" aria-label="Draft comparison">
           {#if !review.data.drafts.length}
-            <div class="history-empty">
-              <History size={28} />
+            <div class="ka-empty od-stack history-empty">
+              <History class="w-7 h-7" aria-hidden="true" />
               <h3>Keep a version of this scene</h3>
               <p>No saved drafts yet. Save a named draft to keep this scene’s current prose.</p>
             </div>
           {:else if oldDraft && newDraft}
             <div class="comparison-toolbar">
-              <label
-                >Compare with<span class="compact-select"
-                  ><select aria-label="Compare with" bind:value={after}
-                    ><option value={-1}>Current prose</option
-                    >{#each review.data.drafts as d, i}<option value={i}
-                        >Draft {i + 1} · {d.name}</option
-                      >{/each}</select
-                  ><ChevronDown size={14} /></span
-                ></label
-              >
-              <button disabled={busy || locked} onclick={() => (restoreIndex = before)}
-                ><RotateCcw size={14} />Restore selected draft</button
+              <div class="ka-field od-field compare-field">
+                <label for="revision-compare">Compare with</label>
+                <select id="revision-compare" bind:value={after}
+                  ><option value={-1}>Current prose</option
+                  >{#each review.data.drafts as d, i}<option value={i}
+                      >Draft {i + 1} · {d.name}</option
+                    >{/each}</select
+                >
+              </div>
+              <button
+                type="button"
+                class="ka-button ka-button--secondary"
+                disabled={busy || locked}
+                aria-expanded={restoreIndex !== null}
+                onclick={() => (restoreIndex = before)}
+                ><RotateCcw class="w-5 h-5" aria-hidden="true" />Restore selected draft</button
               >
             </div>
             {#if restoreIndex !== null}
-              <div class="restore-confirm" role="region" aria-label="Confirm draft restore">
-                <p>
-                  Restore “{review.data.drafts[restoreIndex].name}”? Current prose will be preserved
-                  as another draft. Beat structure must still match.
-                </p>
-                <div class="restore-actions">
-                  <button disabled={busy || locked} onclick={restore}
-                    >Restore and preserve current prose</button
-                  ><button disabled={busy} onclick={() => (restoreIndex = null)}
-                    >Cancel restore</button
-                  >
+              <div
+                class="ka-notice ka-notice--warning od-row-top restore-confirm"
+                role="region"
+                aria-label="Confirm draft restore"
+              >
+                <TriangleAlert class="w-5 h-5" aria-hidden="true" />
+                <div class="od-field od-fill restore-confirm-body">
+                  <strong>Restore “{review.data.drafts[restoreIndex].name}”?</strong>
+                  <p>
+                    Current prose will be preserved as another draft. Beat structure must still
+                    match.
+                  </p>
+                  <div class="restore-actions">
+                    <button
+                      type="button"
+                      class="ka-button ka-button--ghost"
+                      disabled={busy}
+                      onclick={() => (restoreIndex = null)}>Cancel restore</button
+                    ><button
+                      type="button"
+                      class="ka-button ka-button--danger"
+                      disabled={busy || locked}
+                      aria-busy={action === "restore" || undefined}
+                      onclick={restore}
+                      >{#if action === "restore"}<Loader2
+                          class="w-5 h-5 animate-spin"
+                          aria-hidden="true"
+                        />{/if}Restore and preserve current prose</button
+                    >
+                  </div>
                 </div>
               </div>
             {/if}
-            <p class="comparison-note">
+            <p class="ka-help comparison-note">
               {hasChanges
                 ? "Removed text is marked on the left; added text is marked on the right."
                 : "No prose text changes between these versions."} Formatting is not compared.
@@ -287,37 +346,25 @@
       </div>
     {/if}
   {/if}
-  {#if busy}<p role="status" class="busy-notice">Saving or loading…</p>{/if}
+  {#if busy}<p role="status" class="ka-help busy-notice">Saving or loading…</p>{/if}
 </dialog>
 
 <style>
-  dialog {
+  .revisions-dialog {
     width: min(80rem, calc(100vw - var(--space-xl)));
     height: min(56rem, calc(100vh - var(--space-xl)));
     max-height: calc(100vh - var(--space-xl));
     margin: auto;
     padding: 0;
-    background: var(--color-surface);
-    color: var(--color-text);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-m);
-    box-shadow: var(--shadow-overlay);
-    font-family: var(--font-ui);
-    font-size: var(--text-small);
+    font: var(--text-ui) / 1.5 var(--font-ui);
     overflow: hidden;
   }
-  dialog[open] {
+  .revisions-dialog[open] {
     display: flex;
     flex-direction: column;
   }
-  dialog::backdrop {
+  .revisions-dialog::backdrop {
     background: var(--color-overlay-scrim);
-  }
-
-  .version-kind,
-  time {
-    font-size: var(--text-eyebrow);
-    color: var(--color-text-muted);
   }
 
   fieldset {
@@ -326,75 +373,47 @@
     margin: 0;
     min-width: 0;
   }
-  label {
+  .status-field {
     display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: var(--space-2xs);
-    min-width: 0;
   }
   .status-label {
-    font-size: var(--text-eyebrow);
+    font: var(--text-small) / 1.5 var(--font-ui);
     color: var(--color-text-muted);
+    white-space: nowrap;
   }
-  input,
-  select {
-    font-family: var(--font-ui);
-    font-size: var(--text-small);
-    line-height: var(--leading);
-    padding: var(--space-3xs) var(--space-2xs);
-    min-width: 0;
-    max-width: 100%;
+  .status-field select {
+    width: auto;
+    min-width: 11rem;
   }
-  .compact-select {
-    display: grid;
-    align-items: center;
-    min-width: 0;
-  }
-  .compact-select select {
-    grid-area: 1 / 1;
-    appearance: none;
-    padding-right: var(--space-l);
-    width: 100%;
-  }
-  .compact-select :global(svg) {
-    grid-area: 1 / 1;
-    justify-self: end;
-    margin-right: var(--space-2xs);
-    pointer-events: none;
-    color: var(--color-text-muted);
-  }
-  button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2xs);
-    padding: var(--space-2xs) var(--space-xs);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-s);
-    cursor: pointer;
-  }
-  button:hover {
-    background: var(--color-surface-sunken);
-  }
+
   .history-tabs {
-    display: flex;
-    gap: var(--space-m);
+    flex: none;
     padding-inline: var(--space-m);
-    border-bottom: 1px solid var(--color-border);
   }
-  .history-tabs button {
-    border: 0;
-    border-bottom: 2px solid transparent;
-    border-radius: 0;
-    padding: var(--space-xs) 0;
+  .history-tabs > button {
+    margin-bottom: -1px;
   }
-  .history-tabs button[aria-pressed="true"] {
+  .history-tabs > button[aria-pressed="true"] {
+    border-bottom-color: var(--color-accent-text);
     color: var(--color-accent-text);
-    border-bottom-color: var(--color-accent);
   }
+  .history-error {
+    margin: 0;
+    padding: var(--space-xs) var(--space-m) 0;
+  }
+  .locked-notice {
+    flex: none;
+    margin: var(--space-s) var(--space-m) 0;
+  }
+  .locked-notice p {
+    margin: 0;
+  }
+
   .history-layout {
     display: grid;
-    grid-template-columns: 16rem minmax(0, 1fr);
+    grid-template-columns: 18rem minmax(0, 1fr);
     min-height: 0;
     flex: 1;
   }
@@ -402,52 +421,69 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
-    border-right: 1px solid var(--color-border);
+    border-right: var(--border-hair);
     background: var(--color-bg);
   }
-  .draft-list h3 {
-    font-size: var(--text-small);
-    margin: var(--space-s);
-  }
-  .draft-list h3 span {
-    color: var(--color-text-muted);
-    margin-left: var(--space-2xs);
-    font-weight: 400;
+  .draft-list-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    margin: var(--space-s) var(--space-s) var(--space-xs);
+    font: 600 var(--text-ui) / 1.5 var(--font-ui);
+    color: var(--color-text);
   }
   .save-draft {
-    display: flex;
-    flex-direction: column;
+    display: grid;
     gap: var(--space-2xs);
     margin: 0 var(--space-s) var(--space-s);
   }
   .draft-entries {
     overflow: auto;
     min-height: 0;
+    border-top: var(--border-hair);
   }
   .draft-entry {
     display: flex;
     flex-direction: column;
     align-items: start;
-    text-align: left;
+    gap: var(--space-3xs);
     width: 100%;
+    min-height: var(--control-target);
+    padding: var(--space-xs) var(--space-s);
     border: 0;
-    border-top: 1px solid var(--color-border);
-    border-left: 2px solid transparent;
+    border-bottom: var(--border-hair);
+    border-left: 3px solid transparent;
     border-radius: 0;
-    padding: var(--space-s);
+    background: transparent;
+    color: var(--color-text);
+    font: var(--text-ui) / 1.4 var(--font-ui);
+    text-align: left;
     overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+  .draft-entry:focus-visible {
+    outline: 2px solid var(--color-accent-text);
+    outline-offset: -3px;
+  }
+  @media (hover: hover) {
+    .draft-entry:not([aria-pressed="true"]):hover {
+      background: var(--color-surface-sunken);
+    }
   }
   .draft-entry[aria-pressed="true"] {
     background: var(--color-accent-wash);
-    border-left-color: var(--color-accent);
-  }
-  .draft-number {
-    font-size: var(--text-eyebrow);
-    color: var(--color-text-muted);
+    border-left-color: var(--color-accent-text);
   }
   .draft-entry strong {
     font-weight: 500;
   }
+  .draft-number,
+  .version-kind,
+  time {
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+
   .draft-detail {
     display: flex;
     flex-direction: column;
@@ -456,24 +492,36 @@
   }
   .comparison-toolbar {
     display: flex;
-    align-items: end;
+    align-items: flex-end;
     justify-content: space-between;
+    flex-wrap: wrap;
     gap: var(--space-s);
     padding: var(--space-s) var(--space-m);
   }
-  .comparison-toolbar label {
-    flex: 1;
+  .compare-field {
+    flex: 1 1 16rem;
     max-width: var(--measure);
   }
-  .comparison-toolbar button {
-    flex-shrink: 0;
+  .restore-confirm {
+    margin: 0 var(--space-m) var(--space-s);
+  }
+  .restore-confirm-body {
+    gap: var(--space-xs);
+  }
+  .restore-confirm-body p {
+    margin: 0;
+  }
+  .restore-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--space-2xs);
   }
   .comparison-note {
-    font-size: var(--text-eyebrow);
-    color: var(--color-text-muted);
+    max-width: none;
     margin: 0;
     padding: 0 var(--space-m) var(--space-s);
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: var(--border-hair);
   }
   .comparison-pages {
     display: grid;
@@ -487,23 +535,25 @@
     min-width: 0;
   }
   .comparison-version + .comparison-version {
-    border-left: 1px solid var(--color-border);
+    border-left: var(--border-hair);
   }
   .comparison-version header {
-    border-bottom: 1px solid var(--color-border);
+    display: grid;
+    gap: var(--space-3xs);
+    border-bottom: var(--border-hair);
     padding-bottom: var(--space-s);
     margin-bottom: var(--space-m);
   }
   .comparison-version h3 {
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
-    margin: var(--space-2xs) 0;
+    margin: 0;
+    font: 550 var(--text-h3) / 1.25 var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
     overflow-wrap: anywhere;
   }
   .diff-prose {
-    font-family: var(--font-body);
-    font-size: var(--text-body);
-    line-height: var(--leading-relaxed);
+    font: var(--text-body) / var(--leading-relaxed) var(--font-body);
+    color: var(--color-text);
     max-width: var(--measure);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -511,57 +561,60 @@
   del {
     color: var(--color-error);
     background: var(--color-error-wash);
+    text-decoration: line-through;
   }
   ins {
     color: var(--color-success);
     background: var(--color-success-wash);
+    text-decoration: underline;
   }
-  .restore-confirm {
-    padding: var(--space-s) var(--space-m);
-    background: var(--color-surface-sunken);
-    border-block: 1px solid var(--color-border);
-  }
-  .restore-confirm p {
-    margin: 0 0 var(--space-xs);
-  }
-  .restore-actions {
-    display: flex;
-    gap: var(--space-2xs);
-    flex-wrap: wrap;
-  }
+
   .history-empty {
     margin: auto;
     padding: var(--space-l);
     max-width: var(--measure);
-    color: var(--color-text-muted);
   }
   .history-empty h3 {
-    font-family: var(--font-display);
-    font-size: var(--text-h3);
+    margin: 0;
+    font: 550 var(--text-h3) / 1.25 var(--font-display);
+    letter-spacing: var(--tracking-tight);
     color: var(--color-text);
   }
-  .history-error {
-    color: var(--color-error);
-    padding-inline: var(--space-m);
-  }
-  .locked-notice,
-  .busy-notice {
-    color: var(--color-text-muted);
+  .history-empty p {
     margin: 0;
-    padding: var(--space-xs) var(--space-m);
   }
+  .history-loading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+  }
+  .busy-notice {
+    flex: none;
+    max-width: none;
+    margin: 0;
+    padding: var(--space-2xs) var(--space-m);
+    border-top: var(--border-hair);
+  }
+
   .overview-scroll {
     overflow: auto;
     min-height: 0;
+    flex: 1;
   }
   table {
     width: 100%;
     text-align: left;
     border-collapse: collapse;
+    font: var(--text-ui) / 1.5 var(--font-ui);
   }
   td,
   th {
-    padding: var(--space-s) var(--space-m);
-    border-bottom: 1px solid var(--color-border);
+    height: var(--control-target);
+    padding: var(--space-xs) var(--space-m);
+    border-bottom: var(--border-hair);
+  }
+  th {
+    font: 600 var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
   }
 </style>

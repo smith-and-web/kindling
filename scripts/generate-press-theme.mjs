@@ -79,6 +79,22 @@ const shadows = {
   "press-prose": "--shadow-prose",
 };
 
+const spacing = {
+  // min-h-press-target / min-w-press-target / size-press-target: the 44px
+  // standalone-control target Press requires in both dimensions.
+  "press-target": "--control-target",
+};
+
+const radii = {
+  "press-xs": "--radius-xs",
+  "press-s": "--radius-s",
+  "press-m": "--radius-m",
+  "press-l": "--radius-l",
+  "press-xl": "--radius-xl",
+  "press-2xl": "--radius-2xl",
+  "press-pill": "--radius-pill",
+};
+
 const zIndexes = {
   "press-base": "--z-base",
   "press-raised": "--z-raised",
@@ -95,9 +111,7 @@ const zIndexes = {
 };
 
 function declarations(namespace, values) {
-  return Object.entries(values).map(
-    ([name, token]) => `  --${namespace}-${name}: var(${token});`
-  );
+  return Object.entries(values).map(([name, token]) => `  --${namespace}-${name}: var(${token});`);
 }
 
 function render(tokens) {
@@ -106,6 +120,8 @@ function render(tokens) {
     ...Object.values(fonts),
     ...Object.values(text),
     ...Object.values(shadows),
+    ...Object.values(spacing),
+    ...Object.values(radii),
     ...Object.values(zIndexes),
     "--measure",
   ];
@@ -120,6 +136,8 @@ function render(tokens) {
     ...declarations("font", fonts),
     ...declarations("text", text),
     ...declarations("shadow", shadows),
+    ...declarations("spacing", spacing),
+    ...declarations("radius", radii),
     ...declarations("z-index", zIndexes),
     "  --max-width-press-measure: var(--measure);",
   ].join("\n")}\n}\n`;

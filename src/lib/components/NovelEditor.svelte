@@ -8,6 +8,8 @@
   import { trackEditorPosition } from "../utils/editorPosition";
   import { Loader2 } from "lucide-svelte";
   import ProseToolbar from "./ProseToolbar.svelte";
+  import { ScreenplayFormatting } from "../utils/screenplayFormatting";
+  import { currentProject } from "../stores/project.svelte";
 
   interface Props {
     content: string;
@@ -24,7 +26,7 @@
 
   let {
     content,
-    placeholder = "Write your prose...",
+    placeholder = "Write your prose…",
     readonly = false,
     saveStatus = "idle",
     onUpdate,
@@ -33,6 +35,9 @@
     sceneId,
     beatId = null,
   }: Props = $props();
+
+  // Screenplays lay out cues, dialogue and transitions on the page (display only).
+  const screenplay = currentProject.value?.project_type === "screenplay";
 
   let editorElement: HTMLElement;
   let scrollElement: HTMLDivElement;
@@ -52,23 +57,9 @@
     }
   });
 
-  // Word count
-  let wordCount = $state(0);
-
   let toolbarRevision = $state(0);
   function updateToolbarState() {
     untrack(() => toolbarRevision++);
-  }
-
-  function updateWordCount() {
-    if (!editor) return;
-    const text = editor.getText();
-    // Count words by splitting on whitespace and filtering empty strings
-    const words = text
-      .trim()
-      .split(/\s+/)
-      .filter((word) => word.length > 0);
-    wordCount = words.length;
   }
 
   onMount(() => {
@@ -88,6 +79,7 @@
         TextAlign.configure({
           types: ["paragraph"],
         }),
+        ...(screenplay ? [ScreenplayFormatting] : []),
       ],
       content: content || "",
       editable: !readonly,
@@ -99,7 +91,6 @@
       },
       onUpdate: ({ editor }) => {
         updateToolbarState();
-        updateWordCount();
         if (onUpdate && isInitialized && !isSettingContent) {
           const html = editor.getHTML();
           if (html !== lastEmittedContent) {
@@ -117,7 +108,6 @@
     });
 
     updateToolbarState();
-    updateWordCount();
     lastExternalContent = content || "";
     lastEmittedContent = content || "";
 
@@ -146,7 +136,6 @@
           isSettingContent = true;
           editor.commands.setContent(normalizedContent);
           isSettingContent = false;
-          updateWordCount();
         } else {
           lastExternalContent = normalizedContent;
         }
@@ -183,24 +172,20 @@
   }
 </script>
 
-<div class="novel-editor" class:readonly>
+<div class="novel-editor" class:readonly class:beat-mode={!!beatId} class:screenplay>
   <!-- Toolbar -->
   {#if !readonly}
     <ProseToolbar {editor} revision={toolbarRevision}>
       {#if saveStatus === "saving"}
-        <div class="save-status saving" data-testid="save-indicator">
-          <Loader2 class="w-3.5 h-3.5 animate-spin" />
-          <span>Saving...</span>
+        <div class="save-status saving" data-testid="save-indicator" role="status">
+          <Loader2 class="w-4 h-4 animate-spin" aria-hidden="true" />
+          <span>Saving…</span>
         </div>
       {:else if saveStatus === "error"}
-        <div class="save-status error">
-          <span>Error saving</span>
+        <div class="save-status error" role="alert">
+          <span>Couldn’t save — your text is still here</span>
         </div>
       {/if}
-      <div class="word-count">
-        {wordCount}
-        {wordCount === 1 ? "word" : "words"}
-      </div>
     </ProseToolbar>
   {/if}
 
@@ -223,7 +208,7 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: var(--color-surface);
+    background: var(--color-surface-sunken);
     overflow: hidden;
   }
 
@@ -234,10 +219,8 @@
   .save-status {
     display: flex;
     align-items: center;
-    gap: 0.375rem;
-    font-size: var(--text-eyebrow);
-    padding: 0.25rem 0.5rem;
-    margin-right: 0.5rem;
+    gap: var(--space-3xs);
+    font-size: var(--text-small);
   }
 
   .save-status.saving {
@@ -248,21 +231,13 @@
     color: var(--color-error);
   }
 
-  .word-count {
-    font-size: var(--text-eyebrow);
-    color: var(--color-text-muted);
-    padding: 0.25rem 0.5rem;
-    background: var(--color-surface);
-    border-radius: var(--radius-xs);
-  }
-
   /* Pages container - scrollable area */
   .novel-pages-container {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 1.5rem;
-    background: var(--color-surface-sunken);
+    padding: var(--space-m) var(--space-m) var(--space-l);
+    background: transparent;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -274,6 +249,15 @@
     min-height: 40rem;
     padding: var(--space-xl);
     flex-shrink: 0;
+  }
+
+  /* Beat mode: a shorter sheet so a short beat doesn't open onto blank paper. */
+  .beat-mode .novel-page {
+    min-height: 12rem;
+  }
+  .beat-mode .editor-wrapper,
+  .beat-mode :global(.novel-editor-content) {
+    min-height: 8rem;
   }
 
   .editor-wrapper {
@@ -314,6 +298,40 @@
     pointer-events: none;
     height: 0;
     font-style: italic;
+  }
+
+  /* Screenplay page: monospace, a blank line between elements, and the
+     standard element indents on a 6in text column (cue 2.2in, dialogue 1in
+     wide 3.5in, parenthetical 1.6in, transitions flush right). */
+  .screenplay :global(.novel-editor-content) {
+    font-family: var(--font-mono);
+    font-size: var(--text-ui);
+    line-height: var(--leading);
+    white-space: pre-wrap;
+  }
+  .screenplay :global(.novel-editor-content p),
+  .screenplay :global(.novel-editor-content p:first-child) {
+    text-indent: 0;
+    margin: 0 0 1lh;
+  }
+  .screenplay :global(.novel-editor-content p.sp-heading) {
+    text-transform: uppercase;
+  }
+  .screenplay :global(.novel-editor-content p.sp-cue) {
+    margin: 0 0 0 37%;
+  }
+  .screenplay :global(.novel-editor-content p.sp-parenthetical) {
+    margin: 0 0 0 27%;
+    max-width: 33%;
+  }
+  .screenplay :global(.novel-editor-content p.sp-dialogue) {
+    margin: 0 17% 1lh 17%;
+  }
+  .screenplay :global(.novel-editor-content p.sp-dialogue:has(+ p.sp-parenthetical)) {
+    margin-bottom: 0;
+  }
+  .screenplay :global(.novel-editor-content p.sp-transition) {
+    text-align: right;
   }
 
   :global(.novel-editor-content blockquote) {

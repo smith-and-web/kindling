@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { countLabel } from "../utils/plural";
   import DialogHeader from "./DialogHeader.svelte";
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { CircleCheck, Loader2 } from "lucide-svelte";
   import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
   import { copyErrorMessage, copyReferences, previewReferenceCopy } from "../referenceCopy";
   import type {
@@ -41,6 +43,22 @@
   let alive = true;
   const selectedCount = $derived(selection?.length ?? 0);
   const source = $derived(projects.find((p) => p.id === sourceId));
+  // Why the primary is unavailable, shown beside it (never a silent disabled state).
+  const blockedReason = $derived(
+    loadingProjects || loading || saving || result || error
+      ? null
+      : !sourceId
+        ? projects.length
+          ? "Choose a source project."
+          : null
+        : !preview
+          ? null
+          : selectedCount === 0
+            ? "Choose references to copy."
+            : preview.copied === 0
+              ? "Every selected reference matches one already here and will be skipped."
+              : null
+  );
   const matches = (name: string) =>
     name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
   const key = (row: ReferenceCopyKey): ReferenceCopyKey => ({
@@ -182,35 +200,47 @@
   bind:this={dialog}
   oncancel={cancel}
   aria-labelledby="copy-references-title"
-  class="bg-press-surface text-press-text border border-press-border rounded-lg shadow-press-overlay p-0 w-full max-w-2xl max-h-[90vh] overflow-hidden m-auto backdrop:bg-press-overlay"
+  class="app-dialog-surface ka-dialog-default copy-dialog"
 >
-  <div class="flex flex-col max-h-[90vh]">
-    <DialogHeader
-      title="Copy references from project…"
-      titleId="copy-references-title"
-      onClose={close}
-      disabled={saving || refreshing}
-    />
-    <div class="p-6 space-y-4 overflow-y-auto min-h-0">
-      <p class="text-press-ui">Destination: <strong>{destination.name}</strong></p>
-      <p class="text-press-small text-press-muted">
-        These are independent copies. Changes won't update other projects. Scene links are not
-        copied.
-      </p>
-      {#if result}
-        <p role="status" class="text-press-ui">
-          Copied {result.copied} references from {source?.name} to {destination.name}. Skipped {result.skipped}
-          possible duplicates.
-        </p>
-        {#if refreshing}<p role="status">Refreshing references…</p>{/if}
-      {:else}
-        <label class="block text-press-ui" for="copy-source">Source project</label>
+  <DialogHeader
+    title="Copy references from another project"
+    titleId="copy-references-title"
+    onClose={close}
+    disabled={saving || refreshing}
+  />
+  <div class="ka-dialog-body copy-body">
+    <dl class="ka-facts copy-facts">
+      <div>
+        <dt>Destination</dt>
+        <dd>{destination.name}</dd>
+      </div>
+    </dl>
+    <p class="ka-help">
+      These are independent copies. Changes won't update other projects. Scene links are not copied.
+    </p>
+    {#if result}
+      <div role="status" class="ka-notice ka-notice--success od-row-top">
+        <CircleCheck class="w-5 h-5" aria-hidden="true" />
+        <div class="od-field od-fill">
+          <strong>References copied</strong>
+          <p>
+            Copied {countLabel(result.copied, "reference")} from {source?.name} to {destination.name}.
+            Skipped {result.skipped}
+            possible duplicates.
+          </p>
+        </div>
+      </div>
+      {#if refreshing}<p role="status" class="ka-help copy-inline-status">
+          <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />Refreshing references…
+        </p>{/if}
+    {:else}
+      <div class="ka-field od-field">
+        <label for="copy-source">Source project</label>
         <select
           id="copy-source"
           bind:value={sourceId}
           onchange={changeSource}
           disabled={loadingProjects || saving}
-          class="w-full bg-press-bg border border-press-border rounded px-3 py-2 text-press-base"
         >
           <option value="">Choose a project</option>
           {#each projects as project (project.id)}
@@ -222,56 +252,70 @@
             >
           {/each}
         </select>
-        {#if loadingProjects}<p role="status">Loading projects…</p>
-        {:else if projects.length === 0 && !error}<p>
-            Create another project first, then copy its references here.
-          </p>{/if}
-        {#if preview}
-          <label for="copy-search" class="block text-press-ui">Search references</label>
+      </div>
+      {#if loadingProjects}<p role="status" class="ka-help copy-inline-status">
+          <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />Loading projects…
+        </p>
+      {:else if projects.length === 0 && !error}
+        <div class="ka-empty od-stack copy-empty">
+          <h4>No other projects</h4>
+          <p>Create another project first, then copy its references here.</p>
+        </div>
+      {/if}
+      {#if preview}
+        <div class="ka-field od-field">
+          <label for="copy-search">Search references</label>
           <input
             id="copy-search"
             type="search"
             bind:value={search}
             disabled={saving}
             placeholder="Search by name"
-            class="w-full bg-press-bg border border-press-border rounded px-3 py-2 text-press-base"
           />
-          <div class="flex flex-wrap gap-3 text-press-ui">
-            <span>{selectedCount} selected across all categories</span>
+        </div>
+        <div class="copy-selection">
+          <span class="copy-selection-count">{selectedCount} selected across all categories</span>
+          <div class="copy-selection-actions">
             <button
+              type="button"
               disabled={saving}
               onclick={() => selectRows(preview?.references ?? [], true)}
-              class="underline">Select all references</button
+              class="ka-button ka-button--ghost">Select all references</button
             >
             <button
+              type="button"
               disabled={saving}
               onclick={() => selectRows(preview?.references ?? [], false)}
-              class="underline">Clear selection</button
+              class="ka-button ka-button--ghost">Clear selection</button
             >
           </div>
-          {#if preview.references.length === 0}<p>This project has no references to copy.</p>{/if}
-          <div class="space-y-4">
-            {#each REFERENCE_TYPE_OPTIONS as category (category.id)}
-              {@const rows = preview.references.filter(
-                (r) => r.reference_type === category.id && matches(r.name)
-              )}
-              {#if rows.length}
-                <fieldset disabled={saving} class="border-t border-press-border pt-2 min-w-0">
-                  <legend class="text-press-ui font-medium">{category.label}</legend>
-                  <label class="flex gap-2 items-center text-press-small mb-2">
-                    <input
-                      type="checkbox"
-                      checked={rows.every((r) => selection?.some((s) => same(s, r)))}
-                      indeterminate={rows.some((r) => selection?.some((s) => same(s, r))) &&
-                        !rows.every((r) => selection?.some((s) => same(s, r)))}
-                      onchange={(e) => selectRows(rows, e.currentTarget.checked)}
-                    />
-                    Select {search.trim() ? "visible" : "all"}
-                    {category.label.toLowerCase()}
-                  </label>
+        </div>
+        {#if preview.references.length === 0}<p class="ka-help">
+            This project has no references to copy.
+          </p>{/if}
+        <div class="copy-categories">
+          {#each REFERENCE_TYPE_OPTIONS as category (category.id)}
+            {@const rows = preview.references.filter(
+              (r) => r.reference_type === category.id && matches(r.name)
+            )}
+            {#if rows.length}
+              <fieldset disabled={saving} class="copy-category">
+                <legend class="ka-group-title">{category.label}</legend>
+                <label class="ka-check copy-all">
+                  <input
+                    type="checkbox"
+                    checked={rows.every((r) => selection?.some((s) => same(s, r)))}
+                    indeterminate={rows.some((r) => selection?.some((s) => same(s, r))) &&
+                      !rows.every((r) => selection?.some((s) => same(s, r)))}
+                    onchange={(e) => selectRows(rows, e.currentTarget.checked)}
+                  />
+                  Select {search.trim() ? "visible" : "all"}
+                  {category.label.toLowerCase()}
+                </label>
+                <ul class="copy-rows">
                   {#each rows as row (row.id)}
-                    <div class="py-2 border-t border-press-border space-y-1">
-                      <label class="flex gap-2 items-start text-press-ui break-words">
+                    <li class="copy-row">
+                      <label class="ka-check copy-check">
                         <input
                           type="checkbox"
                           checked={selection?.some((s) => same(s, row))}
@@ -279,19 +323,16 @@
                         />
                         {row.name}
                       </label>
-                      {#if row.description}<p
-                          class="text-press-small text-press-muted line-clamp-2"
-                        >
+                      {#if row.description}<p class="copy-meta copy-description">
                           {row.description}
                         </p>{/if}
                       {#if selection?.some((s) => same(s, row)) && row.conflict}
-                        <label class="block text-press-small"
+                        <label class="copy-duplicate"
                           >Possible duplicate: {row.name}
                           <select
                             aria-label={`Duplicate choice for ${row.name}`}
                             value={keepBoth.some((k) => same(k, row)) ? "keep" : "skip"}
                             onchange={(e) => chooseDuplicate(row, e.currentTarget.value === "keep")}
-                            class="bg-press-bg border border-press-border rounded px-2 py-1 text-press-base ml-2"
                           >
                             <option value="skip">Skip</option><option value="keep">Keep both</option
                             >
@@ -299,32 +340,35 @@
                         </label>
                       {/if}
                       {#if row.action === "copy" && row.destination_name !== row.name}<p
-                          class="text-press-small"
+                          class="copy-meta"
                         >
                           Copy as: {row.destination_name}
                         </p>{/if}
-                    </div>
+                    </li>
                   {/each}
-                </fieldset>
-              {/if}
-            {/each}
-            {#if preview.references.length > 0 && !preview.references.some( (r) => matches(r.name) )}<p
-              >
-                No references match your search. Selections are unchanged.
-              </p>{/if}
-          </div>
-          {#if preview.changes.length}
-            <details aria-busy={loading} class="border-t border-press-border pt-3">
-              <summary class="text-press-ui cursor-pointer"
-                >Add {preview.changes.filter((c) => c.kind === "field").length} fields and {preview.changes.filter(
-                  (c) => c.kind === "tag"
-                ).length} tags</summary
-              >
-              <p class="text-press-small text-press-muted my-2">
+                </ul>
+              </fieldset>
+            {/if}
+          {/each}
+          {#if preview.references.length > 0 && !preview.references.some((r) => matches(r.name))}<p
+              class="ka-help"
+            >
+              No references match your search. Selections are unchanged.
+            </p>{/if}
+        </div>
+        {#if preview.changes.length}
+          <details aria-busy={loading} class="ka-disclosure copy-changes">
+            <summary
+              >Add {preview.changes.filter((c) => c.kind === "field").length} fields and {preview.changes.filter(
+                (c) => c.kind === "tag"
+              ).length} tags</summary
+            >
+            <div>
+              <p class="ka-help">
                 New fields are also available on existing references in their category. Existing
                 values stay unchanged.
               </p>
-              <ul class="text-press-small space-y-1">
+              <ul class="copy-change-list">
                 {#each preview.changes as change}
                   <li>
                     {change.kind === "field" ? `${change.entity_type} field` : "Tag"}: {change.source_name}{change.source_name !==
@@ -334,55 +378,207 @@
                   </li>
                 {/each}
               </ul>
-            </details>
+            </div>
+          </details>
+        {/if}
+        {#if preview.enabled_types.length}<p class="ka-help">
+            Enable categories: {preview.enabled_types.map(categoryName).join(", ")}
+          </p>{/if}
+        {#if preview.skipped}<p class="ka-help">
+            Matches use category and name, not content. Renamed references may be copied again.
+          </p>{/if}
+      {/if}
+      {#if sourceId}
+        <p role="status" class="copy-status">
+          {#if loading}
+            Updating preview…
+          {:else if preview}
+            {preview.copied} to copy · {preview.skipped} possible duplicates skipped
           {/if}
-          {#if preview.enabled_types.length}<p class="text-press-small">
-              Enable categories: {preview.enabled_types.map(categoryName).join(", ")}
-            </p>{/if}
-          {#if preview.skipped}<p class="text-press-small text-press-muted">
-              Matches use category and name, not content. Renamed references may be copied again.
-            </p>{/if}
-        {/if}
-        {#if sourceId}
-          <p role="status" class="text-press-ui">
-            {#if loading}
-              Updating preview…
-            {:else if preview}
-              {preview.copied} to copy · {preview.skipped} possible duplicates skipped
-            {/if}
-          </p>
-        {/if}
+        </p>
       {/if}
-      {#if error}<p role="alert" class="text-press-error text-press-ui">{error}</p>{/if}
-    </div>
-    <div class="flex flex-wrap justify-end gap-3 border-t border-press-border px-6 py-4 shrink-0">
-      {#if refreshFailed}<button
-          onclick={refreshCopied}
-          disabled={refreshing}
-          class="px-4 py-2 border border-press-border rounded text-press-ui"
-          >Refresh references</button
-        >{/if}
-      {#if error && !result && !loading}
-        <button
-          onclick={() => (sourceId ? loadPreview() : loadProjects())}
-          disabled={saving}
-          class="px-4 py-2 border border-press-border rounded text-press-ui"
-          >{sourceId ? "Refresh preview" : "Retry loading projects"}</button
-        >
-      {/if}
-      <button
-        onclick={close}
-        disabled={saving || refreshing}
-        class="px-4 py-2 border border-press-border rounded text-press-ui"
-        >{result ? "Done" : "Cancel"}</button
-      >
-      {#if !result}<button
-          onclick={submit}
-          disabled={!preview || preview.copied === 0 || loading || saving}
-          class="px-4 py-2 bg-press-accent text-press-on-accent rounded text-press-ui disabled:cursor-not-allowed"
-        >
-          {saving ? "Copying…" : `Copy ${preview?.copied ?? 0} references`}
-        </button>{/if}
-    </div>
+    {/if}
+    {#if error}<p role="alert" class="ka-error">{error}</p>{/if}
   </div>
+  <footer class="ka-dialog-footer">
+    {#if blockedReason}<p
+        id="copy-blocked-reason"
+        class="ka-help ka-dialog-footer-start copy-reason"
+      >
+        {blockedReason}
+      </p>{/if}
+    {#if refreshFailed}<button
+        type="button"
+        onclick={refreshCopied}
+        disabled={refreshing}
+        aria-busy={refreshing || undefined}
+        class="ka-button">Refresh references</button
+      >{/if}
+    {#if error && !result && !loading}
+      <button
+        type="button"
+        onclick={() => (sourceId ? loadPreview() : loadProjects())}
+        disabled={saving}
+        class="ka-button ka-button--secondary"
+        >{sourceId ? "Refresh preview" : "Retry loading projects"}</button
+      >
+    {/if}
+    <button
+      type="button"
+      onclick={close}
+      disabled={saving || refreshing}
+      class={result && !refreshFailed ? "ka-button" : "ka-button ka-button--secondary"}
+      >{result ? "Done" : "Cancel"}</button
+    >
+    {#if !result}<button
+        type="button"
+        onclick={submit}
+        disabled={!preview || preview.copied === 0 || loading || saving}
+        aria-busy={saving || undefined}
+        aria-describedby={blockedReason ? "copy-blocked-reason" : undefined}
+        class="ka-button"
+      >
+        {#if saving}<Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />{/if}
+        {saving ? "Copying…" : `Copy ${countLabel(preview?.copied ?? 0, "reference")}`}
+      </button>{/if}
+  </footer>
 </dialog>
+
+<style>
+  .copy-dialog {
+    max-height: calc(100dvh - 48px);
+    margin: auto;
+    padding: 0;
+    overflow: hidden;
+  }
+  .copy-dialog[open] {
+    display: flex;
+    flex-direction: column;
+  }
+  .copy-dialog::backdrop {
+    background: var(--color-overlay-scrim);
+  }
+  .copy-body {
+    display: grid;
+    align-content: start;
+    gap: var(--space-s);
+  }
+  .copy-body > p {
+    margin: 0;
+  }
+  /* The header's rule already closes the top; only rule it off below. */
+  .copy-facts {
+    border-bottom: var(--border-hair);
+  }
+  .copy-facts > :global(:first-child) {
+    border-top: 0;
+  }
+  .copy-inline-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+  }
+  .copy-empty {
+    padding-block: var(--space-s);
+  }
+  .copy-empty h4 {
+    margin: 0;
+    font: 550 var(--text-h3) / 1.25 var(--font-display);
+    letter-spacing: var(--tracking-tight);
+  }
+  .copy-empty p {
+    margin: 0;
+  }
+  .copy-selection {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2xs) var(--space-s);
+    font: var(--text-ui) / 1.5 var(--font-ui);
+    color: var(--color-text);
+  }
+  .copy-selection-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3xs);
+  }
+  .copy-categories {
+    display: grid;
+    gap: var(--space-m);
+  }
+  .copy-category {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .copy-category legend {
+    margin-bottom: var(--space-2xs);
+    padding: 0;
+  }
+  .copy-rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: var(--border-hair);
+  }
+  .copy-all {
+    color: var(--color-text-muted);
+  }
+  .copy-row {
+    display: grid;
+    gap: var(--space-3xs);
+    padding-block: var(--space-3xs) var(--space-2xs);
+    border-bottom: var(--border-hair);
+  }
+  .copy-check {
+    color: var(--color-text);
+    cursor: pointer;
+    overflow-wrap: anywhere;
+  }
+  .copy-meta {
+    margin: 0;
+    padding-left: calc(20px + var(--space-xs));
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  .copy-description {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .copy-duplicate {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2xs) var(--space-s);
+    padding-left: calc(20px + var(--space-xs));
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text);
+  }
+  .copy-duplicate select {
+    width: auto;
+    min-width: 10rem;
+  }
+  .copy-changes > div > p {
+    margin: 0 0 var(--space-2xs);
+  }
+  .copy-change-list {
+    display: grid;
+    gap: var(--space-3xs);
+    margin: 0;
+    padding-left: var(--space-s);
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text);
+  }
+  .copy-status {
+    font: 500 var(--text-ui) / 1.5 var(--font-ui);
+    color: var(--color-text);
+  }
+  .copy-reason {
+    margin-block: 0;
+  }
+</style>

@@ -1,0 +1,94 @@
+/* kindling Press application layer. Import fonts.css and tokens.css first.
+   Standalone component selectors do not depend on the legacy global reset. */
+@layer od-layout {
+.od-stack{display:flex;flex-direction:column;gap:var(--od-gap,8px)}.od-row{display:flex;align-items:center;gap:var(--od-gap,8px)}.od-row-top{display:flex;align-items:flex-start;gap:var(--od-gap,8px)}.od-field,.od-stat{display:grid;gap:var(--od-gap,4px)}.od-field>*,.od-stat>*{display:block}.od-fill{flex:1 1 0;min-width:0}.od-nowrap{white-space:nowrap}:where(.od-stack,.od-row,.od-row-top,.od-field,.od-stat)>*{min-width:0}
+}
+:root{--ka-radius:8px;--ka-radius-small:4px;--ka-gap:16px;--ka-pad:24px;--ka-touch:var(--control-target);--ka-motion:160ms;--ka-heading:clamp(2rem,6vw,3rem);--ka-reference-ratio:4/3}
+:where([class^="ka-"],[class*=" ka-"]){box-sizing:border-box}
+.press-app{color:var(--color-text);font:var(--text-base)/1.6 var(--font-ui);text-align:left}
+.press-app :where(h3,h4,p,ul,dl,dd,figure,fieldset){margin:0}
+.press-app :where(h3,h4){font-family:var(--font-display);font-weight:550;line-height:1.25;letter-spacing:-.02em}
+.press-app h3{font-size:var(--text-h2)}.press-app h4{font-size:var(--text-h3)}
+.ka-row,.ka-between{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.ka-between{justify-content:space-between;gap:16px}.ka-between>*{min-width:0}
+.ka-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:var(--ka-touch);max-width:100%;padding:8px 16px;border:1px solid transparent;border-radius:var(--ka-radius-small);font:500 var(--text-ui)/1.5 var(--font-ui);text-decoration:none;cursor:pointer;color:var(--color-on-accent);background:var(--color-accent-text);white-space:normal;overflow-wrap:break-word}
+.ka-button--secondary{color:var(--color-text);background:var(--color-surface-sunken);border-color:var(--color-border)}.ka-button--ghost{color:var(--color-text);background:transparent}.ka-button--danger{background:var(--color-error);color:var(--color-bg)}.ka-icon-button{width:var(--ka-touch);padding:8px;flex:none}
+.ka-icon{display:block;flex:none}.ka-help{color:var(--color-text-muted);font:var(--text-small)/1.6 var(--font-ui);max-width:70ch}.ka-error{color:var(--color-error);font:var(--text-small)/1.6 var(--font-ui)}.ka-label{font-weight:500}
+:where(.press-app,.ka-field,.ka-check,.ka-segments,.ka-tabs,.ka-tree,.ka-menu,.ka-disclosure) :where(button,input,textarea,select,summary,a):focus-visible,.ka-button:focus-visible{outline:2px solid var(--color-accent-text);outline-offset:3px;box-shadow:none}
+.ka-button:disabled{background:var(--color-disabled-bg);color:var(--color-disabled-text);border-color:var(--color-disabled-border);cursor:not-allowed}
+.ka-field{gap:8px;width:100%;font:var(--text-ui)/1.5 var(--font-ui)}.ka-field label{font-weight:500;color:var(--color-text)}
+.ka-field :where(input,select,textarea){display:block;width:100%;min-width:0;min-height:var(--ka-touch);padding:12px;border:1px solid var(--color-control-border-hover);border-radius:var(--ka-radius);background:var(--color-surface-sunken);color:var(--color-text);font:var(--text-base)/1.5 var(--font-ui);box-shadow:none}
+.ka-field textarea{resize:vertical;min-height:120px}.ka-field :where(input,textarea)::placeholder{color:var(--color-text-muted)}.ka-field [aria-invalid="true"]{border-color:var(--color-error)}.ka-field :disabled{color:var(--color-disabled-text);background:var(--color-disabled-bg);cursor:not-allowed}
+.ka-check{gap:12px;min-height:var(--ka-touch);font:var(--text-ui)/1.5 var(--font-ui)}.ka-check input{appearance:auto;width:20px;height:20px;min-width:20px;margin:0;accent-color:var(--color-accent-text)}.ka-check label{display:flex;align-items:center;min-height:var(--ka-touch);cursor:pointer;color:var(--color-text)}
+.ka-segments{border:0;padding:0;min-width:0;font:var(--text-ui)/1.5 var(--font-ui)}.ka-segments legend{margin-bottom:8px;color:var(--color-text-muted)}.ka-segment-track{display:flex;flex-wrap:wrap;gap:4px;padding:4px;background:var(--color-surface-sunken);border-radius:var(--ka-radius)}
+.ka-segment{position:relative;display:flex;align-items:center;gap:8px;min-height:var(--ka-touch);padding:8px 12px;cursor:pointer;border:0;border-radius:var(--ka-radius-small);flex:1;justify-content:center;color:var(--color-text);background:transparent;font:var(--text-ui)/1.5 var(--font-ui)}.ka-segment input{position:absolute;width:1px;height:1px;opacity:0;left:8px;top:8px}.ka-segment:focus-within{outline:2px solid var(--color-accent-text);outline-offset:2px}.ka-segment:has(input:disabled){opacity:.6;cursor:not-allowed}/* `.ka-selected` stays for the Svelte component, which toggles it. The
+   native selector makes the control correct on a plain-HTML surface: the
+   radio is visually hidden, so without this, clicking a segment checks the
+   input and nothing moves — the control reports the wrong choice with
+   JavaScript disabled. `website.css` already relies on the same selector
+   for its platform choice, so this is not a new baseline requirement. */
+.ka-segment.ka-selected,.ka-segment:has(input:checked){background:var(--color-accent-text);color:var(--color-on-accent)}
+.ka-tablist{display:flex;flex-wrap:wrap;gap:8px;border-bottom:1px solid var(--color-border)}.ka-tablist>button{display:block;min-height:var(--ka-touch);padding:8px 12px;border:0;border-bottom:2px solid transparent;background:transparent;font:500 var(--text-ui)/1.5 var(--font-ui);color:var(--color-text);cursor:pointer}.ka-tablist>button[aria-selected="true"]{border-color:var(--color-accent-text);color:var(--color-accent-text)}.ka-tabpanel{padding-top:var(--ka-pad)}
+.ka-badge{display:inline-flex;align-items:center;min-height:24px;padding:4px 8px;border:1px solid var(--color-border);border-radius:var(--ka-radius-small);font:var(--text-small)/1.2 var(--font-ui);color:var(--color-text);background:var(--color-surface-sunken);white-space:nowrap}.ka-badge--accent{color:var(--color-accent-text);background:var(--color-accent-wash)}.ka-badge--success{color:var(--color-success);background:var(--color-success-wash)}.ka-badge--error{color:var(--color-error);background:var(--color-error-wash)}.ka-badge--warning{color:var(--color-warning);background:var(--color-warning-wash)}
+.ka-progress{font:var(--text-small)/1.5 var(--font-ui);gap:8px}.ka-progress progress{appearance:none;display:block;width:100%;height:4px;border:0;background:var(--color-surface-sunken)}.ka-progress progress::-webkit-progress-bar{background:var(--color-surface-sunken)}.ka-progress progress::-webkit-progress-value{background:var(--color-accent)}.ka-progress progress::-moz-progress-bar{background:var(--color-accent)}
+.ka-empty{align-items:flex-start;gap:12px;padding:32px 0;color:var(--color-text-muted)}.ka-empty h4{color:var(--color-text)}.ka-empty p{max-width:48ch;font:var(--text-base)/1.6 var(--font-ui)}
+/* A notice sets its own gap, so it has to set its own display. Unlike
+   `.ka-field` — a layout-agnostic wrapper where the consumer pairs
+   `od-field` to say "stack" — a notice already styles its own `p`, so its
+   internal arrangement is not the consumer's decision. Note that
+   `.od-stack` lives in `@layer od-layout` and these rules do not, so an
+   unlayered `gap` here beats it either way: `--od-gap` has never had any
+   effect on a paired `ka-`/`od-` element. */
+.ka-notice{display:grid;padding:16px;border:1px solid var(--color-border);border-radius:var(--ka-radius-small);background:var(--color-info-wash);color:var(--color-info);gap:12px;font:var(--text-ui)/1.6 var(--font-ui)}.ka-notice p{color:var(--color-text)}.ka-notice--error{color:var(--color-error);background:var(--color-error-wash)}.ka-notice--success{color:var(--color-success);background:var(--color-success-wash)}.ka-notice--warning{color:var(--color-warning);background:var(--color-warning-wash)}
+.ka-dialog{position:fixed;inset:0;margin:auto;padding:0;width:min(600px,calc(100% - 32px));max-width:calc(100% - 32px);max-height:calc(100dvh - 48px);overflow:auto;background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-border);border-radius:var(--ka-radius);box-shadow:0 16px 48px var(--color-overlay-scrim)}.ka-dialog:not([open]){display:none}.ka-dialog-wide{width:min(960px,calc(100% - 32px))}.ka-dialog::backdrop{background:var(--color-overlay-scrim)}.ka-dialog-header{padding:16px 24px;border-bottom:1px solid var(--color-border)}.ka-dialog-header h3{font-size:var(--text-h3)}.ka-dialog-body{padding:24px}.ka-dialog-footer{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;padding:16px 24px;border-top:1px solid var(--color-border)}
+.ka-panel{min-width:0;border:1px solid var(--color-border);border-radius:var(--ka-radius);background:var(--color-surface)}.ka-panel>header{padding:16px;border-bottom:1px solid var(--color-border)}.ka-panel-body{padding:16px}.ka-panel h4{font-size:var(--text-h3)}
+.ka-beat{margin:0;border:0;background:var(--color-surface-sunken);border-radius:var(--ka-radius);color:var(--color-text);font:var(--text-ui)/1.5 var(--font-ui)}.ka-beat>summary{display:flex;align-items:center;gap:12px;min-height:52px;padding:12px 16px;list-style:none;cursor:pointer}.ka-beat>summary::-webkit-details-marker{display:none}.ka-beat-number{display:flex;align-items:center;justify-content:center;flex:none;min-width:28px;min-height:28px;padding:4px;border-radius:50%;background:var(--color-accent-text);color:var(--color-on-accent)}.ka-beat-body{padding:8px 16px 16px}.ka-beat-body p{font:var(--text-body-lg)/1.7 var(--font-body)}
+.ka-manuscript{padding:clamp(24px,4vw,48px);background:var(--color-prose-bg);color:var(--color-prose-text);border:1px solid var(--color-prose-border);border-radius:var(--ka-radius-small);box-shadow:0 8px 24px var(--color-border);min-width:0}.ka-manuscript>header{margin-bottom:24px}.ka-manuscript h3{font:550 var(--ka-heading)/1.15 var(--font-display);color:var(--color-prose-text)}.ka-manuscript header p{font:var(--text-ui)/1.5 var(--font-ui);color:var(--color-prose-placeholder)}.ka-manuscript-prose{font:var(--text-body)/var(--leading-relaxed) var(--font-body);max-width:var(--measure)}.ka-manuscript-prose p+p{margin-top:16px}
+/* `.ka-facts` — key/value metadata at label scale. `.ka-stats` below is the
+   figure display (clamped 24–36px numerals for a word count) and
+   `.ka-badge` is a status chip; neither renders "Size · ~10 MB". Settings >
+   About, project details and the website download page all show this same
+   shape, which is why it belongs to the shared control layer rather than
+   the website one. Wrap each pair in a `display:contents` div so the two
+   tracks stay in one grid. `margin:0` on the `dl` and `dd` is required,
+   not defensive: `.press-web`'s reset does not cover `dl`/`dd`, so a
+   `.ka-facts` on a website surface would otherwise pick up the UA's 40px
+   `dd` indent. No internal hairlines, matching `.ka-stats` — row
+   separation is padding. */
+.ka-facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:0 var(--ka-gap);margin:0;font:var(--text-ui)/1.5 var(--font-ui)}
+.ka-facts>div{display:contents}
+.ka-facts dt{margin:0;padding-block:12px;color:var(--color-text-muted)}
+.ka-facts dd{margin:0;padding-block:12px;color:var(--color-text)}
+@media(max-width:600px){.ka-facts{grid-template-columns:minmax(0,1fr)}.ka-facts dt{padding-block:12px 0}.ka-facts dd{padding-block:4px 12px}}
+/* `.ka-code` — a literal string the reader is expected to copy: a command,
+   a checksum, a file path. Press names the mono role and `website.css`
+   styles inline `<code>`, but a verification line is a block with an
+   action attached, not a word inside a sentence. Sunken, so it reads as an
+   inset field rather than another raised card. Pair the copy action with
+   `.ka-button--secondary`, not `--ghost`: ghost's hover background IS
+   `--color-surface-sunken`, so on this block its hover state would be
+   exactly invisible. `overflow-wrap:anywhere` is safe here where it is not
+   on a button label — the code element carries `min-width:0` and a flex
+   basis, so there is no content-sized track for it to poison, and a
+   checksum has no word boundaries to break at. */
+.ka-code{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 16px;min-width:0;padding:12px 16px;border:1px solid var(--color-border);border-radius:var(--ka-radius-small);background:var(--color-surface-sunken);color:var(--color-text)}
+.ka-code>code{flex:1 1 14rem;min-width:0;font:var(--text-small)/1.6 var(--font-mono);overflow-wrap:anywhere}
+.ka-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:24px;margin:0}.ka-stats dt{font:var(--text-small)/1.5 var(--font-ui);color:var(--color-text-muted)}.ka-stats dd{order:-1;margin:0;font:500 clamp(24px,3vw,36px)/1.2 var(--font-display)}.ka-stats small{font:var(--text-small)/1.5 var(--font-ui)}
+.ka-tree{font:var(--text-ui)/1.5 var(--font-ui)}.ka-tree-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}.ka-tree-list .ka-tree-list{margin:8px 0 8px 16px;border-left:1px solid var(--color-border);padding-left:8px}.ka-tree :where(details,summary){margin:0;border:0}.ka-tree summary,.ka-tree button{display:flex;align-items:center;gap:8px;padding:8px 12px;min-height:var(--ka-touch);width:100%;border:0;border-radius:var(--ka-radius-small);background:transparent;color:var(--color-text);text-align:left;font:inherit;cursor:pointer;list-style:none}.ka-tree summary::-webkit-details-marker{display:none}.ka-tree small{font:var(--text-small)/1.5 var(--font-ui);color:var(--color-text-muted)}.ka-tree button.ka-tree-selected{color:var(--color-on-accent);background:var(--color-accent-text)}.ka-tree-selected small{color:inherit}
+.ka-tag{display:inline-flex;align-items:center;gap:8px;min-height:var(--ka-touch);padding:4px 12px;border:1px solid var(--color-border);border-radius:var(--ka-radius);font:var(--text-small)/1.5 var(--font-ui);color:var(--color-text);background:var(--color-surface-sunken);cursor:pointer}
+.ka-disclosure,.ka-menu{border:0;margin:0}.ka-disclosure>summary,.ka-menu>summary{display:flex;align-items:center;gap:8px;min-height:var(--ka-touch);width:fit-content;padding:8px 12px;border:1px solid var(--color-border);border-radius:var(--ka-radius-small);cursor:pointer;font:var(--text-ui)/1.5 var(--font-ui);color:var(--color-text);list-style:none}.ka-disclosure>summary::-webkit-details-marker,.ka-menu>summary::-webkit-details-marker{display:none}.ka-disclosure>div{padding:16px 0}.ka-menu-list{display:grid;gap:4px;min-width:min(240px,100%);margin-top:8px;padding:8px;border:1px solid var(--color-border);border-radius:var(--ka-radius);background:var(--color-surface)}.ka-menu-list>button{display:flex;align-items:center;justify-content:space-between;gap:24px;min-height:var(--ka-touch);padding:8px 12px;border:0;background:transparent;color:var(--color-text);text-align:left;cursor:pointer;font:var(--text-ui)/1.5 var(--font-ui)}
+.press-app kbd{font:var(--text-small)/1.4 var(--font-mono);white-space:nowrap;color:var(--color-text-muted)}.ka-command-list{display:grid;gap:4px;margin:16px 0;max-height:320px;overflow:auto}.ka-command-list button{display:flex;justify-content:space-between;align-items:center;gap:24px;width:100%;min-height:52px;padding:12px;text-align:left;background:transparent;border:0;color:var(--color-text);font:var(--text-ui)/1.5 var(--font-ui);cursor:pointer}.ka-command-selected{background:var(--color-surface-sunken);border-radius:var(--ka-radius-small)}.ka-command-list small{color:var(--color-text-muted)}
+.ka-results article{padding:16px 0;border-bottom:1px solid var(--color-border)}.ka-results article>p{margin-top:16px;font:var(--text-body-lg)/1.6 var(--font-body)}.ka-results mark{background:var(--color-accent-wash);color:var(--color-text);outline:1px solid var(--color-accent-text)}
+.ka-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+@media(hover:hover){.ka-button:not(:disabled):hover{filter:brightness(.94)}.ka-button--ghost:not(:disabled):hover,.ka-menu-list>button:not(:disabled):hover,.ka-tree button:not(.ka-tree-selected):hover{background:var(--color-surface-sunken);filter:none}.ka-tag:hover{border-color:var(--color-accent-text)}.ka-tablist>button:hover{color:var(--color-accent-text)}}
+@media(max-width:767px){.ka-dialog-body{padding:16px}.ka-dialog-header,.ka-dialog-footer{padding:16px}.ka-segment-track{flex-wrap:wrap}.ka-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.ka-menu-list{width:100%}.ka-between{align-items:flex-start}}
+@media(prefers-reduced-motion:no-preference){.ka-dialog[open]{animation:ka-enter var(--ka-motion) ease-out}.ka-button{transition:opacity var(--ka-motion) ease-out}@keyframes ka-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}}
+@media(prefers-reduced-motion:reduce){.press-app *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* Hover preserves the foreground/background pair in either theme. */
+@media(hover:hover){.ka-button:not(:disabled):hover{filter:none;box-shadow:inset 0 0 0 1px currentColor}}
+
+/* `.ka-manuscript-prose` is the read-only manuscript. Through 0.9.0 it read at
+   --text-body-lg/1.75 over 65ch while the application's own NovelEditor used
+   --text-body/--leading-relaxed over --measure. A reference that disagrees with
+   the product it documents is worse than no reference, so it now matches the
+   editor. Website samples reach the same role through `.pw-writing--app`. */

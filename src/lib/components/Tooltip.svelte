@@ -39,14 +39,14 @@
   class="relative inline-flex"
   onmouseenter={showTooltip}
   onmouseleave={hideTooltip}
-  onfocus={showTooltip}
-  onblur={hideTooltip}
+  onfocusin={showTooltip}
+  onfocusout={hideTooltip}
 >
   {@render children()}
 
   {#if visible && text}
     <div
-      class="tooltip absolute z-press-popover px-3 py-1.5 text-press-eyebrow font-medium whitespace-nowrap rounded-lg shadow-press-overlay pointer-events-none bg-press-sunken text-press-text"
+      class="ka-tooltip tooltip"
       class:tooltip-top={position === "top"}
       class:tooltip-bottom={position === "bottom"}
       class:tooltip-left={position === "left"}
@@ -60,7 +60,12 @@
 
 <style>
   .tooltip {
-    animation: tooltip-fade-in 0.15s ease-out forwards;
+    animation: tooltip-fade-in 0.1s ease-out forwards;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tooltip {
+      animation: none;
+    }
   }
 
   @keyframes tooltip-fade-in {
@@ -74,28 +79,28 @@
 
   /* Position: Top */
   .tooltip-top {
-    bottom: calc(100% + 6px);
+    bottom: calc(100% + 8px);
     left: 50%;
     transform: translateX(-50%);
   }
 
   /* Position: Bottom */
   .tooltip-bottom {
-    top: calc(100% + 6px);
+    top: calc(100% + 8px);
     left: 50%;
     transform: translateX(-50%);
   }
 
   /* Position: Left */
   .tooltip-left {
-    right: calc(100% + 6px);
+    right: calc(100% + 8px);
     top: 50%;
     transform: translateY(-50%);
   }
 
   /* Position: Right */
   .tooltip-right {
-    left: calc(100% + 6px);
+    left: calc(100% + 8px);
     top: 50%;
     transform: translateY(-50%);
   }

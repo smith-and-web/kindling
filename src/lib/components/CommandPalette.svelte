@@ -6,7 +6,7 @@
 -->
 <script lang="ts">
   import { shortcuts } from "../stores/shortcuts.svelte";
-  import { Keyboard, Search } from "lucide-svelte";
+  import { Search } from "lucide-svelte";
   import { fuzzyMatch, fuzzyScore, type CommandDef } from "../commands";
 
   interface CommandWithAction extends CommandDef {
@@ -109,70 +109,158 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if open}
-  <!-- Backdrop -->
+  <!-- The shared modal scrim: no blur. -->
   <div
-    class="fixed inset-0 z-press-command-backdrop bg-press-overlay backdrop-blur-sm"
+    class="palette-scrim"
     role="presentation"
     aria-hidden="true"
     onclick={() => (open = false)}
   ></div>
 
-  <!-- Palette -->
-  <div
-    class="fixed left-1/2 top-[20%] z-press-command w-[min(32rem,90vw)] -translate-x-1/2 rounded-xl border border-press-border bg-press-surface shadow-press-overlay"
-    role="dialog"
+  <dialog
+    class="ka-dialog palette"
+    open
     aria-modal="true"
     aria-label="Command palette"
     data-testid="command-palette"
   >
-    <!-- Search input -->
-    <div class="flex items-center gap-2 border-b border-press-border px-4 py-3">
-      <Search class="w-4 h-4 shrink-0 text-press-muted" />
+    <div class="palette-search">
+      <Search class="w-5 h-5 ka-icon" aria-hidden="true" />
       <!-- svelte-ignore a11y_autofocus -->
       <input
         type="text"
-        placeholder="Type a command or search..."
+        placeholder="Type a command or search…"
+        aria-label="Search commands"
+        aria-controls="command-palette-list"
+        aria-activedescendant={filteredCommands.length
+          ? `command-palette-item-${selectedIndex}`
+          : undefined}
         bind:value={query}
-        class="flex-1 bg-transparent text-press-text placeholder:text-press-muted focus:outline-none"
         autofocus
       />
-      {#if shortcuts.label("command_palette")}<kbd
-          class="rounded border border-press-border px-2 py-0.5 text-press-eyebrow text-press-muted"
-          >{shortcuts.label("command_palette")}</kbd
-        >{/if}
+      {#if shortcuts.label("command_palette")}<kbd>{shortcuts.label("command_palette")}</kbd>{/if}
     </div>
 
-    <!-- Command list -->
-    <div class="max-h-80 overflow-y-auto py-2">
+    <div
+      class="ka-command-list palette-list"
+      id="command-palette-list"
+      role="listbox"
+      aria-label="Commands"
+    >
       {#if filteredCommands.length === 0}
-        <p class="px-4 py-8 text-center text-press-ui text-press-muted">No matching commands</p>
+        <div class="ka-empty od-stack palette-empty">
+          <h4>No matching commands</h4>
+          <p>Check the spelling, or try a shorter word.</p>
+        </div>
       {:else}
         {#each filteredCommands as cmd, i}
           <button
             id="command-palette-item-{i}"
             type="button"
+            role="option"
+            aria-selected={i === selectedIndex}
             onclick={() => runCommand(cmd)}
-            class="flex w-full items-center justify-between gap-4 px-4 py-2.5 text-left transition-colors {i ===
-            selectedIndex
-              ? 'bg-press-accent-wash'
-              : 'hover:bg-press-accent-wash'}"
+            class:ka-command-selected={i === selectedIndex}
           >
-            <div class="flex items-center gap-3 min-w-0">
-              <Keyboard class="w-4 h-4 shrink-0 text-press-muted" />
-              <span class="truncate text-press-text">{cmd.label}</span>
-            </div>
-            <kbd
-              class="shrink-0 rounded border border-press-border px-2 py-0.5 text-press-eyebrow text-press-muted"
-            >
-              {cmd.shortcut}
-            </kbd>
+            <span class="palette-label">
+              <span>{cmd.label}</span>
+              <small>{cmd.category}</small>
+            </span>
+            {#if cmd.shortcut}<kbd>{cmd.shortcut}</kbd>{/if}
           </button>
         {/each}
       {/if}
     </div>
 
-    <p class="border-t border-press-border px-4 py-2 text-press-eyebrow text-press-muted">
-      ↑↓ to navigate · Enter to run · Esc to close
+    <p class="palette-hints">
+      <span><kbd>↑</kbd> <kbd>↓</kbd> to navigate</span>
+      <span><kbd>Enter</kbd> to run</span>
+      <span><kbd>Esc</kbd> to close</span>
     </p>
-  </div>
+  </dialog>
 {/if}
+
+<style>
+  .palette-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-command-backdrop);
+    background: var(--color-overlay-scrim);
+  }
+  .palette {
+    z-index: var(--z-command);
+    top: 15dvh;
+    bottom: auto;
+    margin: 0 auto;
+    width: min(600px, calc(100% - 32px));
+  }
+  .palette-search {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-s);
+    border-bottom: var(--border-hair);
+    color: var(--color-text-muted);
+  }
+  .palette-search input {
+    flex: 1;
+    min-width: 0;
+    min-height: var(--control-target);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-text);
+    font: var(--text-base) / 1.5 var(--font-ui);
+  }
+  .palette-search input:focus-visible {
+    outline: none;
+  }
+  .palette-search:has(input:focus-visible) {
+    outline: 2px solid var(--color-accent-text);
+    outline-offset: -2px;
+    border-radius: var(--ka-radius) var(--ka-radius) 0 0;
+  }
+  .palette-list {
+    margin: 0;
+    padding: var(--space-2xs);
+    max-height: 360px;
+  }
+  .palette-list :global(button) {
+    padding-block: var(--space-2xs);
+  }
+  .palette-label {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .palette-label > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .palette-empty {
+    align-items: center;
+    padding: var(--space-l) var(--space-s);
+    text-align: center;
+  }
+  .palette-empty h4 {
+    margin: 0;
+    font: 550 var(--text-h3) / 1.25 var(--font-display);
+    color: var(--color-text);
+  }
+  .palette-hints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-s);
+    margin: 0;
+    padding: var(--space-xs) var(--space-s);
+    border-top: var(--border-hair);
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  .palette kbd {
+    font: var(--text-small) / 1.4 var(--font-mono);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+  }
+</style>

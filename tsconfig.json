@@ -19,7 +19,8 @@
     "types": ["svelte"],
     "baseUrl": ".",
     "paths": {
-      "$lib/*": ["src/lib/*"]
+      "$lib/*": ["src/lib/*"],
+      "$press/*": ["src/styles/press/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.svelte"]

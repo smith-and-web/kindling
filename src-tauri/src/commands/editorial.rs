@@ -167,7 +167,7 @@ pub fn sources(conn: &Connection, project_id: &str) -> Result<Vec<Source>> {
 
 fn validate(package: &Package) -> Result<()> {
     if package.format != "kindling-editorial" || package.version != 1 {
-        return Err("This review package version is not supported. Update Kindling or ask the sender to export a compatible package.".into());
+        return Err("This review package version is not supported. Update kindling or ask the sender to export a compatible package.".into());
     }
     if !["review", "feedback"].contains(&package.kind.as_str()) {
         return Err("Unknown review package type".into());
@@ -218,7 +218,7 @@ fn read_package(path: &Path) -> Result<Package> {
         return Err("This review file exceeds the 64 MiB package limit.".into());
     }
     let package: Package = serde_json::from_slice(&bytes)
-        .map_err(|_| "This is not a valid Kindling review file.".to_string())?;
+        .map_err(|_| "This is not a valid kindling review file.".to_string())?;
     validate(&package)?;
     Ok(package)
 }

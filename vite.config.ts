@@ -17,6 +17,7 @@ export default defineConfig(({ command }) => {
     resolve: {
       alias: {
         $lib: path.resolve("./src/lib"),
+        $press: path.resolve("./src/styles/press"),
         ...(useMocks
           ? {
               "@tauri-apps/api/core": path.resolve("./src/dev/mock-tauri.ts"),

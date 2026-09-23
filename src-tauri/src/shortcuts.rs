@@ -36,7 +36,7 @@ fn path(app: &AppHandle) -> Result<PathBuf, String> {
 fn validate(bindings: &Bindings) -> Result<(), String> {
     let known = defaults();
     if bindings.keys().ne(known.keys()) {
-        return Err("Shortcut commands do not match this version of Kindling".into());
+        return Err("Shortcut commands do not match this version of kindling".into());
     }
     let reserved = [
         "Mod+X",

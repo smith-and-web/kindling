@@ -2,23 +2,19 @@
   import { invoke } from "@tauri-apps/api/core";
   import { runImport, type ImportType } from "../utils/import";
   import {
-    FileText,
-    HelpCircle,
-    Kanban,
-    Trash2,
-    Loader2,
-    PenTool,
     BookOpen,
-    FilePlus,
+    CircleHelp,
+    FileText,
     FolderOpen,
-    Scroll,
+    Loader2,
+    Plus,
+    TriangleAlert,
+    Trash2,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Project } from "../types";
-  import Tooltip from "./Tooltip.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
-  import BrandMark from "./BrandMark.svelte";
 
   interface Props {
     recentProjects: Project[];
@@ -39,9 +35,19 @@
   }: Props = $props();
 
   let deletingProjectId = $state<string | null>(null);
-  let hoveredProjectId = $state<string | null>(null);
+  let openingProjectId = $state<string | null>(null);
+  let startingSample = $state(false);
+  let openError = $state<{ name: string; message: string } | null>(null);
   let projectToDelete = $state<Project | null>(null);
   let showAllProjects = $state(false);
+  let allProjects = $state<Project[] | null>(null);
+
+  /** The start screen lists the latest few; "View all" appears only when there are more. */
+  const RECENT_SHOWN = 5;
+  const listedProjects = $derived(
+    showAllProjects && allProjects ? allProjects : recentProjects.slice(0, RECENT_SHOWN)
+  );
+  const hasMoreProjects = $derived(recentProjects.length > RECENT_SHOWN);
 
   async function handleImport(type: ImportType) {
     const project = await runImport(type);
@@ -64,7 +70,8 @@
   }
 
   async function trySampleProject() {
-    ui.startImport();
+    startingSample = true;
+    ui.startImport("Opening sample project", "Creating the sample project…");
     try {
       const project = await invoke<Project>("create_sample_project");
       currentProject.setProject(project);
@@ -74,10 +81,14 @@
       ui.showError(`Failed to create sample project: ${e}`);
     } finally {
       ui.finishImport();
+      startingSample = false;
     }
   }
 
   async function openProject(project: Project) {
+    if (openingProjectId) return;
+    openingProjectId = project.id;
+    openError = null;
     try {
       const loaded = await invoke<Project>("get_project", { id: project.id });
       currentProject.setProject(loaded);
@@ -85,21 +96,65 @@
       // Sidebar $effect will run loadChapters
     } catch (e) {
       console.error("Failed to open project:", e);
-      ui.showError(`Failed to open project: ${e}`);
+      openError = { name: project.name, message: String(e) };
+    } finally {
+      openingProjectId = null;
     }
   }
 
+  // The importer id reads as plain metadata, spelled as each tool spells itself.
+  const SOURCE_LABELS: Record<string, string> = {
+    blank: "Blank",
+    markdown: "Markdown",
+    plottr: "Plottr",
+    ywriter: "yWriter",
+    longform: "Longform",
+    scrivener: "Scrivener",
+    novelwriter: "novelWriter",
+  };
+  function sourceLabel(sourceType: string) {
+    return SOURCE_LABELS[sourceType.toLowerCase()] ?? sourceType;
+  }
+
+  function modifiedDate(value: string) {
+    const date = new Date(value);
+    return {
+      short: date.toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }),
+      long: date.toLocaleDateString(undefined, { dateStyle: "long" }),
+    };
+  }
+
+  const IMPORTS: { label: string; hint: string; run: () => void }[] = [
+    { label: "Plottr", hint: ".pltr", run: () => importPlottr() },
+    { label: "yWriter", hint: ".yw7", run: () => importYWriter() },
+    { label: "Markdown", hint: ".md", run: () => importMarkdown() },
+    { label: "Longform", hint: "Index or vault", run: () => handleLongformImport() },
+    { label: "Scrivener", hint: ".scriv", run: () => importScrivener() },
+    { label: "novelWriter", hint: "Project folder", run: () => importNovelWriter() },
+  ];
+
+  let loadingProjectList = $state(false);
+
   async function toggleProjectList() {
-    showAllProjects = !showAllProjects;
+    if (loadingProjectList) return;
+    openError = null;
+    if (showAllProjects) {
+      showAllProjects = false;
+      return;
+    }
+    loadingProjectList = true;
     try {
-      if (showAllProjects) {
-        recentProjects = await invoke("get_all_projects");
-      } else {
-        recentProjects = await invoke("get_recent_projects");
-      }
+      allProjects = await invoke<Project[]>("get_all_projects");
+      showAllProjects = true;
     } catch (e) {
       console.error("Failed to load projects:", e);
       ui.showError(`Failed to load projects: ${e}`);
+    } finally {
+      loadingProjectList = false;
     }
   }
 
@@ -118,6 +173,7 @@
     try {
       await invoke("delete_project", { projectId: project.id });
       recentProjects = recentProjects.filter((p) => p.id !== project.id);
+      allProjects = allProjects?.filter((p) => p.id !== project.id) ?? null;
     } catch (e) {
       console.error("Failed to delete project:", e);
       ui.showError(`Failed to delete project: ${e}`);
@@ -131,239 +187,460 @@
   }
 </script>
 
-<div
-  class="flex-1 flex flex-col items-center p-8 lg:px-14 lg:py-10 relative overflow-y-auto overflow-x-hidden"
->
-  <!-- Settings and Help buttons in corner -->
-  <div class="absolute top-4 right-4 flex items-center gap-1 z-press-raised">
+<div class="start">
+  <div class="start-bar">
     {#if onOpenQuickStart}
-      <Tooltip text="Quick Start" position="left">
-        <button
-          onclick={onOpenQuickStart}
-          class="p-2 text-press-muted hover:text-press-text hover:bg-press-sunken rounded-lg transition-colors"
-          aria-label="Quick Start"
-        >
-          <HelpCircle class="w-5 h-5" />
-        </button>
-      </Tooltip>
+      <button type="button" class="ka-button ka-button--ghost" onclick={onOpenQuickStart}>
+        <CircleHelp class="w-5 h-5" aria-hidden="true" />
+        Quick start
+      </button>
     {/if}
   </div>
 
-  <div class="w-full max-w-6xl flex flex-col lg:flex-row gap-8 lg:gap-12 grow shrink-0 min-w-0">
-    <!-- Left column: branding + actions (golden ratio: ~38.2%) -->
-    <div class="flex flex-col gap-5 lg:w-[38.2%] lg:min-w-0 lg:shrink-0">
-      <!-- Logo & Tagline (compact) -->
-      <div class="text-center lg:text-left lg:pr-4">
-        <div class="flex justify-center lg:justify-start mb-2">
-          <BrandMark size={72} />
-        </div>
-        <h1
-          class="text-press-h1 lg:text-press-h1 font-heading font-semibold text-press-accent-text"
-        >
-          kindling
-        </h1>
-        <p class="text-press-muted text-press-ui lg:text-press-base">Spark your draft</p>
+  <div class="start-body">
+    <div class="start-intro">
+      <h1 class="ka-sr">kindling</h1>
+      <div class="signature">
+        <figure class="brand">
+          <img
+            class="on-light"
+            src="/brand/kindling-lockup-stacked.svg"
+            alt=""
+            width="160"
+            height="132"
+          />
+          <img
+            class="on-dark"
+            src="/brand/kindling-lockup-stacked-reversed.svg"
+            alt=""
+            width="160"
+            height="132"
+          />
+        </figure>
+        <p class="tagline">Spark your draft</p>
       </div>
 
-      <!-- Project and review actions -->
       {#if onNewProject || onOpenEditorial}
-        <div class="bg-press-surface rounded-lg p-5 space-y-4">
+        <div class="start-actions" role="group" aria-label="Start">
           {#if onNewProject}
             <button
+              type="button"
               data-testid="new-project-button"
               onclick={onNewProject}
-              class="w-full flex items-center gap-3 p-3 bg-press-accent-wash border-2 border-press-accent rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
+              class="ka-button start-action"
             >
-              <FilePlus class="w-8 h-8 text-press-accent-text shrink-0" />
-              <div class="text-left">
-                <span class="text-press-text font-medium block">New Project</span>
-                <span class="text-press-muted text-press-ui">Start from scratch</span>
-              </div>
+              <Plus class="w-5 h-5" aria-hidden="true" />
+              <span>New project <small>Start from scratch</small></span>
             </button>
             <button
+              type="button"
               onclick={trySampleProject}
-              class="w-full flex items-center gap-3 p-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
+              disabled={startingSample}
+              aria-busy={startingSample || undefined}
+              class="ka-button ka-button--secondary start-action"
             >
-              <BookOpen class="w-8 h-8 text-press-accent-text shrink-0" />
-              <div class="text-left">
-                <span class="text-press-text font-medium block">Sample Project</span>
-                <span class="text-press-muted text-press-ui">Explore Kindling first</span>
-              </div>
+              <BookOpen class="w-5 h-5" aria-hidden="true" />
+              <span>
+                {startingSample ? "Opening sample…" : "Sample project"}
+                <small>Explore kindling first</small>
+              </span>
             </button>
           {/if}
           {#if onOpenEditorial}
             <button
+              type="button"
               onclick={onOpenEditorial}
-              class="w-full flex items-center gap-3 p-3 bg-press-sunken rounded-lg hover:bg-press-accent-wash transition-colors cursor-pointer"
+              class="ka-button ka-button--secondary start-action"
             >
-              <FolderOpen class="w-8 h-8 text-press-accent-text shrink-0" />
-              <div class="text-left">
-                <span class="text-press-text font-medium block">Open Review Package</span>
-                <span class="text-press-muted text-press-ui">Open a review or feedback file</span>
-              </div>
+              <FolderOpen class="w-5 h-5" aria-hidden="true" />
+              <span>Open review package <small>Open a review or feedback file</small></span>
             </button>
           {/if}
         </div>
       {/if}
-
-      <!-- Import Options (two-column grid) -->
-      <div data-testid="import-section" class="bg-press-surface rounded-lg p-4 lg:mt-auto">
-        <h2 class="text-press-base font-heading font-medium text-press-text mb-3">
-          Import an Outline
-        </h2>
-        <div class="grid grid-cols-2 gap-2">
-          <button
-            onclick={importPlottr}
-            class="flex flex-col items-center px-4 py-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
-          >
-            <Kanban class="w-8 h-8 text-press-accent-text mb-1" />
-            <span class="text-press-text text-press-ui font-medium">Plottr</span>
-            <span class="text-press-muted text-press-eyebrow">.pltr</span>
-          </button>
-          <button
-            onclick={importYWriter}
-            class="flex flex-col items-center px-4 py-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
-          >
-            <PenTool class="w-8 h-8 text-press-accent-text mb-1" />
-            <span class="text-press-text text-press-ui font-medium">yWriter</span>
-            <span class="text-press-muted text-press-eyebrow">.yw7</span>
-          </button>
-          <button
-            onclick={importMarkdown}
-            class="flex flex-col items-center px-4 py-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
-          >
-            <FileText class="w-8 h-8 text-press-accent-text mb-1" />
-            <span class="text-press-text text-press-ui font-medium">Markdown</span>
-            <span class="text-press-muted text-press-eyebrow">.md</span>
-          </button>
-          <button
-            onclick={handleLongformImport}
-            class="flex flex-col items-center px-4 py-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
-          >
-            <BookOpen class="w-8 h-8 text-press-accent-text mb-1" />
-            <span class="text-press-text text-press-ui font-medium">Longform</span>
-            <span class="text-press-muted text-press-eyebrow">Index or vault</span>
-          </button>
-          <button
-            onclick={importScrivener}
-            class="flex flex-col items-center px-4 py-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
-          >
-            <Scroll class="w-8 h-8 text-press-accent-text mb-1" />
-            <span class="text-press-text text-press-ui font-medium">Scrivener</span>
-            <span class="text-press-muted text-press-eyebrow">.scriv</span>
-          </button>
-          <button
-            onclick={importNovelWriter}
-            class="flex flex-col items-center px-4 py-3 bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors cursor-pointer"
-          >
-            <Scroll class="w-8 h-8 text-press-accent-text mb-1" />
-            <span class="text-press-text text-press-ui font-medium">novelWriter</span>
-            <span class="text-press-muted text-press-eyebrow">Project folder</span>
-          </button>
-        </div>
-      </div>
     </div>
 
-    <!-- Right column: project list (golden ratio: ~61.8%) -->
-    <div
-      class="flex-1 flex flex-col min-h-0 min-w-0 lg:[contain:size] bg-press-surface rounded-lg p-6 lg:p-8"
-    >
+    <div class="start-main">
       {#if recentProjects.length > 0}
-        <div data-testid="recent-projects" class="flex flex-col flex-1 min-h-0">
-          <div class="flex items-center justify-between mb-4 shrink-0">
-            <h2 class="text-press-h3 font-heading font-medium text-press-text">
-              {showAllProjects ? "All Projects" : "Recent Projects"}
+        <section data-testid="recent-projects" aria-labelledby="recent-projects-heading">
+          <div class="section-head">
+            <h2 id="recent-projects-heading" class="section-title">
+              {showAllProjects ? "All projects" : "Recent projects"}
             </h2>
-            <button
-              onclick={toggleProjectList}
-              class="text-press-eyebrow text-press-muted hover:text-press-text transition-colors"
-            >
-              {showAllProjects ? "Show recent" : "View all"}
-            </button>
-          </div>
-          <div class="space-y-3 overflow-y-auto pr-1 flex-1 min-h-0">
-            {#each recentProjects as project}
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <div
-                class="relative flex items-center bg-press-sunken rounded-lg hover:bg-press-sunken transition-colors"
-                onmouseenter={() => (hoveredProjectId = project.id)}
-                onmouseleave={() => (hoveredProjectId = null)}
+            {#if hasMoreProjects || showAllProjects}
+              <button
+                type="button"
+                class="ka-button ka-button--ghost"
+                aria-pressed={showAllProjects}
+                aria-busy={loadingProjectList || undefined}
+                onclick={toggleProjectList}
               >
+                {showAllProjects ? "Show recent" : "View all"}
+              </button>
+            {/if}
+          </div>
+          {#if openError}
+            <div class="ka-notice ka-notice--error od-row-top open-error" role="alert">
+              <TriangleAlert class="w-5 h-5 shrink-0" aria-hidden="true" />
+              <div class="od-field od-fill">
+                <strong>Couldn’t open “{openError.name}”</strong>
+                <p>{openError.message}</p>
+              </div>
+            </div>
+          {/if}
+          <ul class="recent-list">
+            {#each listedProjects as project (project.id)}
+              {@const modified = modifiedDate(project.modified_at)}
+              <li class="recent-row" aria-busy={openingProjectId === project.id || undefined}>
                 <button
+                  type="button"
                   data-testid="project-card"
                   onclick={() => openProject(project)}
-                  class="flex-1 flex items-center justify-between p-3 cursor-pointer text-left"
+                  class="recent-open"
                 >
-                  <div>
-                    <span class="text-press-text font-medium">{project.name}</span>
-                    <span class="text-press-muted text-press-ui ml-2">({project.source_type})</span>
-                  </div>
-                  <span class="text-press-muted text-press-ui">
-                    {new Date(project.modified_at).toLocaleDateString()}
+                  <span class="recent-title">
+                    <span class="recent-name">{project.name}</span>
+                    <span class="recent-type">{sourceLabel(project.source_type)}</span>
                   </span>
-                </button>
-
-                <!-- Delete button - visible on hover -->
-                <div
-                  class="pr-3 transition-opacity"
-                  class:opacity-0={hoveredProjectId !== project.id &&
-                    deletingProjectId !== project.id}
-                  class:opacity-100={hoveredProjectId === project.id ||
-                    deletingProjectId === project.id}
-                >
-                  <Tooltip text="Delete project" position="left">
-                    <button
-                      onclick={(e) => showDeleteConfirmation(e, project)}
-                      disabled={deletingProjectId === project.id}
-                      class="p-1.5 text-press-muted hover:text-press-error hover:bg-press-error-wash rounded-lg transition-colors"
-                      aria-label="Delete project"
+                  {#if openingProjectId === project.id}
+                    <span class="recent-date">Opening…</span>
+                  {:else}
+                    <time
+                      class="recent-date"
+                      datetime={project.modified_at}
+                      aria-label={`Modified ${modified.long}`}>{modified.short}</time
                     >
-                      {#if deletingProjectId === project.id}
-                        <Loader2 class="w-4 h-4 animate-spin" />
-                      {:else}
-                        <Trash2 class="w-4 h-4" />
-                      {/if}
-                    </button>
-                  </Tooltip>
-                </div>
-              </div>
+                  {/if}
+                </button>
+                <button
+                  type="button"
+                  onclick={(e) => showDeleteConfirmation(e, project)}
+                  disabled={deletingProjectId === project.id || openingProjectId === project.id}
+                  class="ka-button ka-button--ghost ka-icon-button recent-delete"
+                  class:is-busy={deletingProjectId === project.id}
+                  aria-label={`Delete ${project.name}`}
+                  title="Delete project"
+                >
+                  {#if deletingProjectId === project.id}
+                    <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
+                  {:else}
+                    <Trash2 class="w-5 h-5" aria-hidden="true" />
+                  {/if}
+                </button>
+              </li>
             {/each}
-          </div>
-        </div>
+          </ul>
+        </section>
       {:else}
-        <div class="flex-1 flex items-center justify-center text-press-muted text-press-ui">
-          <p>Your projects will appear here</p>
-        </div>
+        <section aria-label="Projects">
+          <div class="ka-empty od-stack">
+            <FileText class="w-7 h-7" aria-hidden="true" />
+            <h2 class="section-title">Your projects will appear here</h2>
+            <p>Start a new project, try the sample, or import an outline you already have.</p>
+          </div>
+        </section>
       {/if}
+
+      <section data-testid="import-section" class="import" aria-labelledby="import-heading">
+        <h2 id="import-heading" class="section-title">Import an outline</h2>
+        <p class="ka-help section-help">
+          Chapters, scenes and beats from your outline become prompts in the writing view.
+        </p>
+        <ul class="import-list">
+          {#each IMPORTS as format (format.label)}
+            <li>
+              <button
+                type="button"
+                class="ka-button ka-button--ghost import-format"
+                onclick={format.run}
+              >
+                {format.label}
+                <small>{format.hint}</small>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      </section>
     </div>
   </div>
-
-  <!-- Import Progress -->
-  {#if ui.isImporting}
-    <div class="fixed inset-0 bg-press-overlay flex items-center justify-center z-press-modal">
-      <div class="bg-press-surface rounded-lg p-6 max-w-md w-full mx-4">
-        <h3 class="text-press-body-lg font-heading font-medium text-press-text mb-4">
-          Importing...
-        </h3>
-        <div class="w-full bg-press-sunken rounded-full h-2 mb-2">
-          <div
-            class="bg-press-accent h-2 rounded-full transition-all"
-            style="width: {ui.importProgress}%"
-          ></div>
-        </div>
-        <p class="text-press-muted text-press-ui">{ui.importStatus}</p>
-      </div>
-    </div>
-  {/if}
 </div>
 
 <!-- Delete Project Confirmation -->
 {#if projectToDelete}
   <ConfirmDialog
-    title="Delete Project"
-    message="Are you sure you want to delete &quot;{projectToDelete.name}&quot;? This will permanently delete the project and all its chapters, scenes, beats, and snapshots. This cannot be undone."
-    confirmLabel="Delete Project"
+    title={`Delete “${projectToDelete.name}”?`}
+    message="This permanently deletes the project and all its chapters, scenes, beats and snapshots. It can’t be undone."
+    confirmLabel="Delete project"
     onConfirm={confirmDeleteProject}
     onCancel={cancelDeleteProject}
   />
 {/if}
+
+<style>
+  .start {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+    container-type: size;
+    container-name: start;
+  }
+  /* Quick start shares the page frame's right edge with the lists below. */
+  .start-bar {
+    display: flex;
+    justify-content: flex-end;
+    width: min(var(--page-frame), 100% - 2 * var(--page-gutter));
+    margin-inline: auto;
+    padding-top: var(--space-s);
+    min-height: calc(var(--control-target) + var(--space-s));
+  }
+  .start-body {
+    display: grid;
+    grid-template-columns: 360px minmax(0, 1fr);
+    column-gap: var(--space-3xl);
+    min-height: 0;
+    width: min(var(--page-frame), 100% - 2 * var(--page-gutter));
+    margin-inline: auto;
+    padding-block: var(--space-l) 0;
+  }
+  .start-intro {
+    align-self: start;
+  }
+  /* The stacked lockup is composed on its centre line, so the tagline centres
+     under it and the two read as one signature. Press asks for clear space of
+     a quarter of the emblem height around the lockup; the tagline keeps it. */
+  .signature {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-s);
+    width: fit-content;
+  }
+  .brand {
+    margin: 0;
+  }
+  .brand img {
+    display: block;
+    width: 160px;
+    height: auto;
+    aspect-ratio: 740.5 / 612.8;
+  }
+  .brand .on-dark {
+    display: none;
+  }
+  :global([data-theme="dark"]) .brand .on-light {
+    display: none;
+  }
+  :global([data-theme="dark"]) .brand .on-dark {
+    display: block;
+  }
+  .tagline {
+    margin: 0;
+    text-align: center;
+    font: italic 400 var(--text-body-lg) / var(--leading) var(--font-body);
+    color: var(--color-text-muted);
+  }
+  .start-actions {
+    display: grid;
+    gap: var(--space-2xs);
+    margin-top: var(--space-xl);
+  }
+  .start-action {
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 60px;
+    padding: var(--space-xs) var(--space-s);
+    gap: var(--space-xs);
+    text-align: left;
+  }
+  .start-action span {
+    display: grid;
+  }
+  .start-action small {
+    font: 400 var(--text-small) / 1.4 var(--font-ui);
+  }
+  .ka-button--secondary.start-action small {
+    color: var(--color-text-muted);
+  }
+
+  /* The main column scrolls on its own so the brand and start actions stay
+     put. Inline padding keeps the 3px focus outline inside the scroll box. */
+  .start-main {
+    min-height: 0;
+    overflow: auto;
+    padding: 0 var(--space-3xs) var(--space-xl);
+    margin-inline: calc(-1 * var(--space-3xs));
+  }
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-s);
+    min-height: var(--control-target);
+  }
+  .section-title {
+    margin: 0;
+    font: 550 var(--text-h3) / var(--leading-tight) var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
+  }
+  .section-help {
+    margin-top: var(--space-3xs);
+  }
+  .open-error {
+    margin-top: var(--space-2xs);
+  }
+  .open-error p {
+    overflow-wrap: anywhere;
+  }
+
+  .recent-list {
+    list-style: none;
+    margin: var(--space-2xs) 0 0;
+    padding: 0;
+    border-top: var(--border-hair);
+  }
+  .recent-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3xs);
+    padding-right: var(--space-3xs);
+    border-bottom: var(--border-hair);
+    transition: background-color var(--ka-motion) ease-out;
+  }
+  .recent-row:hover,
+  .recent-row:focus-within {
+    background: var(--color-surface-sunken);
+  }
+  .recent-open {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-m);
+    min-height: 52px;
+    padding: var(--space-xs);
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--color-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .recent-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: var(--space-xs);
+  }
+  .recent-name {
+    font: 500 var(--text-base) / 1.4 var(--font-ui);
+    overflow-wrap: anywhere;
+  }
+  .recent-type,
+  .recent-date {
+    font: var(--text-small) / 1.4 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  .recent-date {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  /* Reserved even while hidden so the date never shifts; always reachable by
+     keyboard, and always visible without hover. */
+  .recent-delete {
+    color: var(--color-text-muted);
+    opacity: 0;
+  }
+  .recent-row:hover .recent-delete,
+  .recent-row:focus-within .recent-delete,
+  .recent-delete.is-busy {
+    opacity: 1;
+  }
+  .recent-row[aria-busy="true"] .recent-delete {
+    visibility: hidden;
+  }
+  @media (hover: none) {
+    .recent-delete {
+      opacity: 1;
+    }
+  }
+  /* The ghost hover fill is the row's own hover fill, so the destructive
+     control takes the error wash to stay distinguishable. */
+  @media (hover: hover) {
+    .recent-row .recent-delete:not(:disabled):hover {
+      background: var(--color-error-wash);
+      color: var(--color-error);
+    }
+  }
+
+  .ka-empty {
+    border-bottom: var(--border-hair);
+    padding-top: var(--space-m);
+  }
+  .ka-empty :global(svg) {
+    color: var(--color-text-muted);
+  }
+
+  .import {
+    margin-top: var(--space-2xl);
+  }
+  .import-list {
+    list-style: none;
+    margin: var(--space-s) 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-m);
+  }
+  .import-list li {
+    border-bottom: var(--border-hair);
+  }
+  .import-list li:nth-child(-n + 2) {
+    border-top: var(--border-hair);
+  }
+  .import-format {
+    width: 100%;
+    justify-content: space-between;
+    padding-inline: var(--space-xs);
+    margin-block: var(--space-3xs);
+    border-radius: var(--radius-xs);
+  }
+  .import-format small {
+    font: 400 var(--text-small) / 1.4 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+
+  @container start (max-width: 1280px) {
+    .start-bar {
+      width: calc(100% - 2 * var(--space-m));
+      padding-top: var(--space-2xs);
+    }
+    .start-body {
+      grid-template-columns: 300px minmax(0, 1fr);
+      column-gap: var(--space-2xl);
+      width: calc(100% - 2 * var(--space-m));
+      padding-top: var(--space-2xs);
+    }
+    .brand img {
+      width: 140px;
+    }
+    .start-actions {
+      margin-top: var(--space-l);
+    }
+    .import {
+      margin-top: var(--space-xl);
+    }
+  }
+  @container start (max-height: 720px) {
+    .start-body {
+      padding-top: 0;
+    }
+    .import {
+      margin-top: var(--space-l);
+    }
+  }
+</style>

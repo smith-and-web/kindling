@@ -172,7 +172,7 @@ describe("Re-import to Update Project (#40)", () => {
       const text = await browser.execute((el) => el.textContent, dialog);
 
       // Should show "All synced" or list changes/additions
-      expect(text).toMatch(/(All synced|New Items|Changes)/i);
+      expect(text).toMatch(/(All synced|New items|Changes)/i);
     });
   });
 

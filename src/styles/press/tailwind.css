@@ -59,6 +59,14 @@
   --shadow-press-mounted: var(--shadow-md);
   --shadow-press-overlay: var(--shadow-overlay);
   --shadow-press-prose: var(--shadow-prose);
+  --spacing-press-target: var(--control-target);
+  --radius-press-xs: var(--radius-xs);
+  --radius-press-s: var(--radius-s);
+  --radius-press-m: var(--radius-m);
+  --radius-press-l: var(--radius-l);
+  --radius-press-xl: var(--radius-xl);
+  --radius-press-2xl: var(--radius-2xl);
+  --radius-press-pill: var(--radius-pill);
   --z-index-press-base: var(--z-base);
   --z-index-press-raised: var(--z-raised);
   --z-index-press-sticky: var(--z-sticky);

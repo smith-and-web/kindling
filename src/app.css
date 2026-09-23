@@ -1,59 +1,16 @@
 @import "tailwindcss";
+@import "./styles/press/fonts.css";
 @import "./styles/press/tokens.css";
 @import "./styles/press/tailwind.css";
+/* Press foundation (global form controls, selection, scrollbars, paper grain,
+   .app-prose-sheet, .app-dialog-surface) then the application layer: one
+   implementation per control role (ka-*). Both sit under Tailwind's utilities
+   so a utility can tune an element and `.press-app h3` cannot restyle a
+   heading that carries its own type role. */
 @import "./styles/press/components.css" layer(components);
-
-/* Press fonts are bundled with the app so typography works fully offline. */
-@font-face {
-  font-family: "Fraunces";
-  src: url("/fonts/Fraunces-Variable-latin.woff2") format("woff2");
-  font-weight: 300 600;
-  font-style: normal;
-  font-display: swap;
-  font-optical-sizing: auto;
-}
-
-@font-face {
-  font-family: "Newsreader";
-  src: url("/fonts/Newsreader-Variable-latin.woff2") format("woff2");
-  font-weight: 300 600;
-  font-style: normal;
-  font-display: swap;
-  font-optical-sizing: auto;
-}
-
-@font-face {
-  font-family: "Newsreader";
-  src: url("/fonts/Newsreader-Variable-Italic-latin.woff2") format("woff2");
-  font-weight: 300 600;
-  font-style: italic;
-  font-display: swap;
-  font-optical-sizing: auto;
-}
-
-@font-face {
-  font-family: "Inter";
-  src: url("/fonts/Inter-Regular-latin.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Inter";
-  src: url("/fonts/Inter-Medium-latin.woff2") format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Inter";
-  src: url("/fonts/Inter-SemiBold-latin.woff2") format("woff2");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
+@import "./styles/press/application.css" layer(components);
+/* Overlay/dialog rules proposed upstream to Press; see the file header. */
+@import "./styles/overlays.css" layer(components);
 
 :root {
   font-family: var(--font-ui);
@@ -63,6 +20,7 @@
   color: var(--color-text);
   background: var(--color-bg);
   font-synthesis: none;
+  font-optical-sizing: auto;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -80,10 +38,13 @@ html.theme-switching * {
   transition: none !important;
 }
 
+/* The window: an optional update banner row, then the workspace fills the
+   rest. Nothing scrolls at this level; each column owns its scrolling. */
 #app {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 @layer base {
@@ -93,6 +54,7 @@ html.theme-switching * {
   }
 }
 
+/* Disabled state is a token pair, never opacity. */
 button:disabled {
   color: var(--color-disabled-text) !important;
   background-color: var(--color-disabled-bg) !important;
@@ -100,10 +62,28 @@ button:disabled {
   cursor: not-allowed;
   opacity: 1 !important;
 }
+/* A disabled ghost stays ghost: no slab where there was never a fill. */
+button.ka-button--ghost:disabled,
+button.ka-icon-button:disabled,
+.ka-menu-list > button:disabled,
+.ka-tree button:disabled,
+.ka-command-list button:disabled {
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
 
-:where(button, [role="button"]):focus-visible {
+/* Focus follows the Press application layer: a 2px accent-text outline offset
+   3px, on every operable element, in both themes. */
+:where(button, [role="button"], a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+
+/* Inside the manuscript the caret is the focus indicator; a ring around a
+   whole page of prose is noise. */
+.ProseMirror:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring);
 }
 
 .font-heading {
@@ -114,4 +94,368 @@ button:disabled {
 .font-prose {
   font-family: var(--font-body);
   font-optical-sizing: auto;
+}
+
+/* Press application icons: Lucide outline geometry at a 1.75px stroke
+   (lucide-svelte defaults to 2). The CSS property beats the SVG attribute. */
+svg.lucide-icon {
+  stroke-width: 1.75;
+}
+
+/* WebKit adapter: WKWebView renders <select> as a native menu button and
+   ignores the Press field's border, padding and 44px height unless the native
+   appearance is removed. The chevron is drawn from currentColor so it follows
+   the theme. (Raise upstream in Press: application.css assumes Chromium.) */
+select:not([multiple]):not([size]) {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: var(--control-target);
+  padding-right: calc(var(--space-xs) + 20px) !important;
+  /* An outline chevron: two 1.5px strokes meeting at the bottom. */
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent calc(50% - 0.75px),
+      currentColor calc(50% - 0.75px),
+      currentColor calc(50% + 0.75px),
+      transparent calc(50% + 0.75px)
+    ),
+    linear-gradient(
+      -45deg,
+      transparent calc(50% - 0.75px),
+      currentColor calc(50% - 0.75px),
+      currentColor calc(50% + 0.75px),
+      transparent calc(50% + 0.75px)
+    );
+  background-position:
+    calc(100% - 20px) 55%,
+    calc(100% - 14.5px) 55%;
+  background-size:
+    6px 6px,
+    6px 6px;
+  background-repeat: no-repeat;
+}
+
+/* Every field inside a dialog is the Press field (.ka-field): 44px, sunken
+   fill, a visible control edge, 16px Inter. Unlayered on purpose so it wins
+   over the utilities older dialogs still carry; width utilities still apply. */
+:where(.app-dialog-surface, .ka-dialog)
+  :where(
+    input:not([type]),
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="password"],
+    input[type="number"],
+    input[type="search"],
+    input[type="url"],
+    input[type="date"],
+    select,
+    textarea
+  ) {
+  min-height: var(--control-target);
+  padding: 9px var(--space-xs);
+  border: 1px solid var(--color-control-border-hover);
+  border-radius: var(--radius-m);
+  background-color: var(--color-surface-sunken);
+  color: var(--color-text);
+  font: var(--text-base) / 1.5 var(--font-ui);
+  box-shadow: none;
+}
+:where(.app-dialog-surface, .ka-dialog) textarea {
+  min-height: 96px;
+  padding: var(--space-xs);
+}
+:where(.app-dialog-surface, .ka-dialog) :where(input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 3px;
+  border-color: var(--color-control-border-focus);
+}
+:where(.app-dialog-surface, .ka-dialog) :where(input, select, textarea)[aria-invalid="true"] {
+  border: 2px solid var(--color-error);
+}
+:where(.app-dialog-surface, .ka-dialog) :where(input, select, textarea):disabled {
+  color: var(--color-disabled-text);
+  background-color: var(--color-disabled-bg);
+  border-color: var(--color-disabled-border);
+}
+:where(.app-dialog-surface, .ka-dialog) :where(input[type="checkbox"], input[type="radio"]) {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--color-accent-text);
+}
+
+/* The one modal scrim: --color-overlay-scrim, no blur, centred content. */
+.dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-m) var(--space-s);
+  background: var(--color-overlay-scrim);
+}
+.app-dialog-surface.ka-dialog-narrow {
+  width: min(480px, calc(100% - 32px));
+}
+.app-dialog-surface.ka-dialog-default {
+  width: min(600px, calc(100% - 32px));
+}
+.app-dialog-surface.ka-dialog-wide {
+  width: min(960px, calc(100% - 32px));
+}
+.app-dialog-surface :where(.ka-dialog-body) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+/* Header and footer stay pinned; only the body scrolls. */
+.app-dialog-surface.dialog-shell {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 48px);
+  overflow: hidden;
+}
+
+/* Settings panes: one lede, hairline groups, an explicit save at the end. */
+.settings-pane {
+  display: grid;
+  gap: var(--space-m);
+}
+.settings-pane > .ka-group + .ka-group {
+  margin-top: 0;
+}
+.settings-lede {
+  margin: 0;
+  max-width: 60ch;
+  font: var(--text-ui) / 1.6 var(--font-ui);
+  color: var(--color-text-muted);
+}
+.settings-lede strong {
+  font-weight: 600;
+  color: var(--color-text);
+}
+.settings-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-s);
+}
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-s);
+}
+.settings-actions .ka-help {
+  margin: 0;
+}
+.settings-fields {
+  display: grid;
+  gap: 20px;
+}
+
+/* Press cascade adapter: `.press-app :where(h3, h4)` (0,1,1) out-ranks the
+   single-class type roles below when they sit on a heading. Restate them at
+   (0,2,0) so a group title or eyebrow keeps its role on any element.
+   (Raise upstream: the roles should win inside .press-app.) */
+.press-app .ka-group-title {
+  font: 600 var(--text-base) / 1.5 var(--font-ui);
+  letter-spacing: 0;
+  color: var(--color-text);
+}
+.press-app .ka-eyebrow {
+  font: 600 var(--text-eyebrow) / 1.4 var(--font-ui);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* WebKit adapter: WKWebView draws a checked native checkbox/radio with
+   `accent-color` as a bare glyph with no fill. Draw both from tokens: a
+   control-edge box, and when checked an accent fill inset by the surface. */
+input[type="checkbox"],
+input[type="radio"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  border: 1.5px solid var(--color-control-border-hover);
+  border-radius: var(--radius-xs);
+  background: var(--color-surface);
+  cursor: pointer;
+  vertical-align: middle;
+}
+input[type="radio"] {
+  border-radius: 50%;
+}
+input[type="checkbox"]:checked,
+input[type="radio"]:checked {
+  border-color: var(--color-accent-text);
+  background: var(--color-accent-text);
+  box-shadow: inset 0 0 0 3px var(--color-surface);
+}
+input[type="radio"]:checked {
+  box-shadow: inset 0 0 0 4px var(--color-surface);
+}
+/* A checked checkbox is a filled box with a check mark (two strokes in the
+   on-accent colour), so it never reads as a radio or an indeterminate state. */
+input[type="checkbox"]:checked {
+  --check: var(--color-on-accent);
+  box-shadow: none;
+  background-color: var(--color-accent-text);
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent calc(50% - 1px),
+      var(--check) calc(50% - 1px),
+      var(--check) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    ),
+    linear-gradient(
+      -45deg,
+      transparent calc(50% - 1px),
+      var(--check) calc(50% - 1px),
+      var(--check) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    );
+  background-repeat: no-repeat;
+  background-size:
+    6px 6px,
+    10px 10px;
+  background-position:
+    2.5px 6.5px,
+    6.5px 2.5px;
+}
+input[type="checkbox"]:checked:disabled {
+  --check: var(--color-disabled-bg);
+}
+input[type="checkbox"]:disabled,
+input[type="radio"]:disabled {
+  border-color: var(--color-disabled-border);
+  background: var(--color-disabled-bg);
+  cursor: not-allowed;
+}
+input[type="checkbox"]:checked:disabled,
+input[type="radio"]:checked:disabled {
+  background: var(--color-disabled-text);
+}
+/* Segmented controls and colour swatches hide their radios; keep them hidden. */
+:where(.ka-segment, .ka-swatch-option) input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+/* A standalone check row: box and label side by side (Press pairs .ka-check
+   with a row layout but gives it no display of its own). */
+.ka-check {
+  display: flex;
+  align-items: center;
+}
+
+/* Press cascade adapter: `.ka-notice` sets display:grid, which defeats the
+   `od-row-top` row the Notice component pairs it with, stacking the icon above
+   the text. Keep icon and text side by side. (Raise upstream.) */
+.ka-notice.od-row-top {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+}
+
+.ka-notice.od-row-top > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* The pane lede reads as the title's standfirst, not a separate block. */
+.ka-settings-pane .ka-settings-head {
+  margin-bottom: var(--space-xs);
+}
+
+/* Footer help (a disabled reason, a note) takes the slack and wraps, so the
+   actions always stay on one row. */
+.ka-dialog-footer > p.ka-dialog-footer-start {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-block: 0;
+}
+
+/* Optical centring: a status or tag dot beside lowercase text should sit on
+   the middle of the x-height. Flex centring uses the line box, which leaves
+   the dot about 1px high in Inter. */
+.sb-status-dot,
+.ka-tagrow .ka-swatch,
+.tag-dot {
+  translate: 0 0.1em;
+}
+
+/* Contrast adapter: Press's success text on its wash measures 4.35:1 on the
+   light sunken surface and 4.32:1 on the dark raised surface (AA needs 4.5).
+   Success copy uses ink; the success colour stays on the icon and edge, and
+   the words carry the meaning. (Raise upstream: darken --green / lighten
+   --green-dark, or drop the wash under text.) */
+.ka-badge--success {
+  color: var(--color-text);
+  border-color: var(--color-success);
+}
+.ka-notice--success {
+  color: var(--color-text);
+}
+.ka-notice--success > svg {
+  color: var(--color-success);
+}
+
+/* Short windows (the 668px-tall compact size): the settings nav drops its
+   helper lines so every area fits without scrolling, and a selected area
+   scrolled into view keeps clear of the dialog edge. */
+.ka-settings-nav .ka-tree-selected {
+  scroll-margin-block: var(--space-s);
+}
+@media (max-height: 800px) {
+  .ka-settings-nav {
+    gap: var(--space-xs);
+    padding-block: var(--space-xs) var(--space-s);
+  }
+  .ka-settings-nav .ka-help {
+    display: none;
+  }
+}
+
+/* Native control parts (number-field steppers, date pickers, scrollbars)
+   follow the chrome theme. Press sets data-theme but not color-scheme. */
+:root {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Shortcut labels: the mono stack (Monaco/Menlo) has no ⌘ ⇧ ⌥ glyphs, so
+   they fell back small. The UI stack's system font draws them at size.
+   (Raise upstream: Press kbd uses --font-mono.) */
+kbd {
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Settings groups: a fieldset whose legend is the group title. */
+.settings-fieldset {
+  display: grid;
+  gap: var(--space-s);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.settings-fieldset > legend {
+  margin-bottom: var(--space-xs);
+  padding: 0;
+}
+.settings-fieldset > legend + .ka-help {
+  margin-top: calc(-1 * var(--space-xs));
 }

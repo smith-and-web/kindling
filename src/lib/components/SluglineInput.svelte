@@ -5,7 +5,6 @@
    * Format: INT. LOCATION - DAY (or EXT., various times)
    * Provides INT/EXT prefix, location suggestions from project, time-of-day options.
    */
-  import { ChevronDown } from "lucide-svelte";
   import type { Location } from "../types";
 
   const TIME_OPTIONS = [
@@ -41,7 +40,6 @@
   let prefix = $state<"INT" | "EXT">("INT");
   let location = $state("");
   let timeOfDay = $state("DAY");
-  let showTimeDropdown = $state(false);
   let isSluglineFormat = $state(false);
 
   // Parse existing slugline on init/change
@@ -107,7 +105,6 @@
 
   function setTime(t: string) {
     timeOfDay = t;
-    showTimeDropdown = false;
     isSluglineFormat = true;
     emitSave();
   }
@@ -128,29 +125,20 @@
   );
 </script>
 
-<div class="flex flex-wrap items-center gap-2 {className}">
-  <div class="flex rounded-lg border border-press-border overflow-hidden">
-    <button
-      type="button"
-      onclick={() => setPrefix("INT")}
-      {disabled}
-      class="px-3 py-2 text-press-ui font-medium transition-colors {prefix === 'INT'
-        ? 'bg-press-accent text-press-on-accent'
-        : 'bg-press-sunken text-press-muted hover:text-press-text'}"
-    >
-      INT.
-    </button>
-    <button
-      type="button"
-      onclick={() => setPrefix("EXT")}
-      {disabled}
-      class="px-3 py-2 text-press-ui font-medium transition-colors border-l border-press-border {prefix ===
-      'EXT'
-        ? 'bg-press-accent text-press-on-accent'
-        : 'bg-press-sunken text-press-muted hover:text-press-text'}"
-    >
-      EXT.
-    </button>
+<div class="slugline {className}" role="group" aria-label="Scene heading">
+  <div class="ka-segment-track slugline-prefix" role="group" aria-label="Interior or exterior">
+    {#each ["INT", "EXT"] as const as option (option)}
+      <button
+        type="button"
+        class="ka-segment"
+        class:ka-selected={prefix === option}
+        aria-pressed={prefix === option}
+        onclick={() => setPrefix(option)}
+        {disabled}
+      >
+        {option}.
+      </button>
+    {/each}
   </div>
 
   <input
@@ -159,9 +147,10 @@
     onblur={handleLocationBlur}
     type="text"
     list="slugline-locations"
-    placeholder="LOCATION"
+    placeholder="Location"
+    aria-label="Location"
     {disabled}
-    class="flex-1 min-w-[120px] bg-press-sunken text-press-text text-press-ui border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent uppercase placeholder:normal-case placeholder:text-press-muted"
+    class="slugline-location"
   />
   <datalist id="slugline-locations">
     {#each locationSuggestions as loc}
@@ -169,49 +158,59 @@
     {/each}
   </datalist>
 
-  <div class="relative">
-    <button
-      type="button"
-      onclick={(e) => {
-        e.stopPropagation();
-        showTimeDropdown = !showTimeDropdown;
-      }}
-      {disabled}
-      aria-expanded={showTimeDropdown}
-      aria-haspopup="listbox"
-      class="flex items-center gap-1.5 px-3 py-2 text-press-ui bg-press-sunken text-press-text border border-press-border rounded-lg hover:border-press-accent transition-colors"
-    >
-      <span class="uppercase">{timeOfDay}</span>
-      <ChevronDown
-        class="w-4 h-4 text-press-muted transition-transform {showTimeDropdown ? 'rotate-180' : ''}"
-      />
-    </button>
-    {#if showTimeDropdown}
-      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-      <div
-        class="absolute left-0 top-full mt-1 z-press-dropdown bg-press-surface border border-press-border rounded-lg shadow-press-overlay py-1 max-h-48 overflow-y-auto"
-        onclick={(e) => e.stopPropagation()}
-      >
-        {#each TIME_OPTIONS as t}
-          <button
-            type="button"
-            onclick={() => setTime(t)}
-            class="w-full text-left px-3 py-2 text-press-ui text-press-text hover:bg-press-sunken transition-colors {timeOfDay ===
-            t
-              ? 'bg-press-accent-wash text-press-accent-text'
-              : ''}"
-          >
-            {t}
-          </button>
-        {/each}
-      </div>
+  <select
+    class="slugline-time"
+    aria-label="Time of day"
+    value={timeOfDay}
+    onchange={(event) => setTime((event.currentTarget as HTMLSelectElement).value)}
+    {disabled}
+  >
+    {#if !TIME_OPTIONS.includes(timeOfDay as (typeof TIME_OPTIONS)[number])}
+      <option value={timeOfDay}>{timeOfDay}</option>
     {/if}
-  </div>
+    {#each TIME_OPTIONS as t (t)}
+      <option value={t}>{t}</option>
+    {/each}
+  </select>
 </div>
 
-<svelte:window
-  onclick={() => (showTimeDropdown = false)}
-  onkeydown={(e) => {
-    if (e.key === "Escape") showTimeDropdown = false;
-  }}
-/>
+<style>
+  .slugline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-xs);
+  }
+  .slugline-prefix {
+    flex: none;
+  }
+  .slugline-prefix .ka-segment {
+    min-width: 64px;
+    letter-spacing: 0.02em;
+  }
+  .slugline-location,
+  .slugline-time {
+    min-height: var(--control-target);
+    padding: 9px var(--space-xs);
+    border: 1px solid var(--color-control-border-hover);
+    border-radius: var(--radius-m);
+    background-color: var(--color-surface-sunken);
+    color: var(--color-text);
+    font: var(--text-base) / 1.5 var(--font-ui);
+    letter-spacing: 0.02em;
+  }
+  .slugline-location {
+    flex: 1 1 200px;
+    min-width: 0;
+    text-transform: uppercase;
+  }
+  .slugline-location::placeholder {
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--color-text-muted);
+  }
+  .slugline-time {
+    flex: none;
+    padding-right: 40px;
+  }
+</style>

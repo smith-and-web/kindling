@@ -22,6 +22,11 @@
     onCancel,
   }: Props = $props();
 
+  // Destructive confirms start on the safe choice.
+  function focusOnMount(node: HTMLElement) {
+    queueMicrotask(() => node.focus());
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") {
       onCancel();
@@ -33,39 +38,51 @@
 
 <div
   data-testid="confirm-dialog"
-  class="fixed inset-0 bg-press-overlay flex items-center justify-center z-press-modal"
-  role={embedded ? undefined : "dialog"}
+  class="dialog-scrim"
+  role={embedded ? undefined : "alertdialog"}
   aria-modal={embedded ? undefined : true}
   aria-labelledby={embedded ? undefined : titleId}
+  aria-describedby={embedded ? undefined : `${titleId}-message`}
   tabindex="-1"
 >
-  <div
-    class="app-dialog-surface bg-press-surface rounded-lg overflow-hidden max-w-md w-full mx-4 shadow-press-overlay"
-  >
+  <div class="app-dialog-surface ka-dialog-narrow confirm">
     <DialogHeader {title} {titleId} onClose={onCancel} closeLabel="Close confirmation" />
-    <div class="p-6">
-      <p
-        data-testid="dialog-message"
-        class="font-prose text-press-text text-press-body mb-6 max-w-press-measure"
-      >
+    <div class="ka-dialog-body">
+      <p id={`${titleId}-message`} data-testid="dialog-message" class="confirm-message">
         {message}
       </p>
-      <div class="flex gap-3 justify-end">
-        <button
-          data-testid="dialog-cancel"
-          onclick={onCancel}
-          class="px-4 py-2 bg-press-sunken rounded hover:bg-press-sunken transition-colors text-press-text"
-        >
-          {cancelLabel}
-        </button>
-        <button
-          data-testid="dialog-confirm"
-          onclick={onConfirm}
-          class="px-4 py-2 bg-press-error text-press-on-accent rounded hover:bg-press-error transition-colors"
-        >
-          {confirmLabel}
-        </button>
-      </div>
     </div>
+    <footer class="ka-dialog-footer">
+      <button
+        type="button"
+        data-testid="dialog-cancel"
+        onclick={onCancel}
+        use:focusOnMount
+        class="ka-button ka-button--secondary"
+      >
+        {cancelLabel}
+      </button>
+      <button
+        type="button"
+        data-testid="dialog-confirm"
+        onclick={onConfirm}
+        class="ka-button ka-button--danger"
+      >
+        {confirmLabel}
+      </button>
+    </footer>
   </div>
 </div>
+
+<style>
+  .confirm {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - 48px);
+  }
+  .confirm-message {
+    margin: 0;
+    font: var(--text-base) / 1.6 var(--font-ui);
+    color: var(--color-text);
+  }
+</style>

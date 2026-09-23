@@ -131,7 +131,7 @@ describe("independent reference copies", () => {
     expect(screen.getByText("2 selected across all categories")).toBeTruthy();
     await fireEvent.click(screen.getByRole("checkbox", { name: "Mara" }));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Copy 1 references" })).toBeTruthy()
+      expect(screen.getByRole("button", { name: "Copy 1 reference" })).toBeTruthy()
     );
     await fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
     await waitFor(() => expect(screen.getByText("0 selected across all categories")).toBeTruthy());

@@ -23,25 +23,44 @@
   } = $props();
 </script>
 
-<header
-  class="flex items-center justify-between gap-4 px-5 py-4 border-b border-press-border shrink-0"
->
-  <div class="min-w-0">
-    <h2 id={titleId} class="font-heading text-press-body-lg font-medium text-press-text">
-      {title}
-    </h2>
-    {#if subtitle}<p class="text-press-small text-press-muted mt-1">{subtitle}</p>{/if}
+<header class="ka-dialog-header dialog-header">
+  <div class="dialog-header-text">
+    <h2 id={titleId} class="dialog-title">{title}</h2>
+    {#if subtitle}<p>{subtitle}</p>{/if}
   </div>
-  <div class="flex items-center gap-3 shrink-0">
+  <div class="dialog-header-actions">
     {@render children?.()}
     <button
       type="button"
       onclick={onClose}
       {disabled}
       aria-label={closeLabel}
+      title={closeLabel}
       data-testid={closeTestId}
-      class="p-2 rounded-lg text-press-muted hover:text-press-text hover:bg-press-sunken transition-colors disabled:opacity-50 disabled:cursor-default"
-      ><X class="w-5 h-5" /></button
+      class="ka-button ka-button--ghost ka-icon-button"
+      ><X class="w-5 h-5" aria-hidden="true" /></button
     >
   </div>
 </header>
+
+<style>
+  .dialog-header {
+    flex: none;
+  }
+  .dialog-header-text {
+    min-width: 0;
+  }
+  .dialog-title {
+    margin: 0;
+    font: 550 var(--text-h3) / 1.25 var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+  }
+  .dialog-header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    flex: none;
+  }
+</style>

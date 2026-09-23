@@ -21,6 +21,9 @@ export default ts.config(
         clearInterval: "readonly",
         localStorage: "readonly",
         requestAnimationFrame: "readonly",
+        queueMicrotask: "readonly",
+        getComputedStyle: "readonly",
+        MutationObserver: "readonly",
         // DOM types
         Element: "readonly",
         Node: "readonly",
@@ -36,6 +39,7 @@ export default ts.config(
         MouseEvent: "readonly",
         CustomEvent: "readonly",
         HTMLSelectElement: "readonly",
+        HTMLButtonElement: "readonly",
         confirm: "readonly",
         // Svelte 5 runes
         $state: "readonly",
@@ -66,7 +70,7 @@ export default ts.config(
       "src-tauri/",
       ".svelte-kit/",
       "build/",
-      // One-way mirrors are linted in their canonical brand-assets repository.
+      // One-way mirrors are linted in their canonical repository, ../press.
       "src/styles/press/",
     ],
   },

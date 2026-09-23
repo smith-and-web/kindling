@@ -41,6 +41,7 @@ declare global {
         value: ReturnType<NonNullable<Window["__KINDLING_TEST__"]>["visualPreferences"]>
       ) => void;
       creationObserverVersion: 1;
+      refreshRecentProjects: () => void;
       onProjectCreated?: (command: string, project: Project) => void;
     };
   }
@@ -102,6 +103,7 @@ window.__KINDLING_TEST__ = {
   importCommands: IMPORT_COMMANDS,
   importProject,
   disableGuidance: () => ui.setGuidanceEnabled(false),
+  refreshRecentProjects: () => ui.refreshRecentProjects(),
   visualPreferences: () => ({
     guidanceEnabled: ui.guidanceEnabled,
     referencesPanelWidth: ui.referencesPanelWidth,

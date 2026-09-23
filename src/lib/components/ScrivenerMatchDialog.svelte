@@ -1,7 +1,8 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
-  import { Loader2, Link2, AlertCircle, X } from "lucide-svelte";
+  import { CircleAlert } from "lucide-svelte";
+  import DialogHeader from "./DialogHeader.svelte";
   import type { ScrivenerMatchPreview } from "../types";
 
   let {
@@ -37,118 +38,160 @@
   });
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === "Escape") onCancel();
+    // The surface, scrim and window can all see a key press; cancel once.
+    if (e.key !== "Escape" || e.defaultPrevented) return;
+    e.preventDefault();
+    onCancel();
   }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay backdrop-blur-sm"
+  class="dialog-scrim"
   onclick={onCancel}
-  onkeydown={(e) => e.key === "Escape" && onCancel()}
+  onkeydown={handleKeydown}
   role="presentation"
   tabindex="-1"
 >
   <div
-    class="app-dialog-surface bg-press-surface border border-press-border rounded-2xl shadow-press-overlay w-xl max-h-[80vh] flex flex-col"
+    class="app-dialog-surface ka-dialog-default dialog-shell"
     onclick={(e) => e.stopPropagation()}
-    onkeydown={(e) => e.stopPropagation()}
+    onkeydown={(e) => {
+      handleKeydown(e);
+      e.stopPropagation();
+    }}
     role="dialog"
     aria-modal="true"
+    aria-labelledby="scrivener-match-title"
     tabindex="-1"
   >
-    <div class="flex items-center justify-between px-6 py-4 border-b border-press-border">
-      <div>
-        <h2 class="text-press-body-lg font-semibold text-press-text">Scrivener Match Preview</h2>
-        <p class="text-press-eyebrow text-press-muted mt-0.5">
-          Review how scenes will map to Scrivener documents
-        </p>
-      </div>
-      <button
-        onclick={onCancel}
-        class="p-1 text-press-muted hover:text-press-text"
-        aria-label="Close"
-      >
-        <X class="w-5 h-5" />
-      </button>
-    </div>
+    <DialogHeader
+      title="Scrivener match preview"
+      titleId="scrivener-match-title"
+      subtitle="Review how scenes will map to Scrivener documents"
+      onClose={onCancel}
+      closeLabel="Close"
+    />
 
-    <div class="flex-1 overflow-y-auto px-6 py-4">
+    <div class="ka-dialog-body match">
       {#if loading}
-        <div class="flex items-center justify-center py-12">
-          <Loader2 class="w-6 h-6 animate-spin text-press-accent-text" />
-          <span class="ml-2 text-press-muted">Analyzing matches...</span>
+        <div class="ka-progress od-field" role="status">
+          <span>Analyzing matches…</span>
+          <progress aria-label="Analyzing matches"></progress>
         </div>
       {:else if loadError}
-        <div class="flex items-center gap-2 text-press-error py-4">
-          <AlertCircle class="w-5 h-5 shrink-0" />
-          <p class="text-press-ui">{loadError}</p>
+        <div class="ka-notice ka-notice--error od-row-top" role="alert">
+          <CircleAlert class="w-5 h-5" aria-hidden="true" />
+          <div class="od-field od-fill">
+            <strong>Couldn’t preview the Scrivener matches</strong>
+            <p>{loadError}</p>
+          </div>
+        </div>
+      {:else if matches.length === 0}
+        <div class="ka-empty od-stack">
+          <h4>No scenes to match</h4>
+          <p>There are no scenes in this export to map to Scrivener documents.</p>
         </div>
       {:else}
-        <div class="flex items-center gap-4 mb-4">
-          <span class="text-press-eyebrow text-press-muted">
-            <span class="text-press-success font-medium">{matchedCount}</span> matched
-          </span>
+        <div class="match-summary">
+          <span class="ka-badge ka-badge--success">{matchedCount} matched</span>
           {#if unmatchedCount > 0}
-            <span class="text-press-eyebrow text-press-muted">
-              <span class="text-press-warning font-medium">{unmatchedCount}</span> unmatched (will be
-              created)
-            </span>
+            <span class="ka-badge ka-badge--warning"
+              >{unmatchedCount} unmatched (will be created)</span
+            >
           {/if}
         </div>
 
-        <div class="space-y-1">
+        <ul class="match-list">
           {#each matches as m}
             {@const isMatched = !!m.matched_scriv_title}
-            {@const MatchIcon = isMatched ? Link2 : AlertCircle}
-            <div
-              class="flex items-center gap-3 px-3 py-2 rounded-lg text-press-ui {isMatched
-                ? 'bg-press-success-wash'
-                : 'bg-press-warning-wash'}"
-            >
-              <MatchIcon
-                class="w-3.5 h-3.5 {isMatched
-                  ? 'text-press-success'
-                  : 'text-press-warning'} shrink-0"
-              />
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-1.5">
-                  <span class="text-press-muted text-press-eyebrow truncate">{m.chapter_title}</span
-                  >
-                  <span class="text-press-muted">/</span>
-                  <span class="text-press-text truncate">{m.scene_title}</span>
-                </div>
-                <p
-                  class="text-press-eyebrow mt-0.5 {isMatched
-                    ? 'text-press-muted'
-                    : 'text-press-warning'}"
-                >
+            <li class="match-row">
+              <span class="match-type">
+                {#if isMatched}
+                  <span class="ka-badge ka-badge--success">Matched</span>
+                {:else}
+                  <span class="ka-badge ka-badge--warning">New</span>
+                {/if}
+              </span>
+              <span class="match-text">
+                <span class="ka-label match-name">{m.chapter_title} · {m.scene_title}</span>
+                <span class="match-meta">
                   {isMatched
                     ? `→ ${m.matched_scriv_title} (via ${m.match_method === "source_id" ? "ID" : "title"})`
                     : "New document"}
-                </p>
-              </div>
-            </div>
+                </span>
+              </span>
+            </li>
           {/each}
-        </div>
+        </ul>
       {/if}
     </div>
 
-    <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-press-border">
-      <button
-        onclick={onCancel}
-        class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors"
-      >
+    <footer class="ka-dialog-footer">
+      <button type="button" onclick={onCancel} class="ka-button ka-button--secondary">
         Cancel
       </button>
-      <button
-        onclick={onConfirm}
-        disabled={loading || !!loadError}
-        class="px-4 py-2 bg-press-accent text-press-on-accent text-press-ui font-medium rounded-lg hover:bg-press-accent-text transition-colors"
-      >
-        Proceed with Export
+      <button type="button" onclick={onConfirm} disabled={loading || !!loadError} class="ka-button">
+        Proceed with export
       </button>
-    </div>
+    </footer>
   </div>
 </div>
+
+<style>
+  .match {
+    display: grid;
+    align-content: start;
+    gap: var(--space-s);
+  }
+  .match-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2xs);
+  }
+  .match-list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: var(--border-hair);
+  }
+  .match-row {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-xs);
+    min-height: var(--control-target);
+    padding: var(--space-xs) var(--space-2xs);
+    border-bottom: var(--border-hair);
+  }
+  .match-type {
+    display: flex;
+  }
+  .match-text {
+    display: grid;
+    gap: var(--space-3xs);
+    min-width: 0;
+  }
+  .match-name {
+    font: 500 var(--text-ui) / 1.5 var(--font-ui);
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+  }
+  .match-meta {
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+  }
+  .ka-notice p {
+    margin: 0;
+  }
+  .ka-empty h4 {
+    margin: 0;
+    font: 550 var(--text-h3) / 1.25 var(--font-display);
+  }
+  .ka-empty p {
+    margin: 0;
+  }
+</style>

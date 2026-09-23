@@ -4,6 +4,8 @@ import type { ReferenceTypeId } from "./types";
 export interface ReferenceTypeOption {
   id: ReferenceTypeId;
   label: string;
+  /** One of this type, lowercase, for copy like "Add character". */
+  singular: string;
   icon: typeof User;
   accentClass: string;
   bgClass: string;
@@ -14,6 +16,7 @@ export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
   {
     id: "characters",
     label: "Characters",
+    singular: "character",
     icon: User,
     accentClass: "text-press-tag-orange",
     bgClass: "bg-press-tag-orange/20",
@@ -22,6 +25,7 @@ export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
   {
     id: "locations",
     label: "Locations",
+    singular: "location",
     icon: MapPin,
     accentClass: "text-press-tag-yellow",
     bgClass: "bg-press-tag-yellow/20",
@@ -30,6 +34,7 @@ export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
   {
     id: "items",
     label: "Items",
+    singular: "item",
     icon: Package,
     accentClass: "text-press-tag-green",
     bgClass: "bg-press-tag-green/20",
@@ -38,6 +43,7 @@ export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
   {
     id: "objectives",
     label: "Objectives",
+    singular: "objective",
     icon: Target,
     accentClass: "text-press-tag-blue",
     bgClass: "bg-press-tag-blue/20",
@@ -46,6 +52,7 @@ export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
   {
     id: "organizations",
     label: "Organizations",
+    singular: "organization",
     icon: Building2,
     accentClass: "text-press-tag-purple",
     bgClass: "bg-press-tag-purple/20",
@@ -54,6 +61,7 @@ export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
   {
     id: "timelines",
     label: "Timelines",
+    singular: "timeline",
     icon: Target,
     accentClass: "text-press-tag-blue",
     bgClass: "bg-press-tag-blue/20",
@@ -62,6 +70,7 @@ export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
   {
     id: "custom",
     label: "Notes",
+    singular: "note",
     icon: Package,
     accentClass: "text-press-tag-green",
     bgClass: "bg-press-tag-green/20",

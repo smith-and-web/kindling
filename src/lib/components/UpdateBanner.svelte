@@ -1,7 +1,7 @@
 <script lang="ts">
   import { updateState, installAndRelaunch, dismissUpdate, type UpdateState } from "../updater";
   import { tick } from "svelte";
-  import { X } from "lucide-svelte";
+  import { Download, Loader2, X } from "lucide-svelte";
   import { ui } from "../stores/ui.svelte";
 
   let {
@@ -45,29 +45,41 @@
 </script>
 
 {#if state}
-  <div
-    class="fixed left-0 right-0 top-0 z-press-toast flex items-center justify-between gap-4 border-b border-press-border bg-press-accent px-4 py-2 text-press-ui text-press-on-accent"
-  >
-    <span>
-      Kindling v{state.version} is ready — Restart to update
-    </span>
-    <div class="flex items-center gap-2">
+  <div class="ka-banner update-banner" role="status">
+    <Download class="w-5 h-5 ka-icon" aria-hidden="true" />
+    <span>kindling v{state.version} is ready — Restart to update</span>
+    <div class="ka-row">
       <button
+        type="button"
         onpointerdown={(event) => event.preventDefault()}
         onclick={restart}
         disabled={disabled || restarting}
-        class="rounded px-3 py-1 font-medium border border-press-on-accent hover:bg-press-accent-text transition-colors disabled:bg-press-disabled-bg disabled:text-press-disabled-text disabled:border-press-disabled-border"
+        aria-busy={restarting || undefined}
+        class="ka-button ka-button--secondary"
       >
-        Restart
+        {#if restarting}
+          <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
+          Restarting…
+        {:else}
+          Restart
+        {/if}
       </button>
       <button
+        type="button"
         onclick={dismissUpdate}
         disabled={disabled || restarting}
-        class="p-1 rounded hover:bg-press-accent-text transition-colors disabled:bg-press-disabled-bg disabled:text-press-disabled-text"
+        class="ka-button ka-button--ghost ka-icon-button"
         aria-label="Dismiss"
+        title="Dismiss"
       >
-        <X class="w-4 h-4" />
+        <X class="w-5 h-5" aria-hidden="true" />
       </button>
     </div>
   </div>
 {/if}
+
+<style>
+  .update-banner {
+    flex: none;
+  }
+</style>

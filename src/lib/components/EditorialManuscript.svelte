@@ -93,7 +93,12 @@
     const bottom = bounds.bottom - gutter;
     const start = editor.view.coordsAtPos(editor.state.selection.from);
     const end = editor.view.coordsAtPos(editor.state.selection.to);
-    if (start.top < top || end.bottom > bottom) {
+    // If the target is already on screen with the sheet at its top, show the
+    // sheet from the top so its opening heading isn't tucked under the toolbar.
+    const fromTop = end.bottom - bounds.top + container.scrollTop;
+    if (container.clientHeight > 0 && fromTop < container.clientHeight - gutter) {
+      container.scrollTop = 0;
+    } else if (start.top < top || end.bottom > bottom) {
       // Scroll this pane explicitly: read-only or unfocused ProseMirror views
       // need not honor a transaction's scrollIntoView request.
       container.scrollTop += start.top - top;
@@ -196,6 +201,13 @@
       Math.max(1, Math.min(position, editor.state.doc.content.size - 1))
     );
     const container = element.parentElement;
+    // Near the start of the manuscript show the sheet from its top, so the
+    // opening heading is not tucked under the toolbar.
+    const fromTop = point.bottom - container.getBoundingClientRect().top + container.scrollTop;
+    if (position <= 2 || (container.clientHeight > 0 && fromTop < container.clientHeight / 2)) {
+      container.scrollTop = 0;
+      return;
+    }
     const toolbar =
       container.querySelector(".editorial-format")?.getBoundingClientRect().height ?? 0;
     container.scrollTop += point.top - container.getBoundingClientRect().top - toolbar - 16;
@@ -361,14 +373,15 @@
       if (from < to)
         decorations.push(
           Decoration.inline(from, to, {
-            class:
-              change.id === selected
-                ? "editorial-selected"
-                : change.kind === "comment"
-                  ? "editorial-comment"
-                  : preview
-                    ? "editorial-deletion"
-                    : "editorial-insertion",
+            // The current mark keeps its kind (underline, strike or highlight)
+            // and gains an outline, so meaning never rests on colour alone.
+            class: `${
+              change.kind === "comment"
+                ? "editorial-comment"
+                : preview
+                  ? "editorial-deletion"
+                  : "editorial-insertion"
+            }${change.id === selected ? " editorial-selected" : ""}`,
             "data-review-id": change.id,
           })
         );
@@ -434,63 +447,80 @@
 <div class="editorial-format">
   <ProseToolbar {editor} {revision} {readonly}>
     {@render toolbar?.()}
-    {#if canComment}<button class="comment-action" onclick={onComment}
-        ><MessageSquare size={16} /> Comment</button
+    {#if canComment}<button
+        type="button"
+        class="ka-button ka-button--ghost comment-action"
+        onclick={onComment}><MessageSquare class="w-5 h-5" aria-hidden="true" /> Comment</button
       >{/if}
   </ProseToolbar>
 </div>
 <div class="app-prose-sheet editorial-sheet" bind:this={element}></div>
 
 <style>
+  /* The hairline review toolbar above the desk. The sheet below reads only
+     --color-prose-* tokens and the raw light palette, so it stays light paper
+     with legible marks when the chrome is dark. */
   .editorial-format {
     position: sticky;
     top: 0;
     z-index: var(--z-sticky);
   }
-  .comment-action {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2xs);
-    background: transparent;
-    border: 0;
+  .editorial-format :global(.prose-toolbar) {
+    padding: var(--space-2xs) var(--space-m);
+    background: var(--color-bg);
+    border-bottom: var(--border-hair);
+  }
+  .editorial-format :global(.prose-toolbar .extra) {
+    gap: var(--space-xs);
+    padding: 0;
     color: var(--color-text);
-    padding: var(--space-2xs);
-    font-family: var(--font-ui);
-    font-size: var(--text-small);
+  }
+  .comment-action {
+    white-space: nowrap;
   }
   :global(.editorial-margin-marker) {
     position: absolute;
-    transform: translateX(calc(-1 * var(--space-l)));
-    padding: var(--space-3xs);
-    min-width: var(--space-m);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-s);
-    font-family: var(--font-ui);
-    font-size: var(--text-eyebrow);
+    transform: translateX(calc(-1 * var(--space-l) - var(--space-3xs)));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    min-height: 28px;
+    padding: 0 var(--space-3xs);
+    border: 1px solid var(--color-prose-border);
+    border-radius: var(--radius-xs);
+    background: var(--color-prose-bg);
     color: var(--color-prose-text);
-    background: var(--color-accent-wash);
+    font: 500 var(--text-eyebrow) / 1 var(--font-ui);
+    font-variant-numeric: tabular-nums;
+    text-indent: 0;
     cursor: pointer;
   }
+  :global(.editorial-margin-marker:hover) {
+    background: color-mix(in srgb, var(--terracotta) 12%, var(--color-prose-bg));
+  }
   :global(.editorial-margin-marker[aria-pressed="true"]) {
-    border-color: var(--color-accent);
+    border: 2px solid var(--accent-text);
+  }
+  :global(.editorial-margin-marker:focus-visible) {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
   }
   .editorial-sheet {
-    margin: var(--space-l) auto;
-    width: 100%;
+    width: calc(100% - 2 * var(--space-l));
     max-width: calc(var(--measure) + var(--space-xl) * 2);
-    box-sizing: border-box;
+    margin: var(--space-l) auto;
     padding: var(--space-xl);
+    box-sizing: border-box;
   }
   :global(.editorial-prose) {
-    font-family: var(--font-body);
-    font-size: var(--text-body);
-    line-height: var(--leading-relaxed);
-    color: var(--color-prose-text);
     max-width: var(--measure);
     min-height: 60vh;
     outline: none;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
+    font: var(--text-body) / var(--leading-relaxed) var(--font-body);
+    color: var(--color-prose-text);
   }
   :global(.editorial-prose p) {
     margin: 0;
@@ -502,50 +532,65 @@
     text-indent: 0;
   }
   :global(.editorial-prose blockquote) {
-    margin-block: 1em;
-    padding: var(--space-s);
-    background: var(--color-prose-callout-bg);
-    border-left: 4px solid var(--color-prose-blockquote-border);
-    border-radius: 0 var(--radius-m) var(--radius-m) 0;
+    margin: var(--space-s) 0;
+    padding: var(--space-3xs) 0 var(--space-3xs) var(--space-m);
+    border-left: 2px solid var(--color-prose-blockquote-border);
     font-style: italic;
     color: var(--color-prose-blockquote-text);
   }
+  :global(.editorial-prose blockquote p) {
+    text-indent: 0;
+  }
   :global(.editorial-search-match) {
-    background: var(--color-accent-wash);
-    outline: 1px solid var(--color-accent);
+    background: color-mix(in srgb, var(--terracotta) 18%, transparent);
+    outline: 1px solid var(--accent-text);
   }
   :global(.editorial-section) {
     padding-block: var(--space-l) var(--space-s);
-    border-bottom: 1px solid var(--color-border);
+    margin-bottom: var(--space-s);
+    border-bottom: 1px solid var(--color-prose-border);
     white-space: normal;
   }
+  :global(.editorial-section:first-child) {
+    padding-top: 0;
+  }
   :global(.editorial-section h2) {
-    font-family: var(--font-display);
-    font-size: var(--text-h2);
+    margin: 0 0 var(--space-3xs);
+    font: 550 var(--text-h1) / 1.15 var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-prose-text);
   }
   :global(.editorial-section p) {
-    font-family: var(--font-ui);
-    font-size: var(--text-small);
+    font: var(--text-ui) / 1.5 var(--font-ui);
     color: var(--color-prose-placeholder);
   }
+  /* Review marks: underline for insertions, strike for deletions, a
+     highlight with an underline for comments. Raw light palette, on paper. */
   :global(.editorial-insertion) {
-    color: var(--color-prose-text);
+    color: var(--green);
     text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 3px;
+    background: color-mix(in srgb, var(--green) 10%, transparent);
   }
   :global(.editorial-deletion) {
-    color: var(--color-prose-text);
+    color: var(--red);
     text-decoration: line-through;
+    text-decoration-thickness: 1.5px;
+    background: color-mix(in srgb, var(--red) 8%, transparent);
     white-space: pre-wrap;
   }
   :global(.editorial-deletion p) {
     display: inline;
   }
-  :global(.editorial-comment),
-  :global(.editorial-selected) {
-    background: var(--color-accent-wash);
-    border-bottom: 1px solid var(--color-accent);
+  :global(.editorial-comment) {
+    background: color-mix(in srgb, var(--terracotta) 12%, transparent);
+    border-bottom: 2px solid var(--terracotta);
+    cursor: pointer;
   }
   :global(.editorial-selected) {
-    outline: 1px solid var(--color-accent);
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+    border-radius: 2px;
   }
 </style>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { countLabel } from "../utils/plural";
   import { onMount, tick, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { open, save } from "@tauri-apps/plugin-dialog";
@@ -9,16 +10,14 @@
     BookOpen,
     Check,
     ChevronRight,
-    Code,
-    FilePlus2,
+    Download,
     FileDown,
     FileText,
-    LayoutTemplate,
-    ListTree,
+    Info,
+    Loader2,
     RefreshCw,
     Search,
-    Settings2,
-    Type,
+    TriangleAlert,
     X,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
@@ -77,28 +76,17 @@
   let dialog: HTMLDialogElement;
 
   const allCategories = [
-    {
-      id: "overview",
-      label: "Overview",
-      icon: LayoutTemplate,
-      description: "A familiar starting point",
-    },
-    { id: "content", label: "Content", icon: ListTree, description: "Choose what goes in" },
-    {
-      id: "headings",
-      label: "Headings & breaks",
-      icon: BookOpen,
-      description: "Give the story structure",
-    },
-    { id: "text", label: "Text & page", icon: Type, description: "Set the reading rhythm" },
-    {
-      id: "details",
-      label: "Book details",
-      icon: FileText,
-      description: "Title, author & contents",
-    },
-    { id: "files", label: "Files & format", icon: FileDown, description: "Prepare the handoff" },
+    { id: "overview", label: "Overview", description: "A familiar starting point" },
+    { id: "content", label: "Content", description: "Choose what goes in" },
+    { id: "headings", label: "Headings & breaks", description: "Give the story structure" },
+    { id: "text", label: "Text & page", description: "Set the reading rhythm" },
+    { id: "details", label: "Book details", description: "Title, author & contents" },
+    { id: "files", label: "Files & format", description: "Prepare the handoff" },
   ];
+  const presetDescriptions: Record<string, string> = {
+    docx: "A clean, familiar submission format",
+    epub: "A comfortable copy for your readers",
+  };
   const settingsIndex = [
     {
       label: "Included chapters",
@@ -220,6 +208,9 @@
   const preview = $derived(
     renderPreview(chapters, draft, { chapterId: actualPreviewChapter || undefined })
   );
+  const previewDocument = $derived(deskDocument(preview.document));
+  // Set when the frame has rendered the current document (it loads async).
+  let previewLoaded = $state("");
   const sourceText = $derived(
     plain ? compileWorkspaceDocument(chapters, draft).text : preview.output
   );
@@ -232,6 +223,28 @@
         (draft.sceneId !== null &&
           !chapters.some((c) => c.scenes.some((s) => s.id === draft.sceneId))))
   );
+
+  /** The preview sits on the app's desk: drop the export's own page backdrop
+      (the exported file keeps it) so the sheet reads as paper in both themes. */
+  /** Keep the selected section in view when the nav scrolls (compact windows). */
+  function keepVisible(node: HTMLElement, selected: boolean) {
+    const reveal = (on: boolean) => {
+      if (on) node.scrollIntoView?.({ block: "nearest" });
+    };
+    reveal(selected);
+    return { update: reveal };
+  }
+
+  function deskDocument(html: string): string {
+    // The sandboxed frame can't read app tokens, so pass the prose shadow in.
+    const probe = document.createElement("span");
+    probe.style.boxShadow = "var(--shadow-prose)";
+    document.body.appendChild(probe);
+    const shadow = getComputedStyle(probe).boxShadow || "none";
+    probe.remove();
+    const mount = `body{background:transparent;padding:16px 24px 32px}.manuscript{margin:0 auto;box-shadow:${shadow}}`;
+    return html.replace("</head>", `<style>${mount}</style></head>`);
+  }
 
   function mountDialog(node: HTMLDialogElement) {
     dialog = node;
@@ -368,6 +381,21 @@
     message = "";
   }
 
+  // A switch can be refused (unsaved edits that can't be kept), so re-sync the
+  // native control to the profile actually in use instead of the one clicked.
+  function switchProfileFromSelect(select: HTMLSelectElement) {
+    chooseProfile(select.value);
+    select.value = draft.id;
+  }
+
+  function choosePreset(id: string, input: HTMLInputElement) {
+    chooseProfile(id);
+    input
+      .closest("fieldset")
+      ?.querySelectorAll<HTMLInputElement>('input[type="radio"]')
+      .forEach((radio) => (radio.checked = radio.value === draft.id));
+  }
+
   function duplicateProfile() {
     if (storageBlocked) return;
     try {
@@ -474,11 +502,15 @@
     }
   }
   async function chooseCover() {
-    const path = await open({
-      title: "Choose an ebook cover",
-      filters: [{ name: "Cover image", extensions: ["png", "jpg", "jpeg"] }],
-    });
-    if (path) draft.coverPath = path;
+    try {
+      const path = await open({
+        title: "Choose an ebook cover",
+        filters: [{ name: "Cover image", extensions: ["png", "jpg", "jpeg"] }],
+      });
+      if (path) draft.coverPath = path;
+    } catch (e) {
+      error = `Could not choose a cover image: ${String(e)}`;
+    }
   }
 
   async function openSaved() {
@@ -500,45 +532,41 @@
     if (!saving) onClose();
   }}
 >
-  <header class="workspace-header">
-    <div class="identity">
-      <span class="export-icon"><FileDown size={21} /></span>
-      <div>
-        <h1 id="export-workspace-title">Export workspace</h1>
-      </div>
-    </div>
-    <div class="header-actions">
-      <button class="quiet" onclick={onClassic} disabled={saving}
-        ><ArrowLeft size={15} /> Back to export</button
+  <header class="xw-appbar">
+    <h3 id="export-workspace-title">Export workspace</h3>
+    <div class="xw-appbar-actions">
+      <button type="button" class="ka-button ka-button--ghost" onclick={onClassic} disabled={saving}
+        ><ArrowLeft class="w-5 h-5" aria-hidden="true" />Back to export</button
       ><button
-        class="icon-button"
+        type="button"
+        class="ka-button ka-button--ghost ka-icon-button"
         aria-label="Close export workspace"
+        title="Close export workspace"
         onclick={onClose}
-        disabled={saving}><X size={21} /></button
+        disabled={saving}><X class="w-5 h-5" aria-hidden="true" /></button
       >
     </div>
   </header>
 
-  <div class="profile-bar">
-    <div class="profile-picker">
+  <div class="xw-tools">
+    <div class="ka-field od-field xw-picker">
       <label for="export-profile">Export profile</label>
-      <div class="inline">
-        <select
-          id="export-profile"
-          value={draft.id}
-          onchange={(event) => chooseProfile(event.currentTarget.value)}
-          >{#each profiles as profile (profile.id)}<option value={profile.id}>{profile.name}</option
-            >{/each}</select
-        ><button
-          class="icon-button duplicate-profile"
-          aria-label="Duplicate profile"
-          title="Duplicate profile"
-          onclick={duplicateProfile}
-          disabled={storageBlocked}><FilePlus2 size={16} /></button
-        >
-      </div>
+      <select
+        id="export-profile"
+        value={draft.id}
+        onchange={(event) => switchProfileFromSelect(event.currentTarget)}
+        >{#each profiles as profile (profile.id)}<option value={profile.id}>{profile.name}</option
+          >{/each}</select
+      >
     </div>
-    <div class="format-picker">
+    <button
+      type="button"
+      class="ka-button ka-button--secondary"
+      aria-label="Duplicate profile"
+      onclick={duplicateProfile}
+      disabled={storageBlocked}>Duplicate profile</button
+    >
+    <div class="ka-field od-field xw-picker">
       <label for="export-format">Output format</label><select
         id="export-format"
         bind:value={draft.format}
@@ -552,574 +580,736 @@
         ></select
       >
     </div>
-    <div class="profile-status">
-      <span class:unsaved={dirty}
-        >{#if dirty}<span class="status-dot"></span> Unsaved changes{:else}<Check size={14} /> Profile
-          saved{/if}</span
-      ><small>Profiles stay on this device</small>
+    <div class="xw-status" role="status">
+      {#if dirty}<span class="ka-badge ka-badge--warning">Unsaved changes</span>{:else}<span
+          class="xw-ok"><Check class="w-5 h-5" aria-hidden="true" />Profile saved</span
+        >{/if}
+      <span class="xw-meta">Profiles stay on this device</span>
     </div>
   </div>
 
-  <div class="mobile-switch" aria-label="Workspace view">
-    <button class:active={narrowPane === "settings"} onclick={() => (narrowPane = "settings")}
-      ><Settings2 size={15} /> Settings</button
-    ><button class:active={narrowPane === "preview"} onclick={() => (narrowPane = "preview")}
-      ><BookOpen size={15} /> Preview</button
+  <div class="ka-segment-track xw-switch" role="group" aria-label="Workspace view">
+    <button
+      type="button"
+      class="ka-segment"
+      class:ka-selected={narrowPane === "settings"}
+      aria-pressed={narrowPane === "settings"}
+      onclick={() => (narrowPane = "settings")}>Settings</button
+    ><button
+      type="button"
+      class="ka-segment"
+      class:ka-selected={narrowPane === "preview"}
+      aria-pressed={narrowPane === "preview"}
+      onclick={() => (narrowPane = "preview")}>Preview</button
     >
   </div>
 
-  <div class="workspace-body">
-    <aside class="navigation" class:mobile-hidden={narrowPane === "preview"}>
-      <div class="search-box">
-        <Search size={15} /><input
-          aria-label="Find an export setting"
-          placeholder="Find a setting…"
-          bind:value={query}
-        />{#if query}<button
+  <div class="xw-body">
+    <aside class="xw-nav" class:mobile-hidden={narrowPane === "preview"}>
+      <div class="xw-search">
+        <div class="ka-field od-field od-fill">
+          <input
+            type="search"
+            aria-label="Find an export setting"
+            placeholder="Find a setting…"
+            bind:value={query}
+          />
+        </div>
+        {#if query}<button
+            type="button"
+            class="ka-button ka-button--ghost ka-icon-button"
             aria-label="Clear settings search"
-            class="icon-button"
-            onclick={() => (query = "")}><X size={14} /></button
+            title="Clear settings search"
+            onclick={() => (query = "")}><X class="w-5 h-5" aria-hidden="true" /></button
           >{/if}
       </div>
       {#if query.trim()}
-        <div class="search-results">
-          <small>{searchResults.length} settings found</small>{#each searchResults as item}<button
-              onclick={() => findSetting(item)}>{item.label}<ChevronRight size={14} /></button
-            >{/each}{#if !searchResults.length}<p>Try “spacing,” “header,” or “HTML.”</p>{/if}
-        </div>
+        {#if searchResults.length}
+          <p class="xw-meta" role="status">{searchResults.length} settings found</p>
+          <ul class="xw-results">
+            {#each searchResults as item (item.control)}<li>
+                <button type="button" class="xw-row-button" onclick={() => findSetting(item)}
+                  ><span class="od-fill">{item.label}</span><ChevronRight
+                    class="w-5 h-5"
+                    aria-hidden="true"
+                  /></button
+                >
+              </li>{/each}
+          </ul>
+        {:else}
+          <div class="ka-empty od-stack xw-empty" role="status">
+            <Search class="w-7 h-7" aria-hidden="true" />
+            <h4>No settings match “{query.trim()}”</h4>
+            <p>Try “spacing,” “header,” or “HTML.”</p>
+          </div>
+        {/if}
       {:else}
-        <nav aria-label="Export settings">
-          {#each categories as category}<button
-              class:active={section === category.id}
-              aria-current={section === category.id ? "page" : undefined}
-              onclick={() => (section = category.id)}
-              ><category.icon size={17} /><span
-                >{category.label}<small>{category.description}</small></span
-              >{#if section === category.id}<ChevronRight size={14} />{/if}</button
-            >{/each}
+        <nav class="ka-tree" aria-label="Export settings">
+          <ul class="ka-tree-list">
+            {#each categories as category (category.id)}<li>
+                <button
+                  type="button"
+                  class:ka-tree-selected={section === category.id}
+                  aria-current={section === category.id ? "page" : undefined}
+                  use:keepVisible={section === category.id}
+                  onclick={() => (section = category.id)}
+                  ><span class="od-field od-fill"
+                    ><span>{category.label}</span><small>{category.description}</small></span
+                  ></button
+                >
+              </li>{/each}
+          </ul>
         </nav>
-        <div class="sidebar-note">
-          <BookOpen size={19} />
-          <p>Make it yours.<br /><span>Your manuscript stays exactly as you wrote it.</span></p>
-        </div>
+        <p class="ka-help xw-nav-note">
+          Make it yours. Your manuscript stays exactly as you wrote it.
+        </p>
       {/if}
     </aside>
 
     <section
-      class="settings-panel"
+      class="settings-panel xw-pane"
       class:mobile-hidden={narrowPane === "preview"}
       aria-label="Export configuration"
     >
-      <div class="section-heading">
-        <div class="eyebrow">{formatLabels[draft.format]}</div>
-        <h2>{visibleCategory.label}</h2>
-        <p>{visibleCategory.description}.</p>
+      <div class="xw-pane-head">
+        <p class="xw-meta">{formatLabels[draft.format]}</p>
+        <h3>{visibleCategory.label}</h3>
+        <p class="ka-help">{visibleCategory.description}.</p>
       </div>
 
       {#if section === "overview"}
-        <div class="field">
-          <label for="export-name">Profile name</label><input
-            id="export-name"
-            bind:value={draft.name}
-            maxlength="100"
-          /><small>Name it for a recipient or a writing routine.</small>
+        <div class="xw-group">
+          <div class="ka-field od-field">
+            <label for="export-name">Profile name</label><input
+              id="export-name"
+              bind:value={draft.name}
+              maxlength="100"
+              aria-invalid={!draft.name.trim() || undefined}
+              aria-describedby="export-name-help"
+            />
+            <p class="ka-help" id="export-name-help">
+              Name it for a recipient or a writing routine.
+            </p>
+          </div>
         </div>
-        <h3 class="subheading">A starting point for every handoff</h3>
-        <div class="preset-list">
-          {#each profiles.slice(0, 3) as preset}<button
-              class:selected={draft.id === preset.id}
-              onclick={() => chooseProfile(preset.id)}
-              ><span class="preset-icon"
-                >{#if preset.format === "docx"}<FileText
-                    size={21}
-                  />{:else if preset.format === "epub"}<BookOpen size={21} />{:else}<Code
-                    size={21}
-                  />{/if}</span
-              ><span
-                ><strong>{preset.name}</strong><small
-                  >{preset.format === "docx"
-                    ? "A clean, familiar submission format"
-                    : preset.format === "epub"
-                      ? "A comfortable copy for your readers"
-                      : "Clean markup for your next destination"}</small
-                ></span
-              >{#if draft.id === preset.id}<Check size={17} />{:else}<ArrowRight
-                  size={16}
-                />{/if}</button
-            >{/each}
+        <div class="xw-group">
+          <fieldset class="xw-choice-list">
+            <legend class="xw-label">A starting point for every handoff</legend>
+            {#each profiles.slice(0, 3) as preset (preset.id)}<div class="ka-check xw-choice">
+                <input
+                  id={`export-preset-${preset.id}`}
+                  type="radio"
+                  name="export-starting-point"
+                  value={preset.id}
+                  checked={draft.id === preset.id}
+                  aria-describedby={`export-preset-${preset.id}-help`}
+                  onchange={(event) => choosePreset(preset.id, event.currentTarget)}
+                />
+                <div class="od-field od-fill">
+                  <label for={`export-preset-${preset.id}`}>{preset.name}</label>
+                  <p class="ka-help" id={`export-preset-${preset.id}-help`}>
+                    {presetDescriptions[preset.format] ?? "Clean markup for your next destination"}
+                  </p>
+                </div>
+              </div>{/each}
+          </fieldset>
         </div>
-        <h3 class="subheading">At a glance</h3>
-        <div class="summary-list">
-          {#if !exchange}<button onclick={() => (section = "content")}
-              ><span>Content</span><strong>{selected.length} chapters · {sceneCount} scenes</strong
-              ><ChevronRight size={14} /></button
-            >
-            {#if !plain}<button onclick={() => (section = "text")}
-                ><span>Typography</span><strong>{draft.font} · {draft.fontSize} pt</strong
-                ><ChevronRight size={14} /></button
-              >{/if}
-            <button onclick={() => (section = "headings")}
-              ><span>Scene breaks</span><strong>{draft.separator || "Blank line"}</strong
-              ><ChevronRight size={14} /></button
-            >{:else}<button onclick={() => (section = "files")}
-              ><span>Content</span><strong>Whole project</strong><ChevronRight size={14} /></button
-            >{/if}
-          <button onclick={() => (section = "files")}
-            ><span>Output</span><strong>{formatLabels[draft.format]}</strong><ChevronRight
-              size={14}
-            /></button
-          >
+        <div class="xw-group">
+          <h4 class="xw-label">At a glance</h4>
+          <dl class="ka-facts xw-facts">
+            {#if !exchange}
+              <div>
+                <dt>Content</dt>
+                <dd class="ka-between">
+                  <span
+                    >{countLabel(selected.length, "chapter")} · {countLabel(
+                      sceneCount,
+                      "scene"
+                    )}</span
+                  ><button
+                    type="button"
+                    class="ka-button ka-button--ghost"
+                    aria-label="Change content"
+                    onclick={() => (section = "content")}>Change</button
+                  >
+                </dd>
+              </div>
+              {#if !plain}
+                <div>
+                  <dt>Text &amp; page</dt>
+                  <dd class="ka-between">
+                    <span>{draft.font} · {draft.fontSize} pt</span><button
+                      type="button"
+                      class="ka-button ka-button--ghost"
+                      aria-label="Change text and page"
+                      onclick={() => (section = "text")}>Change</button
+                    >
+                  </dd>
+                </div>
+              {/if}
+              <div>
+                <dt>Headings &amp; breaks</dt>
+                <dd class="ka-between">
+                  <span>{draft.separator || "Blank line"}</span><button
+                    type="button"
+                    class="ka-button ka-button--ghost"
+                    aria-label="Change headings and breaks"
+                    onclick={() => (section = "headings")}>Change</button
+                  >
+                </dd>
+              </div>
+            {:else}
+              <div>
+                <dt>Content</dt>
+                <dd class="ka-between">
+                  <span>Whole project</span><button
+                    type="button"
+                    class="ka-button ka-button--ghost"
+                    aria-label="Change content"
+                    onclick={() => (section = "files")}>Change</button
+                  >
+                </dd>
+              </div>
+            {/if}
+            <div>
+              <dt>Output</dt>
+              <dd class="ka-between">
+                <span>{formatLabels[draft.format]}</span><button
+                  type="button"
+                  class="ka-button ka-button--ghost"
+                  aria-label="Change output"
+                  onclick={() => (section = "files")}>Change</button
+                >
+              </dd>
+            </div>
+          </dl>
+          <p class="ka-help">
+            {exchange
+              ? "This format uses its dedicated exporter to preserve project structure and metadata. Configure the handoff in Files & format."
+              : "Your selected settings are applied to the exported file. The on-screen preview is an approximation of Word pagination and ebook reading systems."}
+          </p>
         </div>
-        <p class="callout">
-          {exchange
-            ? "This format uses its dedicated exporter to preserve project structure and metadata. Configure the handoff in Files & format."
-            : "Your selected settings are applied to the exported file. The on-screen preview is an approximation of Word pagination and ebook reading systems."}
-        </p>
       {:else if section === "content"}
-        <div class="field">
-          <label for="export-scope">Include in this export</label><select
-            id="export-scope"
-            bind:value={draft.selection}
-            onchange={() => {
-              draft.sceneId = null;
-              if (draft.selection === "selected" && !draft.chapterIds.length)
-                draft.chapterIds = chapters.map((c) => c.id);
-            }}
-            ><option value="all">Entire manuscript</option><option value="selected"
-              >Selected chapters</option
-            ></select
-          >
-        </div>
-        {#if contextOverride}<p class="callout">
-            Opened for your selected {scope}. Saving this profile will remember that selection.
-          </p>{/if}
-        {#if draft.sceneId}<p class="callout">
-            Only the selected scene is included. <button
-              class="text-button"
-              onclick={() => (draft.sceneId = null)}>Include the rest of its chapter</button
+        <div class="xw-group">
+          <div class="ka-field od-field">
+            <label for="export-scope">Include in this export</label><select
+              id="export-scope"
+              bind:value={draft.selection}
+              onchange={() => {
+                draft.sceneId = null;
+                if (draft.selection === "selected" && !draft.chapterIds.length)
+                  draft.chapterIds = chapters.map((c) => c.id);
+              }}
+              ><option value="all">Entire manuscript</option><option value="selected"
+                >Selected chapters</option
+              ></select
             >
-          </p>{/if}
-        <div class="chapter-list" aria-label="Chapter selection">
-          {#each chapters as chapter}<label class="chapter-row"
+          </div>
+          {#if contextOverride}<div class="ka-notice od-row-top">
+              <Info class="w-5 h-5" aria-hidden="true" />
+              <div class="od-field od-fill">
+                <p>
+                  Opened for your selected {scope}. Saving this profile will remember that
+                  selection.
+                </p>
+              </div>
+            </div>{/if}
+          {#if draft.sceneId}<div class="ka-notice od-row-top">
+              <Info class="w-5 h-5" aria-hidden="true" />
+              <div class="od-field od-fill xw-notice-body">
+                <p>Only the selected scene is included.</p>
+                <button
+                  type="button"
+                  class="ka-button ka-button--ghost"
+                  onclick={() => (draft.sceneId = null)}>Include the rest of its chapter</button
+                >
+              </div>
+            </div>{/if}
+          <div class="chapter-list" role="group" aria-label="Chapter selection">
+            {#each chapters as chapter (chapter.id)}<label class="ka-check xw-check chapter-row"
+                ><input
+                  type="checkbox"
+                  checked={draft.selection === "all" || draft.chapterIds.includes(chapter.id)}
+                  disabled={draft.selection === "all"}
+                  onchange={(event) => selectChapter(chapter.id, event.currentTarget.checked)}
+                /><span class="xw-check-text"
+                  ><span>{chapter.title}</span><small
+                    >{countLabel(chapter.scenes.length, "scene")}{chapter.part
+                      ? ` · ${chapter.part}`
+                      : ""}</small
+                  ></span
+                ></label
+              >{/each}
+          </div>
+        </div>
+        <div class="xw-group">
+          <h4 class="xw-label">Alongside the prose</h4>
+          <div class="xw-checks">
+            <label class="ka-check xw-check"
               ><input
+                id="export-scene-titles"
                 type="checkbox"
-                checked={draft.selection === "all" || draft.chapterIds.includes(chapter.id)}
-                disabled={draft.selection === "all"}
-                onchange={(event) => selectChapter(chapter.id, event.currentTarget.checked)}
-              /><span
-                >{chapter.title}<small
-                  >{chapter.scenes.length} scenes{chapter.part ? ` · ${chapter.part}` : ""}</small
+                bind:checked={draft.sceneTitles}
+              /><span class="xw-check-text"
+                ><span>Scene titles</span><small>Use your scene names as headings.</small></span
+              ></label
+            >
+            <label class="ka-check xw-check"
+              ><input type="checkbox" bind:checked={draft.synopses} /><span class="xw-check-text"
+                ><span>Scene synopses</span><small>Add the scene summary before its prose.</small
                 ></span
               ></label
-            >{/each}
+            >
+            <label class="ka-check xw-check"
+              ><input id="export-beats" type="checkbox" bind:checked={draft.beatHeadings} /><span
+                class="xw-check-text"
+                ><span>Beat headings</span><small>Page View outlines follow the scene prose.</small
+                ></span
+              ></label
+            >
+          </div>
+          <p class="ka-help">
+            Archived chapters and scenes, unused scenes, notes, to-dos, and editorial comments are
+            excluded from the manuscript export.
+          </p>
         </div>
-        <h3 class="subheading">Alongside the prose</h3>
-        <label class="check-row"
-          ><input id="export-scene-titles" type="checkbox" bind:checked={draft.sceneTitles} /><span
-            >Scene titles<small>Use your scene names as headings.</small></span
-          ></label
-        >
-        <label class="check-row"
-          ><input type="checkbox" bind:checked={draft.synopses} /><span
-            >Scene synopses<small>Add the scene summary before its prose.</small></span
-          ></label
-        >
-        <label class="check-row"
-          ><input id="export-beats" type="checkbox" bind:checked={draft.beatHeadings} /><span
-            >Beat headings<small>Page View outlines follow the scene prose.</small></span
-          ></label
-        >
-        <p class="footnote">
-          Archived chapters and scenes, unused scenes, notes, to-dos, and editorial comments are
-          excluded from the manuscript export.
-        </p>
       {:else if section === "headings"}
-        <div class="field">
-          <label for="export-heading">Chapter heading</label><select
-            id="export-heading"
-            bind:value={draft.chapterHeading}
-            ><option value="number_title">Number and title</option><option value="number"
-              >Number only</option
-            ><option value="title">Title only</option><option value="none">No heading</option
-            ></select
-          ><small
-            >{draft.chapterHeading === "number_title"
-              ? "Chapter 1: The Crossing"
-              : draft.chapterHeading === "number"
-                ? "Chapter 1"
-                : draft.chapterHeading === "title"
-                  ? "The Crossing"
-                  : "Prose begins without a chapter heading"}</small
-          >
+        <div class="xw-group">
+          <div class="ka-field od-field">
+            <label for="export-heading">Chapter heading</label><select
+              id="export-heading"
+              bind:value={draft.chapterHeading}
+              ><option value="number_title">Number and title</option><option value="number"
+                >Number only</option
+              ><option value="title">Title only</option><option value="none">No heading</option
+              ></select
+            >
+            <p class="ka-help">
+              {draft.chapterHeading === "number_title"
+                ? "Chapter 1: The Crossing"
+                : draft.chapterHeading === "number"
+                  ? "Chapter 1"
+                  : draft.chapterHeading === "title"
+                    ? "The Crossing"
+                    : "Prose begins without a chapter heading"}
+            </p>
+          </div>
+          {#if draft.chapterHeading.startsWith("number")}<div class="xw-pair">
+              <div class="ka-field od-field">
+                <label for="export-number-style">Number style</label><select
+                  id="export-number-style"
+                  bind:value={draft.numberStyle}
+                  ><option value="arabic">1, 2, 3</option><option value="roman">I, II, III</option
+                  ></select
+                >
+              </div>
+              <div class="ka-field od-field">
+                <label for="export-number-start">Start at</label><input
+                  id="export-number-start"
+                  type="number"
+                  min="1"
+                  max="999"
+                  bind:value={draft.startNumber}
+                />
+              </div>
+            </div>{/if}
         </div>
-        {#if draft.chapterHeading.startsWith("number")}<div class="field-grid">
-            <div class="field">
-              <label for="export-number-style">Number style</label><select
-                id="export-number-style"
-                bind:value={draft.numberStyle}
-                ><option value="arabic">1, 2, 3</option><option value="roman">I, II, III</option
+        <div class="xw-group">
+          <div class="ka-field od-field">
+            <label for="export-separator">Between scenes</label><input
+              id="export-separator"
+              bind:value={draft.separator}
+              maxlength="80"
+              aria-describedby="export-separator-help"
+            />
+            <div class="xw-chips" role="group" aria-label="Scene break markers">
+              {#each ["#", "* * *", "⁂", ""] as marker (marker)}<button
+                  type="button"
+                  class="ka-tag"
+                  aria-pressed={draft.separator === marker}
+                  onclick={() => (draft.separator = marker)}>{marker || "Blank line"}</button
+                >{/each}
+            </div>
+            <p class="ka-help" id="export-separator-help">
+              A centered marker separates scenes within a chapter.
+            </p>
+          </div>
+          <div class="xw-checks">
+            <label class="ka-check xw-check"
+              ><input type="checkbox" bind:checked={draft.partTitles} /><span class="xw-check-text"
+                ><span>Include Part titles</span><small
+                  >Keep the larger movements of your story.</small
+                ></span
+              ></label
+            >
+            {#if draft.format === "docx"}<label class="ka-check xw-check"
+                ><input
+                  id="export-chapter-breaks"
+                  type="checkbox"
+                  bind:checked={draft.chapterBreaks}
+                /><span class="xw-check-text"
+                  ><span>Start chapters on a new page</span><small
+                    >Dashed boundaries in preview; page breaks when printing HTML.</small
+                  ></span
+                ></label
+              >{/if}
+          </div>
+        </div>
+      {:else if section === "text"}
+        <div class="xw-group">
+          <div class="xw-pair">
+            <div class="ka-field od-field">
+              <label for="export-font">Body font</label><select
+                id="export-font"
+                bind:value={draft.font}
+                >{#each ["Times New Roman", "Courier New", "Georgia", "Arial"] as font (font)}<option
+                    >{font}</option
+                  >{/each}</select
+              >
+            </div>
+            <div class="ka-field od-field">
+              <label for="export-font-size">Size (pt)</label><input
+                id="export-font-size"
+                type="number"
+                min="8"
+                max="24"
+                bind:value={draft.fontSize}
+              />
+            </div>
+          </div>
+          <div class="ka-field od-field">
+            <label for="export-spacing">Line spacing</label><select
+              id="export-spacing"
+              bind:value={draft.lineSpacing}
+              ><option value={1}>Single</option><option value={1.5}>1.5 lines</option><option
+                value={1.6}>Comfortable · 1.6 lines</option
+              ><option value={2}>Double</option><option value={2.5}>2.5 lines</option></select
+            >
+          </div>
+          <div class="xw-pair">
+            <div class="ka-field od-field">
+              <label for="export-indent">First-line indent (in)</label><input
+                id="export-indent"
+                type="number"
+                min="0"
+                max="1"
+                step="0.05"
+                bind:value={draft.indent}
+              />
+            </div>
+            <div class="ka-field od-field">
+              <label for="export-paragraph-spacing">After paragraphs (pt)</label><input
+                id="export-paragraph-spacing"
+                type="number"
+                min="0"
+                max="36"
+                step="1"
+                bind:value={draft.paragraphSpacing}
+              />
+            </div>
+          </div>
+          <label class="ka-check"
+            ><input type="checkbox" bind:checked={draft.firstParagraphFlush} /> No indent after a heading
+            or scene break</label
+          >
+          <details class="xw-details">
+            <summary
+              ><span>More text options</span><span class="xw-meta"
+                >{draft.alignment === "left" ? "Left aligned" : "Justified"}</span
+              ></summary
+            >
+            <div class="ka-field od-field">
+              <label for="export-alignment">Body alignment</label><select
+                id="export-alignment"
+                bind:value={draft.alignment}
+                ><option value="left">Left aligned</option><option value="justify">Justified</option
                 ></select
               >
             </div>
-            <div class="field">
-              <label for="export-number-start">Start at</label><input
-                id="export-number-start"
-                type="number"
-                min="1"
-                max="999"
-                bind:value={draft.startNumber}
-              />
+          </details>
+        </div>
+        {#if draft.format === "docx"}<div class="xw-group">
+            <h4 class="xw-label">Page layout</h4>
+            <div class="xw-pair">
+              <div class="ka-field od-field">
+                <label for="export-paper">Paper size</label><select
+                  id="export-paper"
+                  bind:value={draft.paper}
+                  ><option value="letter">US Letter</option><option value="a4">A4</option></select
+                >
+              </div>
+              <div class="ka-field od-field">
+                <label for="export-margin">Margins (in)</label><input
+                  id="export-margin"
+                  type="number"
+                  min="0.25"
+                  max="2"
+                  step="0.25"
+                  bind:value={draft.margin}
+                />
+              </div>
             </div>
-          </div>{/if}
-        <div class="field">
-          <label for="export-separator">Between scenes</label><input
-            id="export-separator"
-            bind:value={draft.separator}
-            maxlength="80"
-          />
-          <div class="chip-row">
-            {#each ["#", "* * *", "⁂", ""] as marker}<button
-                class:chosen={draft.separator === marker}
-                onclick={() => (draft.separator = marker)}>{marker || "Blank line"}</button
-              >{/each}
-          </div>
-          <small>A centered marker separates scenes within a chapter.</small>
-        </div>
-        <label class="check-row"
-          ><input type="checkbox" bind:checked={draft.partTitles} /><span
-            >Include Part titles<small>Keep the larger movements of your story.</small></span
-          ></label
-        >
-        {#if draft.format === "docx"}<label class="check-row"
-            ><input
-              id="export-chapter-breaks"
-              type="checkbox"
-              bind:checked={draft.chapterBreaks}
-            /><span
-              >Start chapters on a new page<small
-                >Dashed boundaries in preview; page breaks when printing HTML.</small
-              ></span
-            ></label
-          >{/if}
-      {:else if section === "text"}
-        <div class="field-grid">
-          <div class="field">
-            <label for="export-font">Body font</label><select
-              id="export-font"
-              bind:value={draft.font}
-              >{#each ["Times New Roman", "Courier New", "Georgia", "Arial"] as font}<option
-                  >{font}</option
-                >{/each}</select
-            >
-          </div>
-          <div class="field">
-            <label for="export-font-size">Size (pt)</label><input
-              id="export-font-size"
-              type="number"
-              min="8"
-              max="24"
-              bind:value={draft.fontSize}
-            />
-          </div>
-        </div>
-        <div class="field">
-          <label for="export-spacing">Line spacing</label><select
-            id="export-spacing"
-            bind:value={draft.lineSpacing}
-            ><option value={1}>Single</option><option value={1.5}>1.5 lines</option><option
-              value={1.6}>Comfortable · 1.6 lines</option
-            ><option value={2}>Double</option><option value={2.5}>2.5 lines</option></select
-          >
-        </div>
-        <div class="field-grid">
-          <div class="field">
-            <label for="export-indent">First-line indent (in)</label><input
-              id="export-indent"
-              type="number"
-              min="0"
-              max="1"
-              step="0.05"
-              bind:value={draft.indent}
-            />
-          </div>
-          <div class="field">
-            <label for="export-paragraph-spacing">After paragraphs (pt)</label><input
-              id="export-paragraph-spacing"
-              type="number"
-              min="0"
-              max="36"
-              step="1"
-              bind:value={draft.paragraphSpacing}
-            />
-          </div>
-        </div>
-        <label class="check-row"
-          ><input type="checkbox" bind:checked={draft.firstParagraphFlush} /><span
-            >No indent after a heading or scene break</span
-          ></label
-        >
-        <details>
-          <summary
-            >More text options <span
-              >{draft.alignment === "left" ? "Left aligned" : "Justified"}</span
-            ></summary
-          >
-          <div class="field">
-            <label for="export-alignment">Body alignment</label><select
-              id="export-alignment"
-              bind:value={draft.alignment}
-              ><option value="left">Left aligned</option><option value="justify">Justified</option
-              ></select
-            >
-          </div>
-        </details>
-        {#if draft.format === "docx"}<h3 class="subheading">Page layout</h3>
-          <div class="field-grid">
-            <div class="field">
-              <label for="export-paper">Paper size</label><select
-                id="export-paper"
-                bind:value={draft.paper}
-                ><option value="letter">US Letter</option><option value="a4">A4</option></select
-              >
-            </div>
-            <div class="field">
-              <label for="export-margin">Margins (in)</label><input
-                id="export-margin"
-                type="number"
-                min="0.25"
-                max="2"
-                step="0.25"
-                bind:value={draft.margin}
-              />
-            </div>
-          </div>
-          <p class="footnote">
-            Word output uses your paper size, margins, chapter breaks, and repeating header. This
-            flowing preview does not reproduce Word pagination or page numbers.
-          </p>{:else}<p class="footnote">
+            <p class="ka-help">
+              Word output uses your paper size, margins, chapter breaks, and repeating header. This
+              flowing preview does not reproduce Word pagination or page numbers.
+            </p>
+          </div>{:else}<p class="ka-help xw-note">
             Reflowable output has no fixed paper size. An ebook reader may override your font and
             spacing preferences.
           </p>{/if}
-        {#if draft.format === "html" && !draft.styled}<p class="callout">
-            HTML styling is off. <button class="text-button" onclick={() => (draft.styled = true)}
-              >Enable styling</button
-            > to see these typography settings.
-          </p>{/if}
-      {:else if section === "details"}
-        <div class="field">
-          <label for="export-title">Book title</label><input
-            id="export-title"
-            bind:value={draft.title}
-          />
-        </div>
-        <div class="field">
-          <label for="export-author">Author / pen name</label><input
-            id="export-author"
-            bind:value={draft.author}
-            placeholder="Your publishing name"
-          />
-        </div>
-        <label class="check-row"
-          ><input type="checkbox" bind:checked={draft.titlePage} /><span
-            >{plain ? "Include a title block" : "Include a title page"}<small
-              >Choose “Whole selection” in the preview to see it.</small
-            ></span
-          ></label
-        >
-        {#if draft.titlePage}<div class="field">
-            <label for="export-subtitle">Subtitle (optional)</label><input
-              id="export-subtitle"
-              bind:value={draft.subtitle}
-            />
-          </div>
-          <div class="field">
-            <label for="export-word-count">Title-page word count</label><select
-              id="export-word-count"
-              bind:value={draft.wordCount}
-              ><option value="rounded">Rounded to nearest 1,000</option><option value="exact"
-                >Exact prose count</option
-              ><option value="none">Omit</option></select
-            >
-          </div>{/if}
-        {#if draft.format === "docx"}<div class="field">
-            <label for="export-header">Running header</label><select
-              id="export-header"
-              bind:value={draft.header}
-              ><option value="author_title">Author / Title</option><option value="title"
-                >Title only</option
-              ><option value="none">None</option></select
-            ><small
-              >Repeats in Word, with no header on the title page. Shown once in this preview.</small
-            >
-          </div>{/if}
-        <label class="check-row"
-          ><input id="export-contents" type="checkbox" bind:checked={draft.contents} /><span
-            >Table of contents<small
-              >{plain
-                ? "Lists the chapter titles in your selection."
-                : "Links to the chapters in your full selection."}</small
-            ></span
-          ></label
-        >
-        {#if draft.format === "epub" || draft.format === "html"}
-          <details>
-            <summary>Language <span>{draft.language}</span></summary>
-            <div class="field">
-              <label for="export-language">Document language</label><select
-                id="export-language"
-                bind:value={draft.language}
-                ><option value="en">English</option><option value="en-GB">English (UK)</option
-                ><option value="fr">French</option><option value="de">German</option><option
-                  value="es">Spanish</option
-                ><option value="pt">Portuguese</option></select
+        {#if draft.format === "html" && !draft.styled}<div class="ka-notice od-row-top xw-note">
+            <Info class="w-5 h-5" aria-hidden="true" />
+            <div class="od-field od-fill xw-notice-body">
+              <p>HTML styling is off. Enable styling to see these typography settings.</p>
+              <button
+                type="button"
+                class="ka-button ka-button--ghost"
+                onclick={() => (draft.styled = true)}>Enable styling</button
               >
             </div>
-          </details>
-        {/if}
-        {#if draft.format === "epub"}<h3 class="subheading">Ebook metadata</h3>
-          <div class="field">
-            <label for="export-description">Description</label><textarea
-              id="export-description"
-              rows="3"
-              bind:value={draft.description}
-            ></textarea>
-          </div>
-          <div class="field">
-            <label for="export-cover">Cover image</label><input
-              id="export-cover"
-              readonly
-              value={draft.coverPath}
-              placeholder="Optional PNG or JPEG"
+          </div>{/if}
+      {:else if section === "details"}
+        <div class="xw-group">
+          <div class="ka-field od-field">
+            <label for="export-title">Book title</label><input
+              id="export-title"
+              bind:value={draft.title}
             />
-            <div class="inline">
-              <button class="secondary" onclick={chooseCover}>Choose cover</button
-              >{#if draft.coverPath}<button class="quiet" onclick={() => (draft.coverPath = "")}
-                  >Remove</button
-                >{/if}
-            </div>
-            <small
-              >The cover is embedded in the EPUB; it is not shown in the manuscript preview.</small
-            >
           </div>
-        {/if}
-      {:else if section === "files"}
-        <div class="field">
-          <label for="export-filename">Filename pattern</label><input
-            id="export-filename"
-            bind:value={draft.fileName}
-          />
-          <div class="chip-row">
-            {#each ["{title}", "{profile}", "{date}"] as token}<button
-                onclick={() => (draft.fileName += token)}>+ {token}</button
-              >{/each}
+          <div class="ka-field od-field">
+            <label for="export-author">Author / pen name</label><input
+              id="export-author"
+              bind:value={draft.author}
+              placeholder="Your publishing name"
+            />
           </div>
-          <small class="filename-sample">{fileName}</small>
-        </div>
-        {#if draft.format === "html"}<div class="field">
-            <label for="export-html-mode">HTML structure</label><select
-              id="export-html-mode"
-              bind:value={draft.htmlMode}
-              ><option value="document">Complete HTML document</option><option value="fragment"
-                >Body fragment for pasting</option
-              ></select
-            ><small>Both are saved as a single .html file </small>
-          </div>
-          <div class="field">
-            <label for="export-html-heading">Chapter heading element</label><select
-              id="export-html-heading"
-              bind:value={draft.headingLevel}
-              ><option value="h1">Heading 1 · &lt;h1&gt;</option><option value="h2"
-                >Heading 2 · &lt;h2&gt;</option
-              ></select
-            >
-          </div>
-          <label class="check-row"
-            ><input type="checkbox" bind:checked={draft.styled} /><span
-              >Include built-in styling<small>Turn off for clean semantic markup.</small></span
-            ></label
-          >{/if}
-        {#if draft.format === "novelwriter"}
-          <label class="check-row"
-            ><input type="checkbox" bind:checked={draft.includeNotes} /><span
-              >Reference notes<small>Include character, location, and reference material.</small
+          <label class="ka-check xw-check"
+            ><input type="checkbox" bind:checked={draft.titlePage} /><span class="xw-check-text"
+              ><span>{plain ? "Include a title block" : "Include a title page"}</span><small
+                >Choose “Whole selection” in the preview to see it.</small
               ></span
             ></label
           >
-          <label class="check-row"
-            ><input type="checkbox" bind:checked={draft.includeBeatComments} /><span
-              >Beat comments<small>Retain outline prompts as comments.</small></span
+          {#if draft.titlePage}<div class="ka-field od-field">
+              <label for="export-subtitle"
+                >Subtitle <span class="ka-optional">(optional)</span></label
+              ><input id="export-subtitle" bind:value={draft.subtitle} />
+            </div>
+            <div class="ka-field od-field">
+              <label for="export-word-count">Title-page word count</label><select
+                id="export-word-count"
+                bind:value={draft.wordCount}
+                ><option value="rounded">Rounded to nearest 1,000</option><option value="exact"
+                  >Exact prose count</option
+                ><option value="none">Omit</option></select
+              >
+            </div>{/if}
+          {#if draft.format === "docx"}<div class="ka-field od-field">
+              <label for="export-header">Running header</label><select
+                id="export-header"
+                bind:value={draft.header}
+                ><option value="author_title">Author / Title</option><option value="title"
+                  >Title only</option
+                ><option value="none">None</option></select
+              >
+              <p class="ka-help">
+                Repeats in Word, with no header on the title page. Shown once in this preview.
+              </p>
+            </div>{/if}
+          <label class="ka-check xw-check"
+            ><input id="export-contents" type="checkbox" bind:checked={draft.contents} /><span
+              class="xw-check-text"
+              ><span>Table of contents</span><small
+                >{plain
+                  ? "Lists the chapter titles in your selection."
+                  : "Links to the chapters in your full selection."}</small
+              ></span
             ></label
           >
-        {:else if draft.format === "treatment"}
-          <div class="field">
-            <label for="export-treatment-level">Treatment detail</label><select
-              id="export-treatment-level"
-              bind:value={draft.treatmentLevel}
-              ><option value="one_page">One page · overview</option><option value="five_page"
-                >Five pages · key scenes</option
-              ><option value="full">Full · scenes and beats</option></select
-            ><small>Detail levels guide the content; page counts depend on the material.</small>
-          </div>
-          <div class="field">
-            <label for="export-treatment-format">Treatment file</label><select
-              id="export-treatment-format"
-              bind:value={draft.treatmentFormat}
-              ><option value="docx">Word document (.docx)</option><option value="txt"
-                >Plain text (.txt)</option
-              ></select
-            >
-          </div>
-        {:else if draft.format === "scrivener"}<p class="callout">
-            Creates a new .scriv project. To update an existing Scrivener project with scene
-            matching and backups, use Back to export.
-          </p>
-        {:else if draft.format === "longform"}<p class="callout">
-            Creates a Longform index, individual scene files, and reference notes. Project and
-            round-trip metadata are retained.
-          </p>{/if}
-        <div class="file-card">
-          <FileText size={24} />
-          <div>
-            <strong>{formatLabels[draft.format]}</strong><small
-              >{exchange
-                ? "Whole project · dedicated exporter"
-                : `${selected.length} chapters · ${sceneCount} scenes`}</small
-            >
-          </div>
-          <span
-            >{["longform", "novelwriter"].includes(draft.format)
-              ? "Folder"
-              : `.${outputExtension(draft)}`}</span
-          >
+          {#if draft.format === "epub" || draft.format === "html"}
+            <details class="xw-details">
+              <summary><span>Language</span><span class="xw-meta">{draft.language}</span></summary>
+              <div class="ka-field od-field">
+                <label for="export-language">Document language</label><select
+                  id="export-language"
+                  bind:value={draft.language}
+                  ><option value="en">English</option><option value="en-GB">English (UK)</option
+                  ><option value="fr">French</option><option value="de">German</option><option
+                    value="es">Spanish</option
+                  ><option value="pt">Portuguese</option></select
+                >
+              </div>
+            </details>
+          {/if}
         </div>
-        <p class="callout">
-          Choose a destination when exporting. Existing files and folders are preserved; use a new
-          name for each export.
-        </p>
-        {#if draft.format === "markdown"}<p class="footnote">
-            Exports a single manuscript file with headings, emphasis, lists, and block quotations.
-            For an Obsidian project with separate scene files and reference notes, choose Longform /
-            Obsidian.
-          </p>{/if}
+        {#if draft.format === "epub"}<div class="xw-group">
+            <h4 class="xw-label">Ebook metadata</h4>
+            <div class="ka-field od-field">
+              <label for="export-description">Description</label><textarea
+                id="export-description"
+                rows="3"
+                bind:value={draft.description}
+              ></textarea>
+            </div>
+            <div class="ka-field od-field">
+              <label for="export-cover">Cover image</label>
+              <div class="xw-location">
+                <input
+                  id="export-cover"
+                  readonly
+                  value={draft.coverPath}
+                  placeholder="Optional PNG or JPEG"
+                  aria-describedby="export-cover-help"
+                />
+                <button type="button" class="ka-button ka-button--secondary" onclick={chooseCover}
+                  >Choose cover</button
+                >{#if draft.coverPath}<button
+                    type="button"
+                    class="ka-button ka-button--ghost"
+                    onclick={() => (draft.coverPath = "")}>Remove</button
+                  >{/if}
+              </div>
+              <p class="ka-help" id="export-cover-help">
+                The cover is embedded in the EPUB; it is not shown in the manuscript preview.
+              </p>
+            </div>
+          </div>
+        {/if}
+      {:else if section === "files"}
+        <div class="xw-group">
+          <div class="ka-field od-field">
+            <label for="export-filename">Filename pattern</label><input
+              id="export-filename"
+              bind:value={draft.fileName}
+              aria-describedby="export-filename-sample"
+            />
+            <div class="xw-chips" role="group" aria-label="Filename tokens">
+              {#each ["{title}", "{profile}", "{date}"] as token (token)}<button
+                  type="button"
+                  class="ka-tag"
+                  onclick={() => (draft.fileName += token)}>+ {token}</button
+                >{/each}
+            </div>
+            <p class="ka-help filename-sample" id="export-filename-sample">{fileName}</p>
+          </div>
+          {#if draft.format === "html"}<div class="ka-field od-field">
+              <label for="export-html-mode">HTML structure</label><select
+                id="export-html-mode"
+                bind:value={draft.htmlMode}
+                ><option value="document">Complete HTML document</option><option value="fragment"
+                  >Body fragment for pasting</option
+                ></select
+              >
+              <p class="ka-help">Both are saved as a single .html file</p>
+            </div>
+            <div class="ka-field od-field">
+              <label for="export-html-heading">Chapter heading element</label><select
+                id="export-html-heading"
+                bind:value={draft.headingLevel}
+                ><option value="h1">Heading 1 · &lt;h1&gt;</option><option value="h2"
+                  >Heading 2 · &lt;h2&gt;</option
+                ></select
+              >
+            </div>
+            <label class="ka-check xw-check"
+              ><input type="checkbox" bind:checked={draft.styled} /><span class="xw-check-text"
+                ><span>Include built-in styling</span><small
+                  >Turn off for clean semantic markup.</small
+                ></span
+              ></label
+            >{/if}
+          {#if draft.format === "novelwriter"}
+            <div class="xw-checks">
+              <label class="ka-check xw-check"
+                ><input type="checkbox" bind:checked={draft.includeNotes} /><span
+                  class="xw-check-text"
+                  ><span>Reference notes</span><small
+                    >Include character, location, and reference material.</small
+                  ></span
+                ></label
+              >
+              <label class="ka-check xw-check"
+                ><input type="checkbox" bind:checked={draft.includeBeatComments} /><span
+                  class="xw-check-text"
+                  ><span>Beat comments</span><small>Retain outline prompts as comments.</small
+                  ></span
+                ></label
+              >
+            </div>
+          {:else if draft.format === "treatment"}
+            <div class="ka-field od-field">
+              <label for="export-treatment-level">Treatment detail</label><select
+                id="export-treatment-level"
+                bind:value={draft.treatmentLevel}
+                ><option value="one_page">One page · overview</option><option value="five_page"
+                  >Five pages · key scenes</option
+                ><option value="full">Full · scenes and beats</option></select
+              >
+              <p class="ka-help">
+                Detail levels guide the content; page counts depend on the material.
+              </p>
+            </div>
+            <div class="ka-field od-field">
+              <label for="export-treatment-format">Treatment file</label><select
+                id="export-treatment-format"
+                bind:value={draft.treatmentFormat}
+                ><option value="docx">Word document (.docx)</option><option value="txt"
+                  >Plain text (.txt)</option
+                ></select
+              >
+            </div>
+          {:else if draft.format === "scrivener"}<p class="ka-help">
+              Creates a new .scriv project. To update an existing Scrivener project with scene
+              matching and backups, use Back to export.
+            </p>
+          {:else if draft.format === "longform"}<p class="ka-help">
+              Creates a Longform index, individual scene files, and reference notes. Project and
+              round-trip metadata are retained.
+            </p>{/if}
+        </div>
+        <div class="xw-group">
+          <div class="xw-file">
+            <FileText class="w-5 h-5" aria-hidden="true" />
+            <div class="od-field od-fill">
+              <strong>{formatLabels[draft.format]}</strong><span class="xw-meta"
+                >{exchange
+                  ? "Whole project · dedicated exporter"
+                  : `${countLabel(selected.length, "chapter")} · ${countLabel(sceneCount, "scene")}`}</span
+              >
+            </div>
+            <span class="xw-file-type"
+              >{["longform", "novelwriter"].includes(draft.format)
+                ? "Folder"
+                : `.${outputExtension(draft)}`}</span
+            >
+          </div>
+          <p class="ka-help">
+            Choose a destination when exporting. Existing files and folders are preserved; use a new
+            name for each export.
+          </p>
+          {#if draft.format === "markdown"}<p class="ka-help">
+              Exports a single manuscript file with headings, emphasis, lists, and block quotations.
+              For an Obsidian project with separate scene files and reference notes, choose Longform
+              / Obsidian.
+            </p>{/if}
+        </div>
       {/if}
     </section>
 
     <section
-      class="preview-panel"
+      class="xw-preview"
       class:mobile-hidden={narrowPane === "settings"}
       aria-label="Manuscript preview"
     >
-      {#if exchange}<div class="empty-preview">
-          <FileDown size={32} />
-          <h3>{formatLabels[draft.format]}</h3>
+      {#if exchange}<div class="ka-empty od-stack empty-preview">
+          <FileDown class="w-7 h-7" aria-hidden="true" />
+          <h4>{formatLabels[draft.format]}</h4>
           <p>
             {draft.format === "treatment"
               ? "Builds a treatment from the whole project’s outline, synopses, and beats. Manuscript prose styling does not apply."
               : "Transfers the whole project using its existing structure and metadata. Manuscript formatting controls do not apply."}
           </p>
-          <div class="file-card">
-            <FileText size={22} /><strong class="filename-sample">{fileName}</strong>
-          </div>
+          <p class="filename-sample">{fileName}</p>
           <p>
             {draft.format === "scrivener"
               ? "A new Scrivener bundle with chapters, scenes, and RTF prose."
@@ -1130,111 +1320,166 @@
                   : "Uses project title and author settings with the selected treatment detail."}
           </p>
         </div>{:else}
-        <div class="preview-toolbar">
-          <div><span class="eyebrow">LIVE PREVIEW</span><span class="live-dot"></span></div>
-          {#if draft.format === "html"}<div class="preview-tabs">
-              <button
-                class:active={previewMode === "rendered"}
-                aria-pressed={previewMode === "rendered"}
-                onclick={() => (previewMode = "rendered")}><BookOpen size={14} /> Read</button
-              ><button
-                class:active={previewMode === "source"}
-                aria-pressed={previewMode === "source"}
-                onclick={() => (previewMode = "source")}><Code size={14} /> HTML</button
+        <header class="xw-preview-head">
+          <div class="xw-preview-title">
+            <span class="xw-label">Live preview</span>
+            <span class="ka-badge ka-badge--success">Live</span>
+            {#if draft.format === "html"}<div
+                class="ka-segment-track preview-tabs"
+                role="group"
+                aria-label="Preview view"
               >
-            </div>
-          {/if}
-        </div>
-        <div class="preview-selection">
-          {#if plain}<span>Whole selection · single file</span>{:else}<label
-              class="sr-only"
-              for="export-preview-chapter">Preview chapter</label
-            ><select id="export-preview-chapter" bind:value={previewChapter}
-              ><option value="">Whole selection</option>{#each selected as chapter}<option
-                  value={chapter.id}>{chapter.title}</option
-                >{/each}</select
-            >{/if}<button
-            class="icon-button"
-            aria-label="Refresh saved manuscript"
-            title="Refresh saved manuscript"
-            disabled={loading}
-            onclick={() => loadManuscript()}
-            ><RefreshCw size={15} class={loading ? "spinning" : ""} /></button
-          >
-        </div>
-        {#if loading}<div class="empty-preview">
-            <RefreshCw class="spinning" size={26} />
-            <h3>Gathering your manuscript…</h3>
-          </div>{:else if !selected.length}<div class="empty-preview">
-            <BookOpen size={32} />
-            <h3>Nothing selected yet</h3>
-            <p>Choose a chapter with manuscript scenes to see it here.</p>
-            <button
-              onclick={() => {
-                section = "content";
-                narrowPane = "settings";
-              }}>Choose content <ArrowRight size={15} /></button
+                <button
+                  type="button"
+                  class="ka-segment"
+                  class:ka-selected={previewMode === "rendered"}
+                  aria-pressed={previewMode === "rendered"}
+                  onclick={() => (previewMode = "rendered")}>Read</button
+                ><button
+                  type="button"
+                  class="ka-segment"
+                  class:ka-selected={previewMode === "source"}
+                  aria-pressed={previewMode === "source"}
+                  onclick={() => (previewMode = "source")}>HTML</button
+                >
+              </div>
+            {/if}
+          </div>
+          <div class="xw-preview-controls">
+            {#if plain}<p class="xw-meta od-fill">Whole selection · single file</p>{:else}<div
+                class="ka-field od-field od-fill"
+              >
+                <label class="ka-sr" for="export-preview-chapter">Preview chapter</label><select
+                  id="export-preview-chapter"
+                  value={actualPreviewChapter}
+                  onchange={(event) => (previewChapter = event.currentTarget.value)}
+                  disabled={!selected.length}
+                  ><option value=""
+                    >{selected.length ? "Whole selection" : "No chapters selected"}</option
+                  >{#each selected as chapter (chapter.id)}<option value={chapter.id}
+                      >{chapter.title}</option
+                    >{/each}</select
+                >
+              </div>{/if}<button
+              type="button"
+              class="ka-button ka-button--ghost ka-icon-button"
+              aria-label="Refresh saved manuscript"
+              title="Refresh saved manuscript"
+              disabled={loading}
+              aria-busy={loading || undefined}
+              onclick={() => loadManuscript()}
+              ><RefreshCw
+                class={loading ? "w-5 h-5 animate-spin" : "w-5 h-5"}
+                aria-hidden="true"
+              /></button
             >
-          </div>{:else if (draft.format === "html" && previewMode === "source") || plain}<textarea
-            class="source-preview"
-            readonly
-            aria-label={plain ? "Generated manuscript text" : "Generated HTML source"}
-            value={sourceText}
-          ></textarea>{:else}<iframe
-            title="Export layout preview"
-            sandbox=""
-            srcdoc={preview.document}
-          ></iframe>{/if}
-        <div class="preview-caption">
+          </div>
+        </header>
+        <div class="xw-desk">
+          {#if loading}<div class="ka-empty od-stack empty-preview" role="status">
+              <Loader2 class="w-7 h-7 animate-spin" aria-hidden="true" />
+              <h4>Gathering your manuscript…</h4>
+            </div>{:else if !selected.length}<div class="ka-empty od-stack empty-preview">
+              <BookOpen class="w-7 h-7" aria-hidden="true" />
+              <h4>Nothing selected yet</h4>
+              <p>Choose a chapter with manuscript scenes to see it here.</p>
+              <button
+                type="button"
+                class="ka-button ka-button--secondary"
+                onclick={() => {
+                  section = "content";
+                  narrowPane = "settings";
+                }}>Choose content <ArrowRight class="w-5 h-5" aria-hidden="true" /></button
+              >
+            </div>{:else if (draft.format === "html" && previewMode === "source") || plain}<textarea
+              class="source-preview"
+              readonly
+              aria-label={plain ? "Generated manuscript text" : "Generated HTML source"}
+              value={sourceText}
+            ></textarea>{:else}<iframe
+              title="Export layout preview"
+              sandbox=""
+              srcdoc={previewDocument}
+              data-ready={previewLoaded === previewDocument}
+              onload={(event) => (previewLoaded = event.currentTarget.getAttribute("srcdoc") ?? "")}
+            ></iframe>{/if}
+        </div>
+        <footer class="xw-preview-foot">
           <span
             >{draft.format === "html"
               ? "HTML output"
               : plain
                 ? "Text output"
                 : "Layout approximation"}</span
-          ><span>{wordCount.toLocaleString()} words · {sceneCount} scenes</span>
-        </div>
+          ><span>{wordCount.toLocaleString()} words · {countLabel(sceneCount, "scene")}</span>
+        </footer>
       {/if}
     </section>
   </div>
 
-  {#if error || storageError}<div class="feedback error" role="alert">
-      {error || storageError}{#if !loading && error.includes("load")}<button
-          class="text-button"
-          onclick={() => loadManuscript()}>Retry</button
-        >{/if}
-    </div>{/if}
-  {#if missingSelection}<div class="feedback error" role="alert">
-      Part of this saved selection is missing. Review Content before saving a preview.
-    </div>{/if}
-  {#if message}<div class="feedback" role="status">
-      {message}{#if savedPath}<button class="text-button" onclick={openSaved}
-          >Open export <ArrowRight size={14} /></button
-        >{/if}
-    </div>{/if}
-  {#if unsupported}<div class="feedback error" role="alert">{unsupported}</div>{/if}
-  {#if validationError}<div class="feedback error" role="alert">{validationError}</div>{/if}
-  <footer class="workspace-footer">
-    <div class="footer-note">
-      <span
-        >{exchange ? "Whole project" : "Saved manuscript"} → {formatLabels[draft.format]}<br
-        /><small>Profiles and recovered drafts are local to this device.</small></span
-      >
+  {#if error || storageError || missingSelection || message || unsupported || validationError}
+    <div class="xw-feedback">
+      {#if error || storageError}<div class="ka-notice ka-notice--error od-row-top" role="alert">
+          <TriangleAlert class="w-5 h-5" aria-hidden="true" />
+          <div class="od-field od-fill xw-notice-body">
+            <p>{error || storageError}</p>
+            {#if !loading && error.includes("load")}<button
+                type="button"
+                class="ka-button ka-button--ghost"
+                onclick={() => loadManuscript()}>Retry</button
+              >{/if}
+          </div>
+        </div>{/if}
+      {#if missingSelection}<div class="ka-notice ka-notice--error od-row-top" role="alert">
+          <TriangleAlert class="w-5 h-5" aria-hidden="true" />
+          <div class="od-field od-fill">
+            <p>Part of this saved selection is missing. Review Content before saving a preview.</p>
+          </div>
+        </div>{/if}
+      {#if message}<div class="ka-notice od-row-top" role="status">
+          <Info class="w-5 h-5" aria-hidden="true" />
+          <div class="od-field od-fill xw-notice-body">
+            <p>{message}</p>
+            {#if savedPath}<button
+                type="button"
+                class="ka-button ka-button--ghost"
+                onclick={openSaved}
+                >Open export <ArrowRight class="w-5 h-5" aria-hidden="true" /></button
+              >{/if}
+          </div>
+        </div>{/if}
+      {#if unsupported}<div class="ka-notice ka-notice--error od-row-top" role="alert">
+          <TriangleAlert class="w-5 h-5" aria-hidden="true" />
+          <div class="od-field od-fill"><p>{unsupported}</p></div>
+        </div>{/if}
+      {#if validationError}<div class="ka-notice ka-notice--error od-row-top" role="alert">
+          <TriangleAlert class="w-5 h-5" aria-hidden="true" />
+          <div class="od-field od-fill"><p>{validationError}</p></div>
+        </div>{/if}
     </div>
-    <div class="footer-actions">
+  {/if}
+  <footer class="xw-foot">
+    <div class="ka-help xw-foot-note">
+      <div>{exchange ? "Whole project" : "Saved manuscript"} → {formatLabels[draft.format]}</div>
+      <div>Profiles and recovered drafts are local to this device.</div>
+    </div>
+    <div class="ka-row xw-foot-actions">
       {#if dirty}<button
-          class="quiet"
+          type="button"
+          class="ka-button ka-button--ghost"
           disabled={saving}
           onclick={() => {
             if (savedProfile) draft = window.structuredClone($state.snapshot(savedProfile));
             contextSelection = null;
           }}>Revert</button
         >{/if}<button
-        class="secondary"
+        type="button"
+        class="ka-button ka-button--secondary"
         disabled={saving || storageBlocked || !!validationError}
         onclick={() => saveProfile()}>Save profile</button
       ><button
-        class="primary"
+        type="button"
+        class="ka-button"
         disabled={saving ||
           loading ||
           !documentLoaded ||
@@ -1242,30 +1487,39 @@
           !!unsupported ||
           missingSelection ||
           !!validationError}
+        aria-busy={saving || undefined}
         onclick={saveExport}
-        ><FileDown size={16} />{saving
-          ? "Exporting…"
-          : `Export ${draft.format === "treatment" ? draft.treatmentFormat.toUpperCase() : draft.format === "longform" || draft.format === "novelwriter" ? "project" : outputExtension(draft).toUpperCase()}`}</button
+        >{#if saving}<Loader2
+            class="w-5 h-5 animate-spin"
+            aria-hidden="true"
+          />Exporting…{:else}<Download
+            class="w-5 h-5"
+            aria-hidden="true"
+          />{`Export ${draft.format === "treatment" ? draft.treatmentFormat.toUpperCase() : draft.format === "longform" || draft.format === "novelwriter" ? "project" : outputExtension(draft).toUpperCase()}`}{/if}</button
       >
     </div>
   </footer>
 </dialog>
 
 <style>
+  /* Full-window view: the native modal dialog fills the app window and sits in
+     the top layer, so the workspace underneath is inert. */
   .export-workspace {
-    width: calc(100vw - 40px);
-    max-width: 1510px;
-    height: calc(100vh - 40px);
-    max-height: 1040px;
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal);
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    margin: 0;
     padding: 0;
-    margin: auto;
-    border: 1px solid var(--color-border);
-    border-radius: 12px;
-    background: var(--color-surface);
+    border: 0;
+    border-radius: 0;
+    background: var(--color-bg);
     color: var(--color-text);
     overflow: hidden;
-    font-family: var(--font-ui);
-    font-size: var(--text-ui);
+    font: var(--text-ui) / 1.5 var(--font-ui);
   }
   .export-workspace[open] {
     display: flex;
@@ -1273,774 +1527,490 @@
   }
   .export-workspace::backdrop {
     background: var(--color-overlay-scrim);
-    backdrop-filter: blur(4px);
   }
-  button,
-  input,
-  select {
-    font: inherit;
-  }
-  button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    cursor: pointer;
-    border-radius: 6px;
-    transition: background 120ms;
-  }
-  button:disabled {
-    cursor: default;
-    background: var(--color-disabled-bg);
-    color: var(--color-disabled-text);
-    border-color: var(--color-disabled-border);
-  }
-  button:focus-visible,
-  input:focus-visible,
-  select:focus-visible,
-  summary:focus-visible,
-  textarea:focus-visible {
-    outline: 2px solid var(--color-control-border-focus);
-    outline-offset: 3px;
-  }
-  button:hover:not(:disabled) {
-    background: var(--color-accent-wash);
-  }
-  input:not([type="checkbox"]),
-  .field textarea,
-  select {
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 0;
-    border: 1px solid var(--color-control-border);
-    border-radius: 6px;
-    background: var(--color-control-bg);
-    color: var(--color-control-text);
-    font-size: var(--text-base);
-    padding: 10px 11px;
-  }
-  input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    flex: 0 0 16px;
-    accent-color: var(--color-accent);
-    margin-top: 2px;
-  }
-  label {
-    font-weight: 550;
-  }
-  small {
-    display: block;
-    font-size: var(--text-eyebrow);
+
+  .xw-meta {
+    font: var(--text-small) / 1.5 var(--font-ui);
     color: var(--color-text-muted);
-    line-height: 1.6;
-    font-weight: 400;
   }
-  .eyebrow {
-    font-size: var(--text-eyebrow);
-    letter-spacing: 0.1em;
-    color: var(--color-text-muted);
-    font-weight: 600;
-    text-transform: uppercase;
-  }
-  .workspace-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 21px 28px;
-    border-bottom: 1px solid var(--color-border);
-    gap: 16px;
-    flex-shrink: 0;
-  }
-  .identity,
-  .header-actions,
-  .inline {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
-  .export-icon {
-    color: var(--color-accent-text);
-    width: 44px;
-    height: 44px;
-    background: var(--color-accent-wash);
-    display: grid;
-    place-items: center;
-    border-radius: 10px;
-  }
-  h1 {
-    display: flex;
-    gap: 14px;
-    align-items: center;
-    font-family: var(--font-display);
-    font-size: var(--text-h2);
+  .xw-label {
     margin: 0;
-    font-weight: 500;
+    padding: 0;
+    font: 500 var(--text-ui) / 1.4 var(--font-ui);
+    letter-spacing: normal;
+    color: var(--color-text);
   }
-  .quiet {
-    padding: 8px;
-    color: var(--color-text-muted);
-    border: 0;
-    background: transparent;
-    font-size: var(--text-eyebrow);
-  }
-  .icon-button {
-    width: 32px;
-    height: 32px;
-    padding: 5px;
-    flex-shrink: 0;
-    background: transparent;
-    border: 0;
-    color: var(--color-text-muted);
-  }
-  .duplicate-profile {
-    border: 1px solid var(--color-border);
-    width: 32px;
-    height: 32px;
-  }
-  .profile-bar select {
-    height: 32px;
-    padding: 0 28px 0 10px;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23847c72' stroke-width='1.5'%3E%3Cpath d='m5 6 3 3 3-3'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 8px center;
-  }
-  .profile-bar {
+
+  /* App bar */
+  .xw-appbar {
+    flex: none;
     display: flex;
-    align-items: end;
-    gap: 24px;
-    padding: 15px 28px;
-    border-bottom: 1px solid var(--color-border);
+    align-items: center;
+    gap: var(--space-xs);
+    min-height: 72px;
+    padding: var(--space-xs) var(--space-m) var(--space-xs) var(--space-m);
+    border-bottom: var(--border-hair);
     background: var(--color-bg);
-    flex-shrink: 0;
   }
-  .profile-bar label {
-    display: block;
-    font-size: var(--text-eyebrow);
-    margin-bottom: 6px;
-    color: var(--color-text-muted);
+  .xw-appbar h3 {
+    margin: 0;
+    font: 550 var(--text-h3) / var(--leading-tight) var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
   }
-  .profile-picker {
-    width: 310px;
-  }
-  .profile-picker .inline {
-    gap: 8px;
-  }
-  .format-picker {
-    width: 240px;
-  }
-  .profile-status {
+  .xw-appbar-actions {
     margin-left: auto;
-    padding-bottom: 2px;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+  }
+
+  /* Profile tools */
+  .xw-tools {
+    flex: none;
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: var(--space-s) var(--space-m);
+    padding: var(--space-s) var(--space-m);
+    border-bottom: var(--border-hair);
+  }
+  .xw-picker {
+    width: auto;
+  }
+  .xw-picker select {
+    min-width: 260px;
+  }
+  .xw-status {
+    margin-left: auto;
+    display: grid;
+    justify-items: end;
+    gap: var(--space-3xs);
     text-align: right;
   }
-  .profile-status > span {
-    display: flex;
+  .xw-ok {
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
-    justify-content: end;
-    font-size: var(--text-eyebrow);
+    gap: var(--space-2xs);
+    font: 500 var(--text-ui) / 1.5 var(--font-ui);
     color: var(--color-success);
   }
-  .profile-status .unsaved {
-    color: var(--color-text-muted);
+
+  /* Narrow-window view switch */
+  .xw-switch {
+    display: none;
   }
-  .status-dot {
-    width: 5px;
-    height: 5px;
-    background: var(--color-accent);
-    border-radius: 50%;
-  }
-  .workspace-body {
-    display: grid;
-    grid-template-columns: 215px minmax(300px, 0.92fr) minmax(330px, 1.2fr);
-    flex: 1;
+
+  /* Three panes */
+  .xw-body {
+    flex: 1 1 auto;
     min-height: 0;
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr) minmax(420px, 42%);
   }
-  .navigation {
+
+  .xw-nav {
     display: flex;
     flex-direction: column;
-    gap: 22px;
-    padding: 22px 13px;
-    background: var(--color-bg);
-    border-right: 1px solid var(--color-border);
-    overflow-y: auto;
+    gap: var(--space-s);
+    min-width: 0;
+    padding: var(--space-s);
+    border-right: var(--border-hair);
+    overflow: auto;
   }
-  .search-box {
+  .xw-search {
     display: flex;
     align-items: center;
-    border: 1px solid var(--color-border);
-    border-radius: 6px;
-    padding-left: 9px;
-    color: var(--color-text-muted);
-    background: var(--color-surface);
+    gap: var(--space-3xs);
   }
-  .search-box input {
-    border: 0;
-    background: transparent;
-    padding: 9px 6px;
-    font-size: var(--text-base);
+  .xw-nav .ka-tree-list {
+    gap: var(--space-3xs);
   }
-  nav {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
+  .xw-nav .ka-tree button {
+    align-items: flex-start;
   }
-  nav button {
-    justify-content: start;
-    text-align: left;
-    width: 100%;
-    border: 0;
-    padding: 12px 10px;
-    background: transparent;
-    color: var(--color-text-muted);
-    gap: 10px;
-  }
-  nav button span {
-    flex: 1;
-  }
-  nav button small {
-    font-size: var(--text-eyebrow);
-    margin-top: 3px;
-  }
-  nav button.active {
-    color: var(--color-accent-text);
-    background: var(--color-accent-wash);
-    box-shadow: inset 2px 0 var(--color-accent);
-  }
-  .sidebar-note {
-    display: flex;
-    gap: 10px;
-    margin: auto 9px 0;
-    padding-top: 32px;
-    color: var(--color-text-muted);
-  }
-  .sidebar-note p {
-    font-size: var(--text-eyebrow);
-    line-height: 1.7;
-    margin: 0;
-  }
-  .sidebar-note span {
-    font-size: var(--text-eyebrow);
-  }
-  .search-results button {
-    text-align: left;
-    justify-content: space-between;
-    padding: 12px 4px;
-    width: 100%;
-    border: 0;
-    border-bottom: 1px solid var(--color-border);
-    border-radius: 0;
-    background: transparent;
-    color: var(--color-text);
-    font-size: var(--text-eyebrow);
-  }
-  .search-results p {
-    font-size: var(--text-eyebrow);
-    line-height: 1.6;
-  }
-  .settings-panel {
-    padding: 28px;
-    overflow-y: auto;
-    min-width: 0;
-  }
-  .section-heading {
-    margin-bottom: 27px;
-  }
-  h2 {
-    font: 500 var(--text-h2) var(--font-display);
-    margin: 7px 0;
-    letter-spacing: -0.025em;
-  }
-  .section-heading p {
-    margin: 0;
-    color: var(--color-text-muted);
-    line-height: 1.6;
-    font-size: var(--text-eyebrow);
-  }
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-    margin: 0 0 20px;
-  }
-  .field-grid {
-    display: grid;
-    grid-template-columns: 1.5fr 1fr;
-    gap: 14px;
-  }
-  .subheading {
-    font-size: var(--text-eyebrow);
-    font-weight: 600;
-    margin: 28px 0 13px;
-  }
-  .preset-list {
-    display: grid;
-    gap: 9px;
-  }
-  .preset-list button {
-    text-align: left;
-    justify-content: start;
-    gap: 13px;
-    padding: 15px 12px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    color: var(--color-text);
-  }
-  .preset-list button.selected {
-    border-color: var(--color-accent);
-    background: var(--color-accent-wash);
-  }
-  .preset-list button > span:nth-child(2) {
-    flex: 1;
-  }
-  .preset-list strong {
+  .xw-nav .ka-tree small {
     display: block;
-    font-weight: 550;
-    margin-bottom: 3px;
   }
-  .preset-icon {
-    color: var(--color-accent-text);
-    display: inline-flex;
+  .xw-nav-note {
+    margin-top: auto;
   }
-  .summary-list {
-    border: 1px solid var(--color-border);
-    border-radius: 7px;
-    overflow: hidden;
+  .xw-results {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: var(--border-hair);
   }
-  .summary-list button {
+  .xw-results > li {
+    border-bottom: var(--border-hair);
+  }
+  .xw-row-button {
     display: flex;
-    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-xs);
     width: 100%;
-    padding: 12px;
-    font-size: var(--text-eyebrow);
+    min-height: var(--control-target);
+    padding: var(--space-2xs) var(--space-2xs) var(--space-2xs) 0;
     border: 0;
     background: transparent;
-    color: var(--color-text-muted);
-    border-bottom: 1px solid var(--color-border);
-    border-radius: 0;
+    color: var(--color-text);
+    text-align: left;
+    cursor: pointer;
+    font: var(--text-ui) / 1.5 var(--font-ui);
   }
-  .summary-list button:last-child {
-    border: 0;
+  @media (hover: hover) {
+    .xw-row-button:hover {
+      background: var(--color-surface-sunken);
+    }
   }
-  .summary-list strong {
-    flex: 1;
-    text-align: right;
-    font-weight: 400;
+  .xw-row-button:focus-visible {
+    outline: 2px solid var(--color-accent-text);
+    outline-offset: -2px;
+  }
+  .xw-empty {
+    padding: var(--space-s) 0;
+  }
+  .ka-empty h4 {
+    margin: 0;
+    font: 550 var(--text-h3) / var(--leading-tight) var(--font-display);
+    letter-spacing: var(--tracking-tight);
     color: var(--color-text);
   }
-  .callout {
-    background: var(--color-bg);
-    border-left: 2px solid var(--color-border);
-    padding: 13px 14px;
-    line-height: 1.75;
-    color: var(--color-text-muted);
-    font-size: var(--text-eyebrow);
-    margin-top: 24px;
+
+  /* Settings pane */
+  .xw-pane {
+    min-width: 0;
+    overflow: auto;
+    padding: var(--space-l) var(--space-xl) var(--space-xl);
   }
-  .footnote {
-    font-size: var(--text-eyebrow);
-    color: var(--color-text-muted);
-    line-height: 1.7;
-    margin: 20px 0;
+  .xw-pane-head {
+    display: grid;
+    gap: var(--space-3xs);
+    margin-bottom: var(--space-l);
   }
-  .check-row {
-    display: flex;
-    gap: 10px;
-    padding: 12px 0;
-    font-size: var(--text-eyebrow);
+  .xw-pane-head h3 {
+    margin: 0;
+    font: 550 var(--text-h2) / var(--leading-tight) var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text);
+  }
+  .xw-group {
+    display: grid;
+    gap: var(--space-s);
+    min-width: 0;
+    padding-top: var(--space-m);
+    margin-top: var(--space-m);
+    border-top: var(--border-hair);
+  }
+  .xw-pane-head + .xw-group {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+  .xw-note {
+    margin-top: var(--space-m);
+  }
+  .xw-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: var(--space-s);
+  }
+  .xw-checks {
+    display: grid;
+  }
+  .xw-check {
+    align-items: flex-start;
+    padding-block: var(--space-2xs);
     cursor: pointer;
   }
-  .check-row small {
-    margin-top: 3px;
+  .xw-check input {
+    margin-top: 2px;
+  }
+  .xw-check-text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .xw-check-text small {
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
   }
   .chapter-list {
-    max-height: 235px;
+    display: grid;
+    max-height: 264px;
     overflow-y: auto;
-    border: 1px solid var(--color-border);
-    border-radius: 7px;
-    padding: 4px 12px;
+    border-block: var(--border-hair);
   }
-  .chapter-row {
-    display: flex;
-    align-items: start;
-    gap: 10px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--color-border);
-    font-size: var(--text-eyebrow);
+  .chapter-list .chapter-row + .chapter-row {
+    border-top: var(--border-hair);
   }
-  .chapter-row:last-child {
+  .xw-choice-list {
+    display: grid;
+    gap: 0;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
     border: 0;
   }
-  .chip-row {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
+  .xw-choice-list legend {
+    margin-bottom: var(--space-3xs);
+    padding: 0;
   }
-  .chip-row button {
-    padding: 5px 10px;
-    background: var(--color-bg);
-    color: var(--color-text-muted);
-    border: 1px solid var(--color-border);
-    font-size: var(--text-eyebrow);
+  .xw-choice {
+    align-items: flex-start;
+    padding-block: var(--space-2xs);
+    border-bottom: var(--border-hair);
   }
-  .chip-row button.chosen {
-    border-color: var(--color-accent);
-    color: var(--color-accent-text);
+  .xw-choice:last-child {
+    border-bottom: 0;
   }
-  details {
-    border-top: 1px solid var(--color-border);
-    border-bottom: 1px solid var(--color-border);
-    margin: 20px 0;
+  .xw-choice input {
+    margin-top: 2px;
   }
-  summary {
-    cursor: pointer;
-    padding: 14px 0;
-    font-size: var(--text-eyebrow);
+  .xw-choice > .od-field {
+    gap: 0;
   }
-  summary span {
-    color: var(--color-text-muted);
-    float: right;
-    font-size: var(--text-eyebrow);
-  }
-  details .field {
-    margin-top: 8px;
-  }
-  .file-card {
-    display: flex;
-    align-items: center;
-    gap: 13px;
-    padding: 18px;
-    border: 1px solid var(--color-border);
-    border-radius: 7px;
-    margin-top: 25px;
-  }
-  .file-card > div {
-    flex: 1;
-  }
-  .file-card strong {
-    font-size: var(--text-eyebrow);
-    font-weight: 550;
-  }
-  .file-card > span {
-    font: var(--text-eyebrow) var(--font-mono);
-    color: var(--color-text-muted);
-  }
-  .filename-sample {
-    overflow-wrap: anywhere;
-    font-family: var(--font-mono);
-  }
-  .preview-panel {
-    background: var(--color-surface-sunken);
-    display: flex;
-    flex-direction: column;
-    border-left: 1px solid var(--color-border);
-    min-width: 0;
+  .xw-choice label {
     min-height: 0;
   }
-  .preview-toolbar {
+  .xw-choice .ka-help {
+    margin: 0;
+  }
+  .xw-facts {
+    column-gap: 0;
+  }
+  .xw-facts dt {
+    display: flex;
+    align-items: center;
+    padding-right: var(--space-s);
+  }
+  .xw-facts dt,
+  .xw-facts dd {
+    padding-block: var(--space-3xs);
+    border-bottom: var(--border-hair);
+  }
+  .xw-facts dd {
+    flex-wrap: nowrap;
+  }
+  .xw-notice-body {
+    justify-items: start;
+  }
+  /* Optically align a notice's ghost action with its text. */
+  .xw-notice-body > .ka-button--ghost {
+    margin-left: calc(-1 * var(--space-s));
+  }
+  .xw-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2xs);
+  }
+  .xw-chips .ka-tag[aria-pressed="true"] {
+    color: var(--color-on-accent);
+    background: var(--color-accent-text);
+    border-color: var(--color-accent-text);
+  }
+  .xw-chips .ka-tag:focus-visible {
+    outline: 2px solid var(--color-accent-text);
+    outline-offset: 3px;
+  }
+  .xw-details {
+    border-block: var(--border-hair);
+  }
+  .xw-details summary {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 18px 20px 12px;
-    flex-shrink: 0;
+    gap: var(--space-s);
+    min-height: var(--control-target);
+    cursor: pointer;
+    font: var(--text-ui) / 1.5 var(--font-ui);
+    color: var(--color-text);
   }
-  .preview-toolbar > div:first-child {
+  .xw-details summary:focus-visible {
+    outline: 2px solid var(--color-accent-text);
+    outline-offset: 3px;
+  }
+  .xw-details > .ka-field {
+    padding-bottom: var(--space-s);
+  }
+  .xw-location {
+    display: flex;
+    gap: var(--space-2xs);
+  }
+  .xw-location input {
+    flex: 1;
+    min-width: 0;
+  }
+  .xw-file {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-xs);
+    padding-block: var(--space-xs);
+    border-block: var(--border-hair);
   }
-  .live-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--color-success);
+  .xw-file strong {
+    font-weight: 500;
+  }
+  .xw-file-type,
+  .filename-sample {
+    font: var(--text-small) / 1.5 var(--font-mono);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  /* Preview desk */
+  .xw-preview {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background: var(--color-surface-sunken);
+    border-left: var(--border-hair);
+  }
+  .xw-preview-head {
+    flex: none;
+    display: grid;
+    gap: var(--space-2xs);
+    padding: var(--space-s) var(--space-m);
+  }
+  .xw-preview-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    min-height: var(--control-target);
   }
   .preview-tabs {
-    display: flex;
-    gap: 2px;
-    border: 1px solid var(--color-border);
-    border-radius: 6px;
-    padding: 2px;
+    margin-left: auto;
+    flex-wrap: nowrap;
   }
-  .preview-tabs button {
-    background: transparent;
-    color: var(--color-text-muted);
-    padding: 5px 9px;
-    border: 0;
-    font-size: var(--text-eyebrow);
-  }
-  .preview-tabs button.active {
-    background: var(--color-surface);
-    color: var(--color-text);
-    box-shadow: var(--shadow-sm);
-  }
-  .preview-selection {
+  .xw-preview-controls {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 0 20px 14px;
+    gap: var(--space-2xs);
   }
-  .preview-selection select {
-    background: var(--color-surface);
-    font-size: var(--text-eyebrow);
-    padding: 7px 9px;
+  .xw-desk {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
-  iframe {
-    border: 0;
+  /* The previewed document is light; a matching scheme keeps WebKit from
+     painting an opaque backdrop behind the frame in the dark theme. */
+  .xw-desk iframe {
+    color-scheme: light;
+    flex: 1;
     width: 100%;
-    flex: 1;
     min-height: 0;
-    background: #e9e4da;
-  }
-  .source-preview {
     border: 0;
-    resize: none;
-    min-height: 0;
+    border-block: var(--border-hair);
     background: transparent;
+  }
+  /* Generated text reads on the always-light manuscript sheet. */
+  .source-preview {
     flex: 1;
-    margin: 0;
-    padding: 22px;
+    min-height: 0;
+    margin: 0 var(--space-m) var(--space-m);
+    padding: var(--space-m);
+    border: 0;
+    border-radius: var(--radius-xs);
+    resize: none;
     overflow: auto;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    font: var(--text-eyebrow)/1.8 var(--font-mono);
-    color: var(--color-text);
-  }
-  .preview-caption {
-    padding: 11px 20px;
-    border-top: 1px solid var(--color-border);
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    font-size: var(--text-eyebrow);
-    color: var(--color-text-muted);
-    flex-shrink: 0;
+    background: var(--color-prose-bg);
+    color: var(--color-prose-text);
+    box-shadow: var(--shadow-prose);
+    font: var(--text-small) / var(--leading-relaxed) var(--font-mono);
   }
   .empty-preview {
-    display: flex;
     flex: 1;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    text-align: center;
-    padding: 25px;
-    color: var(--color-text-muted);
-  }
-  .empty-preview h3 {
-    font: var(--text-h3) var(--font-display);
-    color: var(--color-text);
+    padding: var(--space-l) var(--space-m);
   }
   .empty-preview p {
-    font-size: var(--text-eyebrow);
-    line-height: 1.6;
-    max-width: 260px;
+    font: var(--text-ui) / 1.6 var(--font-ui);
   }
-  .empty-preview button {
-    border: 1px solid var(--color-border);
-    color: var(--color-text);
-    background: var(--color-surface);
-    padding: 9px 14px;
-  }
-  .workspace-footer {
+  .xw-preview-foot {
+    flex: none;
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    border-top: 1px solid var(--color-border);
-    padding: 15px 24px;
-    flex-shrink: 0;
-    gap: 12px;
-  }
-  .footer-note {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: var(--text-eyebrow);
-    line-height: 1.7;
+    gap: var(--space-s);
+    padding: var(--space-xs) var(--space-m);
+    border-top: var(--border-hair);
+    font: var(--text-small) / 1.5 var(--font-ui);
     color: var(--color-text-muted);
   }
-  .footer-note small {
-    font-size: var(--text-eyebrow);
+
+  /* Messages and footer */
+  .xw-feedback {
+    flex: none;
+    display: grid;
+    gap: var(--space-2xs);
+    max-height: 30dvh;
+    overflow: auto;
+    padding: var(--space-xs) var(--space-m);
+    border-top: var(--border-hair);
   }
-  .footer-actions {
+  .xw-foot {
+    flex: none;
     display: flex;
-    gap: 10px;
     align-items: center;
+    gap: var(--space-s);
+    padding: var(--space-s) var(--space-m);
+    border-top: var(--border-hair);
+    background: var(--color-bg);
   }
-  .secondary,
-  .primary {
-    padding: 11px 15px;
-    font-size: var(--text-eyebrow);
-    font-weight: 550;
-    border: 1px solid var(--color-border);
-    color: var(--color-text);
-    background: var(--color-surface);
+  .xw-foot-actions {
+    margin-left: auto;
+    flex-wrap: nowrap;
   }
-  .primary {
-    background: var(--color-accent);
-    color: var(--color-on-accent);
-    border-color: var(--color-accent);
-  }
-  .primary:hover:not(:disabled) {
-    background: var(--color-accent-text);
-  }
-  .primary:disabled,
-  .secondary:disabled {
-    background: var(--color-disabled-bg);
-    color: var(--color-disabled-text);
-    border-color: var(--color-disabled-border);
-  }
-  .feedback {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 24px;
-    background: var(--color-success-wash);
-    color: var(--color-success);
-    font-size: var(--text-eyebrow);
-    flex-shrink: 0;
-  }
-  .feedback.error {
-    background: var(--color-error-wash);
-    color: var(--color-error);
-  }
-  .text-button {
-    display: inline-flex;
-    border: 0;
-    padding: 0;
-    background: transparent;
-    color: inherit;
-    text-decoration: underline;
-    font-size: inherit;
-  }
-  input:not([type="checkbox"]),
-  .field textarea,
-  select {
-    font-size: var(--text-base);
-  }
-  input:not([type="checkbox"]):hover:not(:disabled),
-  .field textarea:hover:not(:disabled),
-  select:hover:not(:disabled) {
-    border-color: var(--color-control-border-hover);
-  }
-  input:disabled,
-  .field textarea:disabled,
-  select:disabled {
-    background: var(--color-disabled-bg);
-    color: var(--color-disabled-text);
-    border-color: var(--color-disabled-border);
-  }
-  .mobile-switch {
-    display: none;
-  }
-  :global(.spinning) {
-    animation: export-spin 1.5s linear infinite;
-  }
-  @keyframes export-spin {
-    to {
-      transform: rotate(360deg);
+
+  @media (max-width: 1280px) {
+    .xw-body {
+      grid-template-columns: 232px minmax(0, 1fr) 400px;
     }
-  }
-  @media (max-width: 1150px) {
-    .workspace-body {
-      grid-template-columns: 180px minmax(290px, 1fr) minmax(310px, 1fr);
-    }
-    .navigation {
-      padding: 18px 8px;
-    }
-    nav button small {
-      display: none;
-    }
-    .settings-panel {
-      padding: 24px 20px;
-    }
-    .profile-bar {
-      gap: 16px;
+    .xw-pane {
+      padding: var(--space-m);
     }
   }
   @media (max-width: 900px) {
-    .export-workspace {
-      width: calc(100vw - 16px);
-      height: calc(100vh - 16px);
+    .xw-appbar,
+    .xw-tools,
+    .xw-foot {
+      padding-inline: var(--space-s);
     }
-    .workspace-header {
-      padding: 15px 18px;
-    }
-    h1 {
-      font-size: var(--text-h2);
-    }
-    .export-icon {
+    .xw-status,
+    .xw-foot-note {
       display: none;
     }
-    .profile-bar {
-      padding: 12px 18px;
-    }
-    .profile-status {
-      display: none;
-    }
-    .profile-picker,
-    .format-picker {
+    .xw-picker {
       flex: 1;
-      width: auto;
     }
-    input:not([type="checkbox"]),
-    .field textarea,
-    select {
-      font-size: var(--text-base);
+    .xw-picker select {
+      min-width: 0;
     }
-    input:not([type="checkbox"]):hover:not(:disabled),
-    .field textarea:hover:not(:disabled),
-    select:hover:not(:disabled) {
-      border-color: var(--color-control-border-hover);
-    }
-    input:disabled,
-    .field textarea:disabled,
-    select:disabled {
-      background: var(--color-disabled-bg);
-      color: var(--color-disabled-text);
-      border-color: var(--color-disabled-border);
-    }
-    .mobile-switch {
+    .xw-switch {
       display: flex;
-      border-bottom: 1px solid var(--color-border);
-      padding: 6px 18px;
-      gap: 8px;
+      flex: none;
+      margin: var(--space-2xs) var(--space-s);
     }
-    .mobile-switch button {
-      padding: 8px 16px;
-      border: 0;
-      background: transparent;
-      color: var(--color-text-muted);
+    .xw-body {
+      grid-template-columns: 232px minmax(0, 1fr);
     }
-    .mobile-switch button.active {
-      background: var(--color-accent-wash);
-      color: var(--color-accent-text);
+    .xw-preview {
+      grid-column: 1 / -1;
+      border-left: 0;
     }
-    .workspace-body {
-      grid-template-columns: 175px minmax(0, 1fr);
-    }
-    .preview-panel {
-      grid-column: 1/-1;
-    }
-    .workspace-body .mobile-hidden {
+    .xw-body .mobile-hidden {
       display: none;
     }
-    .footer-note {
-      display: none;
-    }
-    .workspace-footer {
-      justify-content: end;
-      padding: 12px;
+    .xw-pair {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    :global(.spinning) {
+    .export-workspace :global(.animate-spin) {
       animation: none;
-    }
-    button {
-      transition: none;
     }
   }
 </style>

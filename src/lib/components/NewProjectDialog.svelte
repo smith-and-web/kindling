@@ -1,11 +1,11 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { BookOpen, Film, Layout, Loader2, X } from "lucide-svelte";
+  import { BookOpen, ChevronRight, Film, Layout, Loader2, X } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { ui } from "../stores/ui.svelte";
   import type { Project, ProjectType, StoryTemplate } from "../types";
   import TemplateBrowser from "./TemplateBrowser.svelte";
-  import Tooltip from "./Tooltip.svelte";
+  import DialogHeader from "./DialogHeader.svelte";
 
   let {
     onClose,
@@ -96,15 +96,12 @@
       onClose();
     }
   }
-
-  const inputClass =
-    "w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent";
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
+  class="dialog-scrim"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -112,76 +109,50 @@
   aria-labelledby="new-project-dialog-title"
   tabindex="-1"
 >
-  <div
-    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-md mx-4 overflow-hidden"
-  >
-    <div class="flex items-center justify-between px-4 py-3 border-b border-press-border">
-      <h2 id="new-project-dialog-title" class="text-press-body-lg font-medium text-press-text">
-        New Project
-      </h2>
-      <Tooltip text="Close" position="left">
-        <button
-          type="button"
-          onclick={onClose}
-          class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
-          aria-label="Close"
-          data-testid="new-project-close"
-        >
-          <X class="w-5 h-5" />
-        </button>
-      </Tooltip>
-    </div>
+  <div class="app-dialog-surface ka-dialog-narrow dialog-shell">
+    <DialogHeader
+      title="New project"
+      titleId="new-project-dialog-title"
+      {onClose}
+      closeLabel="Close"
+      closeTestId="new-project-close"
+    />
 
-    <div class="p-4 space-y-4">
-      <fieldset>
-        <legend class="block text-press-ui font-medium text-press-muted mb-2">Project type</legend>
-        <div class="flex gap-2">
-          <button
-            type="button"
-            onclick={() => (projectType = "novel")}
-            class="flex-1 flex items-center gap-2 p-3 rounded-lg border-2 transition-colors {projectType ===
-            'novel'
-              ? 'border-press-accent bg-press-accent-wash'
-              : 'border-press-border hover:border-press-accent'}"
-          >
-            <BookOpen class="w-5 h-5 text-press-accent-text" />
-            <span class="text-press-text font-medium">Novel</span>
-          </button>
-          <button
-            type="button"
-            onclick={() => (projectType = "screenplay")}
-            class="flex-1 flex items-center gap-2 p-3 rounded-lg border-2 transition-colors {projectType ===
-            'screenplay'
-              ? 'border-press-accent bg-press-accent-wash'
-              : 'border-press-border hover:border-press-accent'}"
-          >
-            <Film class="w-5 h-5 text-press-accent-text" />
-            <span class="text-press-text font-medium">Screenplay</span>
-          </button>
+    <div class="ka-dialog-body new-project">
+      <fieldset class="ka-segments">
+        <legend>Project type</legend>
+        <div class="ka-segment-track">
+          <label class="ka-segment" class:ka-selected={projectType === "novel"}>
+            <input type="radio" name="project-type" value="novel" bind:group={projectType} />
+            <BookOpen class="w-5 h-5" aria-hidden="true" />
+            <span>Novel</span>
+          </label>
+          <label class="ka-segment" class:ka-selected={projectType === "screenplay"}>
+            <input type="radio" name="project-type" value="screenplay" bind:group={projectType} />
+            <Film class="w-5 h-5" aria-hidden="true" />
+            <span>Screenplay</span>
+          </label>
         </div>
       </fieldset>
 
-      <div>
-        <label for="new-project-name" class="block text-press-ui font-medium text-press-muted mb-2">
-          Name
-        </label>
+      <div class="ka-field od-field">
+        <label for="new-project-name">Name</label>
         <input
           id="new-project-name"
           bind:this={inputRef}
           bind:value={name}
           type="text"
-          class={inputClass}
-          placeholder="Enter project name..."
+          placeholder="Enter project name…"
           disabled={saving}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "new-project-error" : undefined}
         />
       </div>
 
       {#if projectType === "screenplay"}
-        <div>
-          <label for="target-length" class="block text-press-ui font-medium text-press-muted mb-2">
-            Target length
-          </label>
-          <select id="target-length" bind:value={targetLength} class={inputClass} disabled={saving}>
+        <div class="ka-field od-field">
+          <label for="target-length">Target length</label>
+          <select id="target-length" bind:value={targetLength} disabled={saving}>
             <option value="short">Short (&lt;30 pages)</option>
             <option value="feature">Feature (90–120 pages)</option>
             <option value="long_feature">Long feature (120–180 pages)</option>
@@ -189,49 +160,46 @@
         </div>
       {/if}
 
-      <fieldset>
-        <legend class="block text-press-ui font-medium text-press-muted mb-2"
-          >Structure template</legend
-        >
+      <fieldset class="new-project-template">
+        <legend>Structure template <span class="ka-optional">(optional)</span></legend>
         {#if selectedTemplate}
-          <div
-            class="flex items-center gap-2 px-3 py-2 bg-press-accent-wash border border-press-accent rounded-lg"
-          >
-            <Layout class="w-4 h-4 text-press-accent-text shrink-0" />
-            <span class="text-press-ui text-press-text flex-1 truncate"
-              >{selectedTemplate.name}</span
-            >
+          <div class="new-project-chosen">
+            <Layout class="w-5 h-5" aria-hidden="true" />
+            <span>{selectedTemplate.name}</span>
             <button
               type="button"
               onclick={() => (selectedTemplate = null)}
-              class="text-press-muted hover:text-press-text p-0.5"
+              class="ka-button ka-button--ghost ka-icon-button"
               aria-label="Remove template"
+              title="Remove template"
             >
-              <X class="w-3.5 h-3.5" />
+              <X class="w-5 h-5" aria-hidden="true" />
             </button>
           </div>
         {:else}
           <button
             type="button"
             onclick={() => (showTemplateBrowser = true)}
-            class="w-full text-left px-3 py-2 text-press-ui text-press-muted bg-press-sunken border border-press-border rounded-lg hover:border-press-accent transition-colors"
+            class="ka-button ka-button--secondary new-project-browse"
             disabled={saving}
           >
-            Browse templates...
+            <Layout class="w-5 h-5" aria-hidden="true" />
+            <span>Browse templates…</span>
+            <ChevronRight class="w-5 h-5 ka-icon" aria-hidden="true" />
           </button>
         {/if}
       </fieldset>
 
       {#if error}
-        <p class="text-press-ui text-press-error">{error}</p>
+        <p id="new-project-error" class="ka-error" role="alert">{error}</p>
       {/if}
     </div>
 
-    <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-press-border">
+    <footer class="ka-dialog-footer">
       <button
         type="button"
         onclick={onClose}
-        class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors"
+        class="ka-button ka-button--secondary"
         disabled={saving}
       >
         Cancel
@@ -240,15 +208,18 @@
         data-testid="new-project-create"
         type="button"
         onclick={handleCreate}
-        class="px-4 py-2 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors flex items-center gap-2"
+        class="ka-button"
         disabled={saving || !name.trim()}
+        aria-busy={saving || undefined}
       >
         {#if saving}
-          <Loader2 class="w-4 h-4 animate-spin" />
+          <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
+          Creating…
+        {:else}
+          Create
         {/if}
-        Create
       </button>
-    </div>
+    </footer>
   </div>
 </div>
 
@@ -259,3 +230,53 @@
     onClose={() => (showTemplateBrowser = false)}
   />
 {/if}
+
+<style>
+  .new-project {
+    display: grid;
+    gap: 20px;
+  }
+  .new-project-template {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-2xs);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .new-project-template .ka-optional {
+    font-weight: 400;
+    color: var(--color-text-muted);
+  }
+  .new-project-browse {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .new-project-browse > span {
+    flex: 1;
+    text-align: left;
+  }
+  .new-project-template legend {
+    margin-bottom: var(--space-2xs);
+    font: 500 var(--text-ui) / 1.5 var(--font-ui);
+    color: var(--color-text);
+  }
+  .new-project-chosen {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    width: 100%;
+    padding: 0 0 0 var(--space-xs);
+    border: var(--border-hair);
+    border-radius: var(--radius-m);
+    font: var(--text-ui) / 1.5 var(--font-ui);
+    color: var(--color-text);
+  }
+  .new-project-chosen span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+</style>

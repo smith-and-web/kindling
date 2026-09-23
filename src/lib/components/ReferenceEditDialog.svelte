@@ -1,11 +1,11 @@
 <script lang="ts">
   import { REFERENCE_FIELD_TYPES } from "../referenceTypes";
   import { invoke } from "@tauri-apps/api/core";
-  import { Loader2, Plus, Trash2, X } from "lucide-svelte";
+  import { Loader2, Plus, Trash2 } from "lucide-svelte";
   import type { ReferenceItem, FieldDefinition, FieldValue } from "../types";
   import type { ReferenceTypeOption } from "../referenceTypes";
   import FieldRenderer from "./FieldRenderer.svelte";
-  import Tooltip from "./Tooltip.svelte";
+  import DialogHeader from "./DialogHeader.svelte";
 
   let {
     referenceType,
@@ -104,6 +104,8 @@
     attributeRows = attributeRows.filter((row) => row.id !== id);
   }
 
+  let nameError = $state<string | null>(null);
+
   function handleFieldChange(defId: string, value: string | null) {
     fieldValueMap = { ...fieldValueMap, [defId]: value };
   }
@@ -111,9 +113,11 @@
   async function handleSave() {
     const trimmedName = name.trim();
     if (!trimmedName) {
-      error = "Name cannot be empty";
+      nameError = "Enter a name to continue.";
+      nameInput?.focus();
       return;
     }
+    nameError = null;
 
     saving = true;
     error = null;
@@ -162,9 +166,8 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<!-- Backdrop -->
 <div
-  class="fixed inset-0 z-press-modal flex items-center justify-center bg-press-overlay"
+  class="dialog-scrim"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   role="dialog"
@@ -172,143 +175,133 @@
   aria-labelledby="reference-dialog-title"
   tabindex="-1"
 >
-  <!-- Dialog -->
-  <div
-    class="app-dialog-surface bg-press-surface rounded-lg shadow-press-overlay w-full max-w-xl mx-4 overflow-hidden"
-  >
-    <!-- Header -->
-    <div class="flex items-center justify-between px-4 py-3 border-b border-press-border">
-      <h2 id="reference-dialog-title" class="text-press-body-lg font-medium text-press-text">
-        {reference ? "Edit" : "Add"}
-        {referenceType.label}
-      </h2>
-      <Tooltip text="Close" position="left">
-        <button
-          type="button"
-          onclick={onClose}
-          class="p-1 text-press-muted hover:text-press-text transition-colors rounded"
-          aria-label="Close"
-          data-testid="reference-close"
-        >
-          <X class="w-5 h-5" />
-        </button>
-      </Tooltip>
-    </div>
+  <div class="app-dialog-surface ka-dialog-default dialog-shell">
+    <DialogHeader
+      title={`${reference ? "Edit" : "Add"} ${referenceType.singular}`}
+      titleId="reference-dialog-title"
+      {onClose}
+      closeLabel="Close"
+      closeTestId="reference-close"
+    />
 
-    <!-- Content -->
-    <div class="p-4 space-y-4">
-      <div>
-        <label for="reference-name" class="block text-press-ui text-press-muted mb-1">Name</label>
-        <input
-          id="reference-name"
-          bind:this={nameInput}
-          bind:value={name}
-          type="text"
-          class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent"
-          placeholder="Enter name..."
-          disabled={saving}
-        />
-      </div>
+    <div class="ka-dialog-body reference-form">
+      <div class="ka-group">
+        <div class="ka-field od-field">
+          <label for="reference-name">Name</label>
+          <input
+            id="reference-name"
+            bind:this={nameInput}
+            bind:value={name}
+            type="text"
+            placeholder="Enter name…"
+            disabled={saving}
+            aria-invalid={nameError ? true : undefined}
+            aria-describedby={nameError ? "ref-name-error" : undefined}
+            oninput={() => (nameError = null)}
+          />
+          {#if nameError}
+            <p id="ref-name-error" class="ka-error">{nameError}</p>
+          {/if}
+        </div>
 
-      <div>
-        <label for="reference-description" class="block text-press-ui text-press-muted mb-1">
-          Description
-        </label>
-        <textarea
-          id="reference-description"
-          rows="4"
-          bind:value={description}
-          class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent resize-none"
-          placeholder="Optional description"
-          disabled={saving}
-        ></textarea>
-      </div>
+        <div class="ka-field od-field">
+          <label for="reference-description">
+            Description <span class="ka-optional">(optional)</span>
+          </label>
+          <textarea
+            id="reference-description"
+            rows="4"
+            bind:value={description}
+            placeholder="Optional description"
+            disabled={saving}
+          ></textarea>
+        </div>
 
-      <div>
-        <label for="reference-notes" class="block text-press-ui text-press-muted mb-1">Notes</label>
-        <textarea
-          id="reference-notes"
-          rows="3"
-          bind:value={notes}
-          class="w-full bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 focus:outline-none focus:border-press-accent resize-none"
-          placeholder="Optional notes"
-          disabled={saving}
-        ></textarea>
+        <div class="ka-field od-field">
+          <label for="reference-notes">Notes <span class="ka-optional">(optional)</span></label>
+          <textarea
+            id="reference-notes"
+            rows="3"
+            bind:value={notes}
+            placeholder="Optional notes"
+            disabled={saving}
+          ></textarea>
+        </div>
       </div>
 
       {#if !fieldsLoading && visibleFieldDefs.length > 0}
-        <div class="space-y-3">
-          <span class="block text-press-ui text-press-muted">Custom Fields</span>
-          {#each visibleFieldDefs as def (def.id)}
-            <FieldRenderer
-              definition={def}
-              value={fieldValueMap[def.id] ?? null}
-              disabled={saving}
-              onChange={(v) => handleFieldChange(def.id, v)}
-            />
-          {/each}
-        </div>
+        <section class="ka-group" aria-labelledby="reference-custom-fields">
+          <h3 id="reference-custom-fields" class="ka-group-title">Custom fields</h3>
+          <div class="reference-fields">
+            {#each visibleFieldDefs as def (def.id)}
+              <FieldRenderer
+                definition={def}
+                value={fieldValueMap[def.id] ?? null}
+                disabled={saving}
+                onChange={(v) => handleFieldChange(def.id, v)}
+              />
+            {/each}
+          </div>
+        </section>
       {/if}
 
-      <div class="space-y-2">
-        <div class="flex items-center justify-between">
-          <span class="text-press-ui text-press-muted">Legacy Attributes</span>
+      <section class="ka-group" aria-labelledby="reference-legacy">
+        <div class="ka-group-title">
+          <h3 id="reference-legacy" class="reference-legacy-title">Legacy attributes</h3>
           <button
             type="button"
             onclick={addAttributeRow}
-            class="text-press-muted hover:text-press-text text-press-eyebrow flex items-center gap-1"
+            class="ka-button ka-button--ghost"
             disabled={saving}
           >
-            <Plus class="w-3 h-3" />
+            <Plus class="w-5 h-5" aria-hidden="true" />
             Add attribute
           </button>
         </div>
         {#if attributeRows.length === 0}
-          <p class="text-press-eyebrow text-press-muted">No attributes yet.</p>
+          <p class="ka-help">No attributes yet.</p>
         {:else}
-          <div class="space-y-2">
-            {#each attributeRows as row (row.id)}
-              <div class="flex gap-2 items-center">
-                <input
-                  type="text"
-                  bind:value={row.key}
-                  placeholder="Key"
-                  class="flex-1 bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 text-press-ui focus:outline-none focus:border-press-accent"
-                  disabled={saving}
-                />
-                <input
-                  type="text"
-                  bind:value={row.value}
-                  placeholder="Value"
-                  class="flex-1 bg-press-sunken text-press-text border border-press-border rounded-lg px-3 py-2 text-press-ui focus:outline-none focus:border-press-accent"
-                  disabled={saving}
-                />
-                <button
-                  type="button"
-                  onclick={() => removeAttributeRow(row.id)}
-                  class="text-press-muted hover:text-press-error p-1"
-                  aria-label="Remove attribute"
-                  disabled={saving}
-                >
-                  <Trash2 class="w-4 h-4" />
-                </button>
-              </div>
-            {/each}
-          </div>
+          {#each attributeRows as row, index (row.id)}
+            <div class="reference-attribute">
+              <input
+                type="text"
+                bind:value={row.key}
+                placeholder="Key"
+                aria-label={`Attribute ${index + 1} key`}
+                disabled={saving}
+              />
+              <input
+                type="text"
+                bind:value={row.value}
+                placeholder="Value"
+                aria-label={`Attribute ${index + 1} value`}
+                disabled={saving}
+              />
+              <button
+                type="button"
+                onclick={() => removeAttributeRow(row.id)}
+                class="ka-button ka-button--ghost ka-icon-button reference-remove"
+                aria-label="Remove attribute"
+                title="Remove attribute"
+                disabled={saving}
+              >
+                <Trash2 class="w-5 h-5" aria-hidden="true" />
+              </button>
+            </div>
+          {/each}
         {/if}
-      </div>
+      </section>
 
       {#if error}
-        <p class="text-press-ui text-press-error">{error}</p>
+        <p class="ka-error" role="alert">{error}</p>
       {/if}
     </div>
 
-    <!-- Footer -->
-    <div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-press-border">
+    <footer class="ka-dialog-footer">
       <button
         type="button"
         onclick={onClose}
-        class="px-4 py-2 text-press-ui text-press-muted hover:text-press-text transition-colors"
+        class="ka-button ka-button--secondary"
         disabled={saving}
       >
         Cancel
@@ -317,16 +310,53 @@
         data-testid="reference-save"
         type="button"
         onclick={handleSave}
-        class="px-4 py-2 text-press-ui bg-press-accent text-press-on-accent rounded-lg hover:bg-press-accent-text transition-colors flex items-center gap-2"
-        disabled={saving || !name.trim()}
+        class="ka-button"
+        disabled={saving}
+        aria-busy={saving || undefined}
       >
         {#if saving}
-          <Loader2 class="w-4 h-4 animate-spin" />
-          Saving...
+          <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
+          Saving…
         {:else}
           Save
         {/if}
       </button>
-    </div>
+    </footer>
   </div>
 </div>
+
+<style>
+  .reference-form {
+    display: grid;
+  }
+  .reference-form .ka-group > .ka-field + .ka-field {
+    margin-top: 4px;
+  }
+  /* Short fields (Role, Age) pair up; groups of options take the full row. */
+  .reference-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-s);
+  }
+  .reference-fields > :global(.field-renderer:has(textarea, .ka-checks)) {
+    grid-column: 1 / -1;
+  }
+  .reference-legacy-title {
+    margin: 0;
+    font: inherit;
+  }
+  .reference-attribute {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+  }
+  .reference-attribute input {
+    flex: 1;
+    min-width: 0;
+  }
+  @media (hover: hover) {
+    .reference-remove:hover {
+      color: var(--color-error);
+    }
+  }
+</style>

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { Link2, X } from "lucide-svelte";
   import type { ReferenceSuggestion } from "../types";
-  import Tooltip from "./Tooltip.svelte";
 
   let {
     suggestion,
@@ -19,10 +18,11 @@
     return "Low";
   });
 
-  const confidenceColor = $derived.by(() => {
-    if (suggestion.confidence >= 0.9) return "text-press-success";
-    if (suggestion.confidence >= 0.5) return "text-press-warning";
-    return "text-press-muted";
+  // The badge text carries the meaning; tone only reinforces it.
+  const confidenceTone = $derived.by(() => {
+    if (suggestion.confidence >= 0.9) return "ka-badge--success";
+    if (suggestion.confidence >= 0.5) return "ka-badge--warning";
+    return "";
   });
 
   const typeLabel = $derived.by(() => {
@@ -33,43 +33,100 @@
   });
 </script>
 
-<div
-  class="flex items-start gap-2 p-2 bg-press-sunken rounded-lg border border-press-border hover:border-press-accent transition-colors"
->
-  <div class="flex-1 min-w-0">
-    <div class="flex items-center gap-1.5">
-      <span class="text-press-ui font-medium text-press-text truncate">
-        {suggestion.reference_name}
-      </span>
-      <span class="text-press-eyebrow px-1.5 py-0.5 rounded-full bg-press-sunken text-press-muted">
-        {typeLabel}
-      </span>
-      <span class="text-press-eyebrow {confidenceColor}">
-        {confidenceLabel}
-      </span>
+<div class="suggestion">
+  <div class="suggestion-main">
+    <div class="suggestion-title">
+      <span class="suggestion-name">{suggestion.reference_name}</span>
+      <span class="ka-badge {confidenceTone}">{confidenceLabel}</span>
     </div>
-    <p class="text-press-eyebrow text-press-muted mt-0.5 truncate">
-      &ldquo;{suggestion.match_text}&rdquo;
-    </p>
+    <small class="suggestion-match" title={suggestion.match_text}>
+      {typeLabel} · found “{suggestion.match_text}”
+    </small>
   </div>
-  <div class="flex items-center gap-1 shrink-0">
-    <Tooltip text="Link to scene" position="left">
-      <button
-        onclick={() => onLink(suggestion)}
-        class="p-1 rounded hover:bg-press-accent-wash text-press-accent-text transition-colors cursor-pointer"
-        aria-label="Link {suggestion.reference_name} to scene"
-      >
-        <Link2 class="w-3.5 h-3.5" />
-      </button>
-    </Tooltip>
-    <Tooltip text="Dismiss" position="left">
-      <button
-        onclick={() => onDismiss(suggestion)}
-        class="p-1 rounded hover:bg-press-error-wash text-press-muted hover:text-press-error transition-colors cursor-pointer"
-        aria-label="Dismiss suggestion for {suggestion.reference_name}"
-      >
-        <X class="w-3.5 h-3.5" />
-      </button>
-    </Tooltip>
-  </div>
+  <button
+    type="button"
+    onclick={() => onLink(suggestion)}
+    class="ka-button ka-button--secondary suggestion-link"
+    aria-label="Link {suggestion.reference_name} to scene"
+    title="Link to scene"
+  >
+    <Link2 class="w-4 h-4" aria-hidden="true" />
+    Link
+  </button>
+  <button
+    type="button"
+    onclick={() => onDismiss(suggestion)}
+    class="ka-button ka-button--ghost ka-icon-button suggestion-dismiss"
+    aria-label="Dismiss suggestion for {suggestion.reference_name}"
+    title="Dismiss"
+  >
+    <X class="w-5 h-5" aria-hidden="true" />
+  </button>
 </div>
+
+<style>
+  .suggestion {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3xs);
+    min-height: 56px;
+  }
+  .suggestion-main {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+    padding: var(--space-2xs);
+  }
+  .suggestion-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    min-width: 0;
+  }
+  .suggestion-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 500 var(--text-ui) / 1.4 var(--font-ui);
+    color: var(--color-text);
+  }
+  .suggestion-title .ka-badge {
+    min-height: 20px;
+    padding: 2px 6px;
+    font-size: var(--text-eyebrow);
+  }
+  .suggestion-match {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  .suggestion-link {
+    flex: none;
+    padding: var(--space-2xs) var(--space-xs);
+    font-size: var(--text-small);
+  }
+  .suggestion-dismiss {
+    flex: none;
+    color: var(--color-text-muted);
+  }
+  @media (hover: hover) {
+    .suggestion-dismiss:hover {
+      color: var(--color-error);
+    }
+  }
+  /* Keyed to the references panel's own width, which can be narrow in any window. */
+  @container refs (max-width: 360px) {
+    .suggestion {
+      flex-wrap: wrap;
+    }
+    .suggestion-main {
+      flex-basis: 100%;
+    }
+    .suggestion-link {
+      margin-left: auto;
+    }
+  }
+</style>

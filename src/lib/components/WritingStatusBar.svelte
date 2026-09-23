@@ -29,9 +29,9 @@
 </script>
 
 {#if currentProject.value && (stats || writing.error)}
-  <footer class="shrink-0 border-t border-press-border bg-press-bg font-press-ui">
+  <footer class="statusbar">
     {#if writing.error}
-      <p role="alert" class="px-4 py-2 text-press-small text-press-error">{writing.error}</p>
+      <p role="alert" class="statusbar-error">{writing.error}</p>
     {/if}
     {#if stats}
       {#if expanded}
@@ -40,53 +40,51 @@
         <section
           id="writing-statistics-panel"
           aria-labelledby="writing-statistics-title"
-          class="statistics-panel overflow-y-auto border-b border-press-border px-4 py-3"
+          class="statistics-panel"
           tabindex="0"
         >
-          <h2 id="writing-statistics-title" class="text-press-h3 text-press-text">
-            Writing statistics
-          </h2>
-          <dl class="my-3 flex flex-wrap gap-x-8 gap-y-3 text-press-small">
+          <h2 id="writing-statistics-title">Writing statistics</h2>
+          <dl class="ka-stats statistics-figures">
             <div>
-              <dt class="text-press-muted">Total words</dt>
-              <dd class="text-press-text tabular-nums">{stats.project_words.toLocaleString()}</dd>
+              <dt>Total words</dt>
+              <dd>{stats.project_words.toLocaleString()}</dd>
             </div>
             <div>
-              <dt class="text-press-muted">Scenes with prose</dt>
-              <dd class="text-press-text tabular-nums">{scenesWithProse.toLocaleString()}</dd>
+              <dt>Scenes with prose</dt>
+              <dd>{scenesWithProse.toLocaleString()}</dd>
             </div>
             <div>
-              <dt class="text-press-muted">Empty scenes</dt>
-              <dd class="text-press-text tabular-nums">
+              <dt>Empty scenes</dt>
+              <dd>
                 {(sceneCounts.length - scenesWithProse).toLocaleString()}
               </dd>
             </div>
             <div>
-              <dt class="text-press-muted">Average words per scene</dt>
-              <dd class="text-press-text tabular-nums">
+              <dt>Average words per scene</dt>
+              <dd>
                 {averageWords.toLocaleString(undefined, { maximumFractionDigits: 1 })}
               </dd>
             </div>
           </dl>
-          <p class="mb-3 text-press-eyebrow text-press-muted">
+          <p class="ka-help statistics-note">
             Saved prose only. Archived content is excluded; the average includes empty scenes.
           </p>
           {#if chapters.length}
-            <table class="w-full table-fixed text-press-small text-press-text">
-              <caption class="text-left font-semibold mb-2">Words per chapter</caption>
+            <table class="statistics-table">
+              <caption>Words per chapter</caption>
               <thead>
-                <tr class="border-b border-press-border">
-                  <th scope="col" class="text-left py-1 font-medium">Chapter</th>
-                  <th scope="col" class="w-24 text-right py-1 font-medium">Words</th>
+                <tr>
+                  <th scope="col">Chapter</th>
+                  <th scope="col">Words</th>
                 </tr>
               </thead>
               <tbody>
                 {#each chapters as chapter (chapter.id)}
-                  <tr class="border-b border-press-border">
-                    <th scope="row" class="text-left py-1 pr-4 font-normal break-words">
+                  <tr>
+                    <th scope="row">
                       {chapter.title}
                     </th>
-                    <td class="text-right py-1 tabular-nums">
+                    <td>
                       {stats.chapter_words[chapter.id].toLocaleString()}
                     </td>
                   </tr>
@@ -94,25 +92,24 @@
               </tbody>
             </table>
           {:else}
-            <p class="text-press-small text-press-muted">No chapters yet.</p>
+            <p class="ka-help">No chapters yet.</p>
           {/if}
         </section>
       {/if}
-      <div
-        class="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-press-eyebrow text-press-muted"
-      >
+      <div class="statusbar-row">
         <span
           >Scene: {sceneId ? (stats.scene_words[sceneId]?.toLocaleString() ?? "—") : "—"} words</span
         >
-        <span
+        <span class="statusbar-chapter"
           >Chapter: {chapterId ? (stats.chapter_words[chapterId]?.toLocaleString() ?? "—") : "—"} words</span
         >
-        <span>Project: {stats.project_words.toLocaleString()} words</span>
+        <span class="statusbar-project">Project: {stats.project_words.toLocaleString()} words</span>
         <span title="Net words saved since opening the app or resetting the session.">
           Session: {stats.session_words.toLocaleString()} words
         </span>
         <button
-          class="ml-auto text-press-muted hover:text-press-text"
+          type="button"
+          class="ka-button ka-button--ghost statusbar-toggle"
           aria-expanded={expanded}
           aria-controls="writing-statistics-panel"
           onclick={toggleStatistics}>{expanded ? "Hide statistics" : "Writing statistics"}</button
@@ -123,7 +120,107 @@
 {/if}
 
 <style>
+  .statusbar {
+    flex: none;
+    border-top: var(--border-hair);
+    background: var(--color-surface);
+    font: var(--text-small) / 1.5 var(--font-ui);
+    color: var(--color-text-muted);
+  }
+  .statusbar-error {
+    margin: 0;
+    padding: var(--space-2xs) var(--space-m);
+    color: var(--color-error);
+  }
+  .statusbar-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: var(--space-m);
+    row-gap: 0;
+    min-height: var(--control-target);
+    padding: 0 var(--space-3xs) 0 var(--space-m);
+    font-variant-numeric: tabular-nums;
+  }
+  .statusbar-row > span {
+    white-space: nowrap;
+  }
+  .statusbar-toggle {
+    margin-left: auto;
+    font-size: var(--text-small);
+  }
+  .statistics-panel:focus-visible {
+    outline: 2px solid var(--color-accent-text);
+    outline-offset: -2px;
+  }
+  /* Compact windows keep one row; chapter and project totals stay in the
+     statistics panel. */
+  @media (max-width: 1280px) {
+    .statusbar-row {
+      flex-wrap: nowrap;
+      column-gap: var(--space-s);
+    }
+    .statusbar-chapter,
+    .statusbar-project {
+      display: none;
+    }
+  }
   .statistics-panel {
     max-height: 35vh;
+    overflow-y: auto;
+    padding: var(--space-s) var(--space-m);
+    border-bottom: var(--border-hair);
+    color: var(--color-text);
+  }
+  .statistics-panel h2 {
+    margin: 0;
+    font: 550 var(--text-h3) / var(--leading-tight) var(--font-display);
+    letter-spacing: var(--tracking-tight);
+  }
+  .statistics-figures {
+    margin: var(--space-s) 0 var(--space-2xs);
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+  /* A label that wraps keeps its value on the shared baseline row. */
+  .statistics-figures > :global(div) {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  /* Short windows: room for the chapter breakdown under the totals. */
+  @media (max-height: 800px) {
+    .statistics-panel {
+      max-height: 50vh;
+    }
+  }
+  .statistics-note {
+    margin: 0 0 var(--space-s);
+  }
+  .statistics-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font: var(--text-small) / 1.5 var(--font-ui);
+  }
+  .statistics-table caption {
+    margin-bottom: var(--space-2xs);
+    font-weight: 500;
+    text-align: left;
+  }
+  .statistics-table :where(th, td) {
+    padding: var(--space-2xs) 0;
+    border-bottom: var(--border-hair);
+    text-align: left;
+    font-weight: 400;
+    overflow-wrap: anywhere;
+  }
+  .statistics-table thead th {
+    font-weight: 500;
+    color: var(--color-text-muted);
+  }
+  .statistics-table :where(td, thead th:last-child) {
+    width: 6rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
   }
 </style>
