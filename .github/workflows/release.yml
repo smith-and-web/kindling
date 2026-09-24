@@ -11,65 +11,47 @@ env:
   SCCACHE_GHA_ENABLED: "true"
   RUSTC_WRAPPER: "sccache"
 
-# Required for creating releases and committing changelog
+# Required for creating releases
 permissions:
   contents: write
 
 jobs:
-  # Generate changelog and commit it back to the repo
+  # Read this version's release notes from the CHANGELOG.md committed at the tag.
+  # Notes are generated and hand-edited before tagging (see CLAUDE.md): once
+  # package.json matches the tag, `npm run changelog` has nothing left to emit,
+  # so regenerating here would only produce an empty section.
   changelog:
-    name: Update Changelog
+    name: Read Changelog
     runs-on: ubuntu-latest
     outputs:
       changelog: ${{ steps.changelog.outputs.content }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          ref: main
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "20"
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate changelog
-        run: npm run changelog
 
       - name: Extract changelog for this version
         id: changelog
         shell: bash
         run: |
-          # Extract the changelog section for this version
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"  # Remove 'v' prefix if present
 
-          # Extract content between this version header and the next version header (or --- separator)
-          CHANGELOG=$(awk "/^## \[?${VERSION}\]?/{flag=1; next} /^## \[?[0-9]|^---/{flag=0} flag" CHANGELOG.md | head -100)
+          # Everything between this version's "## [x.y.z]" / "## x.y.z" header and the next version header.
+          CHANGELOG=$(awk -v v="$VERSION" '
+            /^## / { flag = (index($0, "## [" v "]") == 1 || $0 == "## " v || index($0, "## " v " ") == 1); if (flag) next }
+            flag' CHANGELOG.md)
 
-          # If no specific changelog found, use a default message
-          if [ -z "$CHANGELOG" ]; then
-            CHANGELOG="See [CHANGELOG.md](https://github.com/smith-and-web/kindling/blob/main/CHANGELOG.md) for details."
+          if [ -z "$(printf '%s' "$CHANGELOG" | tr -d '[:space:]')" ]; then
+            echo "::error file=CHANGELOG.md::No release notes for $VERSION. Bump package.json, run npm run changelog, edit and commit the section, then re-tag."
+            exit 1
           fi
 
           # Write to output (handle multiline)
-          echo "content<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Check changelog changes
-        run: |
-          if git diff --quiet CHANGELOG.md; then
-            echo "No changelog changes to report"
-          else
-            echo "::warning::CHANGELOG.md updated during release build; commit manually to main."
-            git --no-pager diff --stat CHANGELOG.md
-          fi
+          {
+            echo "content<<CHANGELOG_EOF"
+            echo "$CHANGELOG"
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
 
   # Build and release for each platform
   release:

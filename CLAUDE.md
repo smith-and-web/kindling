@@ -155,6 +155,10 @@ entry is `0.2.0-alpha`, so 1.0.0-beta through 1.2.0 were never appended.
 will overwrite any hand-edited prose in it — check the diff rather than
 trusting it.
 
+The release workflow does not generate notes. It reads the `## [x.y.z]` section
+for the pushed tag from the committed CHANGELOG.md and fails if that section is
+missing, so bump, generate, hand-edit and commit the section before tagging.
+
 ## The IPC boundary (Rust ↔ TypeScript)
 
 Rust and TypeScript are maintained independently and **nothing checks their
