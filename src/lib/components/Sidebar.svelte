@@ -72,6 +72,7 @@
   import SnapshotsPanel from "./SnapshotsPanel.svelte";
   import BrandWordmark from "./BrandWordmark.svelte";
   import { menuKeyboard } from "../utils/menuKeyboard";
+  import { stepMoveOrder } from "../utils/outlineMove";
 
   import type { ComponentType } from "svelte";
 
@@ -964,8 +965,14 @@
     if (draggedItem && dragOverId && draggedItem.id !== dragOverId) {
       const items =
         draggedItem.type === "chapter" ? currentProject.chapters : currentProject.scenes;
+      const fromIndex = items.findIndex((item) => item.id === draggedItem!.id);
       const toIndex = items.findIndex((item) => item.id === dragOverId);
-      if (toIndex !== -1) await moveOutlineItem(draggedItem.type, draggedItem.id, toIndex);
+      if (fromIndex !== -1 && toIndex !== -1) {
+        const newIds = items.map((item) => item.id);
+        const [moved] = newIds.splice(fromIndex, 1);
+        newIds.splice(toIndex, 0, moved);
+        await saveOutlineOrder(draggedItem.type, newIds);
+      }
     }
 
     isDragging = false;
@@ -975,20 +982,8 @@
     currentDragOverElement = null;
   }
 
-  /** Moves a chapter or scene to `toIndex` among its siblings; resolves true once saved. */
-  async function moveOutlineItem(
-    type: "chapter" | "scene",
-    id: string,
-    toIndex: number
-  ): Promise<boolean> {
-    const items = type === "chapter" ? currentProject.chapters : currentProject.scenes;
-    const fromIndex = items.findIndex((item) => item.id === id);
-    if (fromIndex === -1 || toIndex < 0 || toIndex >= items.length || fromIndex === toIndex)
-      return false;
-    const newOrder = [...items];
-    const [moved] = newOrder.splice(fromIndex, 1);
-    newOrder.splice(toIndex, 0, moved);
-    const newIds = newOrder.map((item) => item.id);
+  /** Saves a new chapter or scene order; resolves true once saved. */
+  async function saveOutlineOrder(type: "chapter" | "scene", newIds: string[]): Promise<boolean> {
     try {
       if (type === "chapter" && currentProject.value) {
         await invoke("reorder_chapters", {
@@ -1013,12 +1008,41 @@
     }
   }
 
+  /**
+   * The order a one-step move would save, or null when it isn't possible: at an end
+   * of the visible list, the item is locked, or the move would shift a locked row
+   * (which the backend pins in place). Scenes move within the filtered, visible list.
+   */
+  function oneStepOrder(type: "chapter" | "scene", item: Chapter | Scene, step: -1 | 1) {
+    if (type === "chapter") {
+      const chapters = currentProject.chapters;
+      return stepMoveOrder(
+        chapters,
+        chapters.map((c) => c.id),
+        item.id,
+        step,
+        (c) => c.locked
+      );
+    }
+    const chapterLocked = !!currentProject.chapters.find((c) => c.id === (item as Scene).chapter_id)
+      ?.locked;
+    return stepMoveOrder(
+      currentProject.scenes,
+      filteredScenes.map((s) => s.id),
+      item.id,
+      step,
+      (s) => chapterLocked || s.locked
+    );
+  }
+
   /** Keyboard alternative to dragging: move one place, announce it, keep focus on the item. */
   async function moveOneStep(type: "chapter" | "scene", item: Chapter | Scene, step: -1 | 1) {
-    const items = type === "chapter" ? currentProject.chapters : currentProject.scenes;
-    const toIndex = items.findIndex((i) => i.id === item.id) + step;
-    if (!(await moveOutlineItem(type, item.id, toIndex))) return;
-    moveAnnouncement = `Moved “${item.title}” ${step < 0 ? "up" : "down"}, to position ${toIndex + 1} of ${items.length}.`;
+    const visible = type === "chapter" ? currentProject.chapters : filteredScenes;
+    const newIds = oneStepOrder(type, item, step);
+    if (!newIds || !(await saveOutlineOrder(type, newIds))) return;
+    const shown = newIds.filter((id) => visible.some((v) => v.id === id));
+    const direction = step < 0 ? "up" : "down";
+    moveAnnouncement = `Moved “${item.title}” ${direction}, to position ${shown.indexOf(item.id) + 1} of ${shown.length}.`;
     await tick();
     document
       .querySelector<HTMLElement>(`[data-outline-row="${item.id}"] [data-testid="menu-button"]`)
@@ -1131,9 +1155,6 @@
       (type === "scene" &&
         !!currentProject.chapters.find((c) => c.id === (item as Scene).chapter_id)?.locked);
     const isPart = type === "chapter" && "is_part" in item && (item as Chapter).is_part;
-    const siblings: (Chapter | Scene)[] =
-      type === "chapter" ? currentProject.chapters : currentProject.scenes;
-    const siblingIndex = siblings.findIndex((sibling) => sibling.id === item.id);
 
     return [
       {
@@ -1179,13 +1200,13 @@
         label: "Move up",
         icon: ArrowUp,
         action: () => moveOneStep(type, item, -1),
-        disabled: isLocked || siblingIndex <= 0,
+        disabled: !oneStepOrder(type, item, -1),
       },
       {
         label: "Move down",
         icon: ArrowDown,
         action: () => moveOneStep(type, item, 1),
-        disabled: isLocked || siblingIndex === -1 || siblingIndex >= siblings.length - 1,
+        disabled: !oneStepOrder(type, item, 1),
       },
       // Convert to Part/Chapter option (only for chapters)
       ...(type === "chapter"

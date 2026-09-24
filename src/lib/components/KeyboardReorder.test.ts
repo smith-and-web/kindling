@@ -123,16 +123,75 @@ it("moves a scene down, shows the backend's lock refusal and leaves locked scene
   expect(menuItem("Move down").disabled).toBe(true);
   await fireEvent.keyDown(window, { key: "Escape" });
 
-  // Moving a neighbour past it is refused by the backend; the writer is told why.
-  failing = "reorder_scenes";
+  // Moving a neighbour past it would shift the pinned scene, so that move isn't offered.
   await fireEvent.click(sceneMenus()[1]);
-  await fireEvent.click(menuItem("Move down"));
+  expect(menuItem("Move down").disabled).toBe(true);
+  expect(menuItem("Move up").disabled).toBe(false);
+
+  // A move the backend still refuses is reported, and the order is left alone.
+  failing = "reorder_scenes";
+  await fireEvent.click(menuItem("Move up"));
   await waitFor(() =>
     expect(ui.toast?.message).toBe(
       "Failed to reorder: Cannot move the locked scene “Gate”. Unlock it first."
     )
   );
   expect(currentProject.scenes.map((s) => s.id)).toEqual(["b", "a", "c"]);
+});
+
+it.each([
+  ["scenes", ["a", "l", "c"]],
+  ["chapters", ["one", "mid", "two"]],
+])("doesn't offer a move that would shift a locked neighbour (%s)", async (kind, ids) => {
+  if (kind === "scenes") {
+    const scenes = [scene("a", "Gate", 0), scene("l", "Keep", 1, true), scene("c", "Tower", 2)];
+    responses = { get_chapters: chapters, get_scenes: scenes };
+  } else {
+    const mid = { ...chapter("mid", "Interlude", 1), locked: true };
+    responses = { get_chapters: [chapters[0], mid, { ...chapters[1], position: 2 }] };
+  }
+  render(Sidebar);
+  const label = kind === "scenes" ? "Scene menu" : "Chapter menu";
+  await waitFor(() => expect(screen.getAllByRole("button", { name: label })).toHaveLength(3));
+  const menus = () => screen.getAllByRole("button", { name: label });
+  await fireEvent.click(menus()[0]);
+  expect(menuItem("Move down").disabled).toBe(true);
+  await fireEvent.keyDown(window, { key: "Escape" });
+  await fireEvent.click(menus()[2]);
+  expect(menuItem("Move up").disabled).toBe(true);
+  await fireEvent.keyDown(window, { key: "Escape" });
+  const order = kind === "scenes" ? currentProject.scenes : currentProject.chapters;
+  expect(order.map((item) => item.id)).toEqual(ids);
+  expect(invoke).not.toHaveBeenCalledWith(
+    kind === "scenes" ? "reorder_scenes" : "reorder_chapters",
+    expect.anything()
+  );
+});
+
+it("moves a scene past the scenes a filter hides, relative to the visible order", async () => {
+  const notes: Scene = { ...scene("n", "Aside", 1), scene_type: "notes" };
+  const scenes = [scene("a", "Gate", 0), notes, scene("b", "Well", 2)];
+  responses = { get_chapters: chapters, get_scenes: scenes };
+  render(Sidebar);
+  await screen.findByRole("button", { name: /Aside/ });
+  await fireEvent.click(screen.getByRole("button", { name: "Filter by type & status" }));
+  await fireEvent.click(screen.getByRole("button", { name: "Notes" }));
+  await fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  await waitFor(() => expect(screen.queryByRole("button", { name: /Aside/ })).toBeNull());
+
+  await fireEvent.click(screen.getAllByRole("button", { name: "Scene menu" })[0]);
+  await fireEvent.click(menuItem("Move down"));
+  // Gate lands after Well, the next scene the writer can see; the hidden note keeps its place.
+  await waitFor(() => expect(currentProject.scenes.map((s) => s.id)).toEqual(["n", "b", "a"]));
+  expect(invoke).toHaveBeenCalledWith("reorder_scenes", {
+    chapterId: "one",
+    sceneIds: ["n", "b", "a"],
+  });
+  await waitFor(() => expect(status()).toContain("Moved “Gate” down, to position 2 of 2."));
+  expect(screen.getAllByTestId("scene-title").map((title) => title.textContent)).toEqual([
+    "Well",
+    "Gate",
+  ]);
 });
 
 it("moves a beat from its menu, announces it and keeps focus on the beat", async () => {
