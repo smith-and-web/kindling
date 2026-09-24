@@ -84,7 +84,7 @@ The manuscript remains light paper with dark ink in either theme through `--colo
 
 Font files and OFL notices are local. Preserve the full fallback stacks in the CSS. `design-system/fonts.css` serves the canonical variable TTFs for an application that bundles its assets; `design-system/fonts-web.css` serves the same five faces as WOFF2 from `assets/fonts/web/` for delivery over a network. Both are generated from one set of files — `npm run fonts:build` encodes losslessly, with no subsetting, so axes, weights, italics and glyph coverage are identical. A consumer must not declare these family names against fonts vendored from anywhere else. The foundation hero scales from 32–60px, H1 from 32–44px, H2 from 24–32px, and H3 is 20px. The application has its own heading ceiling of 48px. Small metadata sizes are inherited exceptions, not permission to shrink body text.
 
-Website copy uses Inter as a scoped variant, with Fraunces headings and Newsreader writing samples. Do not spread that variant into manuscript prose. A manuscript — in the editor, in `.ka-manuscript-prose`, or in a website sample marked `.pw-writing--app` — is `--text-body` at `--leading-relaxed` held to `--measure`. An editorial reading column may be larger deliberately; a sample claiming to show the workspace may not. Keep headings authored to fit; wrap user content in details and provide an expansion path for truncated list content.
+Website copy uses Inter as a scoped variant, with Fraunces headings and Newsreader writing samples. Do not spread that variant into manuscript prose. A manuscript — in the editor, in `.ka-manuscript-prose` (including inside a `.press-app` workspace embedded in a website page), or in a website sample marked `.pw-writing--app` — is `--text-body` at `--leading-relaxed` held to `--measure`. An editorial reading column may be larger deliberately; a sample claiming to show the workspace may not. Keep headings authored to fit; wrap user content in details and provide an expansion path for truncated list content.
 
 ## Spacing and layout
 
@@ -130,7 +130,7 @@ Use reversed artwork on dark surfaces and monochrome variants for single-color p
 | Writing application (`.press-app`) | Inter controls, Fraunces headings, Newsreader manuscript; light/dark/system chrome | Dense task-based groups, visible selection and real status; manuscript stays light |
 | Brand, social, print | Original artwork; Fraunces/Newsreader/Inter by role | A clear signature, one message, generous paper space |
 
-On editorial pages, use at most two deliberate terracotta moments per viewport; inline links and the original logo are exempt. A secondary persistent header action with the shared sunken fill supports the primary in-content action. Application selection, focus, tags and true status may coexist; the marketing accent budget does not constrain workspace state.
+On editorial pages, use at most two deliberate terracotta moments per viewport; inline links and the original logo are exempt. A secondary persistent header action with the shared sunken fill supports the primary in-content action. Application selection, focus, tags and true status may coexist; the marketing accent budget does not constrain workspace state. That holds for an interactive `.press-app` workspace embedded in an editorial page: inside its own bounded surface, its real selection, beat numbers, focus and status are exempt. Decoration and calls to action inside it are not exempt merely for being inside it, and the editorial chrome around it keeps its budget of two.
 
 Preserve the inherited paper grain, mounted-print figures, print folios, running section labels, accent rule and Newsreader pull-quotes. Prefer hairlines in flow; use shadows for mounted prints, the closing action panel and floating overlays. Product screenshots must retain their full frame and controls: use `.pw-image-frame` for full-frame specimens. A deliberately authored detail capture is welcome; arbitrary CSS cropping of a full interface is not. Use the existing 80px editorial bands and 120–140px opening space when composing long reading pages, with narrower gutters on small screens.
 
@@ -139,6 +139,18 @@ Preserve the inherited paper grain, mounted-print figures, print folios, running
 Standalone controls target at least `--control-target` (44px) in both dimensions; inline prose links are exempt. Controls have a visible label, focus state and accessible name. Use native elements and the existing Svelte components for keyboard behavior. Errors explain a remedy near the affected field. Busy actions expose their state; empty states explain how to proceed. Pair destructive actions with a confirmation when they remove user work.
 
 Use restrained state feedback: foundation and website transitions use 100ms/200ms; the application layer uses its existing 160ms motion token. Respect `prefers-reduced-motion`. Avoid decorative entrance choreography, hover-only essential information, and color-only state. Aim for 4.5:1 body contrast and 3:1 essential graphics; evaluate both themes independently when doing QA. Hairlines are separators, not the sole signal identifying a control.
+
+**One exception: the home-page workspace tour.** The interactive `.press-app` workspace specimen on kindlingwriter.com's home page may tour itself: a looping walk through the scene workspace, with transitions of up to 560ms and reading scrolls of up to 1.7s. It exists because a specimen of a calm writing tool is best shown moving calmly, and it is allowed only while it keeps every one of these terms:
+
+- It starts only when at least half the specimen is on screen, and pauses off-screen and in a background tab.
+- Under `prefers-reduced-motion` it never starts on its own, and every transition is instant.
+- The visitor's first click, keypress, keyboard focus or scroll inside the specimen stops it where it is. Nothing resets; a transition already under way completes forwards.
+- A visible Pause/Play control stops and resumes it (WCAG 2.2.2), and Play resumes from the current step.
+- The visitor's own interactions move exactly as the tour does.
+- Motion is opacity, transform, height and scroll, plus colour fades between a control's existing states — no gradient, glow, per-character typing or simulated cursor.
+- It never moves focus, records no analytics, and the specimen works completely without JavaScript.
+
+It is an exception, not a pattern. No other page, specimen or application screen may autoplay, loop, or exceed the motion values above by pointing to it; a second case needs its own entry here.
 
 ## Voice and brand
 
