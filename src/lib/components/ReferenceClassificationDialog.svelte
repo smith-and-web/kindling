@@ -4,6 +4,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
+  import { safeProse } from "../utils/safeHtml";
   import type {
     Character,
     Location,
@@ -184,7 +185,7 @@
                   {#if reference.description}
                     <div class="classify-desc">
                       <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-                      {@html reference.description}
+                      {@html safeProse(reference.description)}
                     </div>
                   {/if}
                 </td>

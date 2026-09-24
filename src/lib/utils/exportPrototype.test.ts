@@ -11,7 +11,6 @@ import {
   previewFilename,
   profileValidation,
   renderPreview,
-  safeProse,
   selectedChapters,
   starterProfiles,
   type PreviewChapter,
@@ -63,12 +62,6 @@ describe("export prototype content and persistence", () => {
     p.fontSize = 12;
     p.startNumber = 1.5;
     expect(profileValidation(p)).toContain("whole number");
-  });
-  it("retains formatting but removes executable elements, attributes, and remote resources", () => {
-    const safe = safeProse(
-      '<p onclick="alert(1)">Hello <em>world</em><img src="https://example.com/tracker"><script>secret()</script><a href="javascript:alert(1)"> link</a><svg><text>bad</text></svg></p>'
-    );
-    expect(safe).toBe("<p>Hello <em>world</em> link</p>");
   });
   it("preserves manuscript order while narrowing chapters and scenes, without whole-project fallback", () => {
     const p = starterProfiles("Book", "Author")[0];

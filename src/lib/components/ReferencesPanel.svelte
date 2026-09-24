@@ -43,6 +43,7 @@
   import ReferenceEditDialog from "./ReferenceEditDialog.svelte";
   import SuggestionCard from "./SuggestionCard.svelte";
   import TagSelector from "./TagSelector.svelte";
+  import { safeProse } from "../utils/safeHtml";
 
   let { contextSceneId, embedded = false }: { contextSceneId?: string | null; embedded?: boolean } =
     $props();
@@ -1137,7 +1138,7 @@
                     {#if reference.description}
                       <div class="refs-prose">
                         <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-                        {@html reference.description}
+                        {@html safeProse(reference.description)}
                       </div>
                     {/if}
 
