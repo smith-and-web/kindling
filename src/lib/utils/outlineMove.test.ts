@@ -3,7 +3,7 @@ import { stepMoveOrder } from "./outlineMove";
 
 type Row = { id: string; locked?: boolean };
 const rows = (spec: string): Row[] =>
-  spec.split(" ").map((token) => ({ id: token.replace("*", ""), locked: token.endsWith("*") }));
+  spec.split(" ").map((token) => ({ id: token.replace(/\*/g, ""), locked: token.endsWith("*") }));
 const locked = (row: Row) => !!row.locked;
 const all = (items: Row[]) => items.map((row) => row.id);
 
