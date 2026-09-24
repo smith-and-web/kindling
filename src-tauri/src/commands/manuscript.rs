@@ -18,6 +18,17 @@ pub(crate) fn header_short_title(title: &str) -> String {
         .to_uppercase()
 }
 
+/// The running header's text before the page number: "Surname / SHORT TITLE / ",
+/// or just "SHORT TITLE / " when there is no surname.
+pub(crate) fn running_header_text(surname: &str, title: &str) -> String {
+    let title = header_short_title(title);
+    if surname.trim().is_empty() {
+        format!("{title} / ")
+    } else {
+        format!("{surname} / {title} / ")
+    }
+}
+
 /// Every DOCX run names its font for all four script slots. Setting only the
 /// ASCII slot left curly quotes, dashes and accented letters to Word's
 /// fallback font, so they printed in a different face from the prose.
@@ -41,6 +52,19 @@ mod tests {
         assert_eq!(header_surname("John   Smith"), "Smith");
         assert_eq!(header_surname(""), "");
         assert_eq!(header_surname("   "), "");
+    }
+
+    #[test]
+    fn running_header_drops_the_author_part_when_there_is_no_surname() {
+        assert_eq!(
+            running_header_text("Smith", "My Novel"),
+            "Smith / MY NOVEL / "
+        );
+        assert_eq!(running_header_text("", "My Novel"), "MY NOVEL / ");
+        assert_eq!(
+            running_header_text(header_surname("  "), "My Novel"),
+            "MY NOVEL / "
+        );
     }
 
     #[test]

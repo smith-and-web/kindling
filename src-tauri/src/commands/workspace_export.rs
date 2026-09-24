@@ -164,13 +164,12 @@ fn page_break() -> Paragraph {
 /// "Surname / SHORT TITLE / page", right-aligned, with a live PAGE field.
 fn running_header(d: &WorkspaceDocument) -> Header {
     let l = &d.layout;
-    let author = super::manuscript::header_surname(&d.author);
-    let title = super::manuscript::header_short_title(&d.title);
-    let text = if l.header == "author_title" && !author.is_empty() {
-        format!("{author} / {title} / ")
+    let author = if l.header == "author_title" {
+        super::manuscript::header_surname(&d.author)
     } else {
-        format!("{title} / ")
+        ""
     };
+    let text = super::manuscript::running_header_text(author, &d.title);
     Header::new().add_paragraph(
         Paragraph::new()
             .align(AlignmentType::Right)

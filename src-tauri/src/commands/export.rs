@@ -2559,10 +2559,8 @@ fn export_to_longform_with_connection(
 /// - Courier New 12pt font
 /// - Only appears on pages after the title page
 fn create_running_header(author_surname: &str, title: &str) -> Header {
-    // Format: Surname / TITLE / [page number]
-    // Use abbreviated title (max 3 words) in uppercase
-    let abbreviated_title = super::manuscript::header_short_title(title);
-    let header_text = format!("{} / {} / ", author_surname, abbreviated_title);
+    // Format: Surname / TITLE / [page number], or TITLE / [page number] with no author
+    let header_text = super::manuscript::running_header_text(author_surname, title);
 
     Header::new().add_paragraph(
         Paragraph::new()
@@ -5996,6 +5994,34 @@ mod tests {
         let mut buffer = Vec::new();
         built.pack(&mut std::io::Cursor::new(&mut buffer)).unwrap();
         assert!(!buffer.is_empty());
+    }
+
+    /// The running header reads "Surname / TITLE / page", and drops the author
+    /// part entirely (no leading " / ") when there is no author.
+    #[test]
+    fn test_docx_running_header_with_and_without_author() {
+        let header_text = |author: Option<&str>| {
+            let docx = create_docx_styles(author, "My Novel", &default_test_options());
+            let mut buffer = Vec::new();
+            pack_docx(docx, std::io::Cursor::new(&mut buffer)).unwrap();
+            let mut archive = zip::ZipArchive::new(std::io::Cursor::new(buffer)).unwrap();
+            let mut text = String::new();
+            for i in 0..archive.len() {
+                let mut file = archive.by_index(i).unwrap();
+                if file.name().starts_with("word/header") {
+                    let mut xml = String::new();
+                    std::io::Read::read_to_string(&mut file, &mut xml).unwrap();
+                    if let Some(start) = xml.find("<w:t xml:space=\"preserve\">") {
+                        let rest = &xml[start + 26..];
+                        text = rest[..rest.find("</w:t>").unwrap()].to_string();
+                    }
+                }
+            }
+            text
+        };
+        assert_eq!(header_text(Some("John Smith")), "Smith / MY NOVEL / ");
+        assert_eq!(header_text(None), "MY NOVEL / ");
+        assert_eq!(header_text(Some("  ")), "MY NOVEL / ");
     }
 
     #[test]
