@@ -1,6 +1,9 @@
 //! novelWriter adds user-reviewed prose to sync without changing the behavior of
 //! outline-only sources. Preview and apply share the same change construction.
-use super::sync::{ReimportSummary, SyncAddition, SyncChange, SyncPreview};
+use super::sync::{
+    earlier_source_siblings, open_sync_slot, ReimportSummary, SyncAddition, SyncChange,
+    SyncPreview, SyncSiblings,
+};
 use crate::{db, models::*, parsers::novelwriter::*};
 use rusqlite::Connection;
 use std::{
@@ -425,8 +428,13 @@ pub(super) fn apply(
         } else {
             let key = format!("chapter-{source}");
             if additions.contains(&key) && available.contains(&key) {
+                let earlier = earlier_source_siblings(
+                    parsed.chapters.iter().map(|c| (c.position, &c.source_id)),
+                    c.position,
+                );
                 let mut c = c.clone();
                 c.project_id = project.id;
+                c.position = open_sync_slot(&tx, SyncSiblings::Chapters, &project.id, &earlier)?;
                 db::insert_chapter(&tx, &c).map_err(|e| e.to_string())?;
                 chapter_ids.insert(c.id, c.id);
                 summary.chapters_added += 1;
@@ -446,8 +454,17 @@ pub(super) fn apply(
         } else {
             let key = format!("scene-{source}");
             if additions.contains(&key) && available.contains(&key) {
+                let earlier = earlier_source_siblings(
+                    parsed
+                        .scenes
+                        .iter()
+                        .filter(|o| o.chapter_id == s.chapter_id)
+                        .map(|o| (o.position, &o.source_id)),
+                    s.position,
+                );
                 let mut s = s.clone();
                 s.chapter_id = *chapter;
+                s.position = open_sync_slot(&tx, SyncSiblings::Scenes, chapter, &earlier)?;
                 db::insert_scene(&tx, &s).map_err(|e| e.to_string())?;
                 scene_ids.insert(s.id, s.id);
                 summary.scenes_added += 1;
@@ -460,8 +477,17 @@ pub(super) fn apply(
         };
         let key = format!("beat-{}", b.source_id.as_deref().unwrap());
         if additions.contains(&key) && available.contains(&key) {
+            let earlier = earlier_source_siblings(
+                parsed
+                    .beats
+                    .iter()
+                    .filter(|o| o.scene_id == b.scene_id)
+                    .map(|o| (o.position, &o.source_id)),
+                b.position,
+            );
             let mut b = b.clone();
             b.scene_id = *scene;
+            b.position = open_sync_slot(&tx, SyncSiblings::Beats, scene, &earlier)?;
             db::insert_beat(&tx, &b).map_err(|e| e.to_string())?;
             summary.beats_added += 1;
         }
@@ -796,6 +822,44 @@ mod tests {
             .changes
             .is_empty());
     }
+    #[test]
+    fn scene_added_at_the_head_of_a_chapter_takes_its_own_position() {
+        let (conn, project, _temp) = imported();
+        let mut parsed = load(&conn, &project).unwrap();
+        let chapter = parsed.scenes[0].chapter_id;
+        for s in parsed.scenes.iter_mut().filter(|s| s.chapter_id == chapter) {
+            s.position += 1;
+        }
+        let mut added = Scene::new(chapter, "Cold open".into(), None, 0);
+        added.source_id = Some("0000000000abc".into());
+        parsed.scenes.insert(0, added.clone());
+        let db_chapter = db::get_all_project_scenes(&conn, &project.id).unwrap()[0].chapter_id;
+        let before: Vec<_> = db::get_scenes(&conn, &db_chapter)
+            .unwrap()
+            .into_iter()
+            .map(|s| s.title)
+            .collect();
+
+        let additions: Vec<_> = preview(&conn, &project, &parsed)
+            .unwrap()
+            .additions
+            .into_iter()
+            .map(|a| a.id)
+            .collect();
+        assert_eq!(additions, ["scene-0000000000abc"]);
+        let summary = apply(&conn, &project, &parsed, &[], &additions, true).unwrap();
+        assert_eq!(summary.scenes_added, 1);
+
+        let after = db::get_scenes(&conn, &db_chapter).unwrap();
+        let titles: Vec<_> = after.iter().map(|s| s.title.clone()).collect();
+        let expected: Vec<_> = std::iter::once("Cold open".to_string())
+            .chain(before)
+            .collect();
+        assert_eq!(titles, expected);
+        let positions: Vec<_> = after.iter().map(|s| s.position).collect();
+        assert_eq!(positions, (0..after.len() as i32).collect::<Vec<_>>());
+    }
+
     #[test]
     fn split_beats_remain_local_and_preview_never_backfills() {
         let (conn, project, temp) = imported();
