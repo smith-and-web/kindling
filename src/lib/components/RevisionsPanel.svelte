@@ -88,14 +88,31 @@
     busy = true;
     error = "";
     try {
+      const previous = review.data.drafts;
       review = await invoke<SceneReview>("save_scene_review", { expected: review, data, next });
+      // Saving can prune old automatic drafts, so keep the comparison on the same drafts.
+      const drafts = review.data.drafts;
+      const same = (index: number) =>
+        index < 0
+          ? index
+          : Math.max(
+              0,
+              drafts.findIndex(
+                (d) =>
+                  d.created_at === previous[index]?.created_at && d.name === previous[index]?.name
+              )
+            );
+      before = same(before);
+      after = same(after);
       if (next) {
         onApplied(review);
       }
       // Update the overview locally after the committed write, so a failed
       // auxiliary read cannot make a successful decision appear to have failed.
       overview = overview.map((row) =>
-        row.scene_id === sceneId ? { ...row, status: data.status, drafts: data.drafts.length } : row
+        row.scene_id === sceneId
+          ? { ...row, status: data.status, drafts: review!.data.drafts.length }
+          : row
       );
       return true;
     } catch (e) {
@@ -113,7 +130,7 @@
     const saved = await save(data);
     action = null;
     if (saved) {
-      before = data.drafts.length - 1;
+      before = review.data.drafts.length - 1;
       name = "";
     }
   }
@@ -121,7 +138,7 @@
     if (!review || restoreIndex === null) return;
     const next = review.data.drafts[restoreIndex];
     const data = window.structuredClone(review.data);
-    data.drafts.push(draftOf(review, "Before restoring " + next.name));
+    data.drafts.push(draftOf(review, "Before restoring " + next.name, true));
     action = "restore";
     const saved = await save(data, next);
     action = null;

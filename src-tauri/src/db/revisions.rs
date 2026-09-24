@@ -21,6 +21,28 @@ pub struct ReviewDraft {
     pub created_at: String,
     pub mode: EditorMode,
     pub documents: Vec<ReviewDocument>,
+    /// Kept by the app before it changed prose ("Before accepting…", "Before restoring…").
+    /// Only these are pruned; a draft the writer named is never removed. Drafts saved
+    /// before this flag existed read as named, so upgrading cannot prune them.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub automatic: bool,
+}
+
+/// Each automatic draft is a full copy of the scene. Keep the newest few per scene, so
+/// accepting suggestions and restoring drafts cannot grow history without bound.
+pub const AUTOMATIC_DRAFTS_KEPT: usize = 20;
+
+fn prune_automatic_drafts(drafts: &mut Vec<ReviewDraft>) {
+    let mut excess = drafts
+        .iter()
+        .filter(|d| d.automatic)
+        .count()
+        .saturating_sub(AUTOMATIC_DRAFTS_KEPT);
+    drafts.retain(|d| {
+        let prune = d.automatic && excess > 0;
+        excess -= usize::from(prune);
+        !prune
+    });
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -200,7 +222,11 @@ pub fn save_in_transaction(
         )
         .map_err(err)?;
     }
-    let json = serde_json::to_string(data).map_err(err)?;
+    // Pruned after the checks above, which need the drafts exactly as the client sent them.
+    // The one appended to preserve the current prose is the newest, so it always survives.
+    let mut data = data.clone();
+    prune_automatic_drafts(&mut data.drafts);
+    let json = serde_json::to_string(&data).map_err(err)?;
     tx.execute(
         "UPDATE scenes SET scene_status=?1 WHERE id=?2",
         params![
@@ -363,6 +389,7 @@ mod tests {
             created_at: "2026-09-07".into(),
             mode: r.mode,
             documents: r.documents.clone(),
+            automatic: false,
         }
     }
     #[test]
@@ -396,6 +423,62 @@ mod tests {
                 .session_words,
             0
         );
+    }
+    #[test]
+    fn prunes_only_the_oldest_automatic_drafts_and_never_a_named_one() {
+        let (conn, _, _, s, _) = fixture();
+        let mut r = load(&conn, &s.id).unwrap();
+        let mut data = r.data.clone();
+        data.drafts.push(draft(&r));
+        r = save(&conn, &r, &data, None).unwrap();
+        let rounds = AUTOMATIC_DRAFTS_KEPT + 5;
+        for i in 0..rounds {
+            let mut data = r.data.clone();
+            if i == 2 {
+                data.drafts.push(ReviewDraft {
+                    name: "Named midway".into(),
+                    ..draft(&r)
+                });
+            }
+            data.drafts.push(ReviewDraft {
+                name: format!("Before accepting {i}"),
+                automatic: true,
+                ..draft(&r)
+            });
+            let mut next = draft(&r);
+            next.documents[1].html = format!("<p>Revision {i}</p>");
+            r = save(&conn, &r, &data, Some(&next)).unwrap();
+        }
+        let drafts = load(&conn, &s.id).unwrap().data.drafts;
+        let names: Vec<_> = drafts.iter().map(|d| d.name.as_str()).collect();
+        assert_eq!(drafts.len(), 2 + AUTOMATIC_DRAFTS_KEPT, "{names:?}");
+        assert_eq!(names[0], "First draft");
+        assert!(names.contains(&"Named midway"));
+        assert!(!names.contains(&"Before accepting 4"));
+        assert!(names.contains(&"Before accepting 5"));
+        // The newest automatic draft preserves the prose from just before the last change.
+        let newest = drafts.last().unwrap();
+        assert_eq!(newest.name, format!("Before accepting {}", rounds - 1));
+        assert_eq!(
+            newest.documents[1].html,
+            format!("<p>Revision {}</p>", rounds - 2)
+        );
+        // The next save still appends to the pruned history.
+        let mut data = r.data.clone();
+        data.drafts.push(draft(&r));
+        assert_eq!(
+            save(&conn, &r, &data, None).unwrap().data.drafts.len(),
+            3 + AUTOMATIC_DRAFTS_KEPT
+        );
+        // Drafts saved before the flag existed are named, and a named draft stores no flag.
+        let legacy: ReviewDraft = serde_json::from_str(
+            r#"{"name":"Before accepting changes","created_at":"t","mode":"page","documents":[]}"#,
+        )
+        .unwrap();
+        assert!(!legacy.automatic);
+        assert!(!serde_json::to_string(&drafts[0])
+            .unwrap()
+            .contains("automatic"));
     }
     #[test]
     fn rejects_concurrent_edits_versions_and_locked_chapters() {

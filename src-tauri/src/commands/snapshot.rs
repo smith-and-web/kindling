@@ -609,6 +609,7 @@ mod tests {
             created_at: "today".into(),
             mode: review.mode,
             documents: review.documents.clone(),
+            automatic: false,
         });
         data.annotations.push(Annotation {
             id: "thread".into(),

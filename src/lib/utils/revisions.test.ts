@@ -54,6 +54,9 @@ describe("editorial suggestions", () => {
     expect(data.annotations[1].from).toBe(10);
     expect(isAnchored(data.annotations[1], next.documents)).toBe(true);
     expect(data.drafts[0].documents).toEqual(review.documents);
+    // An app-made copy, so it is one of the automatic drafts the backend prunes.
+    expect(data.drafts[0].automatic).toBe(true);
+    expect(next).not.toHaveProperty("automatic");
     expect(review.data.annotations[0].state).toBe("open");
     expect(data.status).toBe("revised");
   });

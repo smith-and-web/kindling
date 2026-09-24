@@ -31,6 +31,8 @@ export interface ReviewDraft {
   created_at: string;
   mode: EditorMode;
   documents: ReviewDocument[];
+  /** Kept by the app before it changed prose. The newest few are kept; named drafts always are. */
+  automatic?: boolean;
 }
 export interface ReviewMessage {
   author: string;
@@ -78,12 +80,13 @@ export function parseReviewHtml(html: string) {
   return ProseParser.fromSchema(schema).parse(inertElement(html));
 }
 
-export function draftOf(review: SceneReview, name: string): ReviewDraft {
+export function draftOf(review: SceneReview, name: string, automatic = false): ReviewDraft {
   return {
     name: name.trim(),
     created_at: new Date().toISOString(),
     mode: review.mode,
     documents: structuredClone(review.documents),
+    ...(automatic && { automatic }),
   };
 }
 
@@ -174,7 +177,7 @@ export function acceptSuggestions(
       other.anchor_html = doc.html;
     }
   }
-  data.drafts.push(draftOf(review, "Before accepting changes"));
+  data.drafts.push(draftOf(review, "Before accepting changes", true));
   data.status = "revised";
   return { data, next };
 }

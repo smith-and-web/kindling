@@ -172,3 +172,66 @@ it("compares prose on manuscript paper with changed words in manuscript ink", as
     expect(rule(selector)).toContain("-wash)");
   }
 });
+
+it("marks the drafts it keeps automatically and stays on the chosen draft when old ones are pruned", async () => {
+  persisted.data.drafts = [
+    {
+      name: "Before accepting changes",
+      created_at: "2026-01-01",
+      mode: "page",
+      documents: [{ id: "scene", label: "Page", html: "<p>An earlier fox.</p>" }],
+      automatic: true,
+    },
+    {
+      name: "First pass",
+      created_at: "2026-01-02",
+      mode: "page",
+      documents: [{ id: "scene", label: "Page", html: "<p>The blue fox.</p>" }],
+    },
+  ];
+  const original = vi.mocked(invoke).getMockImplementation()!;
+  const sent: SceneReview["data"][] = [];
+  vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+    if (cmd !== "save_scene_review") return original(cmd, args);
+    const { data } = args as { data: SceneReview["data"] };
+    sent.push(structuredClone(data));
+    // As the backend does past its limit (here one), drop the oldest automatic draft.
+    const automatic = data.drafts.filter((d) => d.automatic);
+    const pruned = automatic.length > 1 ? automatic[0] : null;
+    return original(cmd, {
+      ...args,
+      data: { ...data, drafts: data.drafts.filter((d) => d !== pruned) },
+    });
+  });
+  render(RevisionsPanel, {
+    sceneId: "scene",
+    projectId: "project",
+    title: "Arrival",
+    locked: false,
+    onApplied: vi.fn(),
+    onClose: vi.fn(),
+  });
+  const left = await screen.findByRole("region", { name: "Saved draft" });
+  expect(within(left).getByRole("heading", { name: "First pass" })).toBeTruthy();
+  await fireEvent.click(screen.getByText("Restore selected draft"));
+  await fireEvent.click(screen.getByText("Restore and preserve current prose"));
+  await waitFor(() => expect(sent).toHaveLength(1));
+  expect(sent[0].drafts[sent[0].drafts.length - 1]).toMatchObject({
+    name: "Before restoring First pass",
+    automatic: true,
+  });
+  await waitFor(() =>
+    expect(persisted.data.drafts.map((d) => d.name)).toEqual([
+      "First pass",
+      "Before restoring First pass",
+    ])
+  );
+  // The comparison still shows the draft the writer chose, not whatever moved into its slot.
+  expect(within(left).getByRole("heading", { name: "First pass" })).toBeTruthy();
+
+  await fireEvent.input(screen.getByLabelText("Draft name"), { target: { value: "Keeper" } });
+  await fireEvent.click(screen.getByText("Save named draft"));
+  await waitFor(() => expect(persisted.data.drafts).toHaveLength(3));
+  expect(persisted.data.drafts[2]).not.toHaveProperty("automatic");
+  await waitFor(() => expect(within(left).getByRole("heading", { name: "Keeper" })).toBeTruthy());
+});
