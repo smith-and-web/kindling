@@ -103,6 +103,10 @@
         projectId,
         acceptedChangeIds: Array.from(selectedChanges),
         acceptedAdditionIds: Array.from(selectedAdditions),
+        // Only conflicts shown here are settled as "keep kindling".
+        keptConflictIds: syncPreview.changes
+          .filter((c) => c.conflict && !selectedChanges.has(c.id))
+          .map((c) => c.id),
       });
       onSyncComplete(summary);
     } catch (e) {

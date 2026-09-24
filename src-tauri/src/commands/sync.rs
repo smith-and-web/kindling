@@ -156,7 +156,7 @@ fn reimport_project_with_connection(
                     .into_iter()
                     .map(|a| a.id)
                     .collect::<Vec<_>>(),
-                false,
+                &[],
             );
         }
         crate::models::SourceType::Blank => {
@@ -1021,6 +1021,8 @@ pub async fn apply_sync(
     project_id: String,
     accepted_change_ids: Vec<String>,
     accepted_addition_ids: Vec<String>,
+    // Conflicts the writer saw and left unticked, to settle as "keep kindling".
+    kept_conflict_ids: Option<Vec<String>>,
     app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<ReimportSummary, String> {
@@ -1048,11 +1050,12 @@ pub async fn apply_sync(
     };
     let result = {
         let conn = state.db.lock().map_err(|e| e.to_string())?;
-        apply_sync_with_connection(
+        apply_reviewed_sync(
             &conn,
             project_uuid,
             accepted_change_ids,
             accepted_addition_ids,
+            &kept_conflict_ids.unwrap_or_default(),
         )
     };
     if let Some(snapshot) = snapshot.filter(|_| !replaced_prose(&result)) {
@@ -1076,11 +1079,28 @@ fn replaced_prose(result: &Result<ReimportSummary, String>) -> bool {
     result.as_ref().is_ok_and(|s| s.prose_updated > 0)
 }
 
+#[cfg(test)]
 fn apply_sync_with_connection(
     conn: &Connection,
     project_uuid: Uuid,
     accepted_change_ids: Vec<String>,
     accepted_addition_ids: Vec<String>,
+) -> Result<ReimportSummary, String> {
+    apply_reviewed_sync(
+        conn,
+        project_uuid,
+        accepted_change_ids,
+        accepted_addition_ids,
+        &[],
+    )
+}
+
+fn apply_reviewed_sync(
+    conn: &Connection,
+    project_uuid: Uuid,
+    accepted_change_ids: Vec<String>,
+    accepted_addition_ids: Vec<String>,
+    kept_conflict_ids: &[String],
 ) -> Result<ReimportSummary, String> {
     // Get the existing project to find source path and type
     let project = db::get_project(conn, &project_uuid)
@@ -1149,7 +1169,7 @@ fn apply_sync_with_connection(
                 &parsed,
                 &accepted_change_ids,
                 &accepted_addition_ids,
-                true,
+                kept_conflict_ids,
             );
         }
         crate::models::SourceType::Blank => {
@@ -2339,10 +2359,16 @@ mod source_regression_tests {
         assert!(overwrites_prose(std::slice::from_ref(&prose.id)));
         let title = preview.changes.iter().find(|c| c.field == "title").unwrap();
         assert!(!overwrites_prose(std::slice::from_ref(&title.id)));
-        let result = apply_sync_with_connection(&conn, project.id, vec![prose.id.clone()], vec![]);
+        let result = apply_reviewed_sync(
+            &conn,
+            project.id,
+            vec![prose.id.clone()],
+            vec![],
+            std::slice::from_ref(&title.id),
+        );
         assert!(replaced_prose(&result), "the pre-sync snapshot is kept");
         assert_eq!(result.unwrap().prose_updated, 1);
-        // The unticked title conflict was settled in kindling's favour.
+        // The title conflict the writer saw unticked was settled in kindling's favour.
         assert!(get_sync_preview_with_connection(&conn, project.id)
             .unwrap()
             .changes

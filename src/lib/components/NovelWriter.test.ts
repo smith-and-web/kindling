@@ -209,6 +209,7 @@ describe("prose sync UI", () => {
         projectId: project.id,
         acceptedChangeIds: ["prose-1"],
         acceptedAdditionIds: [],
+        keptConflictIds: [],
       })
     );
   });
@@ -248,6 +249,7 @@ describe("prose sync UI", () => {
         projectId: project.id,
         acceptedChangeIds: ["incoming-1"],
         acceptedAdditionIds: [],
+        keptConflictIds: ["conflict-1"],
       })
     );
     // A conflict can still be chosen explicitly.
@@ -259,6 +261,7 @@ describe("prose sync UI", () => {
         projectId: project.id,
         acceptedChangeIds: ["incoming-1", "conflict-1"],
         acceptedAdditionIds: [],
+        keptConflictIds: [],
       })
     );
   });
@@ -293,6 +296,7 @@ describe("prose sync UI", () => {
         projectId: project.id,
         acceptedChangeIds: [],
         acceptedAdditionIds: [],
+        keptConflictIds: ["conflict-1"],
       })
     );
     await waitFor(() => expect(onSyncComplete).toHaveBeenCalled());

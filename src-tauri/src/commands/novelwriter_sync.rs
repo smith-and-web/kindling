@@ -28,6 +28,9 @@ struct Field {
     field: &'static str,
     local: String,
     incoming: String,
+    /// kindling's HTML for prose fields, so an accepted change keeps the
+    /// formatting of paragraphs novelWriter did not touch.
+    html: String,
 }
 fn change(
     out: &mut Vec<Field>,
@@ -45,7 +48,18 @@ fn change(
         field,
         local: before.into(),
         incoming: after.into(),
+        html: String::new(),
     });
+}
+/// Records a prose field together with kindling's HTML for it.
+fn prose_change(
+    out: &mut Vec<Field>,
+    (kind, id, title): (&'static str, Uuid, &str),
+    (local, html): (&str, String),
+    incoming: &str,
+) {
+    change(out, kind, id, title, "prose", local, incoming);
+    out.last_mut().unwrap().html = html;
 }
 fn addition(out: &mut SyncPreview, kind: &str, source: &str, title: &str, parent: Option<&str>) {
     out.additions.push(SyncAddition {
@@ -58,18 +72,70 @@ fn addition(out: &mut SyncPreview, kind: &str, source: &str, title: &str, parent
 fn prose(value: Option<&str>) -> String {
     html_to_nw(value.unwrap_or_default())
 }
+#[cfg(test)]
 fn scene_prose(scene: &Scene, beats: &[Beat]) -> String {
+    scene_prose_html(scene, beats).0
+}
+/// A scene's prose as compared (novelWriter text) and as stored (HTML).
+fn scene_prose_html(scene: &Scene, beats: &[Beat]) -> (String, String) {
     let mut ordered: Vec<_> = beats.iter().filter(|b| b.scene_id == scene.id).collect();
     if scene.editor_mode == EditorMode::Page || ordered.is_empty() {
-        return prose(scene.prose.as_deref());
+        let html = scene.prose.clone().unwrap_or_default();
+        return (prose(Some(html.as_str())), html);
     }
     ordered.sort_by_key(|b| b.position);
-    ordered
+    let nw = ordered
         .iter()
         .map(|b| prose(b.prose.as_deref()))
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
-        .join("\n\n")
+        .join("\n\n");
+    let html = ordered.iter().filter_map(|b| b.prose.as_deref()).collect();
+    (nw, html)
+}
+
+/// Pairs novelWriter's beats with kindling's by title, keeping order. The
+/// longest run of matching titles anchors the pairing and beats between two
+/// anchors pair up by position (a rename). Unpaired incoming beats are
+/// additions; unpaired kindling beats are left alone, so deleting a beat in
+/// novelWriter never shifts its neighbours' text onto the wrong beat.
+fn align<'a>(incoming: &[&'a Beat], local: &[&'a Beat]) -> Vec<(&'a Beat, Option<&'a Beat>)> {
+    let (n, m) = (incoming.len(), local.len());
+    let mut lcs = vec![vec![0usize; m + 1]; n + 1];
+    for i in (0..n).rev() {
+        for j in (0..m).rev() {
+            lcs[i][j] = if incoming[i].content == local[j].content {
+                lcs[i + 1][j + 1] + 1
+            } else {
+                lcs[i + 1][j].max(lcs[i][j + 1])
+            };
+        }
+    }
+    let mut anchors = vec![];
+    let (mut i, mut j) = (0, 0);
+    while i < n && j < m {
+        if incoming[i].content == local[j].content && lcs[i][j] == lcs[i + 1][j + 1] + 1 {
+            anchors.push((i, j));
+            (i, j) = (i + 1, j + 1);
+        } else if lcs[i + 1][j] >= lcs[i][j + 1] {
+            i += 1;
+        } else {
+            j += 1;
+        }
+    }
+    anchors.push((n, m));
+    let mut out = vec![];
+    let (mut i, mut j) = (0, 0);
+    for (ai, aj) in anchors {
+        for k in 0..ai - i {
+            out.push((incoming[i + k], (j + k < aj).then(|| local[j + k])));
+        }
+        if ai < n {
+            out.push((incoming[ai], Some(local[aj])));
+        }
+        (i, j) = (ai + 1, aj + 1);
+    }
+    out
 }
 
 /// Walks the source and the project the same way for preview and baselines.
@@ -90,14 +156,6 @@ fn compare(
         .filter_map(|s| s.source_id.as_deref().map(|id| (id, s)))
         .collect();
     let locked_chapters: HashSet<_> = chapters.iter().filter(|c| c.locked).map(|c| c.id).collect();
-    let mut beats_by_source = HashMap::new();
-    for beat in &beats {
-        if let Some(source) = beat.source_id.as_deref() {
-            if beats_by_source.insert(source, beat).is_some() {
-                return Err("Duplicate novelWriter beat identities. Import the source into a new project to review it safely; your current prose has been kept.".into());
-            }
-        }
-    }
     let mut out = SyncPreview {
         additions: vec![],
         changes: vec![],
@@ -150,13 +208,11 @@ fn compare(
                 if local.editor_mode == EditorMode::Page
                     || !parsed.scenes_with_beat_comments.contains(source)
                 {
-                    change(
+                    let (nw, html) = scene_prose_html(local, &beats);
+                    prose_change(
                         &mut fields,
-                        "scene",
-                        local.id,
-                        &local.title,
-                        "prose",
-                        &scene_prose(local, &beats),
+                        ("scene", local.id, &local.title),
+                        (&nw, html),
                         &prose(scene.prose.as_deref()),
                     );
                     // Unmarked text cannot identify or replace local planning beats.
@@ -173,13 +229,20 @@ fn compare(
                     Some(&chapter.title),
                 );
             }
-            for beat in parsed.beats.iter().filter(|b| b.scene_id == scene.id) {
+            let incoming: Vec<_> = parsed
+                .beats
+                .iter()
+                .filter(|b| b.scene_id == scene.id)
+                .collect();
+            // Only beats that came from novelWriter take part; local splits stay local.
+            let mut synced: Vec<_> = beats
+                .iter()
+                .filter(|b| local.is_some_and(|s| s.id == b.scene_id) && b.source_id.is_some())
+                .collect();
+            synced.sort_by_key(|b| b.position);
+            for (beat, existing) in align(&incoming, &synced) {
                 let source = beat.source_id.as_deref().unwrap();
-                if let Some(existing) = beats_by_source
-                    .get(source)
-                    .copied()
-                    .filter(|b| local.is_some_and(|s| s.id == b.scene_id))
-                {
+                if let Some(existing) = existing {
                     change(
                         &mut fields,
                         "beat",
@@ -190,13 +253,11 @@ fn compare(
                         &beat.content,
                     );
                     if local.is_some_and(|s| s.editor_mode == EditorMode::Beat) {
-                        change(
+                        let html = existing.prose.clone().unwrap_or_default();
+                        prose_change(
                             &mut fields,
-                            "beat",
-                            existing.id,
-                            &existing.content,
-                            "prose",
-                            &prose(existing.prose.as_deref()),
+                            ("beat", existing.id, &existing.content),
+                            (&prose(Some(html.as_str())), html),
                             &prose(beat.prose.as_deref()),
                         );
                     }
@@ -283,8 +344,11 @@ fn offered<'a>(fields: &'a [Field], baselines: &Baselines) -> Vec<(&'a Field, bo
         })
         .collect()
 }
+/// Binds a change to the exact texts the writer reviewed, so apply can refuse
+/// anything that changed on either side after the preview.
 fn change_id(f: &Field) -> String {
-    format!("{}-{}-{}", f.kind, f.field, f.id)
+    let reviewed = stable_handle(&format!("{}\u{1f}{}", f.local, f.incoming));
+    format!("{}-{}-{}-{reviewed}", f.kind, f.field, f.id)
 }
 
 pub(super) fn preview(
@@ -309,22 +373,141 @@ pub(super) fn preview(
     Ok(out)
 }
 
-/// Applies the accepted changes and additions. With `settle_conflicts`, every
-/// conflict left unaccepted is settled as "keep kindling": its baseline moves to
-/// novelWriter's current text so it is not offered again until novelWriter
-/// changes it. Unaccepted non-conflicting changes keep their baseline and are
-/// offered again. Reimport passes `false` because it shows the writer nothing.
+/// Splits HTML into its top-level blocks (`<p>`, `<ul>`, `<blockquote>`, ...).
+fn blocks(html: &str) -> Vec<&str> {
+    // Block bounds as start/end pairs, sliced once at the end.
+    let mut out = vec![];
+    let (mut depth, mut start, mut i) = (0usize, 0, 0);
+    let text = |from: usize, to: usize, out: &mut Vec<usize>| {
+        if !html[from..to].trim().is_empty() {
+            out.extend([from, to]);
+        }
+    };
+    while let Some(open) = html[i..].find('<').map(|o| i + o) {
+        let Some(end) = html[open..].find('>').map(|e| open + e + 1) else {
+            break;
+        };
+        let tag = &html[open + 1..end - 1];
+        let name: String = tag
+            .trim_start_matches('/')
+            .chars()
+            .take_while(char::is_ascii_alphanumeric)
+            .collect::<String>()
+            .to_ascii_lowercase();
+        let void = tag.ends_with('/')
+            || tag.starts_with('!')
+            || matches!(name.as_str(), "br" | "hr" | "img" | "wbr");
+        if tag.starts_with('/') {
+            depth = depth.saturating_sub(1);
+            if depth == 0 {
+                text(start, end, &mut out);
+                start = end;
+            }
+        } else if depth == 0 {
+            text(start, open, &mut out);
+            start = open;
+            if void {
+                text(open, end, &mut out);
+                start = end;
+            } else {
+                depth = 1;
+            }
+        } else if !void {
+            depth += 1;
+        }
+        i = end;
+    }
+    text(start, html.len(), &mut out);
+    out.chunks(2).map(|b| &html[b[0]..b[1]]).collect()
+}
+
+/// Builds the accepted prose from novelWriter's text while keeping kindling's
+/// HTML for every block whose text novelWriter left unchanged. novelWriter
+/// cannot express underline, alignment or lists, so rebuilding the whole field
+/// from its text would silently strip them from untouched paragraphs.
+fn merge_prose(local_html: &str, incoming: &str) -> String {
+    let incoming: Vec<&str> = incoming
+        .split("\n\n")
+        .filter(|p| !p.trim().is_empty())
+        .collect();
+    let local: Vec<(&str, Vec<String>)> = blocks(local_html)
+        .into_iter()
+        .map(|b| {
+            let nw = html_to_nw(b);
+            let paragraphs = nw.split("\n\n").filter(|p| !p.is_empty());
+            (b, paragraphs.map(str::to_string).collect::<Vec<_>>())
+        })
+        .filter(|(_, p)| !p.is_empty())
+        .collect();
+    // best[i][j]: most incoming paragraphs covered by keeping whole local blocks
+    // i.. in order against incoming paragraphs j..
+    let (n, m) = (local.len(), incoming.len());
+    let fits = |i: usize, j: usize| {
+        let p = &local[i].1;
+        j + p.len() <= m && p.iter().zip(&incoming[j..]).all(|(a, b)| a == b)
+    };
+    let mut best = vec![vec![0usize; m + 1]; n + 1];
+    for i in (0..n).rev() {
+        for j in (0..=m).rev() {
+            let mut score = best[i + 1][j];
+            if j < m {
+                score = score.max(best[i][j + 1]);
+            }
+            if fits(i, j) {
+                score = score.max(local[i].1.len() + best[i + 1][j + local[i].1.len()]);
+            }
+            best[i][j] = score;
+        }
+    }
+    let mut out = String::new();
+    let (mut i, mut j) = (0, 0);
+    while j < m {
+        if i < n && fits(i, j) && best[i][j] == local[i].1.len() + best[i + 1][j + local[i].1.len()]
+        {
+            out.push_str(local[i].0);
+            j += local[i].1.len();
+            i += 1;
+        } else if i < n && best[i][j] == best[i + 1][j] {
+            i += 1;
+        } else {
+            out.push_str(&nw_to_html(incoming[j]));
+            j += 1;
+        }
+    }
+    out
+}
+
+/// Applies the accepted changes and additions. Each conflict in `kept` (shown to
+/// the writer and left unticked) is settled as "keep kindling": its baseline
+/// moves to novelWriter's current text so it is not offered again until
+/// novelWriter changes it. Unaccepted non-conflicting changes keep their
+/// baseline and are offered again. Reimport passes no `kept` ids because it
+/// shows the writer nothing.
+///
+/// Change ids carry the reviewed texts, so if either side changed after the
+/// preview (a novelWriter autosave, say) nothing is written and the writer is
+/// asked to review again.
 pub(super) fn apply(
     conn: &Connection,
     project: &Project,
     parsed: &ParsedNovelWriter,
     accepted: &[String],
     additions: &[String],
-    settle_conflicts: bool,
+    kept: &[String],
 ) -> Result<ReimportSummary, String> {
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let (fields, preview) = compare(&tx, project, parsed)?;
     let mut known = baselines(&tx, project)?;
+    let offered_now: HashMap<_, _> = offered(&fields, &known)
+        .into_iter()
+        .map(|(f, conflict)| (change_id(f), conflict))
+        .collect();
+    if accepted.iter().any(|id| !offered_now.contains_key(id))
+        || kept.iter().any(|id| offered_now.get(id) != Some(&true))
+    {
+        return Err("The novelWriter project or these items changed after you reviewed them. Nothing was changed; open Sync again to review the current text.".into());
+    }
+    let kept: HashSet<_> = kept.iter().collect();
     let accepted: HashSet<_> = accepted.iter().collect();
     let additions: HashSet<_> = additions.iter().collect();
     let available: HashSet<_> = preview.additions.iter().map(|a| &a.id).collect();
@@ -348,14 +531,14 @@ pub(super) fn apply(
             if change.field == "prose" {
                 summary.prose_preserved += 1;
             }
-            if conflict && settle_conflicts {
+            if conflict && kept.contains(&change_id(change)) {
                 settle(&tx, project, &mut known, change)?;
             }
             continue;
         }
         let id = change.id;
         if change.field == "prose" {
-            let html = nw_to_html(&change.incoming);
+            let html = merge_prose(&change.html, &change.incoming);
             if change.kind == "beat" {
                 db::update_beat_prose(&tx, &id, &html).map_err(|e| e.to_string())?;
             } else {
@@ -558,15 +741,7 @@ mod tests {
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
         assert_eq!(changes.len(), 2);
         assert!(changes.iter().all(|c| c.field == "prose"));
-        let summary = apply(
-            &conn,
-            &project,
-            &parsed,
-            &[changes[0].id.clone()],
-            &[],
-            true,
-        )
-        .unwrap();
+        let summary = apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).unwrap();
         assert_eq!((summary.prose_updated, summary.prose_preserved), (1, 1));
         let updated = db::get_all_project_beats(&conn, &project.id).unwrap();
         assert_eq!(
@@ -579,19 +754,7 @@ mod tests {
             .unwrap()
             .changes
             .is_empty());
-        assert_eq!(
-            apply(
-                &conn,
-                &project,
-                &parsed,
-                &[changes[1].id.clone()],
-                &[],
-                true
-            )
-            .unwrap()
-            .prose_updated,
-            0
-        );
+        assert!(apply(&conn, &project, &parsed, &[changes[1].id.clone()], &[], &[]).is_err());
         conn.execute("UPDATE chapters SET locked = 0", []).unwrap();
         conn.execute("UPDATE scenes SET locked = 1", []).unwrap();
         assert!(preview(&conn, &project, &parsed)
@@ -631,7 +794,7 @@ mod tests {
         assert!(!changes[0].conflict);
         // "All" + Apply: the novelWriter fix lands and the kindling revision survives.
         let all: Vec<_> = changes.iter().map(|c| c.id.clone()).collect();
-        apply(&conn, &project, &parsed, &all, &[], true).unwrap();
+        apply(&conn, &project, &parsed, &all, &[], &[]).unwrap();
         let after = db::get_all_project_beats(&conn, &project.id).unwrap();
         assert_eq!(
             after[0].prose.as_deref(),
@@ -650,7 +813,7 @@ mod tests {
         // A declined incoming change is offered again rather than forgotten.
         edit_source(&temp, &conn, &project, "listened closely", "listened hard");
         let parsed = load(&conn, &project).unwrap();
-        apply(&conn, &project, &parsed, &[], &[], true).unwrap();
+        apply(&conn, &project, &parsed, &[], &[], &[]).unwrap();
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
         assert_eq!((changes.len(), changes[0].conflict), (1, false));
 
@@ -662,15 +825,7 @@ mod tests {
         assert_eq!(changes[0].current_value, "Also revised here.");
         assert!(changes[0].new_value.contains("listened hard"));
         // Explicitly accepting a conflict applies it and settles the baseline.
-        apply(
-            &conn,
-            &project,
-            &parsed,
-            &[changes[0].id.clone()],
-            &[],
-            true,
-        )
-        .unwrap();
+        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).unwrap();
         assert!(preview(&conn, &project, &parsed)
             .unwrap()
             .changes
@@ -695,10 +850,11 @@ mod tests {
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
         assert_eq!((changes.len(), changes[0].conflict), (1, true));
         // Reimport shows the writer nothing, so it must not settle the conflict.
-        apply(&conn, &project, &parsed, &[], &[], false).unwrap();
+        apply(&conn, &project, &parsed, &[], &[], &[]).unwrap();
         assert_eq!(preview(&conn, &project, &parsed).unwrap().changes.len(), 1);
         // Applying with the conflict unticked keeps kindling's text and settles it.
-        let summary = apply(&conn, &project, &parsed, &[], &[], true).unwrap();
+        let kept_ids = [changes[0].id.clone()];
+        let summary = apply(&conn, &project, &parsed, &[], &[], &kept_ids).unwrap();
         assert_eq!((summary.prose_updated, summary.prose_preserved), (0, 1));
         let kept = || db::get_beat(&conn, &beats[1].id).unwrap().unwrap().prose;
         assert_eq!(kept().as_deref(), Some("<p>Kept in kindling.</p>"));
@@ -718,8 +874,10 @@ mod tests {
         conn.execute("DELETE FROM novelwriter_sync_baselines", [])
             .unwrap();
         db::update_beat_prose(&conn, &beats[0].id, "<p>Also local.</p>").unwrap();
-        assert_eq!(preview(&conn, &project, &parsed).unwrap().changes.len(), 2);
-        apply(&conn, &project, &parsed, &[], &[], true).unwrap();
+        let shown = preview(&conn, &project, &parsed).unwrap().changes;
+        assert_eq!(shown.len(), 2);
+        let kept_ids: Vec<_> = shown.iter().map(|c| c.id.clone()).collect();
+        apply(&conn, &project, &parsed, &[], &[], &kept_ids).unwrap();
         assert!(preview(&conn, &project, &parsed)
             .unwrap()
             .changes
@@ -743,20 +901,12 @@ mod tests {
                 .unwrap()
         };
         let parsed = load(&conn, &project).unwrap();
-        apply(&conn, &project, &parsed, &[], &[], true).unwrap();
+        apply(&conn, &project, &parsed, &[], &[], &[]).unwrap();
         assert_eq!(writes(), 0, "an unchanged project rewrites no baselines");
         edit_source(&temp, &conn, &project, "listened", "listened closely");
         let parsed = load(&conn, &project).unwrap();
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
-        apply(
-            &conn,
-            &project,
-            &parsed,
-            &[changes[0].id.clone()],
-            &[],
-            true,
-        )
-        .unwrap();
+        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).unwrap();
         assert_eq!(writes(), 1, "only the accepted field's baseline moves");
     }
 
@@ -776,15 +926,7 @@ mod tests {
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].item_type, "scene");
-        apply(
-            &conn,
-            &project,
-            &parsed,
-            &[changes[0].id.clone()],
-            &[],
-            true,
-        )
-        .unwrap();
+        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).unwrap();
         let scene = db::get_all_project_scenes(&conn, &project.id)
             .unwrap()
             .remove(0);
@@ -806,7 +948,7 @@ mod tests {
             &parsed,
             &[diff.changes[0].id.clone()],
             &[],
-            true,
+            &[],
         )
         .unwrap();
         let beats = db::get_beats(&conn, &scene.id).unwrap();
@@ -847,7 +989,7 @@ mod tests {
             .map(|a| a.id)
             .collect();
         assert_eq!(additions, ["scene-0000000000abc"]);
-        let summary = apply(&conn, &project, &parsed, &[], &additions, true).unwrap();
+        let summary = apply(&conn, &project, &parsed, &[], &additions, &[]).unwrap();
         assert_eq!(summary.scenes_added, 1);
 
         let after = db::get_scenes(&conn, &db_chapter).unwrap();
@@ -882,15 +1024,7 @@ mod tests {
                 .is_none());
         }
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
-        apply(
-            &conn,
-            &project,
-            &parsed,
-            &[changes[0].id.clone()],
-            &[],
-            true,
-        )
-        .unwrap();
+        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).unwrap();
         assert_eq!(
             db::get_beat(&conn, &split.id).unwrap().unwrap().prose,
             split.prose
@@ -903,21 +1037,142 @@ mod tests {
                 .as_deref(),
             Some("<p>Incoming second beat.</p>")
         );
+        // Beats are matched by title, so a split that shares an identity is
+        // simply left alone rather than making the scene unsyncable.
         db::update_beat_source_id(&conn, &split.id, beats[1].source_id.as_deref().unwrap())
             .unwrap();
         assert!(preview(&conn, &project, &parsed)
-            .unwrap_err()
-            .contains("Duplicate"));
-        assert!(apply(
+            .unwrap()
+            .changes
+            .is_empty());
+        // The reviewed change was already applied, so replaying it is refused.
+        assert!(apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).is_err());
+        std::fs::remove_file(temp.path().join("nwProject.nwx")).unwrap();
+        assert!(load(&conn, &project).unwrap_err().contains("nwProject.nwx"));
+    }
+
+    #[test]
+    fn beats_are_matched_by_title_so_a_deleted_beat_never_shifts_text() {
+        let (conn, project, temp) = imported();
+        let beats = db::get_all_project_beats(&conn, &project.id).unwrap();
+        let handle = db::get_all_project_scenes(&conn, &project.id).unwrap()[0]
+            .source_id
+            .clone()
+            .unwrap();
+        let file = temp.path().join("content").join(format!("{handle}.md"));
+        let original = std::fs::read_to_string(&file).unwrap();
+        let preview_with = |text: String| {
+            std::fs::write(&file, text).unwrap();
+            preview(&conn, &project, &load(&conn, &project).unwrap()).unwrap()
+        };
+        // Deleting the first beat in novelWriter must not move "Answer" onto it.
+        let (knock, answer) = (
+            original.find("% Beat: The knock").unwrap(),
+            original.find("% Beat: Answer").unwrap(),
+        );
+        let deleted = preview_with(format!("{}{}", &original[..knock], &original[answer..]));
+        assert!(deleted.changes.is_empty(), "{:?}", deleted.changes);
+        assert!(deleted.additions.is_empty());
+        // A renamed beat still pairs with its kindling beat.
+        let renamed = preview_with(original.replace("% Beat: Answer", "% Beat: Reply"));
+        assert_eq!(renamed.changes.len(), 1, "{:?}", renamed.changes);
+        assert_eq!(renamed.changes[0].db_id, beats[1].id.to_string());
+        assert_eq!(renamed.changes[0].new_value, "Reply");
+        // An inserted beat is an addition and leaves its neighbours alone.
+        let inserted = preview_with(original.replace(
+            "% Beat: Answer",
+            "% Beat: Middle\nNew middle text.\n\n% Beat: Answer",
+        ));
+        assert!(inserted.changes.is_empty(), "{:?}", inserted.changes);
+        assert_eq!(inserted.additions.len(), 1);
+        assert_eq!(inserted.additions[0].title, "Middle");
+    }
+
+    #[test]
+    fn accepted_prose_keeps_formatting_novelwriter_cannot_express() {
+        let (conn, project, _temp) = imported();
+        let beats = db::get_all_project_beats(&conn, &project.id).unwrap();
+        let formatted = r#"<p style="text-align: center"><u>Centred</u> opening.</p><ul><li><p>First item</p></li><li><p>Second item</p></li></ul><p>Typo hre.</p>"#;
+        db::update_beat_prose(&conn, &beats[0].id, formatted).unwrap();
+        let mut parsed = load(&conn, &project).unwrap();
+        let fixed = html_to_nw(formatted).replace("hre.", "here.");
+        parsed.beats[0].prose = Some(nw_to_html(&fixed));
+        let changes = preview(&conn, &project, &parsed).unwrap().changes;
+        assert_eq!(changes.len(), 1);
+        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).unwrap();
+        assert_eq!(
+            db::get_beat(&conn, &beats[0].id)
+                .unwrap()
+                .unwrap()
+                .prose
+                .as_deref(),
+            Some(formatted.replace("hre.", "here.").as_str())
+        );
+        assert!(preview(&conn, &project, &parsed)
+            .unwrap()
+            .changes
+            .is_empty());
+        // Changed, removed and added paragraphs around kept blocks.
+        assert_eq!(
+            merge_prose(
+                "<p><u>A</u></p><p>B</p><ul><li><p>C</p></li></ul>",
+                "A\n\nB2\n\nC\n\nD"
+            ),
+            "<p><u>A</u></p><p>B2</p><ul><li><p>C</p></li></ul><p>D</p>"
+        );
+        assert_eq!(merge_prose("<p><u>A</u></p><p>B</p>", "B"), "<p>B</p>");
+    }
+
+    #[test]
+    fn apply_writes_nothing_that_changed_after_the_preview() {
+        let (conn, project, _temp) = imported();
+        let beats = db::get_all_project_beats(&conn, &project.id).unwrap();
+        let prose = |beat: &Beat| db::get_beat(&conn, &beat.id).unwrap().unwrap().prose;
+        let mut parsed = load(&conn, &project).unwrap();
+        parsed.beats[1].prose = Some("<p>Reviewed text.</p>".into());
+        let reviewed = preview(&conn, &project, &parsed).unwrap().changes;
+        assert_eq!(reviewed.len(), 1);
+        // novelWriter autosaves between the preview and Apply.
+        parsed.beats[1].prose = Some("<p>Unreviewed text.</p>".into());
+        let err = apply(
             &conn,
             &project,
             &parsed,
-            &[changes[0].id.clone()],
+            &[reviewed[0].id.clone()],
             &[],
-            true
+            &[],
         )
-        .is_err());
-        std::fs::remove_file(temp.path().join("nwProject.nwx")).unwrap();
-        assert!(load(&conn, &project).unwrap_err().contains("nwProject.nwx"));
+        .err()
+        .unwrap();
+        assert!(err.contains("changed after you reviewed"), "{err}");
+        assert_eq!(prose(&beats[1]), beats[1].prose);
+
+        // Only conflicts the writer saw, with the texts they saw, are settled.
+        db::update_beat_prose(&conn, &beats[1].id, "<p>Local.</p>").unwrap();
+        let shown = preview(&conn, &project, &parsed).unwrap().changes;
+        assert!(shown[0].conflict);
+        parsed.beats[1].prose = Some("<p>Newer still.</p>".into());
+        assert!(apply(&conn, &project, &parsed, &[], &[], &[shown[0].id.clone()]).is_err());
+        db::update_beat_prose(&conn, &beats[0].id, "<p>Local zero.</p>").unwrap();
+        parsed.beats[0].prose = Some("<p>Incoming zero.</p>".into());
+        let shown = preview(&conn, &project, &parsed).unwrap().changes;
+        assert_eq!(shown.len(), 2);
+        let seen = shown
+            .iter()
+            .find(|c| c.db_id == beats[1].id.to_string())
+            .unwrap();
+        apply(
+            &conn,
+            &project,
+            &parsed,
+            &[],
+            &[],
+            std::slice::from_ref(&seen.id),
+        )
+        .unwrap();
+        let left = preview(&conn, &project, &parsed).unwrap().changes;
+        assert_eq!(left.len(), 1);
+        assert_eq!(left[0].db_id, beats[0].id.to_string());
+        assert_eq!(prose(&beats[1]).as_deref(), Some("<p>Local.</p>"));
     }
 }

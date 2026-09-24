@@ -1,6 +1,7 @@
 //! Local novelWriter project interchange. Handles anchor record identity; beats
-//! use positions within their scene. Notes and links are intentionally import-only
-//! in sync, matching the other source types.
+//! are numbered by position within their scene, but sync matches them by title.
+//! Notes and links are intentionally import-only in sync, matching the other
+//! source types.
 mod format;
 mod markup;
 mod writer;
