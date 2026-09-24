@@ -250,11 +250,11 @@ pub(crate) fn html_paragraphs(html: &str, transform: fn(&str) -> String) -> Vec<
 /// markup (`"I <em>hate</em>"`) and entities (`&quot;`) split a paragraph's
 /// text into several chunks, so each chunk is transformed knowing the last
 /// character already output before it in the paragraph (`None` at the start,
-/// `'\n'` after a line break) and the first raw character after it. That keeps
-/// a closing quote after an italic word closing.
+/// `'\n'` after a line break) and the raw text of the chunk after it (empty at
+/// the end). That keeps a closing quote after an italic word closing.
 pub(crate) fn html_paragraphs_in_context(
     html: &str,
-    transform: impl Fn(Option<char>, &str, Option<char>) -> String,
+    transform: impl Fn(Option<char>, &str, &str) -> String,
 ) -> Vec<HtmlParagraph> {
     let mut paragraphs = Vec::new();
     let mut current = HtmlParagraph::default();
@@ -268,8 +268,12 @@ pub(crate) fn html_paragraphs_in_context(
                 prev = Some('\n');
                 continue;
             }
-            let next = runs[i + 1..].iter().find_map(|run| run.text.chars().next());
-            let text = transform(prev, &runs[i].text, next);
+            let next = runs[i + 1..]
+                .iter()
+                .map(|run| run.text.clone())
+                .find(|text| !text.is_empty())
+                .unwrap_or_default();
+            let text = transform(prev, &runs[i].text, &next);
             prev = text.chars().last().or(prev);
             runs[i].text = text;
         }

@@ -532,14 +532,10 @@ fn normalize_punctuation(text: &str) -> String {
     result = result.replace("---", "—");
     result = result.replace("--", "—");
 
-    // Remove spaces around em dashes: " — " or "— " or " —" -> "—"
-    result = result.replace(" — ", "—");
-    result = result.replace("— ", "—");
-    result = result.replace(" —", "—");
-
-    // Normalize multiple spaces to single space (including after periods)
+    // Normalize multiple spaces to single space (including after periods).
+    // Done before the dash rule so "word  --then" loses both spaces.
     let mut prev_was_space = false;
-    let normalized: String = result
+    let mut normalized: String = result
         .chars()
         .filter(|&c| {
             if c == ' ' {
@@ -554,22 +550,27 @@ fn normalize_punctuation(text: &str) -> String {
         })
         .collect();
 
+    // Remove spaces around em dashes: " — " or "— " or " —" -> "—"
+    normalized = normalized.replace(" — ", "—");
+    normalized = normalized.replace("— ", "—");
+    normalized = normalized.replace(" —", "—");
+
     normalized
 }
 
 /// [`normalize_punctuation`] for one chunk of a paragraph, applying the space
 /// rules across the chunk's edges too: no second space after a space, no
 /// space after an em dash, and no space before one that starts the next chunk.
-fn normalize_punctuation_in_context(
-    before: Option<char>,
-    text: &str,
-    after: Option<char>,
-) -> String {
+fn normalize_punctuation_in_context(before: Option<char>, text: &str, after: &str) -> String {
     let mut result = normalize_punctuation(text);
     if matches!(before, Some(' ' | '—')) {
         result = result.trim_start_matches(' ').to_string();
     }
-    if after == Some('—') {
+    // Judge the next chunk in its normalised form: `--` and `---` become an em
+    // dash there and spaces before a dash are dropped, so `word <em>--then`
+    // loses its space just as `word --then` in a single chunk does.
+    let next = after.trim_start_matches(' ');
+    if next.starts_with('—') || next.starts_with("--") {
         result = result.trim_end_matches(' ').to_string();
     }
     result
@@ -577,13 +578,13 @@ fn normalize_punctuation_in_context(
 
 /// Apply all text transformations: smart quotes and punctuation normalization
 fn transform_text(text: &str) -> String {
-    transform_text_in_context(None, text, None)
+    transform_text_in_context(None, text, "")
 }
 
 /// [`transform_text`] for one chunk of a paragraph (see
 /// `html_paragraphs_in_context`).
-fn transform_text_in_context(before: Option<char>, text: &str, after: Option<char>) -> String {
-    let smart = smartify_quotes_in_context(before, text, after);
+fn transform_text_in_context(before: Option<char>, text: &str, after: &str) -> String {
+    let smart = smartify_quotes_in_context(before, text, after.chars().next());
     normalize_punctuation_in_context(before, &smart, after)
 }
 
@@ -5791,6 +5792,23 @@ mod tests {
         assert_eq!(
             paragraph_text("<p>Said <em>it</em></p><p>\"Next\"</p>"),
             "Said it\u{201C}Next\u{201D}"
+        );
+    }
+
+    /// The em-dash space rule must not depend on where inline markup splits
+    /// the text, or whether the dash is typed as `--`, `---` or `—`.
+    #[test]
+    fn test_em_dash_spacing_is_the_same_across_inline_markup() {
+        for dash in ["--", "---", "\u{2014}", " --", " \u{2014}"] {
+            let single = paragraph_text(&format!("<p>word {dash}then</p>"));
+            assert_eq!(single, "word\u{2014}then", "one chunk with {dash:?}");
+            let split = paragraph_text(&format!("<p>word <em>{dash}then</em></p>"));
+            assert_eq!(split, single, "split before {dash:?}");
+        }
+        assert_eq!(
+            paragraph_text("<p>word <em>-</em>then</p>"),
+            "word -then",
+            "a single hyphen is not a dash"
         );
     }
 
