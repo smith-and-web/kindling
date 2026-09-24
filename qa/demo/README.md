@@ -4,6 +4,8 @@ The user-facing **Sample Project** creates **The Letter** from the committed
 fixture in `src-tauri/src/commands/sample_project.rs`: three chapters, nine scenes,
 typed reference fields, hierarchical tags and an active-protagonist filter.
 This is the preferred source for new documentation and website screenshots.
+The animated README demo is recorded from it by [`readme/`](readme/README.md)
+(`npm run demo:readme`).
 
 The current sample also includes the editorial scenarios documented in
 [Editorial review](../../docs/editorial-review.md#explore-the-sample): all four

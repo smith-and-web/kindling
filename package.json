@@ -39,6 +39,7 @@
     "tauri:qa": "node qa/visual/start.mjs",
     "tauri:demo": "KINDLING_DATA_DIR=$PWD/qa/demo/data npm run tauri dev",
     "seed:demo": "node qa/demo/seed.mjs",
+    "demo:readme": "node qa/demo/readme/record.mjs",
     "test:startup": "node qa/visual/startup.mjs"
   },
   "license": "MIT",
