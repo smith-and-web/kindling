@@ -2393,6 +2393,67 @@ mod release_sync_tests {
     }
 
     #[test]
+    fn plottr_card_additions_keep_the_writers_scene_order() {
+        // A 1.2 project imported before titled cards without a description
+        // were imported: those scenes are missing and the rest sit one slot up.
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/hamlet.pltr");
+        let p = parse_plottr_file(path).unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        db::insert_project(&conn, &p.project).unwrap();
+        for c in &p.chapters {
+            db::insert_chapter(&conn, c).unwrap();
+        }
+        let has_beats = |s: &Scene| p.beats.iter().any(|b| b.scene_id == s.id);
+        for s in p.scenes.iter().filter(|s| has_beats(s)) {
+            let mut old = s.clone();
+            old.position -= 1;
+            db::insert_scene(&conn, &old).unwrap();
+        }
+        for b in &p.beats {
+            db::insert_beat(&conn, b).unwrap();
+        }
+        // The writer swaps the first two scenes of Act 1.
+        let act1 = &p.chapters[0];
+        let local = db::get_scenes(&conn, &act1.id).unwrap();
+        for (scene, position) in [(&local[0], 1), (&local[1], 0)] {
+            db::update_scene(
+                &conn,
+                &scene.id,
+                &scene.title,
+                scene.synopsis.as_deref(),
+                position,
+                &scene.scene_type,
+                &scene.scene_status,
+            )
+            .unwrap();
+        }
+        let arranged: Vec<(Uuid, i32)> = db::get_scenes(&conn, &act1.id)
+            .unwrap()
+            .iter()
+            .map(|s| (s.id, s.position))
+            .collect();
+
+        let preview = get_sync_preview_with_connection(&conn, p.project.id).unwrap();
+        let additions: Vec<String> = preview.additions.iter().map(|a| a.id.clone()).collect();
+        assert_eq!(additions.len(), 5, "{additions:?}");
+        let summary = apply_sync_with_connection(&conn, p.project.id, vec![], additions).unwrap();
+        assert_eq!(summary.scenes_added, 5);
+
+        let after = db::get_scenes(&conn, &act1.id).unwrap();
+        for (id, position) in &arranged {
+            let scene = after.iter().find(|s| s.id == *id).unwrap();
+            assert_eq!(scene.position, *position, "{} moved", scene.title);
+        }
+        let added = after
+            .iter()
+            .find(|s| s.title == "Hamlet learns the truth from the ghost of his father")
+            .unwrap();
+        assert_eq!(added.position, 0, "new card takes its Plottr slot");
+    }
+
+    #[test]
     fn rejected_parent_additions_do_not_abort_unrelated_plottr_changes() {
         for reject_chapter in [true, false] {
             let (conn, p) = fixture();
