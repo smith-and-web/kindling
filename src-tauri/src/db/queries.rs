@@ -355,6 +355,21 @@ pub fn update_scene_prose(conn: &Connection, scene_id: &Uuid, prose: &str) -> Re
 }
 
 pub fn switch_scene_editor_mode(conn: &Connection, scene_id: &Uuid, mode: &str) -> Result<Scene> {
+    let mode = match mode {
+        "page" | "beat" => mode,
+        other => {
+            return Err(rusqlite::Error::InvalidParameterName(format!(
+                "unknown editor mode: {other}"
+            )))
+        }
+    };
+    let current =
+        get_scene_by_id(conn, scene_id)?.ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)?;
+    // Re-selecting the active mode must not rebuild prose from the other side's stale copy.
+    if current.editor_mode.as_str() == mode {
+        return Ok(current);
+    }
+
     let tx = conn.unchecked_transaction()?;
 
     if mode == "page" {
@@ -374,9 +389,7 @@ pub fn switch_scene_editor_mode(conn: &Connection, scene_id: &Uuid, mode: &str) 
             )?;
         }
     } else if mode == "beat" {
-        let scene =
-            get_scene_by_id(&tx, scene_id)?.ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)?;
-        if let Some(page_prose) = scene.prose.as_deref() {
+        if let Some(page_prose) = current.prose.as_deref() {
             let beats = get_beats(&tx, scene_id)?;
             if !beats.is_empty() {
                 let segments: Vec<&str> = page_prose.split("<hr>").collect();
@@ -2622,6 +2635,42 @@ mod tests {
                 .prose
                 .as_deref(),
             Some("")
+        );
+    }
+
+    #[test]
+    fn reselecting_the_active_editor_mode_keeps_prose() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let scene = Scene::new(chapter.id, "Scene".into(), None, 0);
+        insert_scene(&conn, &scene).unwrap();
+        let mut beat = Beat::new(scene.id, "Beat".into(), 0);
+        beat.prose = Some("<p>Beat draft</p>".into());
+        insert_beat(&conn, &beat).unwrap();
+
+        switch_scene_editor_mode(&conn, &scene.id, "page").unwrap();
+        let page_work = "<p>Beat draft</p><p>Two new pages of work</p>";
+        save_scene_page_prose(&conn, &scene.id, page_work).unwrap();
+        let page = switch_scene_editor_mode(&conn, &scene.id, "page").unwrap();
+        assert_eq!(page.prose.as_deref(), Some(page_work));
+        assert_eq!(page.editor_mode, EditorMode::Page);
+
+        switch_scene_editor_mode(&conn, &scene.id, "beat").unwrap();
+        update_beat_prose(&conn, &beat.id, "<p>Edited in beat view</p>").unwrap();
+        let beat_scene = switch_scene_editor_mode(&conn, &scene.id, "beat").unwrap();
+        assert_eq!(beat_scene.editor_mode, EditorMode::Beat);
+        assert_eq!(
+            get_beats(&conn, &scene.id).unwrap()[0].prose.as_deref(),
+            Some("<p>Edited in beat view</p>")
+        );
+        assert!(switch_scene_editor_mode(&conn, &scene.id, "Page").is_err());
+        assert_eq!(
+            get_scene_by_id(&conn, &scene.id)
+                .unwrap()
+                .unwrap()
+                .editor_mode,
+            EditorMode::Beat
         );
     }
 

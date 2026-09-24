@@ -99,6 +99,7 @@
     const prose = review.documents.find((d) => d.id === review.scene_id)?.html ?? "";
     currentProject.updateScene(review.scene_id, { prose, editor_mode: review.mode });
     pageProseContent = prose;
+    pageViewSceneId = review.mode === "page" ? review.scene_id : null;
     for (const doc of review.documents) {
       if (doc.id !== review.scene_id) currentProject.updateBeatProse(doc.id, doc.html);
     }
@@ -556,6 +557,8 @@
   let switchingMode = $state(false);
   let pageProseContent = $state("");
   let pageEditorVersion = $state(0);
+  // The page-mode scene whose prose pageProseContent currently holds.
+  let pageViewSceneId = $state<string | null>(null);
   let pageProseSaveTimeout: ReturnType<typeof setTimeout> | null = null;
   let pageProseSaveStatus = $state<"idle" | "saving" | "error">("idle");
   let showSwitchToBeatConfirm = $state(false);
@@ -573,12 +576,20 @@
     pageProseSaveStatus = "idle";
     lastPageViewSceneId = scene?.id ?? null;
     pageProseProjectId = currentProject.value?.id ?? "";
-    if (!scene || scene.editor_mode !== "page") return;
-    const unsaved = proseSaves
-      .draftsForRecovery(pageProseProjectId)
-      .find((draft) => draft.kind === "page" && draft.id === scene.id);
-    pageProseContent = unsaved?.prose ?? scene.prose ?? "";
+    if (!scene || scene.editor_mode !== "page") {
+      pageViewSceneId = null;
+      return;
+    }
+    pageProseContent = initialPageProse(scene);
+    pageViewSceneId = scene.id;
   });
+
+  function initialPageProse(scene: Scene) {
+    const unsaved = proseSaves
+      .draftsForRecovery(currentProject.value?.id ?? "")
+      .find((draft) => draft.kind === "page" && draft.id === scene.id);
+    return unsaved?.prose ?? scene.prose ?? "";
+  }
 
   async function switchEditorMode(targetMode: EditorMode) {
     const scene = currentProject.currentScene;
@@ -594,7 +605,7 @@
 
   async function doSwitchMode(targetMode: EditorMode) {
     const scene = currentProject.currentScene;
-    if (!scene || switchingMode || isLocked) return;
+    if (!scene || switchingMode || isLocked || scene.editor_mode === targetMode) return;
 
     switchingMode = true;
     try {
@@ -627,6 +638,7 @@
       if (targetMode === "page") {
         lastPageViewSceneId = updated.id;
         pageProseContent = updated.prose ?? "";
+        pageViewSceneId = updated.id;
       } else if (targetMode === "beat") {
         const freshBeats = await invoke<Beat[]>("get_beats", {
           sceneId: scene.id,
@@ -1335,11 +1347,13 @@
 
         <!-- Page View (Fixed + Page mode) -->
         {#if planning === "fixed" && scene.editor_mode === "page"}
-          {#key pageEditorVersion}
+          <!-- Keyed per scene so undo history never reaches into the previous scene. Until the
+               effect loads this scene, mount with its own prose rather than the last scene's. -->
+          {#key `${scene.id}:${pageEditorVersion}`}
             <PageView
               projectId={currentProject.value?.id}
               sceneId={scene.id}
-              content={pageProseContent}
+              content={pageViewSceneId === scene.id ? pageProseContent : initialPageProse(scene)}
               readonly={isLocked || switchingMode || openingRevisions}
               saveStatus={pageProseSaveStatus}
               wordCount={getPageWordCount()}
