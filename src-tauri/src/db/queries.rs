@@ -316,21 +316,98 @@ pub fn reorder_scenes(conn: &Connection, chapter_id: &Uuid, scene_ids: &[Uuid]) 
     tx.commit()
 }
 
+/// A planned move of one scene to `position` in a (possibly different) chapter.
+///
+/// Both chapters' active scenes are renumbered 0..n: the source chapter closes the
+/// gap and the target chapter shifts later scenes down to make room, so positions
+/// never collide.
+pub struct SceneMove {
+    pub scene_id: Uuid,
+    pub source_chapter_id: Uuid,
+    pub target_chapter_id: Uuid,
+    /// The source chapter's remaining scenes, in order (unused when moving within it).
+    pub source_after: Vec<Uuid>,
+    /// The target chapter's active scenes before the move (including the moved scene
+    /// when it stays in the same chapter), for checking which rows would shift.
+    pub target_before: Vec<Scene>,
+    /// The target chapter's scenes after the move, in order.
+    pub target_after: Vec<Uuid>,
+}
+
+/// Plans a scene move. `position` is clamped to the target chapter's bounds.
+pub fn plan_scene_move(
+    conn: &Connection,
+    scene_id: &Uuid,
+    target_chapter_id: &Uuid,
+    position: i32,
+) -> Result<SceneMove> {
+    let scene = get_scene_by_id(conn, scene_id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+    let source_after: Vec<Uuid> = get_scenes(conn, &scene.chapter_id)?
+        .into_iter()
+        .map(|s| s.id)
+        .filter(|id| id != scene_id)
+        .collect();
+    let target_before = get_scenes(conn, target_chapter_id)?;
+    let mut target_after: Vec<Uuid> = target_before
+        .iter()
+        .map(|s| s.id)
+        .filter(|id| id != scene_id)
+        .collect();
+    let at = usize::try_from(position.max(0))
+        .unwrap_or(0)
+        .min(target_after.len());
+    target_after.insert(at, *scene_id);
+    Ok(SceneMove {
+        scene_id: *scene_id,
+        source_chapter_id: scene.chapter_id,
+        target_chapter_id: *target_chapter_id,
+        source_after,
+        target_before,
+        target_after,
+    })
+}
+
+/// Writes a planned move; the caller owns the transaction.
+pub fn apply_scene_move(conn: &Connection, plan: &SceneMove) -> Result<()> {
+    conn.execute(
+        "UPDATE scenes SET chapter_id = ?1 WHERE id = ?2",
+        params![
+            plan.target_chapter_id.to_string(),
+            plan.scene_id.to_string()
+        ],
+    )?;
+    if plan.source_chapter_id != plan.target_chapter_id {
+        reorder_scenes_in_transaction(conn, &plan.source_chapter_id, &plan.source_after)?;
+    }
+    reorder_scenes_in_transaction(conn, &plan.target_chapter_id, &plan.target_after)
+}
+
+fn reorder_scenes_in_transaction(
+    conn: &Connection,
+    chapter_id: &Uuid,
+    scene_ids: &[Uuid],
+) -> Result<()> {
+    for (idx, id) in scene_ids.iter().enumerate() {
+        conn.execute(
+            "UPDATE scenes SET position = ?1 WHERE id = ?2 AND chapter_id = ?3",
+            params![idx as i32, id.to_string(), chapter_id.to_string()],
+        )?;
+    }
+    Ok(())
+}
+
+/// Moves a scene to `position` in `target_chapter_id` without colliding positions
+/// (see [`SceneMove`]). Lock rules are the caller's responsibility.
 pub fn move_scene_to_chapter(
     conn: &Connection,
     scene_id: &Uuid,
     target_chapter_id: &Uuid,
     position: i32,
 ) -> Result<()> {
-    conn.execute(
-        "UPDATE scenes SET chapter_id = ?1, position = ?2 WHERE id = ?3",
-        params![
-            target_chapter_id.to_string(),
-            position,
-            scene_id.to_string()
-        ],
-    )?;
-    Ok(())
+    let tx = conn.unchecked_transaction()?;
+    let plan = plan_scene_move(&tx, scene_id, target_chapter_id, position)?;
+    apply_scene_move(&tx, &plan)?;
+    tx.commit()
 }
 
 pub fn get_scenes(conn: &Connection, chapter_id: &Uuid) -> Result<Vec<Scene>> {
