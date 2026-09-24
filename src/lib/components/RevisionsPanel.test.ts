@@ -369,3 +369,24 @@ it("never names a missing draft when nothing is left to compare", async () => {
   );
   expect(document.body.textContent).not.toContain("undefined");
 });
+
+it("counts two pruned drafts that share a name as two", async () => {
+  persisted.data.drafts = [
+    pruneDraft("Before accepting changes", 1, true),
+    pruneDraft("Before accepting changes", 2, true),
+    pruneDraft("Opening", 3),
+  ];
+  pruneOnSave(0);
+  renderPanel();
+  await screen.findByRole("region", { name: "Saved draft" });
+  await fireEvent.click(screen.getByRole("button", { name: /Draft 1.*Before accepting changes/ }));
+  await fireEvent.change(screen.getByLabelText("Compare with"), { target: { value: "1" } });
+  await fireEvent.change(screen.getByLabelText("Revision status"), {
+    target: { value: "editor_review" },
+  });
+  await waitFor(() => expect(persisted.data.drafts).toHaveLength(1));
+  const notice = await screen.findByText(/were removed/);
+  expect(notice.textContent).toContain(
+    "“Before accepting changes” and “Before accepting changes” were removed"
+  );
+});

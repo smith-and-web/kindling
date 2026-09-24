@@ -99,12 +99,11 @@
       const drafts = review.data.drafts;
       const find = (draft: ReviewDraft) =>
         drafts.findIndex((d) => d.created_at === draft.created_at && d.name === draft.name);
-      const keep = (index: number) =>
-        index < 0 || !previous[index]
-          ? index
-          : find(previous[index]) >= 0
-            ? find(previous[index])
-            : null;
+      const keep = (index: number) => {
+        if (index < 0 || !previous[index]) return index;
+        const survivor = find(previous[index]);
+        return survivor >= 0 ? survivor : null;
+      };
       const nearest = (index: number, newerFirst: boolean, avoid: number | null) => {
         const older = previous.slice(0, index).reverse();
         const newer = previous.slice(index + 1);
@@ -114,13 +113,11 @@
       };
       let nextBefore = keep(before);
       let nextAfter = keep(after);
-      const removed = [
-        ...new Set(
-          [nextBefore === null && before, nextAfter === null && after]
-            .filter((index): index is number => index !== false)
-            .map((index) => `“${previous[index].name}”`)
-        ),
-      ];
+      // Distinct drafts can share a name, so count pruned sides by index.
+      const prunedIndexes = [nextBefore === null ? before : -1, nextAfter === null ? after : -1];
+      const removed = prunedIndexes
+        .filter((index, i) => index >= 0 && prunedIndexes.indexOf(index) === i)
+        .map((index) => `“${previous[index].name}”`);
       nextBefore ??= nearest(before, false, nextAfter) ?? nearest(before, false, null) ?? 0;
       nextAfter ??= nearest(after, true, nextBefore) ?? -1;
       // Current prose is never a saved draft, so it keeps two different drafts apart.
