@@ -4401,6 +4401,11 @@ pub async fn export_to_scrivener(
 ) -> Result<ExportResult, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
 
+    // Refuse before taking a snapshot so a refused export leaves no trace.
+    if matches!(options.mode, ScrivenerExportMode::CreateNew) {
+        ensure_new_scriv_target(Path::new(&options.output_path))?;
+    }
+
     if options.create_snapshot {
         let snapshot_options = super::CreateSnapshotOptions {
             name: "Pre-Scrivener-export snapshot".to_string(),
@@ -4459,7 +4464,66 @@ fn group_chapters_into_hierarchy(
     result
 }
 
+/// "Create new" must never replace an existing bundle. The default save name is
+/// the project's own name, which is also the name of the `.scriv` it was
+/// imported from, so the OS "Replace?" prompt is one click away from wiping the
+/// writer's binder (Research, Notes, snapshots) with no backup.
+fn ensure_new_scriv_target(scriv_path: &Path) -> Result<(), String> {
+    if scriv_path.symlink_metadata().is_err() {
+        return Ok(());
+    }
+    let name = scriv_path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| scriv_path.display().to_string());
+    Err(format!(
+        "“{name}” already exists, so it was left untouched. Choose a new name to \
+         create a Scrivener project, or choose Update Existing to write your prose \
+         into that one."
+    ))
+}
+
+/// Build a new `.scriv` bundle in a hidden sibling directory and move it into
+/// place only once it is complete: a failed export leaves nothing half-written,
+/// and the final rename cannot replace a bundle that appeared in the meantime
+/// (a directory rename refuses a non-empty directory or a file as its target).
 fn create_new_scriv_bundle(
+    conn: &rusqlite::Connection,
+    project: &Project,
+    chapters: &[&Chapter],
+    scriv_path: &Path,
+) -> Result<ExportResult, String> {
+    ensure_new_scriv_target(scriv_path)?;
+    let parent = match scriv_path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        _ => Path::new("."),
+    };
+    fs::create_dir_all(parent).map_err(|e| format!("Failed to create .scriv directory: {}", e))?;
+    let staging = tempfile::Builder::new()
+        .prefix(".kindling-scriv-")
+        .tempdir_in(parent)
+        .map_err(|e| format!("Failed to create .scriv directory: {}", e))?;
+
+    let result = write_scriv_bundle(conn, project, chapters, staging.path())?;
+
+    ensure_new_scriv_target(scriv_path)?;
+    fs::rename(staging.path(), scriv_path).map_err(|e| {
+        format!(
+            "Could not create the Scrivener project; anything already at {} was left untouched. {}",
+            scriv_path.display(),
+            e
+        )
+    })?;
+    // The staging directory is now the bundle; don't let its guard delete it.
+    let _ = staging.keep();
+
+    Ok(ExportResult {
+        output_path: scriv_path.to_string_lossy().to_string(),
+        ..result
+    })
+}
+
+fn write_scriv_bundle(
     conn: &rusqlite::Connection,
     project: &Project,
     chapters: &[&Chapter],
@@ -6810,6 +6874,119 @@ mod tests {
             std::fs::read_to_string(dst.join("sub").join("nested.txt")).unwrap(),
             "world"
         );
+    }
+
+    /// One-chapter, one-scene project for Scrivener "Create new" tests.
+    fn scriv_create_fixture(conn: &rusqlite::Connection) -> (Project, Vec<Chapter>) {
+        crate::db::schema::initialize_schema(conn).unwrap();
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "Novel", "scrivener", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Chapter 1", 0, false, false],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![Uuid::new_v4().to_string(), ch_id.to_string(), "Opening", "<p>Hello.</p>", 0, false],
+        ).unwrap();
+        let project = db::queries::get_project(conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(conn, &project_id).unwrap();
+        (project, chapters)
+    }
+
+    /// Every path under `root` with its bytes (directories map to empty).
+    fn tree_snapshot(root: &Path) -> std::collections::BTreeMap<PathBuf, Vec<u8>> {
+        walkdir::WalkDir::new(root)
+            .into_iter()
+            .map(|entry| {
+                let entry = entry.unwrap();
+                let bytes = if entry.file_type().is_file() {
+                    std::fs::read(entry.path()).unwrap()
+                } else {
+                    Vec::new()
+                };
+                (
+                    entry.path().strip_prefix(root).unwrap().to_path_buf(),
+                    bytes,
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_create_new_scriv_refuses_to_replace_existing_bundle() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let (project, chapters) = scriv_create_fixture(&conn);
+        let active: Vec<&Chapter> = chapters.iter().collect();
+
+        // The writer's original bundle, with binder content kindling never imports.
+        let scriv = dir.path().join("Novel.scriv");
+        std::fs::create_dir_all(scriv.join("Files").join("Data").join("RESEARCH-UUID")).unwrap();
+        std::fs::write(
+            scriv.join("Novel.scrivx"),
+            "<ScrivenerProject>original</ScrivenerProject>",
+        )
+        .unwrap();
+        std::fs::write(
+            scriv
+                .join("Files")
+                .join("Data")
+                .join("RESEARCH-UUID")
+                .join("content.rtf"),
+            "{\\rtf1 research notes}",
+        )
+        .unwrap();
+        let before = tree_snapshot(&scriv);
+
+        let err = create_new_scriv_bundle(&conn, &project, &active, &scriv).unwrap_err();
+        assert!(err.contains("already exists"), "{err}");
+        assert!(err.contains("Update Existing"), "{err}");
+        assert_eq!(
+            tree_snapshot(&scriv),
+            before,
+            "existing bundle was modified"
+        );
+
+        // An existing plain file at the target is refused too.
+        let file_target = dir.path().join("Other.scriv");
+        std::fs::write(&file_target, "not a bundle").unwrap();
+        assert!(create_new_scriv_bundle(&conn, &project, &active, &file_target).is_err());
+        assert_eq!(std::fs::read(&file_target).unwrap(), b"not a bundle");
+
+        // Nothing staged is left behind.
+        let mut names: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["Novel.scriv", "Other.scriv"]);
+    }
+
+    #[test]
+    fn test_create_new_scriv_publishes_complete_bundle_without_staging_leftovers() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let (project, chapters) = scriv_create_fixture(&conn);
+        let active: Vec<&Chapter> = chapters.iter().collect();
+        let scriv = dir.path().join("nested").join("Novel.scriv");
+
+        let result = create_new_scriv_bundle(&conn, &project, &active, &scriv).unwrap();
+
+        assert_eq!(result.output_path, scriv.to_string_lossy());
+        assert!(find_scrivx_file(&scriv).is_ok());
+        assert!(scriv.join("Settings").is_dir());
+        let names: Vec<_> = std::fs::read_dir(scriv.parent().unwrap())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(names, ["Novel.scriv"]);
     }
 
     #[test]
