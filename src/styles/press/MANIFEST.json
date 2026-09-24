@@ -1,17 +1,17 @@
 {
   "package": "@kindling/design-system",
-  "version": "0.12.0",
-  "commit": "4eddda72f4dea3217cf003e1911def342b7a4279",
+  "version": "0.13.1",
+  "commit": "e1dd0fccf2cb506467e2f3e28c6a86bd884de16a",
   "snapshot": "commit",
-  "note": "Taken from ../press at 4eddda72f4dea3217cf003e1911def342b7a4279 with a clean working tree.",
-  "syncedAt": "2026-09-22T23:43:05Z",
+  "note": "Taken from ../press at e1dd0fccf2cb506467e2f3e28c6a86bd884de16a with a clean working tree.",
+  "syncedAt": "2026-09-23T23:37:01Z",
   "generator": "scripts/sync-design-system.sh -> scripts/check-design-system.mjs --write",
   "verify": "npm run check:design-system",
   "files": [
     {
       "path": "src/styles/press/application.css",
-      "bytes": 17490,
-      "sha256": "e99fc288afffecad58ad1ef8bfbc93d074303f997a687c64bfccfdcaebe5ce38"
+      "bytes": 33906,
+      "sha256": "2392a9caabed977512a341210dbb1e9d8f454fb864d61dd08d9246b14fc0ddef"
     },
     {
       "path": "src/styles/press/components.css",
@@ -325,8 +325,8 @@
     },
     {
       "path": "DESIGN_GUIDE.md",
-      "bytes": 15223,
-      "sha256": "21b15ea99c5991cd7793aea44393e08592d02dd66dfc48ea97c40214a6625719"
+      "bytes": 17035,
+      "sha256": "f9e6ac95d921db91b6731bdd55e4a03be5c23b0597cff8487f638d6e939fa71e"
     }
   ]
 }

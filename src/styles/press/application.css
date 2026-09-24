@@ -3,7 +3,7 @@
 @layer od-layout {
 .od-stack{display:flex;flex-direction:column;gap:var(--od-gap,8px)}.od-row{display:flex;align-items:center;gap:var(--od-gap,8px)}.od-row-top{display:flex;align-items:flex-start;gap:var(--od-gap,8px)}.od-field,.od-stat{display:grid;gap:var(--od-gap,4px)}.od-field>*,.od-stat>*{display:block}.od-fill{flex:1 1 0;min-width:0}.od-nowrap{white-space:nowrap}:where(.od-stack,.od-row,.od-row-top,.od-field,.od-stat)>*{min-width:0}
 }
-:root{--ka-radius:8px;--ka-radius-small:4px;--ka-gap:16px;--ka-pad:24px;--ka-touch:var(--control-target);--ka-motion:160ms;--ka-heading:clamp(2rem,6vw,3rem);--ka-reference-ratio:4/3}
+:root{--ka-radius:8px;--ka-radius-small:4px;--ka-gap:16px;--ka-pad:24px;--ka-touch:var(--control-target);--ka-motion:160ms;--ka-heading:clamp(2rem,6vw,3rem);--ka-reference-ratio:4/3;--ka-line-indent:1.5em}
 :where([class^="ka-"],[class*=" ka-"]){box-sizing:border-box}
 .press-app{color:var(--color-text);font:var(--text-base)/1.6 var(--font-ui);text-align:left}
 .press-app :where(h3,h4,p,ul,dl,dd,figure,fieldset){margin:0}
@@ -20,7 +20,7 @@
 .ka-field textarea{resize:vertical;min-height:120px}.ka-field :where(input,textarea)::placeholder{color:var(--color-text-muted)}.ka-field [aria-invalid="true"]{border-color:var(--color-error)}.ka-field :disabled{color:var(--color-disabled-text);background:var(--color-disabled-bg);cursor:not-allowed}
 .ka-check{gap:12px;min-height:var(--ka-touch);font:var(--text-ui)/1.5 var(--font-ui)}.ka-check input{appearance:auto;width:20px;height:20px;min-width:20px;margin:0;accent-color:var(--color-accent-text)}.ka-check label{display:flex;align-items:center;min-height:var(--ka-touch);cursor:pointer;color:var(--color-text)}
 .ka-segments{border:0;padding:0;min-width:0;font:var(--text-ui)/1.5 var(--font-ui)}.ka-segments legend{margin-bottom:8px;color:var(--color-text-muted)}.ka-segment-track{display:flex;flex-wrap:wrap;gap:4px;padding:4px;background:var(--color-surface-sunken);border-radius:var(--ka-radius)}
-.ka-segment{position:relative;display:flex;align-items:center;gap:8px;min-height:var(--ka-touch);padding:8px 12px;cursor:pointer;border:0;border-radius:var(--ka-radius-small);flex:1;justify-content:center;color:var(--color-text);background:transparent;font:var(--text-ui)/1.5 var(--font-ui)}.ka-segment input{position:absolute;width:1px;height:1px;opacity:0;left:8px;top:8px}.ka-segment:focus-within{outline:2px solid var(--color-accent-text);outline-offset:2px}.ka-segment:has(input:disabled){opacity:.6;cursor:not-allowed}/* `.ka-selected` stays for the Svelte component, which toggles it. The
+.ka-segment{position:relative;display:flex;align-items:center;gap:8px;min-height:var(--ka-touch);padding:8px 12px;cursor:pointer;border:0;border-radius:var(--ka-radius-small);flex:1;justify-content:center;color:var(--color-text);background:transparent;font:var(--text-ui)/1.5 var(--font-ui)}.ka-segment input{position:absolute;width:1px;height:1px;opacity:0;left:8px;top:8px}.ka-segment:has(:focus-visible){outline:2px solid var(--color-accent-text);outline-offset:2px}.ka-segment:has(input:disabled){opacity:.6;cursor:not-allowed}/* `.ka-selected` stays for the Svelte component, which toggles it. The
    native selector makes the control correct on a plain-HTML surface: the
    radio is visually hidden, so without this, clicking a segment checks the
    input and nothing moves — the control reports the wrong choice with
@@ -41,8 +41,14 @@
 .ka-notice{display:grid;padding:16px;border:1px solid var(--color-border);border-radius:var(--ka-radius-small);background:var(--color-info-wash);color:var(--color-info);gap:12px;font:var(--text-ui)/1.6 var(--font-ui)}.ka-notice p{color:var(--color-text)}.ka-notice--error{color:var(--color-error);background:var(--color-error-wash)}.ka-notice--success{color:var(--color-success);background:var(--color-success-wash)}.ka-notice--warning{color:var(--color-warning);background:var(--color-warning-wash)}
 .ka-dialog{position:fixed;inset:0;margin:auto;padding:0;width:min(600px,calc(100% - 32px));max-width:calc(100% - 32px);max-height:calc(100dvh - 48px);overflow:auto;background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-border);border-radius:var(--ka-radius);box-shadow:0 16px 48px var(--color-overlay-scrim)}.ka-dialog:not([open]){display:none}.ka-dialog-wide{width:min(960px,calc(100% - 32px))}.ka-dialog::backdrop{background:var(--color-overlay-scrim)}.ka-dialog-header{padding:16px 24px;border-bottom:1px solid var(--color-border)}.ka-dialog-header h3{font-size:var(--text-h3)}.ka-dialog-body{padding:24px}.ka-dialog-footer{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;padding:16px 24px;border-top:1px solid var(--color-border)}
 .ka-panel{min-width:0;border:1px solid var(--color-border);border-radius:var(--ka-radius);background:var(--color-surface)}.ka-panel>header{padding:16px;border-bottom:1px solid var(--color-border)}.ka-panel-body{padding:16px}.ka-panel h4{font-size:var(--text-h3)}
-.ka-beat{margin:0;border:0;background:var(--color-surface-sunken);border-radius:var(--ka-radius);color:var(--color-text);font:var(--text-ui)/1.5 var(--font-ui)}.ka-beat>summary{display:flex;align-items:center;gap:12px;min-height:52px;padding:12px 16px;list-style:none;cursor:pointer}.ka-beat>summary::-webkit-details-marker{display:none}.ka-beat-number{display:flex;align-items:center;justify-content:center;flex:none;min-width:28px;min-height:28px;padding:4px;border-radius:50%;background:var(--color-accent-text);color:var(--color-on-accent)}.ka-beat-body{padding:8px 16px 16px}.ka-beat-body p{font:var(--text-body-lg)/1.7 var(--font-body)}
-.ka-manuscript{padding:clamp(24px,4vw,48px);background:var(--color-prose-bg);color:var(--color-prose-text);border:1px solid var(--color-prose-border);border-radius:var(--ka-radius-small);box-shadow:0 8px 24px var(--color-border);min-width:0}.ka-manuscript>header{margin-bottom:24px}.ka-manuscript h3{font:550 var(--ka-heading)/1.15 var(--font-display);color:var(--color-prose-text)}.ka-manuscript header p{font:var(--text-ui)/1.5 var(--font-ui);color:var(--color-prose-placeholder)}.ka-manuscript-prose{font:var(--text-body)/var(--leading-relaxed) var(--font-body);max-width:var(--measure)}.ka-manuscript-prose p+p{margin-top:16px}
+.ka-beat{margin:0;border:0;background:var(--color-surface-sunken);border-radius:var(--ka-radius);color:var(--color-text);font:var(--text-ui)/1.5 var(--font-ui)}.ka-beat>summary{display:flex;align-items:center;gap:12px;min-height:52px;padding:12px 16px;list-style:none;cursor:pointer}.ka-beat>summary::-webkit-details-marker{display:none}.ka-beat-number{display:flex;align-items:center;justify-content:center;flex:none;min-width:28px;min-height:28px;padding:4px;border-radius:50%;background:var(--color-accent-text);color:var(--color-on-accent);font:500 var(--text-small)/1 var(--font-ui)}.ka-beat-body{padding:8px 16px 16px}/* A beat body's own note paragraphs read at --text-body-lg. A manuscript
+   drafted inside the beat is not a note: `.ka-manuscript-prose` sets
+   --text-body/--leading-relaxed on itself, but this rule named the `p`
+   directly, which beats inheritance, so a draft seated in a beat read at
+   18px/1.7 instead of the editor's 17px. The exclusion sits in `:where()`, so the
+   rule keeps its (0,1,1) specificity. */
+.ka-beat-body p:where(:not(.ka-manuscript *)){font:var(--text-body-lg)/1.7 var(--font-body)}
+.ka-manuscript{padding:clamp(24px,4vw,48px);background:var(--color-prose-bg);color:var(--color-prose-text);border:1px solid var(--color-prose-border);border-radius:var(--ka-radius-small);box-shadow:0 8px 24px var(--color-border);min-width:0}.ka-manuscript>header{margin-bottom:24px}.ka-manuscript h3{font:550 var(--ka-heading)/1.15 var(--font-display);color:var(--color-prose-text)}.ka-manuscript header p{font:var(--text-ui)/1.5 var(--font-ui);color:var(--color-prose-placeholder)}.ka-manuscript-prose{font:var(--text-body)/var(--leading-relaxed) var(--font-body);max-width:var(--measure)}.ka-manuscript-prose p{margin:0}.ka-manuscript-prose p:not(:first-child){text-indent:var(--ka-line-indent)}.ka-manuscript-prose blockquote{margin:1em 0;padding:16px;background:var(--color-prose-callout-bg);border-left:4px solid var(--color-prose-blockquote-border);border-radius:0 var(--radius-m) var(--radius-m) 0;font-style:italic;color:var(--color-prose-blockquote-text)}
 /* `.ka-facts` — key/value metadata at label scale. `.ka-stats` below is the
    figure display (clamped 24–36px numerals for a word count) and
    `.ka-badge` is a status chip; neither renders "Size · ~10 MB". Settings >
@@ -73,13 +79,13 @@
 .ka-code{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 16px;min-width:0;padding:12px 16px;border:1px solid var(--color-border);border-radius:var(--ka-radius-small);background:var(--color-surface-sunken);color:var(--color-text)}
 .ka-code>code{flex:1 1 14rem;min-width:0;font:var(--text-small)/1.6 var(--font-mono);overflow-wrap:anywhere}
 .ka-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:24px;margin:0}.ka-stats dt{font:var(--text-small)/1.5 var(--font-ui);color:var(--color-text-muted)}.ka-stats dd{order:-1;margin:0;font:500 clamp(24px,3vw,36px)/1.2 var(--font-display)}.ka-stats small{font:var(--text-small)/1.5 var(--font-ui)}
-.ka-tree{font:var(--text-ui)/1.5 var(--font-ui)}.ka-tree-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}.ka-tree-list .ka-tree-list{margin:8px 0 8px 16px;border-left:1px solid var(--color-border);padding-left:8px}.ka-tree :where(details,summary){margin:0;border:0}.ka-tree summary,.ka-tree button{display:flex;align-items:center;gap:8px;padding:8px 12px;min-height:var(--ka-touch);width:100%;border:0;border-radius:var(--ka-radius-small);background:transparent;color:var(--color-text);text-align:left;font:inherit;cursor:pointer;list-style:none}.ka-tree summary::-webkit-details-marker{display:none}.ka-tree small{font:var(--text-small)/1.5 var(--font-ui);color:var(--color-text-muted)}.ka-tree button.ka-tree-selected{color:var(--color-on-accent);background:var(--color-accent-text)}.ka-tree-selected small{color:inherit}
+.ka-tree{font:var(--text-ui)/1.5 var(--font-ui)}.ka-tree-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.ka-tree-list .ka-tree-list{margin:8px 0 8px 16px;border-left:1px solid var(--color-border);padding-left:8px}.ka-tree :where(details,summary){margin:0;border:0}.ka-tree summary,.ka-tree button{display:flex;align-items:center;gap:8px;padding:8px 12px;min-height:var(--ka-touch);width:100%;border:0;border-radius:var(--ka-radius-small);background:transparent;color:var(--color-text);text-align:left;font:inherit;cursor:pointer;list-style:none}.ka-tree summary::-webkit-details-marker{display:none}.ka-tree small{font:var(--text-small)/1.5 var(--font-ui);color:var(--color-text-muted)}.ka-tree button.ka-tree-selected{color:var(--color-on-accent);background:var(--color-accent-text)}.ka-tree-selected small{color:inherit}
 .ka-tag{display:inline-flex;align-items:center;gap:8px;min-height:var(--ka-touch);padding:4px 12px;border:1px solid var(--color-border);border-radius:var(--ka-radius);font:var(--text-small)/1.5 var(--font-ui);color:var(--color-text);background:var(--color-surface-sunken);cursor:pointer}
 .ka-disclosure,.ka-menu{border:0;margin:0}.ka-disclosure>summary,.ka-menu>summary{display:flex;align-items:center;gap:8px;min-height:var(--ka-touch);width:fit-content;padding:8px 12px;border:1px solid var(--color-border);border-radius:var(--ka-radius-small);cursor:pointer;font:var(--text-ui)/1.5 var(--font-ui);color:var(--color-text);list-style:none}.ka-disclosure>summary::-webkit-details-marker,.ka-menu>summary::-webkit-details-marker{display:none}.ka-disclosure>div{padding:16px 0}.ka-menu-list{display:grid;gap:4px;min-width:min(240px,100%);margin-top:8px;padding:8px;border:1px solid var(--color-border);border-radius:var(--ka-radius);background:var(--color-surface)}.ka-menu-list>button{display:flex;align-items:center;justify-content:space-between;gap:24px;min-height:var(--ka-touch);padding:8px 12px;border:0;background:transparent;color:var(--color-text);text-align:left;cursor:pointer;font:var(--text-ui)/1.5 var(--font-ui)}
 .press-app kbd{font:var(--text-small)/1.4 var(--font-mono);white-space:nowrap;color:var(--color-text-muted)}.ka-command-list{display:grid;gap:4px;margin:16px 0;max-height:320px;overflow:auto}.ka-command-list button{display:flex;justify-content:space-between;align-items:center;gap:24px;width:100%;min-height:52px;padding:12px;text-align:left;background:transparent;border:0;color:var(--color-text);font:var(--text-ui)/1.5 var(--font-ui);cursor:pointer}.ka-command-selected{background:var(--color-surface-sunken);border-radius:var(--ka-radius-small)}.ka-command-list small{color:var(--color-text-muted)}
 .ka-results article{padding:16px 0;border-bottom:1px solid var(--color-border)}.ka-results article>p{margin-top:16px;font:var(--text-body-lg)/1.6 var(--font-body)}.ka-results mark{background:var(--color-accent-wash);color:var(--color-text);outline:1px solid var(--color-accent-text)}
 .ka-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
-@media(hover:hover){.ka-button:not(:disabled):hover{filter:brightness(.94)}.ka-button--ghost:not(:disabled):hover,.ka-menu-list>button:not(:disabled):hover,.ka-tree button:not(.ka-tree-selected):hover{background:var(--color-surface-sunken);filter:none}.ka-tag:hover{border-color:var(--color-accent-text)}.ka-tablist>button:hover{color:var(--color-accent-text)}}
+@media(hover:hover){.ka-button:not(:disabled):hover{filter:brightness(.94)}.ka-button--ghost:not(:disabled):hover,.ka-menu-list>button:not(:disabled):hover,.ka-tree button:not(.ka-tree-selected):not(:disabled):hover{background:var(--color-surface-sunken);filter:none}.ka-tag:hover{border-color:var(--color-accent-text)}.ka-tablist>button:hover{color:var(--color-accent-text)}}
 @media(max-width:767px){.ka-dialog-body{padding:16px}.ka-dialog-header,.ka-dialog-footer{padding:16px}.ka-segment-track{flex-wrap:wrap}.ka-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.ka-menu-list{width:100%}.ka-between{align-items:flex-start}}
 @media(prefers-reduced-motion:no-preference){.ka-dialog[open]{animation:ka-enter var(--ka-motion) ease-out}.ka-button{transition:opacity var(--ka-motion) ease-out}@keyframes ka-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}}
 @media(prefers-reduced-motion:reduce){.press-app *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
@@ -92,3 +98,182 @@
    --text-body/--leading-relaxed over --measure. A reference that disagrees with
    the product it documents is worse than no reference, so it now matches the
    editor. Website samples reach the same role through `.pw-writing--app`. */
+
+/* `.ka-workspace` — the writing workspace's layout: the project outline, the
+   scene column and the references inspector, as the application arranges
+   them. Press has owned every control those regions hold — `.ka-tree`,
+   `.ka-beat`, `.ka-manuscript`, `.ka-panel`, `.ka-segment` — and no layout
+   to seat them in, so the shell was composed locally three times: the
+   application kit (`.kit-layout`), the reference catalog (`.ac-workspace`)
+   and kindling-splash's home-page specimen.
+
+   Structure: `.ka-workspace` > an optional `.ka-workspace-bar`, an optional
+   `.ka-workspace-panes`, then `.ka-workspace-grid` > `.ka-workspace-outline`,
+   `.ka-workspace-main` and `.ka-workspace-inspector`, each optional except
+   main. Each region is a column: an optional `.ka-workspace-bar`, a
+   `.ka-workspace-body`, and — in main — an optional `.ka-statusbar`. The grid
+   is a child of the workspace rather than the workspace itself because a
+   container query cannot restyle its own container.
+
+   Region widths default to the application's (outline 304px, inspector
+   288px) and clamp against the workspace, so a specimen narrower than an
+   application window keeps a readable scene column rather than starving it.
+   Tracks are `auto`, so an absent region takes no space. The three knobs —
+   `--ka-workspace-outline`, `--ka-workspace-inspector`, `--ka-workspace-block`
+   — are read with their defaults as `var()` fallbacks and never declared on
+   `.ka-workspace` itself, so a consumer can set them on any ancestor. A
+   default declared on the element would beat an inherited value, and the
+   documented override would silently do nothing. Height is the
+   consumer's: set `--ka-workspace-block` to bound it — the window, in the
+   application; the screen, for a website specimen that would otherwise run
+   past one — and bodies scroll. Unset, it takes its content's height. */
+.ka-workspace{display:flex;flex-direction:column;block-size:var(--ka-workspace-block,auto);min-width:0;min-height:0;background:var(--color-bg);color:var(--color-text);container:ka-workspace/inline-size}
+.ka-workspace-grid{display:grid;grid-template:"outline main inspector" minmax(0,1fr)/auto minmax(0,1fr) auto;flex:1 1 auto;min-height:0}
+.ka-workspace-outline,.ka-workspace-main,.ka-workspace-inspector{display:flex;flex-direction:column;min-width:0;min-height:0}
+.ka-workspace-outline{grid-area:outline;inline-size:var(--ka-workspace-outline,clamp(12rem,24cqi,19rem));background:var(--color-surface);border-right:1px solid var(--color-border)}
+.ka-workspace-main{grid-area:main;background:var(--color-bg)}
+.ka-workspace-inspector{grid-area:inspector;inline-size:var(--ka-workspace-inspector,clamp(12rem,22cqi,18rem));background:var(--color-surface);border-left:1px solid var(--color-border)}
+/* A bounded specimen seated on another surface: hairline, radius, clipped
+   corners. No shadow — the workspace is not a floating overlay, and the
+   application window has none. */
+.ka-workspace--embedded{border:1px solid var(--color-border);border-radius:var(--ka-radius);overflow:clip}
+/* `.ka-workspace-bar` — a region's header row, or, placed directly in the
+   workspace, a title bar across it. Owns layout, not controls: put
+   `.ka-button`, `.ka-badge` and `.ka-icon-button` inside it. Padding matches
+   the application's scene header (12px 24px). The minimum height is a 44px
+   control plus that padding and the hairline, so a text-only bar is exactly
+   as tall as one holding an icon button and the three regions' header rules
+   meet in one line rather than stepping. */
+.ka-workspace-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 16px;flex:none;min-height:calc(var(--ka-touch) + 25px);padding:12px 24px;border-bottom:1px solid var(--color-border);background:var(--color-surface);font:var(--text-ui)/1.5 var(--font-ui)}
+.ka-workspace-main>.ka-workspace-bar{background:var(--color-bg)}
+.ka-workspace-body{flex:1 1 auto;min-height:0;overflow:auto;padding:16px}
+.ka-workspace-main>.ka-workspace-body{padding:24px}
+/* A bounded body scrolls, so it takes keyboard focus (`tabindex="0"`) and
+   shows the control focus pair, inset so the clipped corners keep it. */
+.ka-workspace-body:focus-visible{outline:2px solid var(--color-accent-text);outline-offset:-2px}
+/* `.ka-statusbar` — the persistent strip of live counts at the foot of the
+   scene column, as the application's WritingStatusBar draws it. `.ka-stats`
+   is the figure display for the same numbers (24–36px display numerals) and
+   is the wrong scale for a strip the writer reads out of the corner of an
+   eye. Put one `span` per count; they wrap rather than truncate. */
+.ka-statusbar{display:flex;flex-wrap:wrap;align-items:center;column-gap:24px;row-gap:0;flex:none;min-height:var(--ka-touch);padding:0 4px 0 24px;border-top:1px solid var(--color-border);background:var(--color-surface);font:var(--text-small)/1.5 var(--font-ui);color:var(--color-text-muted);font-variant-numeric:tabular-nums}
+/* A manuscript sheet inside the workspace sits in a column, not on a page.
+   `.ka-manuscript` pads by the viewport (up to 48px), which inside a 600px
+   scene column spends a quarter of the width and most of a bounded region's
+   height on margin. The application's beat view pads its draft paper
+   16px × 24px; so does this. */
+.ka-workspace .ka-manuscript{padding:16px 24px}
+/* `.ka-workspace-panes` — at a workspace narrower than 900px, three columns
+   would starve the scene, so one region shows at a time and this row
+   switches between them. It holds a `.ka-segments` fieldset whose radios
+   carry `value="outline"`, `"main"` or `"inspector"`; with none checked, main
+   shows. Native radios and `:has()`, so it works without JavaScript and the
+   selection survives in the form state. Hidden at wider workspaces, where
+   every region shows regardless of the choice. The row pads tighter than a
+   bar: it exists only at narrow widths, where 8px of side padding is what
+   keeps Outline / Writing / References on one row at a 360px phone. */
+.ka-workspace-panes{display:none;flex:none;padding:8px 12px;border-bottom:1px solid var(--color-border);background:var(--color-surface)}
+@container ka-workspace (max-width:56.25rem){
+.ka-workspace-panes{display:block}
+.ka-workspace-grid{grid-template:"region" minmax(0,1fr)/minmax(0,1fr)}
+.ka-workspace-outline,.ka-workspace-main,.ka-workspace-inspector{grid-area:region;inline-size:auto;border:0}
+.ka-workspace:not(:has(.ka-workspace-panes input[value="outline"]:checked)) .ka-workspace-outline,.ka-workspace:not(:has(.ka-workspace-panes input[value="inspector"]:checked)) .ka-workspace-inspector,.ka-workspace:has(.ka-workspace-panes :is(input[value="outline"],input[value="inspector"]):checked) .ka-workspace-main{display:none}
+.ka-workspace-main>.ka-workspace-body{padding:16px}
+/* Three paddings nest around a draft here — region body, beat body, the
+   sheet's own — and at a phone's width they left the manuscript about 28
+   characters a line. The inner two tighten further; the prose keeps its
+   17px. */
+.ka-workspace .ka-beat-body{padding:8px}
+.ka-workspace .ka-manuscript{padding:16px}
+}
+/* `.ka-disclosure-icon` — the plain-HTML form of BeatItem's and
+   NavigationTree's chevron. The Svelte components swap two icons from their
+   `open` state; static markup cannot, so draw one right-pointing chevron and
+   this turns it down when its own `details` opens. */
+.ka-disclosure-icon{flex:none;color:var(--color-text-muted);transition:transform var(--ka-motion) ease-out}
+details[open]>summary>.ka-disclosure-icon{transform:rotate(90deg)}
+@media(prefers-reduced-motion:reduce){.ka-disclosure-icon{transition:none}}
+/* The beat as the application's BeatView draws it (0.13.0). Only the open
+   beat carries the accent: a closed beat's number is an outlined circle in
+   muted ink, so a scene of twelve beats is not twelve terracotta discs. An
+   open beat's summary takes a hairline above its draft. `.ka-beat-title`
+   truncates to one line and `.ka-beat-count` trails it — the word count,
+   small, muted, tabular. */
+.ka-beat:not([open]) .ka-beat-number{background:transparent;color:var(--color-text-muted);box-shadow:inset 0 0 0 1px var(--color-control-border-hover)}
+.ka-beat[open]>summary{border-bottom:1px solid var(--color-border)}
+.ka-beat-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.ka-beat-count{flex:none;font:var(--text-small)/1.5 var(--font-ui);color:var(--color-text-muted);font-variant-numeric:tabular-nums}
+/* `.ka-beat-preview` — a closed beat's draft, as a strip of light paper three
+   lines deep, which is how the application shows prose it is not editing. In
+   native markup a closed `details` shows only its summary, so the preview
+   sits inside the summary (a block `span`, because a summary holds phrasing
+   content) and the whole strip opens the beat. Mark it `aria-hidden="true"`:
+   it would otherwise become part of the summary's accessible name, and the
+   full draft is in the body once the beat opens. Hidden while open. */
+.ka-beat>summary:has(.ka-beat-preview){flex-wrap:wrap}
+.ka-beat-preview{display:block;flex:1 0 100%;margin-bottom:4px;padding:16px 24px;max-height:7.5rem;overflow:hidden;border-radius:var(--ka-radius-small);background:var(--color-prose-bg);color:var(--color-prose-text);box-shadow:0 0 0 1px var(--color-prose-border)}
+.ka-beat-preview>*{display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;max-width:var(--measure);font:var(--text-body)/var(--leading-relaxed) var(--font-body)}
+.ka-beat[open] .ka-beat-preview{display:none}
+@media(hover:hover){.ka-beat-preview:hover{box-shadow:0 0 0 1px var(--color-control-border-hover)}}
+/* The scene column: what the application's scene panel centres in its main
+   region. `.ka-scene-column` holds it to 720px. `.ka-scene-header` is a small
+   muted eyebrow over the scene title at `--ka-heading`; `.ka-scene-section`
+   is a hairline-headed section — Synopsis, Beats — with an optional action
+   beside its heading; `.ka-scene-synopsis` is the synopsis itself, italic
+   Newsreader at reading size. Heading rules name `h1`–`h4` so they outrank
+   `.press-app h3`/`h4` at the same specificity by source order, as
+   `.ka-manuscript h3` does. */
+.ka-scene-column{width:100%;max-width:45rem;margin-inline:auto}
+.ka-scene-header>p{display:flex;flex-wrap:wrap;align-items:center;gap:12px;min-height:24px;margin:0 0 8px;font:var(--text-small)/1.5 var(--font-ui);color:var(--color-text-muted)}
+.ka-scene-header :is(h1,h2,h3){margin:0;font:550 var(--ka-heading)/var(--leading-tight) var(--font-display);letter-spacing:var(--tracking-tight);color:var(--color-text);overflow-wrap:anywhere}
+.ka-scene-section{margin-top:24px;padding-top:16px;border-top:1px solid var(--color-border)}
+.ka-scene-section>header{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:var(--ka-touch);margin-bottom:8px}
+.ka-scene-section>header :is(h2,h3,h4){margin:0;font:550 var(--text-h3)/var(--leading-tight) var(--font-display);letter-spacing:var(--tracking-tight);color:var(--color-text)}
+.ka-scene-synopsis{margin:0;max-width:var(--measure);font:italic var(--text-body-lg)/var(--leading-relaxed) var(--font-body);color:var(--color-text)}
+/* `.ka-reference` — one story reference in the references inspector, as the
+   application lists them: an avatar, the name and a one-line description,
+   expanding to the full description and its details. Native `details`, so it
+   works without JavaScript; the summary's description hides once open,
+   because the body repeats it in full. The chevron is a down-pointing
+   `.ka-disclosure-icon` that turns up when open, as the application's does.
+   Put `.ka-facts` in the body for the details; it takes label scale here. */
+.ka-reference{margin:0;border-radius:var(--ka-radius-small)}
+.ka-reference>summary{display:flex;align-items:center;gap:12px;min-height:56px;padding:6px 8px;border-radius:var(--ka-radius-small);list-style:none;cursor:pointer;font:var(--text-ui)/1.5 var(--font-ui);color:var(--color-text)}
+.ka-reference>summary::-webkit-details-marker{display:none}
+.ka-reference>summary:focus-visible{outline:2px solid var(--color-accent-text);outline-offset:3px}
+.ka-reference[open]>summary>.ka-disclosure-icon{transform:rotate(180deg)}
+.ka-reference-avatar{display:grid;place-items:center;flex:none;width:32px;height:32px;border:1px solid var(--color-border);border-radius:50%;background:var(--color-surface-sunken);color:var(--color-text-muted)}
+.ka-reference-text{display:grid;flex:1;min-width:0}
+.ka-reference-name{font-weight:500;overflow-wrap:anywhere}
+.ka-reference-description{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-small);color:var(--color-text-muted)}
+.ka-reference[open] .ka-reference-description{display:none}
+.ka-reference-body{display:grid;gap:12px;margin:4px 0 8px 52px;padding:0 8px 8px 0}
+.ka-reference-body>p{margin:0;max-width:var(--measure);font:var(--text-body)/var(--leading-relaxed) var(--font-body);color:var(--color-text);overflow-wrap:anywhere}
+.ka-reference-body .ka-facts{font-size:var(--text-small)}
+.ka-reference-body .ka-facts :where(dt,dd){padding-block:6px;overflow-wrap:anywhere}
+@media(hover:hover){.ka-reference>summary:hover{background:var(--color-surface-sunken)}}
+/* A disabled tree row — `NavigationTree`'s `item.disabled` — is inert: no
+   pointer and, above, no hover fill, so it does not advertise a click that
+   does nothing. It keeps its ink; the row is still part of the outline. */
+.ka-tree button:disabled{cursor:default}
+/* `.ka-tree-label` — a row label held to one line with an ellipsis, as the
+   application's sidebar holds scene and chapter titles, so a narrow outline
+   keeps one row per scene rather than wrapping titles two or three deep. It
+   fills the row, so a trailing `small` count stays right-aligned. It depends
+   on `.ka-tree-list`'s `minmax(0,1fr)` track: an implicit grid track cannot
+   shrink below its content's minimum, which for a one-line label is the
+   whole title, so the row would grow past the outline and push its count
+   out of view. */
+.ka-tree-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* `.ka-tree` rows as native radios — the plain-HTML form of NavigationTree's
+   selection, as `.ka-segment:has(input:checked)` is SegmentedControl's. A
+   `label` holding a radio renders as a tree row, and the checked one takes
+   `.ka-tree-selected`'s accent fill, so a static surface can switch scenes
+   with `:has()` and no script. The radio is visually hidden inside the row;
+   the row shows keyboard focus, and arrow keys move through the group. */
+.ka-tree label:has(>input[type="radio"]){position:relative;display:flex;align-items:center;gap:8px;width:100%;min-height:var(--ka-touch);padding:8px 12px;border-radius:var(--ka-radius-small);color:var(--color-text);cursor:pointer}
+.ka-tree label>input[type="radio"]{position:absolute;left:8px;top:8px;width:1px;height:1px;margin:0;opacity:0}
+.ka-tree label:has(>input:checked){color:var(--color-on-accent);background:var(--color-accent-text)}
+.ka-tree label:has(>input:checked) small{color:inherit}
+.ka-tree label:has(>input:focus-visible){outline:2px solid var(--color-accent-text);outline-offset:2px}
+@media(hover:hover){.ka-tree label:has(>input[type="radio"]:not(:checked)):hover{background:var(--color-surface-sunken)}}
