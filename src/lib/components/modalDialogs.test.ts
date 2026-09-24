@@ -51,6 +51,12 @@ const cases: Case[] = [
     component: ArchivePanel as DialogComponent,
     closeProp: "onClose",
     props: () => ({}),
+    setup: () =>
+      vi
+        .mocked(invoke)
+        .mockImplementation(async (cmd) =>
+          cmd === "get_archived_items" ? { chapters: [], scenes: [] } : []
+        ),
   },
   {
     name: "Confirm",
