@@ -262,21 +262,31 @@ fn normalize(value: Option<String>) -> Option<String> {
 pub const FEEDBACK_ENDPOINT: &str =
     "https://2gcszmyn325n5yaey2poh72qbe0tkmre.lambda-url.ca-central-1.on.aws/";
 
+/// How long a submission may take before it fails instead of spinning forever.
+const FEEDBACK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+
 /// Typed error returned by [`submit_feedback`].
 ///
-/// The enum variants give the frontend enough context to distinguish
-/// validation problems (user error) from network/server failures.
-#[derive(Debug, Serialize, thiserror::Error)]
+/// The variants distinguish validation problems (user error) from
+/// network/server failures. It crosses IPC as its `Display` message, so the
+/// frontend can show the rejection as-is.
+#[derive(Debug, thiserror::Error)]
 pub enum SubmitFeedbackError {
     /// The payload failed builder validation (e.g. missing required field).
-    #[error("validation error: {0}")]
+    #[error("{0}")]
     Validation(String),
     /// Transport-level failure — no response was received from the server.
-    #[error("network error: {0}")]
+    #[error("Couldn't reach the feedback service. Check your connection and try again. ({0})")]
     Network(String),
     /// The server responded with a non-2xx HTTP status code.
-    #[error("server returned {0}")]
+    #[error("The feedback service returned an error (HTTP {0}). Please try again later.")]
     Server(u16),
+}
+
+impl Serialize for SubmitFeedbackError {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_string())
+    }
 }
 
 /// Input accepted from the frontend via `invoke("submit_feedback", { ... })`.
@@ -324,10 +334,10 @@ where
 /// Tauri IPC command — validate input, build the payload, and POST it to the
 /// Lambda endpoint entirely from the Rust backend.
 ///
-/// This is the **only** network call the application makes, and it is strictly
-/// user-initiated (triggered by an explicit submit action in the UI). Nothing
-/// is sent automatically, and offline use is unaffected when this command
-/// is never invoked.
+/// Besides the updater's release check, this is the only network request the
+/// application makes, and it is strictly user-initiated (triggered by an
+/// explicit submit action in the UI). Nothing is sent automatically, and
+/// offline use is unaffected when this command is never invoked.
 ///
 /// Feedback is fire-and-forget and is **not** persisted to the project
 /// database.
@@ -352,7 +362,10 @@ pub async fn submit_feedback(input: SubmitFeedbackInput) -> Result<(), SubmitFee
         .map_err(|e| SubmitFeedbackError::Validation(e.to_string()))?;
 
     post_feedback_with(&payload, |body| async move {
-        reqwest::Client::new()
+        reqwest::Client::builder()
+            .timeout(FEEDBACK_TIMEOUT)
+            .build()
+            .map_err(|e| e.to_string())?
             .post(FEEDBACK_ENDPOINT)
             .json(&body)
             .send()
@@ -654,6 +667,32 @@ mod submit_tests {
         assert!(
             matches!(result, Err(SubmitFeedbackError::Network(_))),
             "expected Network error, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn errors_cross_ipc_as_readable_strings() {
+        for (error, expected) in [
+            (
+                SubmitFeedbackError::Validation("message is required".into()),
+                "message is required",
+            ),
+            (
+                SubmitFeedbackError::Server(503),
+                "The feedback service returned an error (HTTP 503). Please try again later.",
+            ),
+        ] {
+            assert_eq!(
+                serde_json::to_value(&error).unwrap(),
+                serde_json::json!(expected)
+            );
+        }
+        let network =
+            serde_json::to_value(SubmitFeedbackError::Network("timed out".into())).unwrap();
+        let text = network.as_str().expect("a string, not a tagged object");
+        assert!(
+            text.contains("connection") && text.ends_with("(timed out)"),
+            "{text}"
         );
     }
 

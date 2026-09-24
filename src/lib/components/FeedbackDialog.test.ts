@@ -140,7 +140,9 @@ describe("FeedbackDialog", () => {
   });
 
   it("renders a retryable error state when submission fails", async () => {
-    invokeMock.mockRejectedValueOnce(new Error("network error: offline"));
+    // The backend rejects with the error's Display string (SubmitFeedbackError serialises as text).
+    const reason = "Couldn't reach the feedback service. Check your connection and try again.";
+    invokeMock.mockRejectedValueOnce(reason);
     invokeMock.mockResolvedValueOnce(undefined);
     renderDialog();
 
@@ -151,6 +153,8 @@ describe("FeedbackDialog", () => {
 
     const errorBox = await screen.findByTestId("feedback-error");
     expect(errorBox.textContent).toContain("Couldn’t send your feedback");
+    expect(errorBox.textContent).toContain(reason);
+    expect(errorBox.textContent).not.toContain("[object Object]");
     expect(screen.queryByTestId("feedback-success")).toBeNull();
 
     // The error is retryable.
@@ -159,6 +163,13 @@ describe("FeedbackDialog", () => {
     const success = await screen.findByTestId("feedback-success");
     expect(success.textContent).toContain("Thanks for your feedback");
     expect(invokeMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("says what a submission sends", () => {
+    renderDialog();
+    const note = screen.getByTestId("feedback-disclosure").textContent ?? "";
+    expect(note).toMatch(/version, operating system and\s+language/);
+    expect(note).toContain("Nothing from your manuscript");
   });
 
   it("closes via the Escape key", async () => {
