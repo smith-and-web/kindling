@@ -348,8 +348,11 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    // An Escape meant for a dialog (or already handled) must not discard drafts here.
-    if (e.defaultPrevented || isModalOpen()) return;
+    // An Escape meant for a dialog, or already handled by a control, must not discard
+    // drafts here. ProseMirror marks every Escape inside the editor as handled, so that
+    // one still counts: it is how a writer collapses the beat they are typing in.
+    const fromEditor = e.target instanceof Element && !!e.target.closest(".ProseMirror");
+    if (isModalOpen() || (e.defaultPrevented && !fromEditor)) return;
     if (e.key === "Escape") {
       if (ui.expandedBeatId) {
         beatViewRef?.flushOnSceneChange();

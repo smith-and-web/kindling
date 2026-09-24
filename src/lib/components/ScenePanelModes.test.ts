@@ -139,3 +139,29 @@ it("mounts a page scene reached from a beat scene with its own prose", async () 
   editor().commands.undo();
   expect(editor().getText()).toBe("Scene B text");
 });
+
+it("Escape pressed inside a beat's editor collapses the beat", async () => {
+  const beat = {
+    id: "beat",
+    scene_id: "scene",
+    content: "Greeting",
+    prose: "<p>Hi</p>",
+    position: 0,
+  };
+  currentProject.setCurrentScene({ ...pageScene("scene", ""), editor_mode: "beat" });
+  currentProject.setBeats([beat]);
+  ui.setExpandedBeat(beat.id);
+  render(ScenePanel);
+  await vi.advanceTimersByTimeAsync(0);
+  // ProseMirror claims Escape (keyCode 27) and calls preventDefault on it.
+  const event = new KeyboardEvent("keydown", {
+    key: "Escape",
+    keyCode: 27,
+    bubbles: true,
+    cancelable: true,
+  });
+  editor().view.dom.dispatchEvent(event);
+  await tick();
+  expect(event.defaultPrevented).toBe(true);
+  expect(ui.expandedBeatId).toBeNull();
+});
