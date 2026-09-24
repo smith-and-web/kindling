@@ -483,9 +483,18 @@ export function trackChanges(
   return result;
 }
 
-const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+// A charCode scan rather than a lookbehind regex: WebKit before Safari 16.4 cannot parse one.
 function hasLoneSurrogate(value: unknown): boolean {
-  if (typeof value === "string") return loneSurrogate.test(value);
+  if (typeof value === "string") {
+    for (let i = 0; i < value.length; i++) {
+      const unit = value.charCodeAt(i);
+      if (unit < 0xd800 || unit > 0xdfff) continue;
+      const next = value.charCodeAt(i + 1);
+      if (unit > 0xdbff || !(next >= 0xdc00 && next <= 0xdfff)) return true;
+      i++;
+    }
+    return false;
+  }
   return !!value && typeof value === "object" && Object.values(value).some(hasLoneSurrogate);
 }
 

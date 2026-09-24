@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Fragment, Slice } from "@tiptap/pm/model";
 import { Transform } from "@tiptap/pm/transform";
+import editorialSource from "./editorial.ts?raw";
 import {
   manuscript,
   normalizeOwnership,
@@ -417,5 +418,42 @@ describe("continuous editorial manuscript", () => {
     expect(kept.messages).toEqual([note]);
     const clean = { ...session, changes: repaired };
     expect(repairSplitCharacters(round, clean)).toBe(repaired);
+  });
+
+  it.each([
+    ["a lone trailing half", "\ude00", true],
+    ["a lone leading half mid-text", "a\ud83db", true],
+    ["a leading half at the end", "a\ud83d", true],
+    ["two leading halves", "\ud83d😀", true],
+    ["whole emoji and plain text", "😀 and 👋🏽", false],
+  ])("detects %s before repairing a recovered review", (_label, broken, repairs) => {
+    const sources = [source("a", "<p>Hi 😀 there.</p>")];
+    const round = { ...feedback(manuscript(sources)).round, sources };
+    const changes = [
+      {
+        id: "comment",
+        revision: 1,
+        kind: "comment" as const,
+        from: 1,
+        to: 3,
+        before: { content: [{ type: "text", text: broken }] },
+        after: null,
+        state: "open" as const,
+        messages: [],
+      },
+    ];
+    const session = {
+      reviewer_id: "editor",
+      name: "Rowan",
+      generation: 1,
+      document: manuscript(sources).toJSON(),
+      changes,
+      position: 1,
+    };
+    expect(repairSplitCharacters(round, session) !== changes).toBe(repairs);
+  });
+
+  it("parses on WebKit before Safari 16.4, which has no regex lookbehind", () => {
+    expect(editorialSource).not.toMatch(/\(\?<[=!]/);
   });
 });
