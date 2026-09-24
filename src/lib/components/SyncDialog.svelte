@@ -11,6 +11,7 @@
   import type { SyncPreview, ReimportSummary, SyncChange } from "../types";
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
+  import { saveProseBefore } from "../utils/proseFlush";
 
   interface Props {
     projectId: string;
@@ -99,6 +100,7 @@
     syncing = true;
     error = null;
     try {
+      await saveProseBefore(projectId, "syncing");
       const summary = await invoke<ReimportSummary>("apply_sync", {
         projectId,
         acceptedChangeIds: Array.from(selectedChanges),

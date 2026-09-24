@@ -45,6 +45,7 @@
     ArrowDown,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
+  import { saveProseBefore } from "../utils/proseFlush";
   import { session } from "../stores/session.svelte";
   import { ui } from "../stores/ui.svelte";
   import type {
@@ -1029,6 +1030,8 @@
     if (!currentProject.value) return;
     loadingSyncPreview = true;
     try {
+      // Sync compares against saved prose; unsaved edits would read as stale.
+      await saveProseBefore(currentProject.value.id, "syncing");
       const preview = await invoke<SyncPreview>("get_sync_preview", {
         projectId: currentProject.value.id,
       });
@@ -1036,7 +1039,9 @@
       showSyncDialog = true;
     } catch (e) {
       console.error("Failed to get sync preview:", e);
-      ui.showError(`Failed to check for sync changes: ${String(e)}`);
+      ui.showError(
+        `Failed to check for sync changes: ${e instanceof Error ? e.message : String(e)}`
+      );
     } finally {
       loadingSyncPreview = false;
     }
