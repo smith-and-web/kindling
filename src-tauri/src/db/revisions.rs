@@ -95,6 +95,15 @@ fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
 
+/// The revision status of a scene that has no saved review yet.
+fn unreviewed_status(scene_status: &str) -> &'static str {
+    match scene_status {
+        "revised" => "revised",
+        "final" => "final",
+        _ => "first_draft",
+    }
+}
+
 pub fn load(conn: &Connection, scene_id: &Uuid) -> Result<SceneReview> {
     let scene = super::get_scene_by_id(conn, scene_id)
         .map_err(err)?
@@ -130,12 +139,7 @@ pub fn load(conn: &Connection, scene_id: &Uuid) -> Result<SceneReview> {
         None => (
             0,
             ReviewData {
-                status: match scene.scene_status.as_str() {
-                    "revised" => "revised",
-                    "final" => "final",
-                    _ => "first_draft",
-                }
-                .into(),
+                status: unreviewed_status(scene.scene_status.as_str()).into(),
                 ..ReviewData::default()
             },
         ),
@@ -284,12 +288,7 @@ pub fn overview(conn: &Connection, project_id: &Uuid) -> Result<Vec<RevisionOver
                 .transpose()
                 .map_err(err)?
                 .unwrap_or_else(|| ReviewData {
-                    status: match status.as_str() {
-                        "final" => "final",
-                        "revised" => "revised",
-                        _ => "first_draft",
-                    }
-                    .into(),
+                    status: unreviewed_status(&status).into(),
                     ..ReviewData::default()
                 });
             Ok(RevisionOverview {
@@ -327,6 +326,49 @@ pub fn backup(conn: &Connection, project_id: &Uuid) -> Result<Vec<ReviewBackup>>
         })
         .collect();
     rows
+}
+
+/// Replacing a project with a snapshot deletes its reviews along with its scenes. For a
+/// scene the snapshot also contains, restore the snapshot's review as it was, but keep the
+/// drafts and comments it never contained: an older snapshot, or one from before 1.3 with
+/// no reviews at all, must not erase the draft history recorded since.
+pub fn merge_backup(
+    snapshot: Option<ReviewBackup>,
+    current: ReviewBackup,
+    scene_status: &str,
+) -> ReviewBackup {
+    let mut merged = snapshot.unwrap_or_else(|| ReviewBackup {
+        scene_id: current.scene_id,
+        data: ReviewData {
+            status: unreviewed_status(scene_status).into(),
+            ..ReviewData::default()
+        },
+    });
+    // History is append-only, so it normally extends the snapshot's. If pruning dropped
+    // drafts the snapshot still has, keep those first and then the ones recorded since.
+    if current.data.drafts.starts_with(&merged.data.drafts) {
+        merged.data.drafts = current.data.drafts;
+    } else {
+        let later: Vec<_> = current
+            .data
+            .drafts
+            .into_iter()
+            .filter(|d| !merged.data.drafts.contains(d))
+            .collect();
+        merged.data.drafts.extend(later);
+    }
+    prune_automatic_drafts(&mut merged.data.drafts);
+    for annotation in current.data.annotations {
+        if !merged
+            .data
+            .annotations
+            .iter()
+            .any(|a| a.id == annotation.id)
+        {
+            merged.data.annotations.push(annotation);
+        }
+    }
+    merged
 }
 
 pub fn restore_backup(

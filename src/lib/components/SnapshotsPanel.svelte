@@ -520,8 +520,9 @@
                         <span class="od-field">
                           <span>Replace current project</span>
                           <span class="ka-help"
-                            >Overwrites this project. Create a snapshot first if you want to keep
-                            the current state.</span
+                            >Overwrites this project. Scenes in the snapshot keep their draft
+                            history; scenes it doesn't contain are removed with theirs. Create a
+                            snapshot first if you want to keep the current state.</span
                           >
                         </span>
                       </label>
