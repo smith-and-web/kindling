@@ -1447,10 +1447,15 @@ fn parse_scene_body(content: &str) -> SceneContent {
                 // `up:: [[Chapter One]]`) are metadata Kindling has no home
                 // for, consumed as 1.2 did and never turned into references.
                 // Unspaced `key::text` is only a field for a mapped key or a
-                // link value, so text like `std::vector` stays prose.
-                let mapped = apply_dataview_field(&field.key, &field.value, &mut context);
-                if mapped || field.spaced || field.links_only {
-                    continue;
+                // link value, so text like `std::vector` stays prose. A
+                // capitalised key with a plain value is a field only when it
+                // is mapped and the value isn't a sentence.
+                let sentence = field.capitalized && reads_as_sentence(&field.value);
+                if !sentence {
+                    let mapped = apply_dataview_field(&field.key, &field.value, &mut context);
+                    if mapped || (!field.capitalized && (field.spaced || field.links_only)) {
+                        continue;
+                    }
                 }
             }
             if !status_locked {
@@ -1852,6 +1857,10 @@ struct DataviewField {
     spaced: bool,
     /// The value is only wikilinks (`[[A]]` or `[[A]], [[B]]`).
     links_only: bool,
+    /// A capitalised key with a plain value (`POV:: Zoe`). Only a field when
+    /// Kindling maps the key and the value doesn't read as a sentence, so
+    /// `Crew:: all hands stood silent.` stays prose.
+    capitalized: bool,
 }
 
 /// Parse a scene line as a Dataview inline field.
@@ -1877,7 +1886,7 @@ fn parse_dataview_field(line: &str) -> Option<DataviewField> {
         key_chars.next().is_some_and(char::is_alphabetic)
             && key_chars.all(|ch| ch.is_alphanumeric() || ch == '_' || ch == '-')
     } else {
-        key_chars.next().is_some_and(|ch| ch.is_ascii_lowercase())
+        key_chars.next().is_some_and(|ch| ch.is_ascii_alphabetic())
             && key_chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
     };
     if !is_field {
@@ -1888,7 +1897,15 @@ fn parse_dataview_field(line: &str) -> Option<DataviewField> {
         value: value.to_string(),
         spaced: rest.is_empty() || rest.starts_with(char::is_whitespace),
         links_only,
+        capitalized: !links_only && key.starts_with(|ch: char| ch.is_ascii_uppercase()),
     })
+}
+
+/// Whether a field value ends like a sentence rather than a metadata value.
+fn reads_as_sentence(value: &str) -> bool {
+    value
+        .trim_end_matches(['"', '\'', '”', '’', ')', '*', '_'])
+        .ends_with(['.', '!', '?', '…', ',', ';', ':'])
 }
 
 /// Whether `value` is one wikilink or a comma list of them, and nothing else.
@@ -2893,6 +2910,25 @@ pov:: Zoe",
         characters.sort();
         assert_eq!(characters, ["John", "Mila", "Zoe"]);
         assert!(scene.organizations.is_empty(), "{:?}", scene.organizations);
+    }
+
+    #[test]
+    fn test_parse_scene_body_reads_capitalised_mapped_keys_with_plain_values() {
+        // `POV:: Zoe` is how many writers type a mapped field; it stays
+        // metadata as in 1.2. A capitalised unmapped key is prose, as is a
+        // mapped one whose value reads as a sentence.
+        let scene = parse_scene_body(
+            "POV:: Zoe\n\
+Crew:: Night watch\n\
+Later:: she remembered\n\
+Crew:: all hands stood silent.",
+        );
+        assert_eq!(
+            scene.prose.as_deref(),
+            Some("Later:: she remembered\nCrew:: all hands stood silent.")
+        );
+        assert_eq!(scene.characters, ["Zoe"]);
+        assert_eq!(scene.organizations, ["Night watch"]);
     }
 
     #[test]
