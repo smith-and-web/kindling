@@ -473,9 +473,9 @@
       // so the file never carries stale prose.
       await saveProseBefore(project.id, "exporting");
       if (!isExchange(profile.format)) {
-        chapters = await invoke<PreviewChapter[]>("get_export_prototype_document", {
-          projectId: project.id,
-        });
+        // The loader reports its own failure; never export the old copy.
+        await loadManuscript();
+        if (!documentLoaded) return;
       }
       let path: string | null;
       if (["longform", "novelwriter"].includes(profile.format)) {
@@ -519,7 +519,7 @@
       savedPath = path;
       message = `${formatLabels[profile.format]} exported. ${isExchange(profile.format) ? "The whole project was used." : "The full selection was included."}`;
     } catch (e) {
-      error = String(e);
+      error = e instanceof Error ? e.message : String(e);
     } finally {
       saving = false;
     }

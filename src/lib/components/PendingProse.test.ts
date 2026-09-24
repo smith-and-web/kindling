@@ -145,11 +145,29 @@ it("export workspace exports the prose saved at export time, not when it opened"
   expect(JSON.stringify(call)).toContain("Text saved just before exporting.");
   expect(JSON.stringify(call)).not.toContain("Text when the workspace opened.");
 
+  // A failed re-read is reported by the manuscript loader and exports nothing.
+  vi.mocked(invoke).mockClear();
+  const fallback = vi.mocked(invoke).getMockImplementation()!;
+  vi.mocked(invoke).mockImplementation(async (command, args) =>
+    command === "get_export_prototype_document"
+      ? Promise.reject("database is locked")
+      : fallback(command, args)
+  );
+  vi.mocked(save).mockResolvedValueOnce("/tmp/book.epub");
+  await fireEvent.click(screen.getByRole("button", { name: "Export EPUB" }));
+  expect(
+    await screen.findByText(/Could not load the saved manuscript: database is locked/)
+  ).toBeTruthy();
+  expect(called("export_workspace_document")).toBe(false);
+  vi.mocked(invoke).mockImplementation(fallback);
+
   vi.mocked(invoke).mockClear();
   await unsavedDraft();
   vi.mocked(save).mockResolvedValueOnce("/tmp/book.epub");
   await fireEvent.click(screen.getByRole("button", { name: "Export EPUB" }));
-  expect(await screen.findByText(/Save or recover unsaved prose before exporting/)).toBeTruthy();
+  const notice = await screen.findByText(/Save or recover unsaved prose before exporting/);
+  // The notice is the message itself, not "Error: …".
+  expect(notice.textContent).not.toMatch(/Error:/);
   expect(called("export_workspace_document")).toBe(false);
 });
 
