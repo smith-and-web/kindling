@@ -114,3 +114,41 @@ it.each(["collapsing the beat", "leaving the scene"])(
     expect(proseSaves.draftsForRecovery(mockProject.id)).toEqual([]);
   }
 );
+
+it("updates a collapsed beat's preview as its save is queued, fails and is discarded", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  const beat = {
+    id: "beat",
+    scene_id: "scene",
+    content: "Greeting",
+    prose: "<p>Saved</p>",
+    position: 0,
+  };
+  currentProject.setProject(mockProject);
+  render(BeatView, { beats: [beat] });
+  const preview = () => screen.getByTestId("beat-item").textContent;
+  expect(preview()).toContain("Saved");
+
+  // A save queued elsewhere (the Page View queue, a search retry) touches no BeatView state.
+  let fail!: (e: string) => void;
+  vi.mocked(invoke).mockImplementationOnce(() => new Promise((_, reject) => (fail = reject)));
+  const draft = {
+    projectId: mockProject.id,
+    kind: "beat" as const,
+    id: beat.id,
+    prose: "<p>Draft</p>",
+  };
+  const saving = proseSaves.save(draft);
+  await tick();
+  expect(preview()).toContain("Draft");
+  fail("Disk full");
+  await expect(saving).rejects.toBe("Disk full");
+  await tick();
+  expect(proseSaves.draftsForRecovery(mockProject.id)).toEqual([draft]);
+  expect(preview()).toContain("Draft");
+
+  await proseSaves.discard([draft]);
+  await tick();
+  expect(preview()).toContain("Saved");
+  expect(preview()).not.toContain("Draft");
+});

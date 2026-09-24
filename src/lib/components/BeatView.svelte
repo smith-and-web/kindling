@@ -221,14 +221,22 @@
   // beat.prose only advances on a successful save. Mount and preview from the newest unsaved
   // text instead (this editor's draft, then a failed or in-flight save), as Page View does, so
   // reopening a beat after a failed save never shows stale prose that the next keystroke saves.
+  // Built once per queue change rather than searched per beat on every render. Observing the
+  // queue keeps a collapsed preview current when a save fails, succeeds or is discarded.
+  const queuedBeatProse: ReadonlyMap<string, string> = $derived.by(() => {
+    proseSaves.observe();
+    return new Map(
+      proseSaves
+        .draftsForRecovery(currentProject.value?.id ?? "")
+        .filter((draft) => draft.kind === "beat")
+        .map((draft) => [draft.id, draft.prose])
+    );
+  });
+
   function unsavedBeatProse(beat: Beat): string {
-    const projectId = currentProject.value?.id ?? "";
     const local = draftProse.get(beat.id);
-    if (local?.projectId === projectId) return local.prose;
-    const unsaved = proseSaves
-      .draftsForRecovery(projectId)
-      .find((draft) => draft.kind === "beat" && draft.id === beat.id);
-    return unsaved?.prose ?? beat.prose ?? "";
+    if (local?.projectId === (currentProject.value?.id ?? "")) return local.prose;
+    return queuedBeatProse.get(beat.id) ?? beat.prose ?? "";
   }
 
   // The open editor already holds its own draft; only a changed beat may push new content in.
