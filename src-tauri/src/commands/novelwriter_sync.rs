@@ -620,20 +620,6 @@ fn validate(
     Ok(accepted.iter().any(|id| now[id].1 == "prose"))
 }
 
-/// Checks reviewed ids against the source as it is now, without writing, so a
-/// stale apply is refused before anything (even a snapshot) is written.
-/// Returns whether applying them would replace prose.
-pub(super) fn check_reviewed(
-    conn: &Connection,
-    project: &Project,
-    parsed: &ParsedNovelWriter,
-    accepted: &[String],
-    kept: &[String],
-) -> Result<bool, String> {
-    let (fields, _, _) = compare(conn, project, parsed)?;
-    validate(&fields, &baselines(conn, project)?, accepted, kept)
-}
-
 /// Applies the accepted changes and additions. Each conflict in `kept` (shown to
 /// the writer and left unticked) is settled as "keep kindling": its baseline
 /// moves to novelWriter's current text so it is not offered again until
@@ -651,11 +637,18 @@ pub(super) fn apply(
     accepted: &[String],
     additions: &[String],
     kept: &[String],
+    before_prose: &mut dyn FnMut(&Connection) -> Result<(), String>,
 ) -> Result<ReimportSummary, String> {
+    // Compare and check once, before writing anything: a stale apply is
+    // refused here, and `before_prose` (the pre-sync snapshot) runs only when
+    // current changes will replace prose. The caller holds the connection, so
+    // nothing changes between this check and the writes below.
+    let (fields, preview, rekey) = compare(conn, project, parsed)?;
+    let mut known = baselines(conn, project)?;
+    if validate(&fields, &known, accepted, kept)? {
+        before_prose(conn)?;
+    }
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
-    let (fields, preview, rekey) = compare(&tx, project, parsed)?;
-    let mut known = baselines(&tx, project)?;
-    validate(&fields, &known, accepted, kept)?;
     let kept: HashSet<_> = kept.iter().collect();
     let accepted: HashSet<_> = accepted.iter().collect();
     let additions: HashSet<_> = additions.iter().collect();
@@ -895,7 +888,16 @@ mod tests {
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
         assert_eq!(changes.len(), 2);
         assert!(changes.iter().all(|c| c.field == "prose"));
-        let summary = apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).unwrap();
+        let summary = apply(
+            &conn,
+            &project,
+            &parsed,
+            &[changes[0].id.clone()],
+            &[],
+            &[],
+            &mut |_| Ok(()),
+        )
+        .unwrap();
         assert_eq!((summary.prose_updated, summary.prose_preserved), (1, 1));
         let updated = db::get_all_project_beats(&conn, &project.id).unwrap();
         assert_eq!(
@@ -908,7 +910,16 @@ mod tests {
             .unwrap()
             .changes
             .is_empty());
-        assert!(apply(&conn, &project, &parsed, &[changes[1].id.clone()], &[], &[]).is_err());
+        assert!(apply(
+            &conn,
+            &project,
+            &parsed,
+            &[changes[1].id.clone()],
+            &[],
+            &[],
+            &mut |_| Ok(())
+        )
+        .is_err());
         conn.execute("UPDATE chapters SET locked = 0", []).unwrap();
         conn.execute("UPDATE scenes SET locked = 1", []).unwrap();
         assert!(preview(&conn, &project, &parsed)
@@ -948,7 +959,7 @@ mod tests {
         assert!(!changes[0].conflict);
         // "All" + Apply: the novelWriter fix lands and the kindling revision survives.
         let all: Vec<_> = changes.iter().map(|c| c.id.clone()).collect();
-        apply(&conn, &project, &parsed, &all, &[], &[]).unwrap();
+        apply(&conn, &project, &parsed, &all, &[], &[], &mut |_| Ok(())).unwrap();
         let after = db::get_all_project_beats(&conn, &project.id).unwrap();
         assert_eq!(
             after[0].prose.as_deref(),
@@ -967,7 +978,7 @@ mod tests {
         // A declined incoming change is offered again rather than forgotten.
         edit_source(&temp, &conn, &project, "listened closely", "listened hard");
         let parsed = load(&conn, &project).unwrap();
-        apply(&conn, &project, &parsed, &[], &[], &[]).unwrap();
+        apply(&conn, &project, &parsed, &[], &[], &[], &mut |_| Ok(())).unwrap();
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
         assert_eq!((changes.len(), changes[0].conflict), (1, false));
 
@@ -979,7 +990,16 @@ mod tests {
         assert_eq!(changes[0].current_value, "Also revised here.");
         assert!(changes[0].new_value.contains("listened hard"));
         // Explicitly accepting a conflict applies it and settles the baseline.
-        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).unwrap();
+        apply(
+            &conn,
+            &project,
+            &parsed,
+            &[changes[0].id.clone()],
+            &[],
+            &[],
+            &mut |_| Ok(()),
+        )
+        .unwrap();
         assert!(preview(&conn, &project, &parsed)
             .unwrap()
             .changes
@@ -1004,11 +1024,14 @@ mod tests {
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
         assert_eq!((changes.len(), changes[0].conflict), (1, true));
         // Reimport shows the writer nothing, so it must not settle the conflict.
-        apply(&conn, &project, &parsed, &[], &[], &[]).unwrap();
+        apply(&conn, &project, &parsed, &[], &[], &[], &mut |_| Ok(())).unwrap();
         assert_eq!(preview(&conn, &project, &parsed).unwrap().changes.len(), 1);
         // Applying with the conflict unticked keeps kindling's text and settles it.
         let kept_ids = [changes[0].id.clone()];
-        let summary = apply(&conn, &project, &parsed, &[], &[], &kept_ids).unwrap();
+        let summary = apply(&conn, &project, &parsed, &[], &[], &kept_ids, &mut |_| {
+            Ok(())
+        })
+        .unwrap();
         assert_eq!((summary.prose_updated, summary.prose_preserved), (0, 1));
         let kept = || db::get_beat(&conn, &beats[1].id).unwrap().unwrap().prose;
         assert_eq!(kept().as_deref(), Some("<p>Kept in kindling.</p>"));
@@ -1031,7 +1054,10 @@ mod tests {
         let shown = preview(&conn, &project, &parsed).unwrap().changes;
         assert_eq!(shown.len(), 2);
         let kept_ids: Vec<_> = shown.iter().map(|c| c.id.clone()).collect();
-        apply(&conn, &project, &parsed, &[], &[], &kept_ids).unwrap();
+        apply(&conn, &project, &parsed, &[], &[], &kept_ids, &mut |_| {
+            Ok(())
+        })
+        .unwrap();
         assert!(preview(&conn, &project, &parsed)
             .unwrap()
             .changes
@@ -1055,12 +1081,21 @@ mod tests {
                 .unwrap()
         };
         let parsed = load(&conn, &project).unwrap();
-        apply(&conn, &project, &parsed, &[], &[], &[]).unwrap();
+        apply(&conn, &project, &parsed, &[], &[], &[], &mut |_| Ok(())).unwrap();
         assert_eq!(writes(), 0, "an unchanged project rewrites no baselines");
         edit_source(&temp, &conn, &project, "listened", "listened closely");
         let parsed = load(&conn, &project).unwrap();
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
-        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).unwrap();
+        apply(
+            &conn,
+            &project,
+            &parsed,
+            &[changes[0].id.clone()],
+            &[],
+            &[],
+            &mut |_| Ok(()),
+        )
+        .unwrap();
         assert_eq!(writes(), 1, "only the accepted field's baseline moves");
     }
 
@@ -1080,7 +1115,16 @@ mod tests {
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].item_type, "scene");
-        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).unwrap();
+        apply(
+            &conn,
+            &project,
+            &parsed,
+            &[changes[0].id.clone()],
+            &[],
+            &[],
+            &mut |_| Ok(()),
+        )
+        .unwrap();
         let scene = db::get_all_project_scenes(&conn, &project.id)
             .unwrap()
             .remove(0);
@@ -1103,6 +1147,7 @@ mod tests {
             &[diff.changes[0].id.clone()],
             &[],
             &[],
+            &mut |_| Ok(()),
         )
         .unwrap();
         let beats = db::get_beats(&conn, &scene.id).unwrap();
@@ -1143,7 +1188,10 @@ mod tests {
             .map(|a| a.id)
             .collect();
         assert_eq!(additions, ["scene-0000000000abc"]);
-        let summary = apply(&conn, &project, &parsed, &[], &additions, &[]).unwrap();
+        let summary = apply(&conn, &project, &parsed, &[], &additions, &[], &mut |_| {
+            Ok(())
+        })
+        .unwrap();
         assert_eq!(summary.scenes_added, 1);
 
         let after = db::get_scenes(&conn, &db_chapter).unwrap();
@@ -1178,7 +1226,16 @@ mod tests {
                 .is_none());
         }
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
-        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).unwrap();
+        apply(
+            &conn,
+            &project,
+            &parsed,
+            &[changes[0].id.clone()],
+            &[],
+            &[],
+            &mut |_| Ok(()),
+        )
+        .unwrap();
         assert_eq!(
             db::get_beat(&conn, &split.id).unwrap().unwrap().prose,
             split.prose
@@ -1200,7 +1257,16 @@ mod tests {
             .changes
             .is_empty());
         // The reviewed change was already applied, so replaying it is refused.
-        assert!(apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).is_err());
+        assert!(apply(
+            &conn,
+            &project,
+            &parsed,
+            &[changes[0].id.clone()],
+            &[],
+            &[],
+            &mut |_| Ok(())
+        )
+        .is_err());
         std::fs::remove_file(temp.path().join("nwProject.nwx")).unwrap();
         assert!(load(&conn, &project).unwrap_err().contains("nwProject.nwx"));
     }
@@ -1286,7 +1352,10 @@ mod tests {
         assert!(diff.changes.is_empty(), "{:?}", diff.changes);
         let additions: Vec<_> = diff.additions.iter().map(|a| a.id.clone()).collect();
         assert_eq!(additions.len(), 1);
-        apply(&conn, &project, &parsed, &[], &additions, &[]).unwrap();
+        apply(&conn, &project, &parsed, &[], &additions, &[], &mut |_| {
+            Ok(())
+        })
+        .unwrap();
         let beats = db::get_beats(&conn, &scene.id).unwrap();
         let titles: Vec<_> = beats.iter().map(|b| b.content.as_str()).collect();
         assert_eq!(titles, ["The knock", "Answer", "New"]);
@@ -1327,7 +1396,7 @@ mod tests {
         assert!(diff.changes.is_empty(), "{:?}", diff.changes);
         assert!(diff.additions.is_empty(), "{:?}", diff.additions);
         // Reimport accepts every addition, so it must not duplicate a beat either.
-        apply(&conn, &project, &parsed, &[], &[], &[]).unwrap();
+        apply(&conn, &project, &parsed, &[], &[], &[], &mut |_| Ok(())).unwrap();
         assert_eq!(
             db::get_all_project_beats(&conn, &project.id).unwrap().len(),
             2
@@ -1356,7 +1425,16 @@ mod tests {
         parsed.beats[0].prose = Some(nw_to_html(&fixed));
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
         assert_eq!(changes.len(), 1);
-        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).unwrap();
+        apply(
+            &conn,
+            &project,
+            &parsed,
+            &[changes[0].id.clone()],
+            &[],
+            &[],
+            &mut |_| Ok(()),
+        )
+        .unwrap();
         assert_eq!(
             db::get_beat(&conn, &beats[0].id)
                 .unwrap()
@@ -1397,7 +1475,16 @@ mod tests {
         parsed.scenes[0].prose = Some(nw_to_html("One.\n\nTwo with a typo.\n\nThree."));
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
         assert_eq!(changes.len(), 1, "{changes:?}");
-        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).unwrap();
+        apply(
+            &conn,
+            &project,
+            &parsed,
+            &[changes[0].id.clone()],
+            &[],
+            &[],
+            &mut |_| Ok(()),
+        )
+        .unwrap();
         let stored = db::get_all_project_scenes(&conn, &project.id).unwrap()[0]
             .prose
             .clone();
@@ -1434,6 +1521,7 @@ mod tests {
             &[reviewed[0].id.clone()],
             &[],
             &[],
+            &mut |_| Ok(()),
         )
         .err()
         .unwrap();
@@ -1445,7 +1533,16 @@ mod tests {
         let shown = preview(&conn, &project, &parsed).unwrap().changes;
         assert!(shown[0].conflict);
         parsed.beats[1].prose = Some("<p>Newer still.</p>".into());
-        assert!(apply(&conn, &project, &parsed, &[], &[], &[shown[0].id.clone()]).is_err());
+        assert!(apply(
+            &conn,
+            &project,
+            &parsed,
+            &[],
+            &[],
+            &[shown[0].id.clone()],
+            &mut |_| Ok(())
+        )
+        .is_err());
         db::update_beat_prose(&conn, &beats[0].id, "<p>Local zero.</p>").unwrap();
         parsed.beats[0].prose = Some("<p>Incoming zero.</p>".into());
         let shown = preview(&conn, &project, &parsed).unwrap().changes;
@@ -1461,6 +1558,7 @@ mod tests {
             &[],
             &[],
             std::slice::from_ref(&seen.id),
+            &mut |_| Ok(()),
         )
         .unwrap();
         let left = preview(&conn, &project, &parsed).unwrap().changes;
@@ -1507,7 +1605,7 @@ mod tests {
         assert!(diff.changes.is_empty(), "{:?}", diff.changes);
         // Reimport accepts every change and addition; nothing is duplicated.
         let all: Vec<_> = diff.additions.iter().map(|a| a.id.clone()).collect();
-        apply(&conn, &project, &parsed, &[], &all, &[]).unwrap();
+        apply(&conn, &project, &parsed, &[], &all, &[], &mut |_| Ok(())).unwrap();
         assert_eq!(
             db::get_all_project_scenes(&conn, &project.id)
                 .unwrap()
@@ -1586,6 +1684,7 @@ mod tests {
             &[],
             &[],
             &[],
+            &mut |_| Ok(()),
         )
         .unwrap();
         let diff = preview(&conn, &project, &load(&conn, &project).unwrap()).unwrap();

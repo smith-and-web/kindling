@@ -157,6 +157,7 @@ fn reimport_project_with_connection(
                     .map(|a| a.id)
                     .collect::<Vec<_>>(),
                 &[],
+                &mut |_| Ok(()),
             );
         }
         crate::models::SourceType::Blank => {
@@ -1027,23 +1028,22 @@ pub async fn apply_sync(
     state: State<'_, AppState>,
 ) -> Result<ReimportSummary, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
-    let kept_conflict_ids = kept_conflict_ids.unwrap_or_default();
-    // Accepted prose replaces the writer's text; keep a restorable copy first
-    // (before taking the connection lock, as export does). Stale ids are
-    // refused here, so a retry that cannot apply writes no snapshot.
-    let replaces_prose = {
-        let conn = state.db.lock().map_err(|e| e.to_string())?;
-        prose_to_replace(
-            &conn,
-            project_uuid,
-            &accepted_change_ids,
-            &kept_conflict_ids,
-        )?
-    };
-    let snapshot = if replaces_prose {
-        Some(
-            super::create_snapshot(
-                project_id.clone(),
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    // Accepted prose replaces the writer's text, so apply takes a restorable
+    // copy first, once it has checked the changes are current: a stale or
+    // refused apply writes no snapshot.
+    let mut snapshot = None;
+    let result = apply_reviewed_sync(
+        &conn,
+        project_uuid,
+        accepted_change_ids,
+        accepted_addition_ids,
+        &kept_conflict_ids.unwrap_or_default(),
+        &mut |conn| {
+            snapshot = Some(super::snapshot::write_snapshot(
+                conn,
+                &app_handle,
+                &project_uuid,
                 super::CreateSnapshotOptions {
                     name: "Before sync".to_string(),
                     description: Some(
@@ -1051,62 +1051,17 @@ pub async fn apply_sync(
                     ),
                     trigger_type: SnapshotTrigger::Auto,
                 },
-                app_handle,
-                state.clone(),
-            )
-            .await?,
-        )
-    } else {
-        None
-    };
-    let result = {
-        let conn = state.db.lock().map_err(|e| e.to_string())?;
-        apply_reviewed_sync(
-            &conn,
-            project_uuid,
-            accepted_change_ids,
-            accepted_addition_ids,
-            &kept_conflict_ids,
-        )
-    };
-    if let Some(snapshot) = snapshot.filter(|_| !replaced_prose(&result)) {
-        // The source changed between the check and the apply, which then rolled
-        // back or replaced nothing, so the copy is only clutter.
-        if let Err(e) = super::delete_snapshot(snapshot.id.to_string(), state).await {
+            )?);
+            Ok(())
+        },
+    );
+    if let (Err(_), Some(snapshot)) = (&result, snapshot) {
+        // The writes failed and rolled back, so the copy is only clutter.
+        if let Err(e) = super::snapshot::remove_snapshot(&conn, &snapshot.id) {
             eprintln!("Warning: failed to remove unused pre-sync snapshot: {e}");
         }
     }
     result
-}
-
-/// Whether applying these reviewed ids would replace prose. Only novelWriter
-/// sync changes prose; its ids are checked against the source as it is now,
-/// and stale ones are refused without writing anything.
-fn prose_to_replace(
-    conn: &Connection,
-    project_uuid: Uuid,
-    accepted_change_ids: &[String],
-    kept_conflict_ids: &[String],
-) -> Result<bool, String> {
-    let project = db::get_project(conn, &project_uuid)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "Project not found".to_string())?;
-    if !matches!(project.source_type, crate::models::SourceType::NovelWriter) {
-        return Ok(false);
-    }
-    let parsed = super::novelwriter_sync::load(conn, &project)?;
-    super::novelwriter_sync::check_reviewed(
-        conn,
-        &project,
-        &parsed,
-        accepted_change_ids,
-        kept_conflict_ids,
-    )
-}
-
-/// Whether an apply committed and replaced prose, so its pre-sync snapshot is worth keeping.
-fn replaced_prose(result: &Result<ReimportSummary, String>) -> bool {
-    result.as_ref().is_ok_and(|s| s.prose_updated > 0)
 }
 
 #[cfg(test)]
@@ -1122,6 +1077,7 @@ fn apply_sync_with_connection(
         accepted_change_ids,
         accepted_addition_ids,
         &[],
+        &mut |_| Ok(()),
     )
 }
 
@@ -1131,6 +1087,7 @@ fn apply_reviewed_sync(
     accepted_change_ids: Vec<String>,
     accepted_addition_ids: Vec<String>,
     kept_conflict_ids: &[String],
+    before_prose: &mut dyn FnMut(&Connection) -> Result<(), String>,
 ) -> Result<ReimportSummary, String> {
     // Get the existing project to find source path and type
     let project = db::get_project(conn, &project_uuid)
@@ -1200,6 +1157,7 @@ fn apply_reviewed_sync(
                 &accepted_change_ids,
                 &accepted_addition_ids,
                 kept_conflict_ids,
+                before_prose,
             );
         }
         crate::models::SourceType::Blank => {
@@ -2387,27 +2345,28 @@ mod source_regression_tests {
         );
         let prose = preview.changes.iter().find(|c| c.field == "prose").unwrap();
         let title = preview.changes.iter().find(|c| c.field == "title").unwrap();
-        // Snapshot only when current ids replace prose.
-        let wants_snapshot = |accepted: &[String], kept: &[String]| {
-            prose_to_replace(&conn, project.id, accepted, kept)
+        // The pre-sync snapshot hook runs once, and only when current changes
+        // replace prose; a stale or failed apply never reaches it.
+        let snapshots = std::cell::Cell::new(0);
+        let apply = |accepted: &[String], kept: &[String]| {
+            apply_reviewed_sync(
+                &conn,
+                project.id,
+                accepted.to_vec(),
+                vec![],
+                kept,
+                &mut |_| {
+                    snapshots.set(snapshots.get() + 1);
+                    Ok(())
+                },
+            )
         };
-        assert_eq!(
-            wants_snapshot(std::slice::from_ref(&prose.id), &[]),
-            Ok(true)
-        );
-        assert_eq!(
-            wants_snapshot(&[], std::slice::from_ref(&title.id)),
-            Ok(false)
-        );
-        let result = apply_reviewed_sync(
-            &conn,
-            project.id,
-            vec![prose.id.clone()],
-            vec![],
+        let result = apply(
+            std::slice::from_ref(&prose.id),
             std::slice::from_ref(&title.id),
         );
-        assert!(replaced_prose(&result), "the pre-sync snapshot is kept");
         assert_eq!(result.unwrap().prose_updated, 1);
+        assert_eq!(snapshots.get(), 1, "the pre-sync snapshot is taken");
         // The title conflict the writer saw unticked was settled in kindling's favour.
         assert!(get_sync_preview_with_connection(&conn, project.id)
             .unwrap()
@@ -2418,19 +2377,13 @@ mod source_regression_tests {
             "Landing"
         );
         // A stale retry is refused before a snapshot is ever written.
-        assert!(
-            prose_to_replace(&conn, project.id, std::slice::from_ref(&prose.id), &[])
-                .unwrap_err()
-                .contains("changed after you reviewed")
-        );
-        // A stale id replaces nothing, and an unreadable folder fails before any
-        // write: neither keeps its pre-sync snapshot.
-        let stale = apply_sync_with_connection(&conn, project.id, vec![prose.id.clone()], vec![]);
-        assert!(!replaced_prose(&stale));
+        let stale = apply(std::slice::from_ref(&prose.id), &[]);
+        assert!(stale.err().unwrap().contains("changed after you reviewed"));
+        assert_eq!(snapshots.get(), 1);
+        // An unreadable folder fails before the snapshot too.
         std::fs::remove_file(temp.path().join("nwProject.nwx")).unwrap();
-        let failed = apply_sync_with_connection(&conn, project.id, vec![prose.id.clone()], vec![]);
-        assert!(failed.is_err());
-        assert!(!replaced_prose(&failed));
+        assert!(apply(std::slice::from_ref(&prose.id), &[]).is_err());
+        assert_eq!(snapshots.get(), 1);
     }
 }
 

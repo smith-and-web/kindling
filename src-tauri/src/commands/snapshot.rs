@@ -144,12 +144,23 @@ pub async fn create_snapshot(
 ) -> Result<SnapshotMetadata, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    write_snapshot(&conn, &app_handle, &project_uuid, options)
+}
 
+/// Writes a snapshot with a connection the caller already holds, so work that
+/// is under the lock (a sync apply) can take one without releasing it.
+pub(super) fn write_snapshot(
+    conn: &rusqlite::Connection,
+    app_handle: &AppHandle,
+    project_uuid: &Uuid,
+    options: CreateSnapshotOptions,
+) -> Result<SnapshotMetadata, String> {
+    let project_uuid = *project_uuid;
     // Collect project data
-    let data = collect_project_data(&conn, &project_uuid)?;
+    let data = collect_project_data(conn, &project_uuid)?;
 
     // Generate file path
-    let snapshots_dir = get_snapshots_dir(&app_handle, &project_uuid)?;
+    let snapshots_dir = get_snapshots_dir(app_handle, &project_uuid)?;
     let filename = generate_snapshot_filename(&options.trigger_type);
     let file_path = snapshots_dir.join(&filename);
 
@@ -172,7 +183,7 @@ pub async fn create_snapshot(
     );
 
     // Store metadata in database
-    db::insert_snapshot_metadata(&conn, &metadata).map_err(|e| e.to_string())?;
+    db::insert_snapshot_metadata(conn, &metadata).map_err(|e| e.to_string())?;
 
     Ok(metadata)
 }
@@ -198,9 +209,16 @@ pub async fn delete_snapshot(
 ) -> Result<(), String> {
     let snapshot_uuid = Uuid::parse_str(&snapshot_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    remove_snapshot(&conn, &snapshot_uuid)
+}
 
+/// Deletes a snapshot's file and record with a connection the caller holds.
+pub(super) fn remove_snapshot(
+    conn: &rusqlite::Connection,
+    snapshot_uuid: &Uuid,
+) -> Result<(), String> {
     // Get snapshot metadata to find file path
-    let metadata = db::get_snapshot_by_id(&conn, &snapshot_uuid)
+    let metadata = db::get_snapshot_by_id(conn, snapshot_uuid)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "Snapshot not found".to_string())?;
 
@@ -211,7 +229,7 @@ pub async fn delete_snapshot(
     }
 
     // Delete metadata from database
-    db::delete_snapshot_metadata(&conn, &snapshot_uuid).map_err(|e| e.to_string())?;
+    db::delete_snapshot_metadata(conn, snapshot_uuid).map_err(|e| e.to_string())?;
 
     Ok(())
 }
