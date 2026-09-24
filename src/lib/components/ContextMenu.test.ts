@@ -86,6 +86,22 @@ describe("ContextMenu", () => {
     trigger.remove();
   });
 
+  it("closes on Tab instead of letting focus wander off behind the menu", async () => {
+    const trigger = document.createElement("button");
+    document.body.append(trigger);
+    trigger.focus();
+    const onClose = vi.fn();
+    const view = render(ContextMenu, { items: items(), x: 10, y: 10, onClose });
+    await tick();
+    const tab = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    window.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(true);
+    expect(onClose).toHaveBeenCalled();
+    view.unmount();
+    expect(document.activeElement).toBe(trigger);
+    trigger.remove();
+  });
+
   it("runs a plain item on click and ignores disabled ones", async () => {
     const rename = vi.fn();
     const onClose = vi.fn();

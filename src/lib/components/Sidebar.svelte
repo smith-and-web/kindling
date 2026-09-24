@@ -68,6 +68,7 @@
   import ExportSuccessDialog from "./ExportSuccessDialog.svelte";
   import SnapshotsPanel from "./SnapshotsPanel.svelte";
   import BrandWordmark from "./BrandWordmark.svelte";
+  import { menuKeyboard } from "../utils/menuKeyboard";
 
   import type { ComponentType } from "svelte";
 
@@ -234,6 +235,7 @@
   // Split button dropdown state
   let showNewDropdown = $state(false);
   let newButtonRef: HTMLElement | null = $state(null);
+  let newDropdownTrigger: HTMLElement | null = $state(null);
 
   // Delete confirmation state
   let deleteDialog: {
@@ -290,10 +292,12 @@
   // Header "more" menu
   let showMoreMenu = $state(false);
   let moreMenuRef: HTMLElement | null = $state(null);
+  let moreMenuTrigger: HTMLElement | null = $state(null);
 
   // Filter popover
   let showFilterPopover = $state(false);
   let filterPopoverRef: HTMLElement | null = $state(null);
+  let filterPopoverTrigger: HTMLElement | null = $state(null);
 
   const hasActiveFilters = $derived(
     sceneStatusFilter !== "all" || !showNotesScenes || !showTodoScenes || !showUnusedScenes
@@ -1089,7 +1093,12 @@
   }
 
   function getContextMenuItems(type: "chapter" | "scene", item: Chapter | Scene): MenuItem[] {
-    const isLocked = "locked" in item && item.locked;
+    // A locked chapter locks every scene in it; the backend refuses edits to them too.
+    const ownLock = item.locked;
+    const isLocked =
+      ownLock ||
+      (type === "scene" &&
+        !!currentProject.chapters.find((c) => c.id === (item as Scene).chapter_id)?.locked);
     const isPart = type === "chapter" && "is_part" in item && (item as Chapter).is_part;
 
     return [
@@ -1145,9 +1154,9 @@
         : []),
       { divider: true, label: "", action: () => {} },
       {
-        label: isLocked ? "Unlock" : "Lock",
-        icon: isLocked ? Unlock : Lock,
-        action: () => handleToggleLock(type, item.id, isLocked),
+        label: ownLock ? "Unlock" : "Lock",
+        icon: ownLock ? Unlock : Lock,
+        action: () => handleToggleLock(type, item.id, ownLock),
       },
       {
         label: "Archive",
@@ -1417,6 +1426,7 @@
           <div class="relative" bind:this={moreMenuRef}>
             <button
               type="button"
+              bind:this={moreMenuTrigger}
               onclick={() => (showMoreMenu = !showMoreMenu)}
               class="ka-button ka-button--ghost ka-icon-button"
               aria-label="More actions"
@@ -1432,6 +1442,10 @@
                 class="ka-menu-list app-popover sb-popover"
                 role="menu"
                 aria-label="Project actions"
+                use:menuKeyboard={{
+                  onClose: () => (showMoreMenu = false),
+                  trigger: moreMenuTrigger,
+                }}
               >
                 <button
                   data-testid="export-button"
@@ -1677,25 +1691,43 @@
                         <div class="sb-children">
                           {#each filteredScenes as scene}
                             {@const isSelected = currentProject.currentScene?.id === scene.id}
-                            <button
-                              onclick={() => selectScene(scene)}
-                              oncontextmenu={(e) => openContextMenu(e, "scene", scene)}
-                              class="sb-row-main sb-scene-main"
+                            <!-- svelte-ignore a11y_no_static_element_interactions -->
+                            <div
+                              data-testid="scene-item"
+                              class="sb-row sb-scene"
                               class:is-selected={isSelected}
-                              aria-current={isSelected ? "page" : undefined}
+                              oncontextmenu={(e) => openContextMenu(e, "scene", scene)}
                             >
-                              {#if (scene.planning_status ?? "fixed") === "flexible"}
-                                <CircleDot class="sb-glyph is-warning" aria-label="Flexible" />
-                              {:else if (scene.planning_status ?? "fixed") === "undefined"}
-                                <CircleDashed class="sb-glyph" aria-label="Undefined" />
-                              {/if}
-                              <span class="sb-row-title" title={scene.title}>{scene.title}</span>
-                              {#if writing.value?.scene_words?.[scene.id] !== undefined}
-                                <small class="sb-row-trail"
-                                  >{writing.value.scene_words[scene.id].toLocaleString()} words</small
-                                >
-                              {/if}
-                            </button>
+                              <button
+                                onclick={() => selectScene(scene)}
+                                class="sb-row-main sb-scene-main"
+                                class:is-selected={isSelected}
+                                aria-current={isSelected ? "page" : undefined}
+                              >
+                                {#if scene.locked || chapter.locked}
+                                  <Lock class="sb-glyph is-warning" aria-label="Locked" />
+                                {:else if (scene.planning_status ?? "fixed") === "flexible"}
+                                  <CircleDot class="sb-glyph is-warning" aria-label="Flexible" />
+                                {:else if (scene.planning_status ?? "fixed") === "undefined"}
+                                  <CircleDashed class="sb-glyph" aria-label="Undefined" />
+                                {/if}
+                                <span class="sb-row-title" title={scene.title}>{scene.title}</span>
+                                {#if writing.value?.scene_words?.[scene.id] !== undefined}
+                                  <small class="sb-row-trail"
+                                    >{writing.value.scene_words[scene.id].toLocaleString()} words</small
+                                  >
+                                {/if}
+                              </button>
+                              <button
+                                data-testid="menu-button"
+                                onclick={(e) => openContextMenu(e, "scene", scene)}
+                                class="ka-button ka-button--ghost ka-icon-button sb-row-menu"
+                                aria-label="Scene menu"
+                                aria-haspopup="menu"
+                              >
+                                <MoreVertical class="w-5 h-5" aria-hidden="true" />
+                              </button>
+                            </div>
                           {/each}
 
                           {#if creatingScene}
@@ -1768,6 +1800,7 @@
                           <div class="relative" bind:this={filterPopoverRef}>
                             <button
                               type="button"
+                              bind:this={filterPopoverTrigger}
                               onclick={() => (showFilterPopover = !showFilterPopover)}
                               class="ka-button ka-button--ghost ka-icon-button sb-filter-button"
                               class:is-active={hasActiveFilters}
@@ -1776,11 +1809,21 @@
                                 : "Filter by type & status"}
                               title="Filter by type & status"
                               aria-expanded={showFilterPopover}
+                              aria-haspopup="dialog"
                             >
                               <Filter class="w-5 h-5" aria-hidden="true" />
                             </button>
                             {#if showFilterPopover}
-                              <div class="app-popover sb-filter-popover">
+                              <div
+                                class="app-popover sb-filter-popover"
+                                role="dialog"
+                                aria-label="Scene filters"
+                                use:menuKeyboard={{
+                                  onClose: () => (showFilterPopover = false),
+                                  trigger: filterPopoverTrigger,
+                                  role: "dialog",
+                                }}
+                              >
                                 <div class="sb-filter-head">
                                   <span class="sb-filter-heading">Filters</span>
                                   {#if hasActiveFilters}
@@ -2063,6 +2106,7 @@
             <button
               type="button"
               data-testid="new-dropdown-button"
+              bind:this={newDropdownTrigger}
               onclick={() => (showNewDropdown = !showNewDropdown)}
               class="ka-button ka-button--secondary ka-icon-button"
               aria-label="More options"
@@ -2079,6 +2123,10 @@
               class="ka-menu-list app-popover sb-popover sb-popover-up"
               role="menu"
               aria-label="Create"
+              use:menuKeyboard={{
+                onClose: () => (showNewDropdown = false),
+                trigger: newDropdownTrigger,
+              }}
             >
               <button
                 data-testid="dropdown-new-chapter"
