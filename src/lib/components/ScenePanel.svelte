@@ -43,6 +43,7 @@
     Tag,
   } from "../types";
   import { proseSaves, type ProseSave } from "../utils/proseSaves";
+  import { registerProseFlush } from "../utils/proseFlush";
   import type { ProseReplacement } from "../utils/proseSearch";
   import BeatView from "./BeatView.svelte";
   import PageView from "./PageView.svelte";
@@ -805,10 +806,13 @@
       switchEditorMode(scene.editor_mode === "page" ? "beat" : "page");
     };
     window.addEventListener("kindling:toggleEditorMode", emHandler);
+    // Export and sync read prose from the database, so they flush the editors first.
+    registerProseFlush(prepareForSearch);
 
     return () => {
       window.removeEventListener("kindling:toggleDiscoveryNotes", dnHandler);
       window.removeEventListener("kindling:toggleEditorMode", emHandler);
+      registerProseFlush(null);
     };
   });
 

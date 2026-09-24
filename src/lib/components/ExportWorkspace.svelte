@@ -21,6 +21,7 @@
     X,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
+  import { saveProseBefore } from "../utils/proseFlush";
   import {
     compileWorkspaceDocument,
     exportFilename,
@@ -299,7 +300,11 @@
       storageError = `Could not load saved profiles. Their stored data is preserved. ${String(e)}`;
     }
     ready = true;
-    void loadManuscript(true);
+    // Preview the latest prose, not only what had reached the database. A draft
+    // that cannot be saved is reported when exporting.
+    void saveProseBefore(project.id, "exporting")
+      .catch(() => {})
+      .then(() => loadManuscript(true));
   });
 
   $effect(() => {
@@ -464,6 +469,14 @@
     const profile = $state.snapshot(draft);
     const filename = exportFilename(profile);
     try {
+      // The manuscript was read when the workspace opened; save and re-read it
+      // so the file never carries stale prose.
+      await saveProseBefore(project.id, "exporting");
+      if (!isExchange(profile.format)) {
+        chapters = await invoke<PreviewChapter[]>("get_export_prototype_document", {
+          projectId: project.id,
+        });
+      }
       let path: string | null;
       if (["longform", "novelwriter"].includes(profile.format)) {
         const parent = await open({

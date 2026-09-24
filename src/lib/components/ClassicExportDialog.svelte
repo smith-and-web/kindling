@@ -33,6 +33,7 @@
     Settings2,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
+  import { saveProseBefore } from "../utils/proseFlush";
   import type {
     ExportResult,
     MarkdownExportOptions,
@@ -534,6 +535,8 @@
       if (!currentProject.value) {
         throw new Error("No project selected");
       }
+      // Export reads the database: never write a file from stale prose.
+      await saveProseBefore(currentProject.value.id, "exporting");
 
       let result: ExportResult;
 

@@ -8,6 +8,7 @@ import { currentProject } from "../stores/project.svelte";
 import { ui } from "../stores/ui.svelte";
 import { mockProject, mockChapters, mockScenes } from "../../dev/mock-data";
 import type { Scene } from "../types";
+import { saveProseBefore } from "../utils/proseFlush";
 
 vi.hoisted(() => {
   const values = new Map<string, string>();
@@ -90,6 +91,24 @@ it("undo after switching Page View scenes never restores the previous scene's te
   expect(saves.length).toBeGreaterThan(0);
   expect(saves.every(({ sceneId }) => sceneId === sceneB.id)).toBe(true);
   expect(saves.some(({ prose }) => prose.includes("Scene A text"))).toBe(false);
+});
+
+it("saves a debounced edit as soon as export or sync asks for saved prose", async () => {
+  currentProject.setCurrentScene(pageScene("scene-a", "<p>Scene A text</p>"));
+  render(ScenePanel);
+  await vi.advanceTimersByTimeAsync(0);
+  editor().commands.insertContentAt(editor().state.doc.content.size - 1, " typed just now");
+  const saved = () =>
+    vi
+      .mocked(invoke)
+      .mock.calls.some(
+        ([cmd, args]) =>
+          cmd === "save_scene_page_prose" &&
+          (args as { prose: string }).prose.includes("typed just now")
+      );
+  expect(saved()).toBe(false);
+  await saveProseBefore(mockProject.id, "exporting");
+  expect(saved()).toBe(true);
 });
 
 it("mounts a page scene reached from a beat scene with its own prose", async () => {
