@@ -18,7 +18,7 @@ For a quick export with the standard options, see [Exporting Projects](exporting
    updates as you work.
 6. Select **Save profile** to keep your settings.
 7. Select **Export**, choose a destination and a new filename, then use
-   **Open export** to open the result.
+   **Show in folder** to find the result.
 
 The starting profiles are editable. Check your recipient's requirements before
 using one for a submission.

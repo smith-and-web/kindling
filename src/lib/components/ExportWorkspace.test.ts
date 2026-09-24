@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/sv
 import { tick } from "svelte";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
+import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { mockProject } from "../../dev/mock-data";
 import { currentProject } from "../stores/project.svelte";
 import { decodeProfiles, profileStorageKey } from "../utils/exportPrototype";
@@ -231,3 +232,37 @@ it.each(["markdown", "txt"])(
     );
   }
 );
+
+async function exportEpub() {
+  await fireEvent.change(screen.getByLabelText("Output format"), { target: { value: "epub" } });
+  vi.mocked(save).mockResolvedValueOnce("/tmp/book.epub");
+  await fireEvent.click(screen.getByRole("button", { name: "Export EPUB" }));
+  return screen.findByRole("button", { name: /Show in folder/ });
+}
+
+it("shows a finished export in its folder, because the opener may only reveal paths", async () => {
+  vi.mocked(revealItemInDir).mockReset();
+  await mount();
+  const show = await exportEpub();
+  vi.mocked(revealItemInDir).mockResolvedValueOnce(undefined);
+  await fireEvent.click(show);
+  expect(revealItemInDir).toHaveBeenCalledWith("/tmp/book.epub");
+  expect(openPath).not.toHaveBeenCalled();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("tells the writer when the export can't be shown in its folder", async () => {
+  vi.mocked(revealItemInDir).mockReset();
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+  await mount();
+  const show = await exportEpub();
+  vi.mocked(revealItemInDir).mockRejectedValueOnce(new Error("Path not found"));
+  await fireEvent.click(show);
+  const alert = await screen.findByRole("alert");
+  expect(alert.textContent).toContain("Couldn’t show the export in its folder: Path not found");
+  // Trying again clears the stale error once the reveal succeeds.
+  vi.mocked(revealItemInDir).mockResolvedValueOnce(undefined);
+  await fireEvent.click(screen.getByRole("button", { name: /Show in folder/ }));
+  await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  consoleError.mockRestore();
+});

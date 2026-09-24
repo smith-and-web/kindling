@@ -3,7 +3,7 @@
   import { onMount, tick, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { open, save } from "@tauri-apps/plugin-dialog";
-  import { openPath } from "@tauri-apps/plugin-opener";
+  import { revealItemInDir } from "@tauri-apps/plugin-opener";
   import {
     ArrowLeft,
     ArrowRight,
@@ -513,11 +513,17 @@
     }
   }
 
+  // Reveal rather than open: the opener capability grants reveal-in-folder
+  // (the classic export's success dialog uses it too) but not open-path, so
+  // openPath was always refused at runtime.
+  const revealFailed = "Couldn’t show the export in its folder";
   async function openSaved() {
     try {
-      await openPath(savedPath);
+      await revealItemInDir(savedPath);
+      if (error.startsWith(revealFailed)) error = "";
     } catch (e) {
-      error = `Could not open export: ${String(e)}`;
+      console.error("Failed to show export in folder:", e);
+      error = `${revealFailed}: ${e instanceof Error ? e.message : String(e)}`;
     }
   }
 </script>
@@ -1444,7 +1450,7 @@
                 type="button"
                 class="ka-button ka-button--ghost"
                 onclick={openSaved}
-                >Open export <ArrowRight class="w-5 h-5" aria-hidden="true" /></button
+                >Show in folder <ArrowRight class="w-5 h-5" aria-hidden="true" /></button
               >{/if}
           </div>
         </div>{/if}
