@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { EditorialRound, EditorialSession } from "./editorial";
+import { repairSplitCharacters, type EditorialRound, type EditorialSession } from "./editorial";
 
 /** One writer per review; each committed generation is based on the last ack.
  * A synchronous recovery journal covers the debounce and interrupted IPC window. */
@@ -30,6 +30,7 @@ export class EditorialSaves {
       throw new Error(
         "The recovered review has a different manuscript. Keep this window open and export a recovery copy."
       );
+    draft.session.changes = repairSplitCharacters(this.round, draft.session);
     if (saved && saved.reviewer_id !== draft.session.reviewer_id) return saved;
     const selected = saved && saved.generation > draft.session.generation ? saved : draft.session;
     const other = selected === saved ? draft.session : saved;

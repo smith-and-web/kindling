@@ -18,6 +18,7 @@ import {
   validateEditorialPackage,
   sliceHtml,
   restoreTracking,
+  repairSplitCharacters,
   type EditorialSource,
   type EditorialFeedback,
   type FeedbackEntry,
@@ -339,5 +340,82 @@ describe("continuous editorial manuscript", () => {
     expect(trackChanges(base, base, [comment])).toEqual([comment]);
     expect(projectedRange(base, base, comment)).toEqual({ from: 1, to: 4 });
     expect(locateChange(base, base, comment).conflict).toBe(false);
+  });
+
+  // serde_json rejects the `\udXXX` escape JSON.stringify writes for a lone surrogate, because a
+  // Rust String must be valid UTF-8. A string survives a UTF-8 round trip only if it has none.
+  const savesAsUtf8 = (value: unknown) => {
+    let valid = true;
+    JSON.stringify(value, (_key, v: unknown) => {
+      if (typeof v === "string" && new TextDecoder().decode(new TextEncoder().encode(v)) !== v)
+        valid = false;
+      return v;
+    });
+    return valid;
+  };
+
+  it.each([
+    ["Hi 😀 there.", "Hi 🙂 there.", "😀", "🙂"],
+    ["😀😃 end.", "😀🙂 end.", "😃", "🙂"],
+    ["Wave 👋🏽 now.", "Wave 👋🏿 now.", "🏽", "🏿"],
+  ])("keeps whole characters when %s becomes %s", (before, after, removed, added) => {
+    const base = manuscript([source("a", `<p>${before}</p>`)]);
+    const next = manuscript([source("a", `<p>${after}</p>`)]);
+    const [change, ...rest] = trackChanges(base, next, []);
+    expect(rest).toEqual([]);
+    expect(sliceText(change.before)).toBe(removed);
+    expect(sliceText(change.after)).toBe(added);
+    expect(savesAsUtf8(change)).toBe(true);
+    const round = { ...feedback(next).round, sources: [source("a", `<p>${before}</p>`)] };
+    const [accepted] = prepareAcceptance(
+      {
+        round,
+        sources: round.sources,
+        version: 0,
+        entries: [{ key: change.id, reviewer: "Editor", change, decision: "open" }],
+      },
+      [{ key: change.id, reviewer: "Editor", change, decision: "open" }]
+    );
+    expect(accepted.html).toBe(`<p>${after}</p>`);
+  });
+
+  it("repairs a recovered suggestion that stored half an emoji, keeping its discussion", () => {
+    const sources = [source("a", "<p>Hi 😀 there.</p>")];
+    const round = { ...feedback(manuscript(sources)).round, sources };
+    const document = manuscript([source("a", "<p>Hi 🙂 there.</p>")]).toJSON();
+    const note = message("Rowan", "Softer?");
+    const text = (t: string) => ({ content: [{ type: "text", text: t }] });
+    const poisoned = {
+      id: "emoji",
+      revision: 1,
+      kind: "suggestion" as const,
+      from: 5,
+      to: 6,
+      before: text("\ude00"),
+      after: text("\ude42"),
+      state: "open" as const,
+      messages: [note],
+    };
+    const comment = { ...poisoned, id: "comment", kind: "comment" as const, messages: [note] };
+    const session = {
+      reviewer_id: "editor",
+      name: "Rowan",
+      generation: 1,
+      document,
+      changes: [poisoned, comment],
+      position: 1,
+    };
+    expect(savesAsUtf8(session)).toBe(false);
+    const repaired = repairSplitCharacters(round, session);
+    expect(savesAsUtf8(repaired)).toBe(true);
+    const suggestion = repaired.find((c) => c.id === "emoji")!;
+    expect(sliceText(suggestion.before)).toBe("😀");
+    expect(sliceText(suggestion.after)).toBe("🙂");
+    expect(suggestion.messages).toEqual([note]);
+    const kept = repaired.find((c) => c.id === "comment")!;
+    expect([kept.from, kept.to, sliceText(kept.before)]).toEqual([4, 6, "😀"]);
+    expect(kept.messages).toEqual([note]);
+    const clean = { ...session, changes: repaired };
+    expect(repairSplitCharacters(round, clean)).toBe(repaired);
   });
 });

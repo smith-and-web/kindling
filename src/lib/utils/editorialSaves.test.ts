@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { EditorialSaves } from "./editorialSaves";
-import type { EditorialRound, EditorialSession } from "./editorial";
+import { manuscript, sliceText, type EditorialRound, type EditorialSession } from "./editorial";
 
 const round: EditorialRound = {
   id: "round",
@@ -216,5 +216,51 @@ describe("editorial save journal", () => {
       JSON.stringify({ round: { ...round, brief: "different" }, session: draft })
     );
     expect(() => queue.recover(draft)).toThrow("different manuscript");
+  });
+  it("repairs a journal holding half an emoji instead of replaying an unsaveable review", async () => {
+    const source = (html: string) => ({
+      id: "a",
+      scene_id: "scene",
+      chapter_id: "chapter",
+      chapter: "One",
+      scene: "Opening",
+      mode: "beat" as const,
+      html,
+      locked: false,
+    });
+    const emojiRound = { ...round, sources: [source("<p>Hi 😀 there.</p>")] };
+    const text = (t: string) => ({ content: [{ type: "text", text: t }] });
+    // An RC journal: 😀→🙂 diffed by UTF-16 unit stored only the trailing halves.
+    const poisoned: EditorialSession = {
+      ...draft,
+      generation: 1,
+      document: manuscript([source("<p>Hi 🙂 there.</p>")]).toJSON(),
+      changes: [
+        {
+          id: "emoji",
+          revision: 1,
+          kind: "suggestion",
+          from: 5,
+          to: 6,
+          before: text("\ude00"),
+          after: text("\ude42"),
+          state: "open",
+          messages: [],
+        },
+      ],
+    };
+    const queue = new EditorialSaves(emojiRound, null);
+    localStorage.setItem(queue.key, JSON.stringify({ round: emojiRound, session: poisoned }));
+    const recovered = queue.recover(null)!;
+    const [change] = recovered.changes;
+    expect([change.id, sliceText(change.before), sliceText(change.after)]).toEqual([
+      "emoji",
+      "😀",
+      "🙂",
+    ]);
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    await queue.flush();
+    const sent = JSON.stringify(vi.mocked(invoke).mock.calls[0][1]);
+    expect(sent).not.toMatch(/\\ud[89a-f][0-9a-f]{2}/i);
   });
 });
