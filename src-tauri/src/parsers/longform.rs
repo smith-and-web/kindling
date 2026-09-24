@@ -401,13 +401,21 @@ fn resolve_in_vault(
 
 /// Walk filter: keep entries inside `vault`, and report any that a symlink
 /// takes outside it instead of reading them.
-fn stays_in_vault(vault: &Path, path: &Path) -> bool {
-    match fs::canonicalize(path) {
+///
+/// Only symlinks are resolved. A walk can leave the vault only through one:
+/// any other entry sits inside its parent directory, which was either the
+/// walk root (inside the vault) or itself passed this filter on the way down,
+/// so symlinked directories are never followed out of the vault.
+fn stays_in_vault(vault: &Path, entry: &walkdir::DirEntry) -> bool {
+    if !entry.path_is_symlink() {
+        return true;
+    }
+    match fs::canonicalize(entry.path()) {
         Ok(resolved) if resolved.starts_with(vault) => true,
         Ok(_) => {
             eprintln!(
                 "[kindling] Longform import skipped {}: it links outside the vault ({}).",
-                path.display(),
+                entry.path().display(),
                 vault.display()
             );
             false
@@ -423,7 +431,7 @@ fn find_longform_indexes(vault_dir: &Path, vault: &Path) -> Result<Vec<PathBuf>,
     for entry in WalkDir::new(vault_dir)
         .follow_links(true)
         .into_iter()
-        .filter_entry(|entry| stays_in_vault(vault, entry.path()))
+        .filter_entry(|entry| stays_in_vault(vault, entry))
         .filter_map(Result::ok)
     {
         if !entry.file_type().is_file() {
@@ -510,7 +518,7 @@ fn collect_reference_notes(
     for entry in WalkDir::new(vault_dir)
         .follow_links(true)
         .into_iter()
-        .filter_entry(|entry| stays_in_vault(vault, entry.path()))
+        .filter_entry(|entry| stays_in_vault(vault, entry))
         .filter_map(Result::ok)
     {
         if !entry.file_type().is_file() {
