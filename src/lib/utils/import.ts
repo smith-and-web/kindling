@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open } from "./nativeDialog";
 import { platform } from "@tauri-apps/plugin-os";
 import { ui } from "$lib/stores/ui.svelte";
 import type { Project } from "$lib/types";

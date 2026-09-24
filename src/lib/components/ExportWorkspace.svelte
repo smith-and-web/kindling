@@ -2,7 +2,7 @@
   import { countLabel } from "../utils/plural";
   import { onMount, tick, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { open, save } from "@tauri-apps/plugin-dialog";
+  import { open, save } from "../utils/nativeDialog";
   import { revealItemInDir } from "@tauri-apps/plugin-opener";
   import {
     ArrowLeft,

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick, type Snippet } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { open, save } from "@tauri-apps/plugin-dialog";
+  import { open, save } from "../utils/nativeDialog";
   import { listen } from "@tauri-apps/api/event";
   import { Node, Slice, Fragment } from "@tiptap/pm/model";
   import type { Mapping } from "@tiptap/pm/transform";
