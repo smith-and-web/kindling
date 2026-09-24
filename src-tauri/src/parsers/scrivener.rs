@@ -682,321 +682,521 @@ fn decode_entity(entity: &str) -> String {
 /// indented paragraphs (\li360, etc.) are not misclassified.
 const BLOCKQUOTE_LI_THRESHOLD: i32 = 720;
 
+/// Windows-1252 code points for bytes 0x80–0x9F, the only range where cp1252
+/// differs from Latin-1. `None` marks the five bytes cp1252 leaves undefined.
+const CP1252_80_9F: [Option<char>; 32] = [
+    Some('\u{20AC}'), // 0x80 euro sign
+    None,             // 0x81
+    Some('\u{201A}'), // 0x82 single low-9 quote
+    Some('\u{0192}'), // 0x83 f with hook
+    Some('\u{201E}'), // 0x84 double low-9 quote
+    Some('\u{2026}'), // 0x85 ellipsis
+    Some('\u{2020}'), // 0x86 dagger
+    Some('\u{2021}'), // 0x87 double dagger
+    Some('\u{02C6}'), // 0x88 circumflex
+    Some('\u{2030}'), // 0x89 per mille
+    Some('\u{0160}'), // 0x8A S caron
+    Some('\u{2039}'), // 0x8B single left angle quote
+    Some('\u{0152}'), // 0x8C OE ligature
+    None,             // 0x8D
+    Some('\u{017D}'), // 0x8E Z caron
+    None,             // 0x8F
+    None,             // 0x90
+    Some('\u{2018}'), // 0x91 left single quote
+    Some('\u{2019}'), // 0x92 right single quote / apostrophe
+    Some('\u{201C}'), // 0x93 left double quote
+    Some('\u{201D}'), // 0x94 right double quote
+    Some('\u{2022}'), // 0x95 bullet
+    Some('\u{2013}'), // 0x96 en dash
+    Some('\u{2014}'), // 0x97 em dash
+    Some('\u{02DC}'), // 0x98 small tilde
+    Some('\u{2122}'), // 0x99 trade mark
+    Some('\u{0161}'), // 0x9A s caron
+    Some('\u{203A}'), // 0x9B single right angle quote
+    Some('\u{0153}'), // 0x9C oe ligature
+    None,             // 0x9D
+    Some('\u{017E}'), // 0x9E z caron
+    Some('\u{0178}'), // 0x9F Y diaeresis
+];
+
+/// The RTF default ANSI code page, and what Scrivener writes (`\ansicpg1252`).
+const CODEPAGE_CP1252: u32 = 1252;
+
+/// `\ansicpg` value for ISO-8859-1, whose 0x80–0x9F bytes are C1 controls.
+const CODEPAGE_LATIN1: u32 = 28591;
+
+/// Decode one byte of 8-bit RTF text (a `\'hh` escape or a raw byte).
+///
+/// Only Windows-1252 and Latin-1 are decoded exactly. Other single-byte code
+/// pages fall back to cp1252, which is right for ASCII and wrong for their
+/// upper half. Control bytes carry no text and are dropped, except tab.
+fn decode_ansi_byte(byte: u8, codepage: u32) -> Option<char> {
+    match byte {
+        b'\t' => Some('\t'),
+        0x00..=0x1F | 0x7F => None,
+        0x80..=0x9F if codepage == CODEPAGE_LATIN1 => None,
+        0x80..=0x9F => CP1252_80_9F[usize::from(byte - 0x80)],
+        _ => Some(char::from(byte)),
+    }
+}
+
+/// Decode an RTF file's bytes to text.
+///
+/// RTF is nominally 7-bit, but some writers emit raw 8-bit bytes in the
+/// document code page. Those files are not valid UTF-8, so decode them as
+/// cp1252 instead of discarding the whole document.
+fn decode_rtf_bytes(bytes: Vec<u8>) -> String {
+    match String::from_utf8(bytes) {
+        Ok(text) => text,
+        Err(err) => err
+            .into_bytes()
+            .into_iter()
+            .filter_map(|b| match b {
+                b'\r' | b'\n' => Some(char::from(b)),
+                _ => decode_ansi_byte(b, CODEPAGE_CP1252),
+            })
+            .collect(),
+    }
+}
+
+/// Destination groups whose content is never document prose. Their text
+/// (font names, image hex, header text, list numbering templates) must not
+/// leak into scenes. Groups introduced by `\*` are skipped regardless of name.
+const RTF_SKIPPED_DESTINATIONS: &[&str] = &[
+    "fonttbl",
+    "colortbl",
+    "stylesheet",
+    "info",
+    "pict",
+    "shppict",
+    "nonshppict",
+    "object",
+    "objdata",
+    "NeXTGraphic",
+    "fldinst",
+    "header",
+    "headerl",
+    "headerr",
+    "headerf",
+    "footer",
+    "footerl",
+    "footerr",
+    "footerf",
+    "listtable",
+    "listoverridetable",
+    "revtbl",
+    "rsidtbl",
+    "filetbl",
+    "xmlnstbl",
+    "themedata",
+    "colorschememapping",
+    "latentstyles",
+    "datastore",
+    "generator",
+    "pgdsctbl",
+    "pn",
+    "pntxta",
+    "pntxtb",
+];
+
+type RtfChars<'a> = std::iter::Peekable<std::str::Chars<'a>>;
+
+/// One RTF control sequence, read after its leading backslash.
+enum RtfControl {
+    /// Control word with its optional numeric parameter.
+    Word(String, Option<i32>),
+    /// `\'hh` hex-escaped byte (`None` if the hex digits are malformed).
+    Hex(Option<u8>),
+    /// Control symbol: backslash followed by one non-letter character.
+    Symbol(char),
+}
+
+/// Read a control sequence; `chars` is positioned just after the backslash.
+fn read_rtf_control(chars: &mut RtfChars<'_>) -> Option<RtfControl> {
+    let first = *chars.peek()?;
+    if first == '\'' {
+        chars.next();
+        let mut hex = String::new();
+        for _ in 0..2 {
+            match chars.peek() {
+                Some(hc) if hc.is_ascii_hexdigit() => {
+                    hex.push(*hc);
+                    chars.next();
+                }
+                _ => break,
+            }
+        }
+        return Some(RtfControl::Hex(u8::from_str_radix(&hex, 16).ok()));
+    }
+    if !first.is_ascii_alphabetic() {
+        chars.next();
+        return Some(RtfControl::Symbol(first));
+    }
+
+    let mut word = String::new();
+    while let Some(&wc) = chars.peek() {
+        if !wc.is_ascii_alphabetic() {
+            break;
+        }
+        word.push(wc);
+        chars.next();
+    }
+    let mut digits = String::new();
+    if let Some(&pc) = chars.peek() {
+        if pc == '-' || pc.is_ascii_digit() {
+            digits.push(pc);
+            chars.next();
+            while let Some(&dc) = chars.peek() {
+                if !dc.is_ascii_digit() {
+                    break;
+                }
+                digits.push(dc);
+                chars.next();
+            }
+        }
+    }
+    // A single space delimits the control word and is not document text.
+    if chars.peek() == Some(&' ') {
+        chars.next();
+    }
+    let param = digits
+        .parse::<i64>()
+        .ok()
+        .and_then(|p| i32::try_from(p.clamp(i64::from(i32::MIN), i64::from(i32::MAX))).ok());
+    Some(RtfControl::Word(word, param))
+}
+
+/// Skip the payload of `\binN`: N raw characters that may contain braces.
+fn skip_rtf_binary(chars: &mut RtfChars<'_>, param: Option<i32>) {
+    for _ in 0..param.unwrap_or(0).max(0) {
+        if chars.next().is_none() {
+            break;
+        }
+    }
+}
+
+/// Whether the group opened just before `chars` is a destination whose
+/// content should be skipped (see `RTF_SKIPPED_DESTINATIONS`).
+fn is_skipped_rtf_destination(chars: &RtfChars<'_>) -> bool {
+    let mut peek = chars.clone();
+    if peek.next() != Some('\\') {
+        return false;
+    }
+    if peek.peek() == Some(&'*') {
+        return true;
+    }
+    match read_rtf_control(&mut peek) {
+        Some(RtfControl::Word(word, _)) => RTF_SKIPPED_DESTINATIONS.contains(&word.as_str()),
+        _ => false,
+    }
+}
+
+/// Character formatting, which RTF scopes to the enclosing `{...}` group.
+#[derive(Clone, Copy)]
+struct RtfCharFormat {
+    bold: bool,
+    italic: bool,
+    underline: bool,
+    /// `\ucN`: how many fallback characters follow each `\uN`.
+    unicode_skip: usize,
+}
+
+impl Default for RtfCharFormat {
+    fn default() -> Self {
+        Self {
+            bold: false,
+            italic: false,
+            underline: false,
+            unicode_skip: 1,
+        }
+    }
+}
+
+/// Accumulates decoded RTF text into TipTap-compatible HTML.
+#[derive(Default)]
+struct RtfHtmlWriter {
+    html: String,
+    text_buf: String,
+    in_paragraph: bool,
+    blockquote_active: bool,
+    li_twips: i32,
+    /// Formatting of the text currently in `text_buf`.
+    fmt: RtfCharFormat,
+}
+
+impl RtfHtmlWriter {
+    fn open_paragraph(&mut self) {
+        if self.in_paragraph {
+            return;
+        }
+        if self.blockquote_active && self.li_twips < BLOCKQUOTE_LI_THRESHOLD {
+            self.html.push_str("</blockquote>");
+            self.blockquote_active = false;
+        }
+        if !self.blockquote_active && self.li_twips >= BLOCKQUOTE_LI_THRESHOLD {
+            self.html.push_str("<blockquote>");
+            self.blockquote_active = true;
+        }
+        self.html.push_str("<p>");
+        self.in_paragraph = true;
+    }
+
+    /// Flush accumulated text as a self-contained formatted run.
+    fn flush(&mut self) {
+        if self.text_buf.is_empty() {
+            return;
+        }
+        self.open_paragraph();
+        let fmt = self.fmt;
+        if fmt.bold {
+            self.html.push_str("<strong>");
+        }
+        if fmt.italic {
+            self.html.push_str("<em>");
+        }
+        if fmt.underline {
+            self.html.push_str("<u>");
+        }
+        self.html.push_str(&html_escape(&self.text_buf));
+        self.text_buf.clear();
+        if fmt.underline {
+            self.html.push_str("</u>");
+        }
+        if fmt.italic {
+            self.html.push_str("</em>");
+        }
+        if fmt.bold {
+            self.html.push_str("</strong>");
+        }
+    }
+
+    /// Change character formatting, closing the current run if it differs.
+    fn set_format(&mut self, fmt: RtfCharFormat) {
+        if fmt.bold != self.fmt.bold
+            || fmt.italic != self.fmt.italic
+            || fmt.underline != self.fmt.underline
+        {
+            self.flush();
+        }
+        self.fmt = fmt;
+    }
+
+    fn set_left_indent(&mut self, twips: i32) {
+        self.flush();
+        self.li_twips = twips.max(0);
+    }
+
+    fn end_paragraph(&mut self) {
+        self.flush();
+        if self.in_paragraph {
+            self.html.push_str("</p>");
+            self.in_paragraph = false;
+        }
+    }
+
+    fn line_break(&mut self) {
+        self.flush();
+        self.open_paragraph();
+        self.html.push_str("<br>");
+    }
+
+    fn push_char(&mut self, ch: char) {
+        match ch {
+            // Cocoa writes Shift-Return as U+2028 LINE SEPARATOR.
+            '\u{2028}' => self.line_break(),
+            '\u{2029}' => self.end_paragraph(),
+            _ => self.text_buf.push(ch),
+        }
+    }
+
+    fn finish(mut self) -> String {
+        self.end_paragraph();
+        if self.blockquote_active {
+            self.html.push_str("</blockquote>");
+        }
+        self.html
+    }
+}
+
+/// Decode a `\uN` parameter, pairing UTF-16 surrogates written as two words.
+fn decode_rtf_unicode(param: i32, high_surrogate: &mut Option<u32>) -> Option<char> {
+    // Code points above 32767 are written as negative 16-bit values.
+    let code = u32::try_from(if param < 0 { param + 65536 } else { param }).ok()?;
+    match (high_surrogate.take(), code) {
+        (_, 0xD800..=0xDBFF) => {
+            *high_surrogate = Some(code);
+            None
+        }
+        (Some(high), 0xDC00..=0xDFFF) => {
+            char::from_u32(0x10000 + ((high - 0xD800) << 10) + (code - 0xDC00))
+        }
+        _ => char::from_u32(code),
+    }
+}
+
 /// Convert Scrivener RTF content to TipTap-compatible HTML.
 ///
 /// Each text run is self-contained with its own formatting tags, so changes
 /// to bold/italic/underline mid-paragraph produce correct HTML.
 pub fn rtf_to_html(rtf: &str) -> String {
-    let mut html = String::new();
-    let mut in_paragraph = false;
-    let mut bold = false;
-    let mut italic = false;
-    let mut underline = false;
-    let mut li_twips: i32 = 0;
-    let mut blockquote_active = false;
+    let mut out = RtfHtmlWriter::default();
+    let mut fmt = RtfCharFormat::default();
+    let mut group_stack: Vec<RtfCharFormat> = Vec::new();
     let mut skip_depth: u32 = 0;
+    let mut codepage = CODEPAGE_CP1252;
+    // ANSI fallback characters still to discard after a `\uN` (per `\ucN`).
+    let mut unicode_fallback: usize = 0;
+    let mut high_surrogate: Option<u32> = None;
     let mut chars = rtf.chars().peekable();
-    let mut text_buf = String::new();
 
     while let Some(c) = chars.next() {
-        if c == '{' {
-            if skip_depth > 0 {
-                skip_depth += 1;
+        if skip_depth > 0 {
+            match c {
+                '{' => skip_depth += 1,
+                '}' => skip_depth -= 1,
+                // Consume escapes whole so `\{`, `\}` and `\bin` data cannot
+                // unbalance the brace count.
+                '\\' => {
+                    if let Some(RtfControl::Word(word, param)) = read_rtf_control(&mut chars) {
+                        if word == "bin" {
+                            skip_rtf_binary(&mut chars, param);
+                        }
+                    }
+                }
+                _ => {}
+            }
+            continue;
+        }
+
+        match c {
+            '{' => {
+                unicode_fallback = 0;
+                if is_skipped_rtf_destination(&chars) {
+                    skip_depth = 1;
+                } else {
+                    group_stack.push(fmt);
+                }
                 continue;
             }
-            // Peek ahead to detect groups we should skip entirely
-            let mut peek_buf = String::new();
-            let mut peek_chars = chars.clone();
-            for _ in 0..14 {
-                if let Some(pc) = peek_chars.next() {
-                    peek_buf.push(pc);
+            '}' => {
+                unicode_fallback = 0;
+                if let Some(outer) = group_stack.pop() {
+                    fmt = outer;
+                    out.set_format(fmt);
                 }
+                continue;
             }
-            if peek_buf.starts_with("\\fonttbl")
-                || peek_buf.starts_with("\\colortbl")
-                || peek_buf.starts_with("\\stylesheet")
-                || peek_buf.starts_with("\\info")
-                || peek_buf.starts_with("\\*")
-            {
-                skip_depth = 1;
+            // Literal line breaks in RTF source are layout, not text.
+            '\r' | '\n' => continue,
+            '\\' => {}
+            _ => {
+                if unicode_fallback > 0 {
+                    unicode_fallback -= 1;
+                } else {
+                    out.push_char(c);
+                }
+                continue;
             }
-            continue;
         }
 
-        if c == '}' {
-            skip_depth = skip_depth.saturating_sub(1);
+        let Some(control) = read_rtf_control(&mut chars) else {
             continue;
-        }
-
-        if skip_depth > 0 {
-            continue;
-        }
-
-        if c == '\\' {
-            if let Some(&next) = chars.peek() {
-                match next {
-                    '\\' => {
-                        chars.next();
-                        text_buf.push('\\');
-                    }
-                    '{' => {
-                        chars.next();
-                        text_buf.push('{');
-                    }
-                    '}' => {
-                        chars.next();
-                        text_buf.push('}');
-                    }
-                    '\'' => {
-                        chars.next();
-                        let mut hex = String::new();
-                        for _ in 0..2 {
-                            if let Some(&hc) = chars.peek() {
-                                if hc.is_ascii_hexdigit() {
-                                    hex.push(hc);
-                                    chars.next();
-                                }
-                            }
-                        }
-                        if let Ok(byte) = u8::from_str_radix(&hex, 16) {
-                            text_buf.push(byte as char);
-                        }
-                    }
-                    _ => {
-                        let mut word = String::new();
-                        while let Some(&wc) = chars.peek() {
-                            if wc.is_ascii_alphabetic() {
-                                word.push(wc);
-                                chars.next();
-                            } else {
-                                break;
-                            }
-                        }
-
-                        let mut param = String::new();
-                        if let Some(&pc) = chars.peek() {
-                            if pc == '-' || pc.is_ascii_digit() {
-                                param.push(pc);
-                                chars.next();
-                                while let Some(&dc) = chars.peek() {
-                                    if dc.is_ascii_digit() {
-                                        param.push(dc);
-                                        chars.next();
-                                    } else {
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-
-                        if let Some(&sc) = chars.peek() {
-                            if sc == ' ' {
-                                chars.next();
-                            }
-                        }
-
-                        match word.as_str() {
-                            "par" | "line" => {
-                                rtf_flush_run(
-                                    &mut html,
-                                    &mut text_buf,
-                                    &mut in_paragraph,
-                                    &mut blockquote_active,
-                                    li_twips,
-                                    bold,
-                                    italic,
-                                    underline,
-                                );
-                                if in_paragraph {
-                                    html.push_str("</p>");
-                                    in_paragraph = false;
-                                }
-                            }
-                            "b" => {
-                                rtf_flush_run(
-                                    &mut html,
-                                    &mut text_buf,
-                                    &mut in_paragraph,
-                                    &mut blockquote_active,
-                                    li_twips,
-                                    bold,
-                                    italic,
-                                    underline,
-                                );
-                                bold = param != "0";
-                            }
-                            "i" => {
-                                rtf_flush_run(
-                                    &mut html,
-                                    &mut text_buf,
-                                    &mut in_paragraph,
-                                    &mut blockquote_active,
-                                    li_twips,
-                                    bold,
-                                    italic,
-                                    underline,
-                                );
-                                italic = param != "0";
-                            }
-                            "ul" => {
-                                rtf_flush_run(
-                                    &mut html,
-                                    &mut text_buf,
-                                    &mut in_paragraph,
-                                    &mut blockquote_active,
-                                    li_twips,
-                                    bold,
-                                    italic,
-                                    underline,
-                                );
-                                underline = true;
-                            }
-                            "ulnone" => {
-                                rtf_flush_run(
-                                    &mut html,
-                                    &mut text_buf,
-                                    &mut in_paragraph,
-                                    &mut blockquote_active,
-                                    li_twips,
-                                    bold,
-                                    italic,
-                                    underline,
-                                );
-                                underline = false;
-                            }
-                            "li" => {
-                                rtf_flush_run(
-                                    &mut html,
-                                    &mut text_buf,
-                                    &mut in_paragraph,
-                                    &mut blockquote_active,
-                                    li_twips,
-                                    bold,
-                                    italic,
-                                    underline,
-                                );
-                                li_twips = param.parse::<i32>().unwrap_or(0).max(0);
-                            }
-                            "u" => {
-                                if let Ok(code) = param.parse::<i32>() {
-                                    let code = if code < 0 {
-                                        (code + 65536) as u32
-                                    } else {
-                                        code as u32
-                                    };
-                                    if let Some(ch) = char::from_u32(code) {
-                                        text_buf.push(ch);
-                                    }
-                                }
-                                if let Some(&rc) = chars.peek() {
-                                    if rc == '?' {
-                                        chars.next();
-                                    }
-                                }
-                            }
-                            "pard" | "plain" => {
-                                rtf_flush_run(
-                                    &mut html,
-                                    &mut text_buf,
-                                    &mut in_paragraph,
-                                    &mut blockquote_active,
-                                    li_twips,
-                                    bold,
-                                    italic,
-                                    underline,
-                                );
-                                bold = false;
-                                italic = false;
-                                underline = false;
-                                li_twips = 0;
-                            }
-                            _ => {}
-                        }
-                    }
+        };
+        if unicode_fallback > 0 {
+            // Part of the ANSI fallback for the preceding `\uN`; each control
+            // sequence counts as one character.
+            unicode_fallback -= 1;
+            if let RtfControl::Word(word, param) = &control {
+                if word == "bin" {
+                    skip_rtf_binary(&mut chars, *param);
                 }
             }
             continue;
         }
 
-        if c == '\r' || c == '\n' {
-            continue;
+        match control {
+            RtfControl::Hex(byte) => {
+                if let Some(ch) = byte.and_then(|b| decode_ansi_byte(b, codepage)) {
+                    out.push_char(ch);
+                }
+            }
+            RtfControl::Symbol(sym) => match sym {
+                '\\' | '{' | '}' => out.push_char(sym),
+                // Cocoa (macOS, so Mac Scrivener) writes each paragraph break
+                // as a backslash followed by a newline.
+                '\n' | '\r' => out.end_paragraph(),
+                '~' => out.push_char('\u{00A0}'),
+                '_' => out.push_char('\u{2011}'),
+                // `\-` optional hyphen, stray `\*`, `\:` and friends.
+                _ => {}
+            },
+            RtfControl::Word(word, param) => {
+                let on = param != Some(0);
+                match word.as_str() {
+                    "par" | "sect" | "page" => out.end_paragraph(),
+                    "line" => out.line_break(),
+                    "tab" => out.push_char('\t'),
+                    "emdash" => out.push_char('\u{2014}'),
+                    "endash" => out.push_char('\u{2013}'),
+                    "lquote" => out.push_char('\u{2018}'),
+                    "rquote" => out.push_char('\u{2019}'),
+                    "ldblquote" => out.push_char('\u{201C}'),
+                    "rdblquote" => out.push_char('\u{201D}'),
+                    "bullet" => out.push_char('\u{2022}'),
+                    "emspace" => out.push_char('\u{2003}'),
+                    "enspace" => out.push_char('\u{2002}'),
+                    "b" => {
+                        fmt.bold = on;
+                        out.set_format(fmt);
+                    }
+                    "i" => {
+                        fmt.italic = on;
+                        out.set_format(fmt);
+                    }
+                    "ul" | "uld" | "uldb" | "ulw" | "ulth" => {
+                        fmt.underline = on;
+                        out.set_format(fmt);
+                    }
+                    "ulnone" => {
+                        fmt.underline = false;
+                        out.set_format(fmt);
+                    }
+                    "li" => out.set_left_indent(param.unwrap_or(0)),
+                    "uc" => {
+                        fmt.unicode_skip = usize::try_from(param.unwrap_or(1)).unwrap_or(0);
+                        out.set_format(fmt);
+                    }
+                    "u" => {
+                        if let Some(ch) =
+                            param.and_then(|p| decode_rtf_unicode(p, &mut high_surrogate))
+                        {
+                            out.push_char(ch);
+                        }
+                        unicode_fallback = fmt.unicode_skip;
+                    }
+                    "pard" | "plain" => {
+                        // Unlike the RTF spec, `\pard` also resets character
+                        // formatting here. Long-standing behaviour, pinned by
+                        // test_rtf_to_html_pard_resets_formatting.
+                        fmt.bold = false;
+                        fmt.italic = false;
+                        fmt.underline = false;
+                        out.set_format(fmt);
+                        out.set_left_indent(0);
+                    }
+                    "ansicpg" => {
+                        if let Some(cp) = param.and_then(|p| u32::try_from(p).ok()) {
+                            codepage = cp;
+                        }
+                    }
+                    "bin" => skip_rtf_binary(&mut chars, param),
+                    _ => {}
+                }
+            }
         }
-
-        text_buf.push(c);
     }
 
-    rtf_flush_run(
-        &mut html,
-        &mut text_buf,
-        &mut in_paragraph,
-        &mut blockquote_active,
-        li_twips,
-        bold,
-        italic,
-        underline,
-    );
-
-    if in_paragraph {
-        html.push_str("</p>");
-    }
-    if blockquote_active {
-        html.push_str("</blockquote>");
-    }
-
-    html
-}
-
-/// Flush accumulated text as a self-contained formatted run.
-#[allow(clippy::too_many_arguments)]
-fn rtf_flush_run(
-    html: &mut String,
-    text_buf: &mut String,
-    in_paragraph: &mut bool,
-    blockquote_active: &mut bool,
-    li_twips: i32,
-    bold: bool,
-    italic: bool,
-    underline: bool,
-) {
-    if text_buf.is_empty() {
-        return;
-    }
-
-    if !*in_paragraph {
-        if *blockquote_active && li_twips < BLOCKQUOTE_LI_THRESHOLD {
-            html.push_str("</blockquote>");
-            *blockquote_active = false;
-        }
-        if !*blockquote_active && li_twips >= BLOCKQUOTE_LI_THRESHOLD {
-            html.push_str("<blockquote>");
-            *blockquote_active = true;
-        }
-        html.push_str("<p>");
-        *in_paragraph = true;
-    }
-
-    if bold {
-        html.push_str("<strong>");
-    }
-    if italic {
-        html.push_str("<em>");
-    }
-    if underline {
-        html.push_str("<u>");
-    }
-
-    html.push_str(&html_escape(text_buf));
-    text_buf.clear();
-
-    if underline {
-        html.push_str("</u>");
-    }
-    if italic {
-        html.push_str("</em>");
-    }
-    if bold {
-        html.push_str("</strong>");
-    }
+    out.finish()
 }
 
 fn html_escape(text: &str) -> String {
@@ -1291,10 +1491,10 @@ fn read_rtf_content(
             "Binder content escapes Files/Data".into(),
         ));
     }
-    let Ok(rtf) = std::fs::read_to_string(canonical) else {
+    let Ok(bytes) = std::fs::read(canonical) else {
         return Ok(None);
     };
-    let html = rtf_to_html(&rtf);
+    let html = rtf_to_html(&decode_rtf_bytes(bytes));
     Ok((!html.is_empty()).then_some(html))
 }
 
@@ -1723,6 +1923,150 @@ mod tests {
         assert!(html.contains("After"), "got: {html}");
     }
 
+    /// Any C1 control character (U+0080–U+009F) in imported prose is invisible
+    /// garbage; cp1252 text must never decode to one.
+    fn assert_no_c1_controls(html: &str) {
+        assert!(
+            !html.chars().any(|c| ('\u{80}'..='\u{9F}').contains(&c)),
+            "C1 control characters in: {html:?}"
+        );
+    }
+
+    #[test]
+    fn test_rtf_to_html_cocoa_scrivener_document() {
+        // Shape of a Scrivener 3 (macOS) content.rtf written by Cocoa.
+        let rtf = "{\\rtf1\\ansi\\ansicpg1252\\cocoartf2761\n\
+\\cocoatextscaling0\\cocoaplatform0{\\fonttbl\\f0\\fnil\\fcharset0 Palatino-Roman;}\n\
+{\\colortbl;\\red255\\green255\\blue255;}\n\
+{\\*\\expandedcolortbl;;}\n\
+\\pard\\tx360\\sl264\\slmult1\\pardirnatural\\partightenfactor0\n\
+\n\
+\\f0\\fs26 \\cf0 It\\'92s the first paragraph \\'97 with a dash.\\\n\
+\\tab Second paragraph opens with a tab.\\\n\
+\\\n\
+Third, after a blank line.}";
+        let html = rtf_to_html(rtf);
+        assert_eq!(
+            html,
+            "<p>It\u{2019}s the first paragraph \u{2014} with a dash.</p>\
+<p>\tSecond paragraph opens with a tab.</p>\
+<p>Third, after a blank line.</p>"
+        );
+    }
+
+    #[test]
+    fn test_rtf_to_html_backslash_newline_is_paragraph_break() {
+        let rtf = "{\\rtf1\\ansi First.\\\nSecond.\\\r\nThird.}";
+        let html = rtf_to_html(rtf);
+        assert_eq!(html, "<p>First.</p><p>Second.</p><p>Third.</p>");
+    }
+
+    #[test]
+    fn test_rtf_to_html_cp1252_quotes_and_dashes() {
+        let rtf =
+            r"{\rtf1\ansi\ansicpg1252 \'93Don\'92t,\'94 she said \'96 twice \'97 then\'85 \'80}";
+        let html = rtf_to_html(rtf);
+        assert_eq!(
+            html,
+            "<p>\u{201C}Don\u{2019}t,\u{201D} she said \u{2013} twice \u{2014} then\u{2026} \u{20AC}</p>"
+        );
+        assert_no_c1_controls(&html);
+    }
+
+    #[test]
+    fn test_rtf_to_html_cp1252_is_default_codepage() {
+        // No \ansicpg: RTF's default ANSI code page is cp1252.
+        let html = rtf_to_html(r"{\rtf1\ansi It\'92s caf\'e9.}");
+        assert_eq!(html, "<p>It\u{2019}s caf\u{e9}.</p>");
+    }
+
+    #[test]
+    fn test_rtf_to_html_respects_latin1_codepage() {
+        // Latin-1 has no printable characters at 0x80–0x9F; drop, don't mangle.
+        let html = rtf_to_html(r"{\rtf1\ansi\ansicpg28591 caf\'e9\'92}");
+        assert_eq!(html, "<p>caf\u{e9}</p>");
+    }
+
+    #[test]
+    fn test_rtf_to_html_undefined_cp1252_byte_dropped() {
+        let html = rtf_to_html(r"{\rtf1\ansi a\'81b\'9dc}");
+        assert_eq!(html, "<p>abc</p>");
+    }
+
+    #[test]
+    fn test_rtf_to_html_tab_kept() {
+        let html = rtf_to_html(r"{\rtf1\ansi Name:\tab Value}");
+        assert_eq!(html, "<p>Name:\tValue</p>");
+    }
+
+    #[test]
+    fn test_rtf_to_html_line_is_soft_break() {
+        // Matches html_to_rtf, which writes <br> as \line.
+        let html = rtf_to_html(r"{\rtf1\ansi Line one\line Line two\par Next}");
+        assert_eq!(html, "<p>Line one<br>Line two</p><p>Next</p>");
+    }
+
+    #[test]
+    fn test_rtf_to_html_cocoa_line_separator_is_soft_break() {
+        let html = rtf_to_html(r"{\rtf1\ansi\uc0 Line one\u8232 Line two}");
+        assert_eq!(html, "<p>Line one<br>Line two</p>");
+    }
+
+    #[test]
+    fn test_rtf_to_html_skips_pict_hex() {
+        // Windows RTF (Word, Scrivener for Windows) embeds images as hex.
+        let rtf = r"{\rtf1\ansi Before.{\pict\wmetafile8\picw529\pich529 010009000003a2 ffd8ffe000104a46}\par
+{\*\shppict{\pict\pngblip 89504e470d0a1a0a}}{\nonshppict{\pict\wmetafile8 0100090000}}After.}";
+        let html = rtf_to_html(rtf);
+        assert_eq!(html, "<p>Before.</p><p>After.</p>");
+    }
+
+    #[test]
+    fn test_rtf_to_html_skips_cocoa_attachment_and_list_templates() {
+        let rtf = r"{\rtf1\ansi {{\NeXTGraphic Pasted Graphic.png \width100 \height100}}Text{\pn\pnlvlblt{\pntxtb \'b7}} more}";
+        let html = rtf_to_html(rtf);
+        assert_eq!(html, "<p>Text more</p>");
+    }
+
+    #[test]
+    fn test_rtf_to_html_escaped_brace_in_skipped_group() {
+        // An escaped brace inside a skipped group must not unbalance it.
+        let html = rtf_to_html(r"{\rtf1\ansi{\info{\title A \{ B}}Body text.}");
+        assert_eq!(html, "<p>Body text.</p>");
+    }
+
+    #[test]
+    fn test_rtf_to_html_unicode_hex_fallback_not_duplicated() {
+        // Word writes \uN followed by an \'hh ANSI fallback (default \uc1).
+        let html = rtf_to_html(r"{\rtf1\ansi \u8220\'93Hi\u8221\'94}");
+        assert_eq!(html, "<p>\u{201C}Hi\u{201D}</p>");
+    }
+
+    #[test]
+    fn test_rtf_to_html_uc_skip_count() {
+        // \uc0 (what Cocoa writes): nothing follows, so "?" is real text.
+        let html = rtf_to_html(r"{\rtf1\ansi\uc0 Why\u8253 ?}");
+        assert_eq!(html, "<p>Why\u{203D}?</p>");
+        // \uc2: two fallback characters to discard.
+        let html = rtf_to_html(r"{\rtf1\ansi\uc2 a\u8212 --b}");
+        assert_eq!(html, "<p>a\u{2014}b</p>");
+    }
+
+    #[test]
+    fn test_rtf_to_html_unicode_surrogate_pair() {
+        let html = rtf_to_html(r"{\rtf1\ansi Cat \u-10179?\u-8704?}");
+        assert_eq!(html, "<p>Cat \u{1F600}</p>");
+    }
+
+    #[test]
+    fn test_rtf_to_html_group_scopes_formatting() {
+        let html = rtf_to_html(r"{\rtf1\ansi {\b bold} plain {\i it} \ul u\ul0  done}");
+        assert_eq!(
+            html,
+            "<p><strong>bold</strong> plain <em>it</em> <u>u</u> done</p>"
+        );
+    }
+
     // =========================================================================
     // Bundle parser tests (filesystem)
     // =========================================================================
@@ -1850,6 +2194,45 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_scrivener_bundle_raw_8bit_rtf_keeps_prose() {
+        // Some writers emit raw cp1252 bytes rather than \'hh escapes, so the
+        // file is not UTF-8. Its prose must still import.
+        let dir = tempfile::tempdir().unwrap();
+        let scriv = dir.path().join("Raw.scriv");
+        std::fs::create_dir_all(&scriv).unwrap();
+        let scrivx = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="RAW-1" Version="2.0">
+  <Binder>
+    <BinderItem UUID="DRAFT" Type="DraftFolder" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Draft</Title>
+      <Children>
+        <BinderItem UUID="TXT1" Type="Text" Created="2024-01-01" Modified="2024-01-01">
+          <Title>Scene</Title>
+          <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+        </BinderItem>
+      </Children>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#;
+        std::fs::write(scriv.join("Raw.scrivx"), scrivx).unwrap();
+        let data = scriv.join("Files").join("Data");
+        std::fs::create_dir_all(data.join("TXT1")).unwrap();
+        let mut rtf = br"{\rtf1\ansi\ansicpg1252 It".to_vec();
+        rtf.push(0x92);
+        rtf.extend_from_slice(b"s caf");
+        rtf.push(0xE9);
+        rtf.extend_from_slice(b".}");
+        std::fs::write(data.join("TXT1").join("content.rtf"), rtf).unwrap();
+
+        let parsed = parse_scrivener_bundle(&scriv).unwrap();
+        assert_eq!(parsed.beats.len(), 1);
+        assert_eq!(
+            parsed.beats[0].prose.as_deref(),
+            Some("<p>It\u{2019}s caf\u{e9}.</p>")
+        );
+    }
+
+    #[test]
     fn test_parse_scrivener_bundle_no_scrivx() {
         let dir = tempfile::tempdir().unwrap();
         let scriv = dir.path().join("Empty.scriv");
@@ -1926,8 +2309,16 @@ mod content_path_tests {
         let dir = tempfile::tempdir().unwrap();
         let data = dir.path().join("Data");
         std::fs::create_dir_all(data.join("LEGACY")).unwrap();
-        std::fs::write(data.join("LEGACY/content.rtf"), b"{\\rtf1 \xff}").unwrap();
+        // A content.rtf that cannot be read (here, a directory) imports empty.
+        std::fs::create_dir_all(data.join("LEGACY/content.rtf")).unwrap();
         assert!(read_rtf_content(&data, "LEGACY").unwrap().is_none());
+        // Non-UTF-8 bytes are decoded as cp1252 rather than discarding the file.
+        std::fs::create_dir_all(data.join("ANSI")).unwrap();
+        std::fs::write(data.join("ANSI/content.rtf"), b"{\\rtf1 \xff}").unwrap();
+        assert_eq!(
+            read_rtf_content(&data, "ANSI").unwrap().as_deref(),
+            Some("<p>\u{ff}</p>")
+        );
         // An absent UUID must not resolve to Data/content.rtf.
         std::fs::write(data.join("content.rtf"), "{\\rtf1 Not this document}").unwrap();
         assert!(read_rtf_content(&data, "").unwrap().is_none());
