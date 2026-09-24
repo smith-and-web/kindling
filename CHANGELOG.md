@@ -41,7 +41,7 @@ This changelog is automatically generated from [Conventional Commits](https://ww
 * **sync:** scenes, beats and chapters added by sync take their own place instead of sharing a position with an existing item
 * **scrivener:** Mac Scrivener imports keep their paragraphs, curly quotes, dashes and tabs, decode the project's code page, and no longer pick up image data or placeholders as prose
 * **scrivener:** **Create new** refuses to replace an existing `.scriv` project instead of overwriting it
-* **longform:** prose lines containing `::` are no longer deleted as Dataview fields
+* **longform:** prose lines containing `::` are no longer deleted as Dataview fields. Only fields kindling uses (such as `pov::`, `characters::`, `setting::`, `status::` and `synopsis::`) are read as metadata; any other `key:: value` line now stays in the scene.
 * **longform:** import only reads notes inside the vault
 * **plottr:** cards with a title but no description are imported. Syncing a Plottr project imported with an earlier version offers those cards as new scenes, placed where Plottr has them.
 * **import:** novelWriter appears on the home screen's import options
