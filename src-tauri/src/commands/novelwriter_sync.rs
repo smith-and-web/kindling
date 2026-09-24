@@ -12,13 +12,41 @@ use std::{
 };
 use uuid::Uuid;
 
-pub(super) fn load(_conn: &Connection, project: &Project) -> Result<ParsedNovelWriter, String> {
+/// Reads the source for sync. A document with several headings that kindling
+/// 1.2 imported as one chapter or scene (its first heading's items are here,
+/// its later headings' are not) is read that same way, so upgrading never
+/// offers its later headings as new scenes over text the project already has.
+pub(super) fn load(conn: &Connection, project: &Project) -> Result<ParsedNovelWriter, String> {
     let path = project
         .source_path
         .as_deref()
         .ok_or("Project has no novelWriter source folder")?;
     let parsed = parse_novelwriter_project(Path::new(path)).map_err(|e| e.to_string())?;
-    Ok(parsed)
+    if parsed.split_documents.is_empty() {
+        return Ok(parsed);
+    }
+    let chapters =
+        db::get_all_chapters_including_archived(conn, &project.id).map_err(|e| e.to_string())?;
+    let scenes =
+        db::get_all_scenes_including_archived(conn, &project.id).map_err(|e| e.to_string())?;
+    let known: HashSet<_> = chapters
+        .iter()
+        .filter_map(|c| c.source_id.as_deref())
+        .chain(scenes.iter().filter_map(|s| s.source_id.as_deref()))
+        .collect();
+    let unsplit: HashSet<_> = parsed
+        .split_documents
+        .iter()
+        .filter(|d| {
+            d.first.iter().any(|id| known.contains(id.as_str()))
+                && !d.later.iter().any(|id| known.contains(id.as_str()))
+        })
+        .map(|d| d.handle.clone())
+        .collect();
+    if unsplit.is_empty() {
+        return Ok(parsed);
+    }
+    parse_novelwriter_project_with(Path::new(path), &unsplit).map_err(|e| e.to_string())
 }
 /// One field as kindling holds it and as novelWriter holds it now.
 struct Field {
@@ -1378,5 +1406,69 @@ mod tests {
         assert_eq!(left.len(), 1);
         assert_eq!(left[0].db_id, beats[0].id.to_string());
         assert_eq!(prose(&beats[1]).as_deref(), Some("<p>Local.</p>"));
+    }
+
+    #[test]
+    fn documents_imported_whole_before_1_3_keep_their_one_scene_shape() {
+        let (original, source) = fixture();
+        let temp = tempfile::tempdir().unwrap();
+        export_novelwriter_project(&original, &source.id, temp.path(), &Default::default())
+            .unwrap();
+        let handle = parse_novelwriter_project(temp.path()).unwrap().scenes[0]
+            .source_id
+            .clone()
+            .unwrap();
+        let file = temp.path().join("content").join(format!("{handle}.md"));
+        let text = std::fs::read_to_string(&file).unwrap();
+        std::fs::write(&file, format!("{text}\n### Second half\n\nMore text.\n")).unwrap();
+        // kindling 1.2 read the whole document as one scene.
+        let legacy =
+            parse_novelwriter_project_with(temp.path(), &HashSet::from([handle.clone()])).unwrap();
+        assert_eq!(legacy.scenes.len(), 1);
+        let conn = Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        super::super::import::insert_novelwriter(&conn, &legacy).unwrap();
+        let project = legacy.project;
+        let text_of = |conn: &Connection| {
+            db::get_all_project_beats(conn, &project.id)
+                .unwrap()
+                .into_iter()
+                .filter_map(|b| b.prose)
+                .collect::<String>()
+        };
+        let before = text_of(&conn);
+        assert_eq!(before.matches("More text.").count(), 1);
+
+        // After upgrading, sync offers nothing: no new scene, no prose removal.
+        let parsed = load(&conn, &project).unwrap();
+        let diff = preview(&conn, &project, &parsed).unwrap();
+        assert!(diff.additions.is_empty(), "{:?}", diff.additions);
+        assert!(diff.changes.is_empty(), "{:?}", diff.changes);
+        // Reimport accepts every change and addition; nothing is duplicated.
+        let all: Vec<_> = diff.additions.iter().map(|a| a.id.clone()).collect();
+        apply(&conn, &project, &parsed, &[], &all, &[]).unwrap();
+        assert_eq!(
+            db::get_all_project_scenes(&conn, &project.id)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(text_of(&conn), before);
+        // Later edits under the second heading still reach the one scene.
+        std::fs::write(
+            &file,
+            std::fs::read_to_string(&file)
+                .unwrap()
+                .replace("More text.", "More text, revised."),
+        )
+        .unwrap();
+        let diff = preview(&conn, &project, &load(&conn, &project).unwrap()).unwrap();
+        assert!(diff.additions.is_empty(), "{:?}", diff.additions);
+        assert_eq!(diff.changes.len(), 1, "{:?}", diff.changes);
+        // A fresh import of the same folder gets one scene per heading.
+        assert_eq!(
+            parse_novelwriter_project(temp.path()).unwrap().scenes.len(),
+            2
+        );
     }
 }

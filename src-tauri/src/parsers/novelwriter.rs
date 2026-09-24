@@ -39,12 +39,33 @@ pub struct ParsedNovelWriter {
     pub scene_location_refs: Vec<(Uuid, Uuid)>,
     pub scene_reference_item_refs: Vec<(Uuid, Uuid)>,
     pub scenes_with_beat_comments: HashSet<String>,
+    /// Documents with more than one heading, which kindling 1.2 and earlier
+    /// imported as a single chapter or scene.
+    pub split_documents: Vec<SplitDocument>,
+}
+/// The chapter and scene identities one multi-heading document produced.
+#[derive(Debug)]
+pub struct SplitDocument {
+    pub handle: String,
+    /// From the first heading: these are what a 1.2 import created too.
+    pub first: Vec<String>,
+    /// From later headings: new in 1.3, so absent from an older import.
+    pub later: Vec<String>,
 }
 pub fn novelwriter_beat_source_id(handle: &str, position: i32) -> String {
     format!("novelwriter:beat:{handle}:{position}")
 }
 
 pub fn parse_novelwriter_project(path: &Path) -> Result<ParsedNovelWriter, NovelWriterError> {
+    parse_novelwriter_project_with(path, &HashSet::new())
+}
+
+/// Parses the project, reading the documents in `unsplit` as one section each,
+/// the way kindling 1.2 did, so a project imported then keeps its shape.
+pub fn parse_novelwriter_project_with(
+    path: &Path,
+    unsplit: &HashSet<String>,
+) -> Result<ParsedNovelWriter, NovelWriterError> {
     let index = path.join("nwProject.nwx");
     let xml = std::fs::read_to_string(&index)
         .map_err(|e| NovelWriterError::Invalid(format!("Cannot read {}: {e}", index.display())))?;
@@ -67,6 +88,7 @@ pub fn parse_novelwriter_project(path: &Path) -> Result<ParsedNovelWriter, Novel
         scene_location_refs: vec![],
         scene_reference_item_refs: vec![],
         scenes_with_beat_comments: HashSet::new(),
+        split_documents: vec![],
     };
     let mut ordered = Vec::new();
     fn walk<'a>(parent: &str, doc: &'a Nwx, out: &mut Vec<&'a NwItem>) {
@@ -123,7 +145,17 @@ pub fn parse_novelwriter_project(path: &Path) -> Result<ParsedNovelWriter, Novel
         })?;
         let body = read_document(&text)?.body;
         if root.class == "NOVEL" && item.layout != "NOTE" {
-            for (n, body) in sections(&body).into_iter().enumerate() {
+            let sections = if unsplit.contains(&item.handle) {
+                vec![body.clone()]
+            } else {
+                sections(&body)
+            };
+            let mut split = SplitDocument {
+                handle: item.handle.clone(),
+                first: vec![],
+                later: vec![],
+            };
+            for (n, body) in sections.into_iter().enumerate() {
                 // The first section keeps the document handle, so existing sync
                 // identities survive; later headings get stable derived handles.
                 let handle = if n == 0 {
@@ -147,6 +179,12 @@ pub fn parse_novelwriter_project(path: &Path) -> Result<ParsedNovelWriter, Novel
                 } else {
                     title.clone()
                 };
+                // The shared "Manuscript" chapter is not this document's.
+                let shared = stable_handle(&format!(
+                    "{}:chapter",
+                    part_handle.as_deref().unwrap_or(&item.root)
+                ));
+                let (chapters, scenes) = (parsed.chapters.len(), parsed.scenes.len());
                 novel_section(
                     &mut parsed,
                     (&handle, item),
@@ -155,6 +193,23 @@ pub fn parse_novelwriter_project(path: &Path) -> Result<ParsedNovelWriter, Novel
                     (&mut chapter_id, &mut part_handle),
                     &mut links,
                 );
+                let made = parsed.chapters[chapters..]
+                    .iter()
+                    .filter_map(|c| c.source_id.clone())
+                    .chain(
+                        parsed.scenes[scenes..]
+                            .iter()
+                            .filter_map(|s| s.source_id.clone()),
+                    )
+                    .filter(|id| *id != shared);
+                if n == 0 {
+                    split.first.extend(made);
+                } else {
+                    split.later.extend(made);
+                }
+            }
+            if !split.later.is_empty() {
+                parsed.split_documents.push(split);
             }
         } else {
             let mut description = Vec::new();
