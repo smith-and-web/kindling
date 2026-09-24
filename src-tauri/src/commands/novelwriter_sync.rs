@@ -17,26 +17,32 @@ pub(super) fn load(_conn: &Connection, project: &Project) -> Result<ParsedNovelW
     let parsed = parse_novelwriter_project(Path::new(path)).map_err(|e| e.to_string())?;
     Ok(parsed)
 }
+/// One field as kindling holds it and as novelWriter holds it now.
+struct Field {
+    kind: &'static str,
+    id: Uuid,
+    title: String,
+    field: &'static str,
+    local: String,
+    incoming: String,
+}
 fn change(
-    out: &mut SyncPreview,
-    kind: &str,
+    out: &mut Vec<Field>,
+    kind: &'static str,
     id: Uuid,
     title: &str,
-    field: &str,
+    field: &'static str,
     before: &str,
     after: &str,
 ) {
-    if before != after {
-        out.changes.push(SyncChange {
-            id: format!("{kind}-{field}-{id}"),
-            item_type: kind.into(),
-            field: field.into(),
-            item_title: title.into(),
-            current_value: before.into(),
-            new_value: after.into(),
-            db_id: id.to_string(),
-        });
-    }
+    out.push(Field {
+        kind,
+        id,
+        title: title.into(),
+        field,
+        local: before.into(),
+        incoming: after.into(),
+    });
 }
 fn addition(out: &mut SyncPreview, kind: &str, source: &str, title: &str, parent: Option<&str>) {
     out.additions.push(SyncAddition {
@@ -63,11 +69,12 @@ fn scene_prose(scene: &Scene, beats: &[Beat]) -> String {
         .join("\n\n")
 }
 
-pub(super) fn preview(
+/// Walks the source and the project the same way for preview and baselines.
+fn compare(
     conn: &Connection,
     project: &Project,
     parsed: &ParsedNovelWriter,
-) -> Result<SyncPreview, String> {
+) -> Result<(Vec<Field>, SyncPreview), String> {
     let chapters = db::get_chapters(conn, &project.id).map_err(|e| e.to_string())?;
     let scenes = db::get_all_project_scenes(conn, &project.id).map_err(|e| e.to_string())?;
     let beats = db::get_all_project_beats(conn, &project.id).map_err(|e| e.to_string())?;
@@ -92,6 +99,7 @@ pub(super) fn preview(
         additions: vec![],
         changes: vec![],
     };
+    let mut fields = vec![];
     for chapter in &parsed.chapters {
         let source = chapter.source_id.as_deref().unwrap();
         let local_chapter = chapters_by_source.get(source).copied();
@@ -100,7 +108,7 @@ pub(super) fn preview(
         }
         if let Some(local) = local_chapter {
             change(
-                &mut out,
+                &mut fields,
                 "chapter",
                 local.id,
                 &local.title,
@@ -119,7 +127,7 @@ pub(super) fn preview(
             }
             if let Some(local) = local {
                 change(
-                    &mut out,
+                    &mut fields,
                     "scene",
                     local.id,
                     &local.title,
@@ -128,7 +136,7 @@ pub(super) fn preview(
                     &scene.title,
                 );
                 change(
-                    &mut out,
+                    &mut fields,
                     "scene",
                     local.id,
                     &local.title,
@@ -140,7 +148,7 @@ pub(super) fn preview(
                     || !parsed.scenes_with_beat_comments.contains(source)
                 {
                     change(
-                        &mut out,
+                        &mut fields,
                         "scene",
                         local.id,
                         &local.title,
@@ -170,7 +178,7 @@ pub(super) fn preview(
                     .filter(|b| local.is_some_and(|s| s.id == b.scene_id))
                 {
                     change(
-                        &mut out,
+                        &mut fields,
                         "beat",
                         existing.id,
                         &existing.content,
@@ -180,7 +188,7 @@ pub(super) fn preview(
                     );
                     if local.is_some_and(|s| s.editor_mode == EditorMode::Beat) {
                         change(
-                            &mut out,
+                            &mut fields,
                             "beat",
                             existing.id,
                             &existing.content,
@@ -194,6 +202,81 @@ pub(super) fn preview(
                 }
             }
         }
+    }
+    Ok((fields, out))
+}
+
+/// The novelWriter text of each field at the last import or sync, by item and field.
+fn baselines(
+    conn: &Connection,
+    project: &Project,
+) -> Result<HashMap<(String, String), String>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT item_id, field, value FROM novelwriter_sync_baselines WHERE project_id = ?1",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([project.id.to_string()], |r| {
+            Ok(((r.get(0)?, r.get(1)?), r.get(2)?))
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
+}
+
+/// Record the novelWriter side of every field kindling now matches. Fields that
+/// still differ keep their previous baseline, so a declined change is offered again.
+pub(crate) fn record_baselines(
+    conn: &Connection,
+    project: &Project,
+    parsed: &ParsedNovelWriter,
+) -> Result<(), String> {
+    let (fields, _) = compare(conn, project, parsed)?;
+    let mut stmt = conn
+        .prepare(
+            "INSERT INTO novelwriter_sync_baselines (project_id, item_id, field, value)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(item_id, field) DO UPDATE SET value = excluded.value",
+        )
+        .map_err(|e| e.to_string())?;
+    for f in fields.iter().filter(|f| f.local == f.incoming) {
+        stmt.execute(rusqlite::params![
+            project.id.to_string(),
+            f.id.to_string(),
+            f.field,
+            f.incoming
+        ])
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Only fields novelWriter changed since the baseline are offered. When kindling
+/// changed too, or there is no baseline (imported before baselines existed), the
+/// change is a conflict the writer must pick individually.
+pub(super) fn preview(
+    conn: &Connection,
+    project: &Project,
+    parsed: &ParsedNovelWriter,
+) -> Result<SyncPreview, String> {
+    let (fields, mut out) = compare(conn, project, parsed)?;
+    let baselines = baselines(conn, project)?;
+    for f in fields.into_iter().filter(|f| f.local != f.incoming) {
+        let base = baselines.get(&(f.id.to_string(), f.field.to_string()));
+        if base == Some(&f.incoming) {
+            // novelWriter is unchanged: the difference is a kindling edit.
+            continue;
+        }
+        out.changes.push(SyncChange {
+            id: format!("{}-{}-{}", f.kind, f.field, f.id),
+            item_type: f.kind.into(),
+            field: f.field.into(),
+            item_title: f.title,
+            conflict: base != Some(&f.local),
+            current_value: f.local,
+            new_value: f.incoming,
+            db_id: f.id.to_string(),
+        });
     }
     Ok(out)
 }
@@ -342,6 +425,7 @@ pub(super) fn apply(
             summary.beats_added += 1;
         }
     }
+    record_baselines(&tx, project, parsed)?;
     db::update_project_modified(&tx, &project.id).map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
     Ok(summary)
@@ -430,6 +514,84 @@ mod tests {
             .changes
             .is_empty());
     }
+    /// Rewrites the scene's novelWriter document the way an edit in novelWriter would.
+    fn edit_source(
+        temp: &tempfile::TempDir,
+        conn: &Connection,
+        project: &Project,
+        from: &str,
+        to: &str,
+    ) {
+        let handle = db::get_all_project_scenes(conn, &project.id).unwrap()[0]
+            .source_id
+            .clone()
+            .unwrap();
+        let file = temp.path().join("content").join(format!("{handle}.md"));
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(text.contains(from));
+        std::fs::write(file, text.replace(from, to)).unwrap();
+    }
+
+    #[test]
+    fn local_edits_are_never_incoming_and_both_side_edits_are_conflicts() {
+        let (conn, project, temp) = imported();
+        let beats = db::get_all_project_beats(&conn, &project.id).unwrap();
+        // Revise a beat in kindling, then fix a typo in a different beat in novelWriter.
+        db::update_beat_prose(&conn, &beats[0].id, "<p>Revised in kindling.</p>").unwrap();
+        edit_source(&temp, &conn, &project, "listened", "listened closely");
+        let parsed = load(&conn, &project).unwrap();
+        let changes = preview(&conn, &project, &parsed).unwrap().changes;
+        assert_eq!(changes.len(), 1, "{changes:?}");
+        assert_eq!(changes[0].db_id, beats[1].id.to_string());
+        assert!(!changes[0].conflict);
+        // "All" + Apply: the novelWriter fix lands and the kindling revision survives.
+        let all: Vec<_> = changes.iter().map(|c| c.id.clone()).collect();
+        apply(&conn, &project, &parsed, &all, &[]).unwrap();
+        let after = db::get_all_project_beats(&conn, &project.id).unwrap();
+        assert_eq!(
+            after[0].prose.as_deref(),
+            Some("<p>Revised in kindling.</p>")
+        );
+        assert!(after[1]
+            .prose
+            .as_deref()
+            .unwrap()
+            .contains("listened closely"));
+        assert!(preview(&conn, &project, &parsed)
+            .unwrap()
+            .changes
+            .is_empty());
+
+        // A declined incoming change is offered again rather than forgotten.
+        edit_source(&temp, &conn, &project, "listened closely", "listened hard");
+        let parsed = load(&conn, &project).unwrap();
+        apply(&conn, &project, &parsed, &[], &[]).unwrap();
+        let changes = preview(&conn, &project, &parsed).unwrap().changes;
+        assert_eq!((changes.len(), changes[0].conflict), (1, false));
+
+        // Both sides changed since the last sync: a conflict showing both texts.
+        db::update_beat_prose(&conn, &beats[1].id, "<p>Also revised here.</p>").unwrap();
+        let changes = preview(&conn, &project, &parsed).unwrap().changes;
+        assert_eq!(changes.len(), 1);
+        assert!(changes[0].conflict);
+        assert_eq!(changes[0].current_value, "Also revised here.");
+        assert!(changes[0].new_value.contains("listened hard"));
+        // Explicitly accepting a conflict applies it and settles the baseline.
+        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[]).unwrap();
+        assert!(preview(&conn, &project, &parsed)
+            .unwrap()
+            .changes
+            .is_empty());
+
+        // Projects imported before baselines existed cannot tell who changed what.
+        conn.execute("DELETE FROM novelwriter_sync_baselines", [])
+            .unwrap();
+        let changes = preview(&conn, &project, &parsed).unwrap().changes;
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].db_id, beats[0].id.to_string());
+        assert!(changes[0].conflict);
+    }
+
     #[test]
     fn page_and_unmarked_scene_prose_use_correct_home() {
         let (conn, project, temp) = imported();

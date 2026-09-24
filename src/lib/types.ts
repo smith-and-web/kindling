@@ -343,6 +343,11 @@ export interface SyncChange {
   new_value: string;
   /** The database ID of the item to update */
   db_id: string;
+  /**
+   * Both sides changed since the last sync, or there is no baseline to tell.
+   * Accepting may discard a kindling edit, so "All" never selects it.
+   */
+  conflict: boolean;
 }
 
 /** Preview of changes that would occur during a sync operation */

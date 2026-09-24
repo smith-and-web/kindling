@@ -250,6 +250,16 @@ CREATE TABLE IF NOT EXISTS writing_goals (
             PRIMARY KEY (scene_id, reference_id)
         );
 
+        -- novelWriter text of each synced field at the last import or sync, so
+        -- sync can tell a novelWriter edit from a kindling one.
+        CREATE TABLE IF NOT EXISTS novelwriter_sync_baselines (
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            item_id TEXT NOT NULL,
+            field TEXT NOT NULL,
+            value TEXT NOT NULL,
+            PRIMARY KEY (item_id, field)
+        );
+
         -- Create indexes for common queries
         CREATE INDEX IF NOT EXISTS idx_chapters_project ON chapters(project_id);
         CREATE INDEX IF NOT EXISTS idx_scenes_chapter ON scenes(chapter_id);
@@ -272,6 +282,7 @@ CREATE TABLE IF NOT EXISTS writing_goals (
         CREATE INDEX IF NOT EXISTS idx_field_values_definition ON field_values(field_definition_id);
         CREATE INDEX IF NOT EXISTS idx_field_values_entity ON field_values(entity_id);
         CREATE INDEX IF NOT EXISTS idx_dismissed_suggestions_scene ON dismissed_suggestions(scene_id);
+        CREATE INDEX IF NOT EXISTS idx_novelwriter_sync_baselines_project ON novelwriter_sync_baselines(project_id);
 
         "#,
     )?;
@@ -856,6 +867,37 @@ mod tests {
         assert!(tables.contains(&"field_values".to_string()));
         assert!(tables.contains(&"dismissed_suggestions".to_string()));
         assert!(tables.contains(&"story_templates".to_string()));
+        assert!(tables.contains(&"novelwriter_sync_baselines".to_string()));
+    }
+
+    #[test]
+    fn sync_baselines_table_is_added_to_existing_databases_idempotently() {
+        let conn = Connection::open_in_memory().unwrap();
+        initialize_schema(&conn).unwrap();
+        // A 1.2 database: no baselines table, existing project data.
+        conn.execute_batch("DROP TABLE novelwriter_sync_baselines;")
+            .unwrap();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at)
+             VALUES ('p', 'Old', 'novelwriter', 'then', 'then')",
+            [],
+        )
+        .unwrap();
+        initialize_schema(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO novelwriter_sync_baselines VALUES ('p', 'item', 'prose', 'Text')",
+            [],
+        )
+        .unwrap();
+        initialize_schema(&conn).unwrap();
+        let (projects, baselines): (i64, i64) = conn
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM projects), (SELECT COUNT(*) FROM novelwriter_sync_baselines)",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((projects, baselines), (1, 1));
     }
 
     #[test]

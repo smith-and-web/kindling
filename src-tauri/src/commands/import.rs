@@ -350,5 +350,6 @@ pub(crate) fn insert_novelwriter(
     for (scene, item) in &parsed.scene_reference_item_refs {
         db::add_scene_reference_item_ref(&tx, scene, item).map_err(|e| e.to_string())?;
     }
+    super::novelwriter_sync::record_baselines(&tx, &parsed.project, parsed)?;
     tx.commit().map_err(|e| e.to_string())
 }

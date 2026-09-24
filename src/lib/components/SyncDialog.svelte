@@ -42,10 +42,11 @@
     }
   }
 
+  // Conflicts may replace a kindling edit, so they are only ever chosen one by one.
   function selectAllChanges() {
     selectedChanges.clear();
     for (const change of syncPreview.changes) {
-      selectedChanges.add(change.id);
+      if (!change.conflict) selectedChanges.add(change.id);
     }
   }
 
@@ -73,6 +74,7 @@
   }
 
   const selectedCount = $derived(selectedAdditions.size + selectedChanges.size);
+  const conflictCount = $derived(syncPreview.changes.filter((c) => c.conflict).length);
   const hasNothingToSync = $derived(
     syncPreview.additions.length === 0 && syncPreview.changes.length === 0
   );
@@ -146,6 +148,11 @@
           {#if syncPreview.changes.length > 0}
             <span class="ka-badge">{syncPreview.changes.length} changed</span>
           {/if}
+          {#if conflictCount > 0}
+            <span class="ka-badge ka-badge--warning" data-testid="sync-conflict-count"
+              >{conflictCount} conflict{conflictCount !== 1 ? "s" : ""}</span
+            >
+          {/if}
         </div>
 
         {#if syncPreview.additions.length > 0}
@@ -212,8 +219,8 @@
                   type="button"
                   onclick={selectAllChanges}
                   class="ka-button ka-button--ghost"
-                  aria-label="Select all changes"
-                  title="Select all">All</button
+                  aria-label="Select all changes except conflicts"
+                  title="Select all except conflicts">All</button
                 >
                 <button
                   type="button"
@@ -236,12 +243,24 @@
                       onchange={() => toggleChange(change.id)}
                       disabled={syncing}
                     />
-                    <span class="sync-type"><span class="ka-badge">Changed</span></span>
+                    <span class="sync-type">
+                      {#if change.conflict}
+                        <span class="ka-badge ka-badge--warning">Conflict</span>
+                      {:else}
+                        <span class="ka-badge">Changed</span>
+                      {/if}
+                    </span>
                     <span class="sync-text">
                       <span class="ka-label sync-name"
                         >{kindLabel(change.item_type)} · {change.item_title}</span
                       >
                       <span class="sync-meta">{FIELD_LABELS[change.field] ?? change.field}</span>
+                      {#if change.conflict}
+                        <span class="ka-help" data-testid="sync-conflict-help">
+                          This may have changed in kindling as well as in the outline file since the
+                          last sync. Accepting replaces the kindling version, so All skips it.
+                        </span>
+                      {/if}
                       {#if change.field === "prose"}
                         <span class="sync-prose" data-testid="sync-prose-diff">
                           <span class="ka-help">

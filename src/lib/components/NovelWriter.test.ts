@@ -179,6 +179,7 @@ describe("prose sync UI", () => {
           current_value: "Before\n\n" + "Long paragraph. ".repeat(40),
           new_value: "After\n\nA new paragraph.",
           db_id: "scene-1",
+          conflict: false,
         },
         {
           id: "title-1",
@@ -188,6 +189,7 @@ describe("prose sync UI", () => {
           current_value: "Arrival",
           new_value: "Departure",
           db_id: "scene-1",
+          conflict: false,
         },
       ],
     };
@@ -206,6 +208,56 @@ describe("prose sync UI", () => {
       expect(invoke).toHaveBeenCalledWith("apply_sync", {
         projectId: project.id,
         acceptedChangeIds: ["prose-1"],
+        acceptedAdditionIds: [],
+      })
+    );
+  });
+  it("marks conflicts and never bulk-selects them with All", async () => {
+    const change = {
+      item_type: "beat",
+      field: "prose",
+      item_title: "The knock",
+      current_value: "Revised in kindling.",
+      new_value: "Older novelWriter text.",
+      db_id: "beat-1",
+    } as const;
+    const syncPreview: SyncPreview = {
+      additions: [],
+      changes: [
+        { ...change, id: "incoming-1", conflict: false },
+        { ...change, id: "conflict-1", conflict: true },
+      ],
+    };
+    render(SyncDialog, {
+      projectId: project.id,
+      syncPreview,
+      onClose: vi.fn(),
+      onSyncComplete: vi.fn(),
+    });
+    expect(screen.getByTestId("sync-conflict-count").textContent).toBe("1 conflict");
+    expect(screen.getAllByTestId("sync-conflict-help")).toHaveLength(1);
+    await fireEvent.click(screen.getByRole("button", { name: /Select all changes/ }));
+    const boxes = screen.getAllByTestId("sync-change-checkbox") as HTMLInputElement[];
+    expect(boxes.map((b) => [b.dataset.changeId, b.checked])).toEqual([
+      ["incoming-1", true],
+      ["conflict-1", false],
+    ]);
+    await fireEvent.click(screen.getByTestId("sync-confirm"));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("apply_sync", {
+        projectId: project.id,
+        acceptedChangeIds: ["incoming-1"],
+        acceptedAdditionIds: [],
+      })
+    );
+    // A conflict can still be chosen explicitly.
+    vi.mocked(invoke).mockClear();
+    await fireEvent.click(boxes[1]);
+    await fireEvent.click(screen.getByTestId("sync-confirm"));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("apply_sync", {
+        projectId: project.id,
+        acceptedChangeIds: ["incoming-1", "conflict-1"],
         acceptedAdditionIds: [],
       })
     );

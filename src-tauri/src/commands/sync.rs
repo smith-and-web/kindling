@@ -4,11 +4,11 @@
 
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
-use tauri::State;
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 use crate::db;
-use crate::models::{Beat, Chapter, EditorMode, PlanningStatus, Scene};
+use crate::models::{Beat, Chapter, EditorMode, PlanningStatus, Scene, SnapshotTrigger};
 use crate::parsers::{
     parse_longform_index, parse_markdown_outline, parse_plottr_file, parse_ywriter_file,
 };
@@ -48,6 +48,9 @@ pub struct SyncChange {
     pub current_value: String,
     pub new_value: String,
     pub db_id: String, // The database ID to update if accepted
+    /// Both sides changed since the last sync (or there is no baseline), so
+    /// accepting may discard a kindling edit. Never bulk-selected.
+    pub conflict: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -145,7 +148,7 @@ fn reimport_project_with_connection(
                 &preview
                     .changes
                     .into_iter()
-                    .filter(|c| c.field != "prose")
+                    .filter(|c| c.field != "prose" && !c.conflict)
                     .map(|c| c.id)
                     .collect::<Vec<_>>(),
                 &preview
@@ -472,6 +475,7 @@ pub(super) fn get_sync_preview_with_connection(
                         current_value: existing.title.clone(),
                         new_value: new_chapter.title.clone(),
                         db_id: existing.id.to_string(),
+                        conflict: false,
                     });
                 }
             } else {
@@ -547,6 +551,7 @@ pub(super) fn get_sync_preview_with_connection(
                         current_value: existing.title.clone(),
                         new_value: new_scene.title.clone(),
                         db_id: existing.id.to_string(),
+                        conflict: false,
                     });
                 }
                 // Check for synopsis changes
@@ -561,6 +566,7 @@ pub(super) fn get_sync_preview_with_connection(
                         current_value: existing_synopsis,
                         new_value: new_synopsis,
                         db_id: existing.id.to_string(),
+                        conflict: false,
                     });
                 }
             } else {
@@ -634,6 +640,7 @@ pub(super) fn get_sync_preview_with_connection(
                         current_value: existing.content.clone(),
                         new_value: new_beat.content.clone(),
                         db_id: existing.id.to_string(),
+                        conflict: false,
                     });
                 }
             } else {
@@ -1013,9 +1020,25 @@ pub async fn apply_sync(
     project_id: String,
     accepted_change_ids: Vec<String>,
     accepted_addition_ids: Vec<String>,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<ReimportSummary, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+    // Accepted prose replaces the writer's text; keep a restorable copy first
+    // (before taking the connection lock, as export does).
+    if overwrites_prose(&accepted_change_ids) {
+        super::create_snapshot(
+            project_id.clone(),
+            super::CreateSnapshotOptions {
+                name: "Before sync".to_string(),
+                description: Some("Automatic snapshot created before sync replaced prose".into()),
+                trigger_type: SnapshotTrigger::Auto,
+            },
+            app_handle,
+            state.clone(),
+        )
+        .await?;
+    }
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     apply_sync_with_connection(
         &conn,
@@ -1023,6 +1046,13 @@ pub async fn apply_sync(
         accepted_change_ids,
         accepted_addition_ids,
     )
+}
+
+/// Prose changes are the only ones that can replace manuscript text.
+fn overwrites_prose(accepted_change_ids: &[String]) -> bool {
+    accepted_change_ids
+        .iter()
+        .any(|id| id.starts_with("beat-prose-") || id.starts_with("scene-prose-"))
 }
 
 fn apply_sync_with_connection(
@@ -2137,10 +2167,34 @@ mod source_regression_tests {
         super::super::import::insert_novelwriter(&conn, &parsed).unwrap();
         let project = parsed.project;
         let beat = &parsed.beats[0];
+        let scene = &parsed.scenes[0];
         db::update_beat_prose(&conn, &beat.id, "<p>Local draft</p>").unwrap();
+        // A kindling-only edit is not an incoming change.
+        assert!(get_sync_preview_with_connection(&conn, project.id)
+            .unwrap()
+            .changes
+            .is_empty());
+        // Edit the same prose and scene title in novelWriter too.
+        let file = temp
+            .path()
+            .join("content")
+            .join(format!("{}.md", scene.source_id.as_deref().unwrap()));
+        let text = std::fs::read_to_string(&file).unwrap();
+        std::fs::write(
+            &file,
+            text.replace("door", "gate")
+                .replace("### Arrival", "### Departure"),
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE scenes SET title = 'Landing' WHERE id = ?1",
+            [scene.id.to_string()],
+        )
+        .unwrap();
         let preview = get_sync_preview_with_connection(&conn, project.id).unwrap();
-        assert_eq!(preview.changes.len(), 1);
-        assert_eq!(preview.changes[0].field, "prose");
+        assert_eq!(preview.changes.len(), 2, "{:?}", preview.changes);
+        assert!(preview.changes.iter().all(|c| c.conflict));
+        // Reimport applies nothing that needs the writer's choice.
         reimport_project_with_connection(&conn, project.id).unwrap();
         assert_eq!(
             db::get_beats(&conn, &beat.scene_id).unwrap()[0]
@@ -2148,18 +2202,21 @@ mod source_regression_tests {
                 .as_deref(),
             Some("<p>Local draft</p>")
         );
-        let summary = apply_sync_with_connection(
-            &conn,
-            project.id,
-            vec![preview.changes[0].id.clone()],
-            vec![],
-        )
-        .unwrap();
+        assert_eq!(
+            db::get_all_project_scenes(&conn, &project.id).unwrap()[0].title,
+            "Landing"
+        );
+        let prose = preview.changes.iter().find(|c| c.field == "prose").unwrap();
+        assert!(overwrites_prose(std::slice::from_ref(&prose.id)));
+        let summary =
+            apply_sync_with_connection(&conn, project.id, vec![prose.id.clone()], vec![]).unwrap();
         assert_eq!(summary.prose_updated, 1);
-        assert!(get_sync_preview_with_connection(&conn, project.id)
+        let remaining = get_sync_preview_with_connection(&conn, project.id)
             .unwrap()
-            .changes
-            .is_empty());
+            .changes;
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].field, "title");
+        assert!(!overwrites_prose(&[remaining[0].id.clone()]));
     }
 }
 
