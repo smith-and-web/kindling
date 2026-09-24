@@ -75,6 +75,10 @@
 
   const selectedCount = $derived(selectedAdditions.size + selectedChanges.size);
   const conflictCount = $derived(syncPreview.changes.filter((c) => c.conflict).length);
+  // Applying settles unticked conflicts as "keep kindling", so that alone is worth applying.
+  const keptCount = $derived(
+    syncPreview.changes.filter((c) => c.conflict && !selectedChanges.has(c.id)).length
+  );
   const hasNothingToSync = $derived(
     syncPreview.additions.length === 0 && syncPreview.changes.length === 0
   );
@@ -154,6 +158,13 @@
             >
           {/if}
         </div>
+        {#if conflictCount > 0}
+          <p class="ka-help" data-testid="sync-conflict-note">
+            A conflict changed in kindling as well as in the outline file, or kindling can't tell
+            which side changed. Leave it unticked to keep the kindling version; it won't be offered
+            again unless the outline file changes it. All skips conflicts.
+          </p>
+        {/if}
 
         {#if syncPreview.additions.length > 0}
           <section class="ka-group sync-group" aria-labelledby="sync-additions-title">
@@ -257,8 +268,9 @@
                       <span class="sync-meta">{FIELD_LABELS[change.field] ?? change.field}</span>
                       {#if change.conflict}
                         <span class="ka-help" data-testid="sync-conflict-help">
-                          This may have changed in kindling as well as in the outline file since the
-                          last sync. Accepting replaces the kindling version, so All skips it.
+                          {selectedChanges.has(change.id)
+                            ? "Ticked: the incoming version will replace the kindling version."
+                            : "Unticked: the kindling version is kept. Tick to use the incoming version instead."}
                         </span>
                       {/if}
                       {#if change.field === "prose"}
@@ -320,7 +332,8 @@
         </button>
       {:else}
         <p class="ka-help ka-dialog-footer-start">
-          {selectedCount} item{selectedCount !== 1 ? "s" : ""} selected
+          {selectedCount} item{selectedCount !== 1 ? "s" : ""} selected{#if keptCount > 0}, {keptCount}
+            kindling version{keptCount !== 1 ? "s" : ""} kept{/if}
         </p>
         <button
           type="button"
@@ -334,13 +347,15 @@
           type="button"
           data-testid="sync-confirm"
           onclick={applySync}
-          disabled={syncing || selectedCount === 0}
+          disabled={syncing || (selectedCount === 0 && keptCount === 0)}
           aria-busy={syncing || undefined}
           class="ka-button"
         >
           {#if syncing}
             <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
             Applying…
+          {:else if selectedCount === 0 && keptCount > 0}
+            Keep kindling version{keptCount !== 1 ? "s" : ""}
           {:else if selectedCount === 0}
             Apply changes
           {:else}

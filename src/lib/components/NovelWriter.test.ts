@@ -262,6 +262,50 @@ describe("prose sync UI", () => {
       })
     );
   });
+  it("applies with nothing ticked to keep kindling's side of conflicts", async () => {
+    const change = {
+      item_type: "beat",
+      field: "prose",
+      item_title: "The knock",
+      current_value: "Revised in kindling.",
+      new_value: "Older novelWriter text.",
+      db_id: "beat-1",
+    } as const;
+    const onSyncComplete = vi.fn();
+    render(SyncDialog, {
+      projectId: project.id,
+      syncPreview: { additions: [], changes: [{ ...change, id: "conflict-1", conflict: true }] },
+      onClose: vi.fn(),
+      onSyncComplete,
+    });
+    expect(screen.getByTestId("sync-conflict-note").textContent).toContain(
+      "Leave it unticked to keep the kindling version"
+    );
+    expect(screen.getByTestId("sync-conflict-help").textContent).toContain(
+      "the kindling version is kept"
+    );
+    const confirm = screen.getByTestId("sync-confirm") as HTMLButtonElement;
+    expect(confirm.disabled).toBe(false);
+    expect(confirm.textContent).toContain("Keep kindling version");
+    await fireEvent.click(confirm);
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("apply_sync", {
+        projectId: project.id,
+        acceptedChangeIds: [],
+        acceptedAdditionIds: [],
+      })
+    );
+    await waitFor(() => expect(onSyncComplete).toHaveBeenCalled());
+    cleanup();
+    // Unticked non-conflicting changes are simply offered again; nothing to apply.
+    render(SyncDialog, {
+      projectId: project.id,
+      syncPreview: { additions: [], changes: [{ ...change, id: "incoming-1", conflict: false }] },
+      onClose: vi.fn(),
+      onSyncComplete: vi.fn(),
+    });
+    expect((screen.getByTestId("sync-confirm") as HTMLButtonElement).disabled).toBe(true);
+  });
   it.each([
     "Scrivener",
     "Blank",

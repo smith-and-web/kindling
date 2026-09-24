@@ -206,11 +206,10 @@ fn compare(
     Ok((fields, out))
 }
 
+type Baselines = HashMap<(String, String), String>;
+
 /// The novelWriter text of each field at the last import or sync, by item and field.
-fn baselines(
-    conn: &Connection,
-    project: &Project,
-) -> Result<HashMap<(String, String), String>, String> {
+fn baselines(conn: &Connection, project: &Project) -> Result<Baselines, String> {
     let mut stmt = conn
         .prepare(
             "SELECT item_id, field, value FROM novelwriter_sync_baselines WHERE project_id = ?1",
@@ -224,36 +223,67 @@ fn baselines(
     rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
 }
 
-/// Record the novelWriter side of every field kindling now matches. Fields that
-/// still differ keep their previous baseline, so a declined change is offered again.
+/// Settle a field at novelWriter's current text, writing only when that changes it.
+fn settle(
+    conn: &Connection,
+    project: &Project,
+    baselines: &mut Baselines,
+    f: &Field,
+) -> Result<(), String> {
+    let key = (f.id.to_string(), f.field.to_string());
+    if baselines.get(&key) == Some(&f.incoming) {
+        return Ok(());
+    }
+    conn.prepare_cached(
+        "INSERT INTO novelwriter_sync_baselines (project_id, item_id, field, value)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(item_id, field) DO UPDATE SET value = excluded.value",
+    )
+    .and_then(|mut stmt| {
+        stmt.execute(rusqlite::params![
+            project.id.to_string(),
+            key.0,
+            f.field,
+            f.incoming
+        ])
+    })
+    .map_err(|e| e.to_string())?;
+    baselines.insert(key, f.incoming.clone());
+    Ok(())
+}
+
+/// Settle every field kindling already matches (used at import and for new items).
 pub(crate) fn record_baselines(
     conn: &Connection,
     project: &Project,
     parsed: &ParsedNovelWriter,
 ) -> Result<(), String> {
     let (fields, _) = compare(conn, project, parsed)?;
-    let mut stmt = conn
-        .prepare(
-            "INSERT INTO novelwriter_sync_baselines (project_id, item_id, field, value)
-             VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT(item_id, field) DO UPDATE SET value = excluded.value",
-        )
-        .map_err(|e| e.to_string())?;
+    let mut known = baselines(conn, project)?;
     for f in fields.iter().filter(|f| f.local == f.incoming) {
-        stmt.execute(rusqlite::params![
-            project.id.to_string(),
-            f.id.to_string(),
-            f.field,
-            f.incoming
-        ])
-        .map_err(|e| e.to_string())?;
+        settle(conn, project, &mut known, f)?;
     }
     Ok(())
 }
 
-/// Only fields novelWriter changed since the baseline are offered. When kindling
-/// changed too, or there is no baseline (imported before baselines existed), the
-/// change is a conflict the writer must pick individually.
+/// Only fields novelWriter changed since the baseline are offered, paired with
+/// whether they conflict. When kindling changed too, or there is no baseline
+/// (imported before baselines existed), the writer must pick individually.
+fn offered<'a>(fields: &'a [Field], baselines: &Baselines) -> Vec<(&'a Field, bool)> {
+    fields
+        .iter()
+        .filter(|f| f.local != f.incoming)
+        .filter_map(|f| {
+            let base = baselines.get(&(f.id.to_string(), f.field.to_string()));
+            // novelWriter unchanged since the baseline: the difference is a kindling edit.
+            (base != Some(&f.incoming)).then_some((f, base != Some(&f.local)))
+        })
+        .collect()
+}
+fn change_id(f: &Field) -> String {
+    format!("{}-{}-{}", f.kind, f.field, f.id)
+}
+
 pub(super) fn preview(
     conn: &Connection,
     project: &Project,
@@ -261,35 +291,37 @@ pub(super) fn preview(
 ) -> Result<SyncPreview, String> {
     let (fields, mut out) = compare(conn, project, parsed)?;
     let baselines = baselines(conn, project)?;
-    for f in fields.into_iter().filter(|f| f.local != f.incoming) {
-        let base = baselines.get(&(f.id.to_string(), f.field.to_string()));
-        if base == Some(&f.incoming) {
-            // novelWriter is unchanged: the difference is a kindling edit.
-            continue;
-        }
+    for (f, conflict) in offered(&fields, &baselines) {
         out.changes.push(SyncChange {
-            id: format!("{}-{}-{}", f.kind, f.field, f.id),
+            id: change_id(f),
             item_type: f.kind.into(),
             field: f.field.into(),
-            item_title: f.title,
-            conflict: base != Some(&f.local),
-            current_value: f.local,
-            new_value: f.incoming,
+            item_title: f.title.clone(),
+            conflict,
+            current_value: f.local.clone(),
+            new_value: f.incoming.clone(),
             db_id: f.id.to_string(),
         });
     }
     Ok(out)
 }
 
+/// Applies the accepted changes and additions. With `settle_conflicts`, every
+/// conflict left unaccepted is settled as "keep kindling": its baseline moves to
+/// novelWriter's current text so it is not offered again until novelWriter
+/// changes it. Unaccepted non-conflicting changes keep their baseline and are
+/// offered again. Reimport passes `false` because it shows the writer nothing.
 pub(super) fn apply(
     conn: &Connection,
     project: &Project,
     parsed: &ParsedNovelWriter,
     accepted: &[String],
     additions: &[String],
+    settle_conflicts: bool,
 ) -> Result<ReimportSummary, String> {
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
-    let preview = preview(&tx, project, parsed)?;
+    let (fields, preview) = compare(&tx, project, parsed)?;
+    let mut known = baselines(&tx, project)?;
     let accepted: HashSet<_> = accepted.iter().collect();
     let additions: HashSet<_> = additions.iter().collect();
     let available: HashSet<_> = preview.additions.iter().map(|a| &a.id).collect();
@@ -308,17 +340,20 @@ pub(super) fn apply(
         .into_iter()
         .map(|s| (s.id, s))
         .collect();
-    for change in preview.changes {
-        if !accepted.contains(&change.id) {
+    for (change, conflict) in offered(&fields, &known) {
+        if !accepted.contains(&change_id(change)) {
             if change.field == "prose" {
                 summary.prose_preserved += 1;
             }
+            if conflict && settle_conflicts {
+                settle(&tx, project, &mut known, change)?;
+            }
             continue;
         }
-        let id = Uuid::parse_str(&change.db_id).map_err(|e| e.to_string())?;
+        let id = change.id;
         if change.field == "prose" {
-            let html = nw_to_html(&change.new_value);
-            if change.item_type == "beat" {
+            let html = nw_to_html(&change.incoming);
+            if change.kind == "beat" {
                 db::update_beat_prose(&tx, &id, &html).map_err(|e| e.to_string())?;
             } else {
                 let scene = scenes.get(&id).ok_or("Scene no longer exists")?;
@@ -347,8 +382,8 @@ pub(super) fn apply(
             }
             summary.prose_updated += 1;
         } else {
-            // The table/column pair comes exclusively from our own preview.
-            let (table, column) = match (change.item_type.as_str(), change.field.as_str()) {
+            // The table/column pair comes exclusively from our own comparison.
+            let (table, column) = match (change.kind, change.field) {
                 ("chapter", "title") => {
                     summary.chapters_updated += 1;
                     ("chapters", "title")
@@ -369,10 +404,16 @@ pub(super) fn apply(
             };
             tx.execute(
                 &format!("UPDATE {table} SET {column} = ?1 WHERE id = ?2"),
-                rusqlite::params![change.new_value, id.to_string()],
+                rusqlite::params![change.incoming, id.to_string()],
             )
             .map_err(|e| e.to_string())?;
         }
+        settle(&tx, project, &mut known, change)?;
+    }
+    // Both sides already agree (e.g. a pre-baseline project): nothing to write
+    // unless the baseline is missing or stale.
+    for f in fields.iter().filter(|f| f.local == f.incoming) {
+        settle(&tx, project, &mut known, f)?;
     }
     let mut chapter_ids = HashMap::new();
     for c in &parsed.chapters {
@@ -425,7 +466,10 @@ pub(super) fn apply(
             summary.beats_added += 1;
         }
     }
-    record_baselines(&tx, project, parsed)?;
+    // New items only exist after insertion, so they need one more comparison.
+    if summary.chapters_added + summary.scenes_added + summary.beats_added > 0 {
+        record_baselines(&tx, project, parsed)?;
+    }
     db::update_project_modified(&tx, &project.id).map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
     Ok(summary)
@@ -488,7 +532,15 @@ mod tests {
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
         assert_eq!(changes.len(), 2);
         assert!(changes.iter().all(|c| c.field == "prose"));
-        let summary = apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[]).unwrap();
+        let summary = apply(
+            &conn,
+            &project,
+            &parsed,
+            &[changes[0].id.clone()],
+            &[],
+            true,
+        )
+        .unwrap();
         assert_eq!((summary.prose_updated, summary.prose_preserved), (1, 1));
         let updated = db::get_all_project_beats(&conn, &project.id).unwrap();
         assert_eq!(
@@ -502,9 +554,16 @@ mod tests {
             .changes
             .is_empty());
         assert_eq!(
-            apply(&conn, &project, &parsed, &[changes[1].id.clone()], &[])
-                .unwrap()
-                .prose_updated,
+            apply(
+                &conn,
+                &project,
+                &parsed,
+                &[changes[1].id.clone()],
+                &[],
+                true
+            )
+            .unwrap()
+            .prose_updated,
             0
         );
         conn.execute("UPDATE chapters SET locked = 0", []).unwrap();
@@ -546,7 +605,7 @@ mod tests {
         assert!(!changes[0].conflict);
         // "All" + Apply: the novelWriter fix lands and the kindling revision survives.
         let all: Vec<_> = changes.iter().map(|c| c.id.clone()).collect();
-        apply(&conn, &project, &parsed, &all, &[]).unwrap();
+        apply(&conn, &project, &parsed, &all, &[], true).unwrap();
         let after = db::get_all_project_beats(&conn, &project.id).unwrap();
         assert_eq!(
             after[0].prose.as_deref(),
@@ -565,7 +624,7 @@ mod tests {
         // A declined incoming change is offered again rather than forgotten.
         edit_source(&temp, &conn, &project, "listened closely", "listened hard");
         let parsed = load(&conn, &project).unwrap();
-        apply(&conn, &project, &parsed, &[], &[]).unwrap();
+        apply(&conn, &project, &parsed, &[], &[], true).unwrap();
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
         assert_eq!((changes.len(), changes[0].conflict), (1, false));
 
@@ -577,7 +636,15 @@ mod tests {
         assert_eq!(changes[0].current_value, "Also revised here.");
         assert!(changes[0].new_value.contains("listened hard"));
         // Explicitly accepting a conflict applies it and settles the baseline.
-        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[]).unwrap();
+        apply(
+            &conn,
+            &project,
+            &parsed,
+            &[changes[0].id.clone()],
+            &[],
+            true,
+        )
+        .unwrap();
         assert!(preview(&conn, &project, &parsed)
             .unwrap()
             .changes
@@ -590,6 +657,81 @@ mod tests {
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].db_id, beats[0].id.to_string());
         assert!(changes[0].conflict);
+    }
+
+    #[test]
+    fn declined_conflicts_keep_kindling_until_novelwriter_changes_again() {
+        let (conn, project, temp) = imported();
+        let beats = db::get_all_project_beats(&conn, &project.id).unwrap();
+        db::update_beat_prose(&conn, &beats[1].id, "<p>Kept in kindling.</p>").unwrap();
+        edit_source(&temp, &conn, &project, "listened", "listened closely");
+        let parsed = load(&conn, &project).unwrap();
+        let changes = preview(&conn, &project, &parsed).unwrap().changes;
+        assert_eq!((changes.len(), changes[0].conflict), (1, true));
+        // Reimport shows the writer nothing, so it must not settle the conflict.
+        apply(&conn, &project, &parsed, &[], &[], false).unwrap();
+        assert_eq!(preview(&conn, &project, &parsed).unwrap().changes.len(), 1);
+        // Applying with the conflict unticked keeps kindling's text and settles it.
+        let summary = apply(&conn, &project, &parsed, &[], &[], true).unwrap();
+        assert_eq!((summary.prose_updated, summary.prose_preserved), (0, 1));
+        let kept = || db::get_beat(&conn, &beats[1].id).unwrap().unwrap().prose;
+        assert_eq!(kept().as_deref(), Some("<p>Kept in kindling.</p>"));
+        assert!(preview(&conn, &project, &parsed)
+            .unwrap()
+            .changes
+            .is_empty());
+        // A later novelWriter edit to the same field is offered again.
+        edit_source(&temp, &conn, &project, "listened closely", "listened hard");
+        let parsed = load(&conn, &project).unwrap();
+        let changes = preview(&conn, &project, &parsed).unwrap().changes;
+        assert_eq!((changes.len(), changes[0].conflict), (1, true));
+        assert!(changes[0].new_value.contains("listened hard"));
+
+        // Pre-baseline projects: every local edit starts as a conflict, and
+        // keeping kindling's side is enough to get out of it.
+        conn.execute("DELETE FROM novelwriter_sync_baselines", [])
+            .unwrap();
+        db::update_beat_prose(&conn, &beats[0].id, "<p>Also local.</p>").unwrap();
+        assert_eq!(preview(&conn, &project, &parsed).unwrap().changes.len(), 2);
+        apply(&conn, &project, &parsed, &[], &[], true).unwrap();
+        assert!(preview(&conn, &project, &parsed)
+            .unwrap()
+            .changes
+            .is_empty());
+        assert_eq!(kept().as_deref(), Some("<p>Kept in kindling.</p>"));
+    }
+
+    #[test]
+    fn apply_writes_only_baselines_that_change() {
+        let (conn, project, temp) = imported();
+        conn.execute_batch(
+            "CREATE TEMP TABLE writes (n INTEGER);
+             CREATE TEMP TRIGGER bi AFTER INSERT ON main.novelwriter_sync_baselines
+                 BEGIN INSERT INTO writes VALUES (1); END;
+             CREATE TEMP TRIGGER bu AFTER UPDATE ON main.novelwriter_sync_baselines
+                 BEGIN INSERT INTO writes VALUES (1); END;",
+        )
+        .unwrap();
+        let writes = || -> i64 {
+            conn.query_row("SELECT COUNT(*) FROM writes", [], |r| r.get(0))
+                .unwrap()
+        };
+        let parsed = load(&conn, &project).unwrap();
+        apply(&conn, &project, &parsed, &[], &[], true).unwrap();
+        assert_eq!(writes(), 0, "an unchanged project rewrites no baselines");
+        edit_source(&temp, &conn, &project, "listened", "listened closely");
+        let parsed = load(&conn, &project).unwrap();
+        let changes = preview(&conn, &project, &parsed).unwrap().changes;
+        apply(
+            &conn,
+            &project,
+            &parsed,
+            &[changes[0].id.clone()],
+            &[],
+            true,
+        )
+        .unwrap();
+        assert_eq!(writes(), 1, "only the accepted field's baseline moves");
     }
 
     #[test]
@@ -608,7 +750,15 @@ mod tests {
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].item_type, "scene");
-        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[]).unwrap();
+        apply(
+            &conn,
+            &project,
+            &parsed,
+            &[changes[0].id.clone()],
+            &[],
+            true,
+        )
+        .unwrap();
         let scene = db::get_all_project_scenes(&conn, &project.id)
             .unwrap()
             .remove(0);
@@ -624,7 +774,15 @@ mod tests {
         assert_eq!(diff.changes.len(), 1);
         assert!(diff.additions.is_empty());
         assert_eq!(diff.changes[0].item_type, "scene");
-        apply(&conn, &project, &parsed, &[diff.changes[0].id.clone()], &[]).unwrap();
+        apply(
+            &conn,
+            &project,
+            &parsed,
+            &[diff.changes[0].id.clone()],
+            &[],
+            true,
+        )
+        .unwrap();
         let beats = db::get_beats(&conn, &scene.id).unwrap();
         assert_eq!(beats.len(), 2);
         assert_eq!(beats[0].prose.as_deref(), Some("<p>Whole replacement.</p>"));
@@ -660,7 +818,15 @@ mod tests {
                 .is_none());
         }
         let changes = preview(&conn, &project, &parsed).unwrap().changes;
-        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[]).unwrap();
+        apply(
+            &conn,
+            &project,
+            &parsed,
+            &[changes[0].id.clone()],
+            &[],
+            true,
+        )
+        .unwrap();
         assert_eq!(
             db::get_beat(&conn, &split.id).unwrap().unwrap().prose,
             split.prose
@@ -678,7 +844,15 @@ mod tests {
         assert!(preview(&conn, &project, &parsed)
             .unwrap_err()
             .contains("Duplicate"));
-        assert!(apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[]).is_err());
+        assert!(apply(
+            &conn,
+            &project,
+            &parsed,
+            &[changes[0].id.clone()],
+            &[],
+            true
+        )
+        .is_err());
         std::fs::remove_file(temp.path().join("nwProject.nwx")).unwrap();
         assert!(load(&conn, &project).unwrap_err().contains("nwProject.nwx"));
     }

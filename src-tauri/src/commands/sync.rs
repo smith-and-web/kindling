@@ -156,6 +156,7 @@ fn reimport_project_with_connection(
                     .into_iter()
                     .map(|a| a.id)
                     .collect::<Vec<_>>(),
+                false,
             );
         }
         crate::models::SourceType::Blank => {
@@ -1026,26 +1027,41 @@ pub async fn apply_sync(
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     // Accepted prose replaces the writer's text; keep a restorable copy first
     // (before taking the connection lock, as export does).
-    if overwrites_prose(&accepted_change_ids) {
-        super::create_snapshot(
-            project_id.clone(),
-            super::CreateSnapshotOptions {
-                name: "Before sync".to_string(),
-                description: Some("Automatic snapshot created before sync replaced prose".into()),
-                trigger_type: SnapshotTrigger::Auto,
-            },
-            app_handle,
-            state.clone(),
+    let snapshot = if overwrites_prose(&accepted_change_ids) {
+        Some(
+            super::create_snapshot(
+                project_id.clone(),
+                super::CreateSnapshotOptions {
+                    name: "Before sync".to_string(),
+                    description: Some(
+                        "Automatic snapshot created before sync replaced prose".into(),
+                    ),
+                    trigger_type: SnapshotTrigger::Auto,
+                },
+                app_handle,
+                state.clone(),
+            )
+            .await?,
         )
-        .await?;
+    } else {
+        None
+    };
+    let result = {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        apply_sync_with_connection(
+            &conn,
+            project_uuid,
+            accepted_change_ids,
+            accepted_addition_ids,
+        )
+    };
+    if let Some(snapshot) = snapshot.filter(|_| !replaced_prose(&result)) {
+        // The apply rolled back or replaced nothing, so the copy is only clutter.
+        if let Err(e) = super::delete_snapshot(snapshot.id.to_string(), state).await {
+            eprintln!("Warning: failed to remove unused pre-sync snapshot: {e}");
+        }
     }
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    apply_sync_with_connection(
-        &conn,
-        project_uuid,
-        accepted_change_ids,
-        accepted_addition_ids,
-    )
+    result
 }
 
 /// Prose changes are the only ones that can replace manuscript text.
@@ -1053,6 +1069,11 @@ fn overwrites_prose(accepted_change_ids: &[String]) -> bool {
     accepted_change_ids
         .iter()
         .any(|id| id.starts_with("beat-prose-") || id.starts_with("scene-prose-"))
+}
+
+/// Whether an apply committed and replaced prose, so its pre-sync snapshot is worth keeping.
+fn replaced_prose(result: &Result<ReimportSummary, String>) -> bool {
+    result.as_ref().is_ok_and(|s| s.prose_updated > 0)
 }
 
 fn apply_sync_with_connection(
@@ -1128,6 +1149,7 @@ fn apply_sync_with_connection(
                 &parsed,
                 &accepted_change_ids,
                 &accepted_addition_ids,
+                true,
             );
         }
         crate::models::SourceType::Blank => {
@@ -2208,15 +2230,28 @@ mod source_regression_tests {
         );
         let prose = preview.changes.iter().find(|c| c.field == "prose").unwrap();
         assert!(overwrites_prose(std::slice::from_ref(&prose.id)));
-        let summary =
-            apply_sync_with_connection(&conn, project.id, vec![prose.id.clone()], vec![]).unwrap();
-        assert_eq!(summary.prose_updated, 1);
-        let remaining = get_sync_preview_with_connection(&conn, project.id)
+        let title = preview.changes.iter().find(|c| c.field == "title").unwrap();
+        assert!(!overwrites_prose(std::slice::from_ref(&title.id)));
+        let result = apply_sync_with_connection(&conn, project.id, vec![prose.id.clone()], vec![]);
+        assert!(replaced_prose(&result), "the pre-sync snapshot is kept");
+        assert_eq!(result.unwrap().prose_updated, 1);
+        // The unticked title conflict was settled in kindling's favour.
+        assert!(get_sync_preview_with_connection(&conn, project.id)
             .unwrap()
-            .changes;
-        assert_eq!(remaining.len(), 1);
-        assert_eq!(remaining[0].field, "title");
-        assert!(!overwrites_prose(&[remaining[0].id.clone()]));
+            .changes
+            .is_empty());
+        assert_eq!(
+            db::get_all_project_scenes(&conn, &project.id).unwrap()[0].title,
+            "Landing"
+        );
+        // A stale id replaces nothing, and an unreadable folder fails before any
+        // write: neither keeps its pre-sync snapshot.
+        let stale = apply_sync_with_connection(&conn, project.id, vec![prose.id.clone()], vec![]);
+        assert!(!replaced_prose(&stale));
+        std::fs::remove_file(temp.path().join("nwProject.nwx")).unwrap();
+        let failed = apply_sync_with_connection(&conn, project.id, vec![prose.id.clone()], vec![]);
+        assert!(failed.is_err());
+        assert!(!replaced_prose(&failed));
     }
 }
 
