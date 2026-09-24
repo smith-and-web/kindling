@@ -13,3 +13,4 @@ pub use ywriter::*;
 pub mod novelwriter;
 
 pub(crate) mod html;
+pub(crate) mod xml_text;

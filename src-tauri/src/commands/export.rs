@@ -6,6 +6,7 @@ use crate::commands::{load_app_settings, AppState};
 use crate::db;
 use crate::db::writing::uses_page_prose;
 use crate::models::{AppSettings, Beat, Chapter, Project, Scene, SnapshotTrigger};
+use crate::parsers::xml_text::{pack_docx, xml_safe_text, LINE_BREAK_CONTROLS};
 use chrono::Utc;
 use docx_rs::*;
 use serde::{Deserialize, Serialize};
@@ -593,16 +594,25 @@ fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
     html_paragraphs(html, transform_text)
         .into_iter()
         .map(|paragraph| {
-            let runs = paragraph
-                .runs
-                .into_iter()
-                .map(|run| FormattedRun {
-                    text: run.text,
+            // A pasted manual line break arrives as U+000B/U+000C inside a
+            // text run; render it as the same soft break `<br>` produces.
+            let mut runs = Vec::new();
+            for run in paragraph.runs {
+                let styled = |text: &str| FormattedRun {
+                    text: text.to_string(),
                     bold: run.marks[0],
                     italic: run.marks[1],
                     underline: run.marks[3],
-                })
-                .collect();
+                };
+                for (i, text) in run.text.split(LINE_BREAK_CONTROLS).enumerate() {
+                    if i > 0 {
+                        runs.push(styled("\n"));
+                    }
+                    if !text.is_empty() {
+                        runs.push(styled(text));
+                    }
+                }
+            }
             FormattedParagraph {
                 runs: merge_adjacent_runs(runs),
                 paragraph_type: match paragraph.kind {
@@ -641,9 +651,11 @@ fn merge_adjacent_runs(runs: Vec<FormattedRun>) -> Vec<FormattedRun> {
     merged
 }
 
-/// Escape XML special characters for EPUB output
+/// Escape XML special characters for EPUB output, dropping characters XML 1.0
+/// forbids (see `xml_safe_text`). Every classic EPUB text node and attribute,
+/// prose and metadata alike, goes through here.
 fn escape_xml(input: &str) -> String {
-    input
+    xml_safe_text(input)
         .replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
@@ -3071,9 +3083,7 @@ pub async fn export_to_docx(
     let file = fs::File::create(&output_path)
         .map_err(|e| format!("Failed to create output file: {}", e))?;
 
-    docx.build()
-        .pack(file)
-        .map_err(|e| format!("Failed to write DOCX file: {}", e))?;
+    pack_docx(docx, file).map_err(|e| format!("Failed to write DOCX file: {}", e))?;
 
     Ok(ExportResult {
         output_path: output_path.to_string_lossy().to_string(),
@@ -4178,9 +4188,7 @@ pub async fn generate_treatment(
             let docx = treatment_to_docx(&content, &options.detail_level);
             let file = fs::File::create(&output_path)
                 .map_err(|e| format!("Failed to create output file: {}", e))?;
-            docx.build()
-                .pack(file)
-                .map_err(|e| format!("Failed to write DOCX file: {}", e))?;
+            pack_docx(docx, file).map_err(|e| format!("Failed to write DOCX file: {}", e))?;
         }
     }
 
@@ -7771,6 +7779,129 @@ mod tests {
         assert_eq!(escape_xml("'"), "&apos;");
         assert_eq!(escape_xml("normal text"), "normal text");
         assert_eq!(escape_xml("a & b < c"), "a &amp; b &lt; c");
+    }
+
+    // =========================================================================
+    // XML-invalid control characters (Word's Shift+Enter arrives as U+000B)
+    // =========================================================================
+
+    fn scene_and_beat_with_control_characters() -> (Chapter, Scene, Beat) {
+        use crate::models::{EditorMode, PlanningStatus, SceneStatus, SceneType};
+        let chapter = Chapter {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            title: "The\u{0001} Beginning".to_string(),
+            position: 0,
+            locked: false,
+            archived: false,
+            source_id: None,
+            is_part: false,
+            synopsis: None,
+            planning_status: PlanningStatus::Fixed,
+        };
+        let scene = Scene {
+            id: Uuid::new_v4(),
+            chapter_id: chapter.id,
+            title: "Opening\u{0001}".to_string(),
+            position: 0,
+            synopsis: Some("Dawn\u{000B}breaks\u{0001}".to_string()),
+            prose: None,
+            locked: false,
+            archived: false,
+            source_id: None,
+            scene_type: SceneType::Normal,
+            scene_status: SceneStatus::Draft,
+            planning_status: PlanningStatus::Fixed,
+            editor_mode: EditorMode::Beat,
+        };
+        let beat = Beat {
+            id: Uuid::new_v4(),
+            scene_id: scene.id,
+            content: "Arrival\u{0001}".to_string(),
+            position: 0,
+            prose: Some("<p>Line\u{000B}two\u{0001}.</p>".to_string()),
+            source_id: None,
+        };
+        (chapter, scene, beat)
+    }
+
+    #[test]
+    fn test_docx_with_control_characters_is_well_formed() {
+        let (chapter, scene, beat) = scene_and_beat_with_control_characters();
+        let mut beats_by_scene = HashMap::new();
+        beats_by_scene.insert(scene.id, vec![beat]);
+        let mut options = default_test_options();
+        options.include_beat_markers = true;
+        options.include_synopsis = true;
+        let docx = Docx::new().header(create_running_header("Writer\u{0001}", "Book\u{000B}Title"));
+        let docx =
+            add_chapter_to_docx(docx, &chapter, 1, &[scene], &beats_by_scene, &options, true);
+
+        let mut buffer = Vec::new();
+        pack_docx(docx, std::io::Cursor::new(&mut buffer)).unwrap();
+        crate::parsers::xml_text::assert_archive_well_formed(&buffer);
+
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(buffer)).unwrap();
+        let mut xml = String::new();
+        std::io::Read::read_to_string(&mut archive.by_name("word/document.xml").unwrap(), &mut xml)
+            .unwrap();
+        let paragraph = xml.split("</w:p>").find(|p| p.contains("Line")).unwrap();
+        assert!(
+            paragraph.contains("<w:br w:type=\"textWrapping\" />") && paragraph.contains("two."),
+            "U+000B in prose should become a soft line break: {paragraph}"
+        );
+    }
+
+    #[test]
+    fn test_treatment_docx_with_control_characters_is_well_formed() {
+        let mut content = make_treatment_content();
+        content.title = "Test\u{0001} Screenplay".to_string();
+        content.author = "Jane\u{000B}Doe".to_string();
+        content.logline = "A logline\u{0001}.".to_string();
+        content.parts[0].chapters[0].scenes[0].beat_summaries[0] = "Opens\u{0001}".to_string();
+        let docx = treatment_to_docx(&content, &TreatmentLevel::Full);
+        let mut buffer = Vec::new();
+        pack_docx(docx, std::io::Cursor::new(&mut buffer)).unwrap();
+        crate::parsers::xml_text::assert_archive_well_formed(&buffer);
+    }
+
+    #[test]
+    fn test_epub_parts_with_control_characters_are_well_formed() {
+        use crate::parsers::xml_text::assert_well_formed;
+        let (chapter, scene, beat) = scene_and_beat_with_control_characters();
+        let metadata = EpubMetadata {
+            title: "Book\u{0001}".to_string(),
+            author: "A\u{000B}Writer".to_string(),
+            description: Some("About\u{0001}\u{FFFE}".to_string()),
+            language: "en".to_string(),
+        };
+        let options = EpubExportOptions {
+            scope: ExportScope::Project,
+            include_beat_markers: true,
+            include_synopsis: true,
+            output_path: String::new(),
+            create_snapshot: false,
+            metadata: metadata.clone(),
+            theme: EpubTheme::Classic,
+            include_cover_image: false,
+            cover_image_path: None,
+        };
+        let label = format_epub_chapter_label(1, &chapter.title);
+        let mut body = format!("<h1>{}</h1>", escape_xml(&label));
+        append_scene_to_epub(&mut body, &scene, &[beat], &options);
+        let chapter_xhtml = build_epub_xhtml_document(&chapter.title, &body, "en");
+        assert_well_formed("chapter", &chapter_xhtml);
+        assert!(
+            chapter_xhtml.contains("Line<br/>two."),
+            "U+000B in prose should become <br/>: {chapter_xhtml}"
+        );
+
+        let entries = vec![(label, "chapter-01.xhtml".to_string())];
+        assert_well_formed("nav", &build_epub_nav_xhtml(&entries, "en"));
+        assert_well_formed("ncx", &build_epub_toc_ncx(&entries, &metadata.title, "id"));
+        let opf = build_epub_content_opf(&metadata, "id", "2024-01-01T00:00:00Z", &[], &[], false);
+        assert_well_formed("opf", &opf);
+        assert!(opf.contains("A Writer"), "{opf}");
     }
 }
 

@@ -1,6 +1,7 @@
 //! Format writers for the export workspace. Rendering is staged before publishing new output.
 use super::*;
 use crate::parsers::html::{html_paragraphs, ParagraphKind};
+use crate::parsers::xml_text::{pack_docx, xml_safe_text, LINE_BREAK_CONTROLS};
 use docx_rs::*;
 use serde::Deserialize;
 use std::{
@@ -66,7 +67,8 @@ struct Layout {
     header: String,
 }
 fn xml(text: &str) -> String {
-    text.replace('&', "&amp;")
+    xml_safe_text(text)
+        .replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
@@ -167,7 +169,12 @@ fn prose(mut doc: Docx, html: &str, l: &Layout, first: &mut bool) -> Docx {
             para = para.style("Heading2").keep_next(true);
         }
         for source in p.runs {
-            for (i, line) in source.text.split('\n').enumerate() {
+            // `<br>` arrives as \n; a pasted manual line break as U+000B/U+000C.
+            for (i, line) in source
+                .text
+                .split(|c: char| c == '\n' || LINE_BREAK_CONTROLS.contains(&c))
+                .enumerate()
+            {
                 if i > 0 {
                     para = para.add_run(Run::new().add_break(BreakType::TextWrapping));
                 }
@@ -381,6 +388,9 @@ fn epub(file: &mut fs::File, d: &WorkspaceDocument) -> Result<()> {
     entries.push(("OEBPS/nav.xhtml".into(),format!(r#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="{}"><head><title>Contents</title></head><body><nav epub:type="toc" id="toc"><h1>Contents</h1><ol>{nav}</ol></nav></body></html>"#,xml(&d.language))));
     entries.push(("OEBPS/content.opf".into(),format!(r#"<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">urn:uuid:{}</dc:identifier><dc:title>{}</dc:title><dc:creator>{}</dc:creator><dc:language>{}</dc:language><dc:description>{}</dc:description><meta property="dcterms:modified">{}</meta></metadata><manifest>{manifest}</manifest><spine>{spine}</spine></package>"#,uuid::Uuid::new_v4(),xml(&d.title),xml(&d.author),xml(&d.language),xml(&d.description),chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ"))));
     for (path, body) in entries {
+        // Chapter and title pages are rendered by the frontend; clean the whole
+        // document, since no XML 1.0 markup can legitimately hold these characters.
+        let body = xml_safe_text(&body);
         let mut reader = quick_xml::Reader::from_str(&body);
         loop {
             match reader.read_event() {
@@ -412,10 +422,7 @@ pub fn export_workspace_document(
     let target = Path::new(&path);
     let mut staged = new_file(target, extension)?;
     match format.as_str() {
-        "docx" => docx_document(&document)
-            .build()
-            .pack(staged.as_file_mut())
-            .map_err(|e| e.to_string())?,
+        "docx" => pack_docx(docx_document(&document), staged.as_file_mut())?,
         "epub" => epub(staged.as_file_mut(), &document)?,
         _ => staged
             .write_all(document.text.as_bytes())
@@ -660,6 +667,57 @@ mod tests {
         assert!(opf.contains("properties=\"nav\""));
         assert!(member(&path, "OEBPS/nav.xhtml").contains("chapter-0.xhtml"));
         assert!(member(&path, "OEBPS/chapter-0.xhtml").contains("Prose &amp; more."));
+    }
+    /// Prose pasted from Word carries U+000B for Shift+Enter; imports can carry
+    /// other C0 controls. Neither may reach the XML.
+    fn document_with_control_characters() -> WorkspaceDocument {
+        let mut d = document();
+        d.title = "The\u{0001} Book".into();
+        d.author = "A\u{000B}Writer".into();
+        d.description = "An\u{0001} adventure\u{FFFF}".into();
+        d.front_matter = Some("<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Book\u{0001}</title></head><body>Title\u{000B}</body></html>".into());
+        let c = &mut d.chapters[0];
+        c.title = "Arrival\u{0001}".into();
+        c.navigation_title = "Arrival\u{000C}".into();
+        c.xhtml = "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Arrival\u{0001}</title></head><body><p>Line\u{000B}two\u{0001}.</p></body></html>".into();
+        c.scenes[0].synopsis = "Dawn\u{0001}".into();
+        c.scenes[0].blocks[0].html = "<p>Line\u{000B}two\u{0001}.</p>".into();
+        d
+    }
+    #[test]
+    fn docx_with_control_characters_is_well_formed_and_keeps_line_breaks() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("book.docx");
+        export_workspace_document(
+            path.to_string_lossy().into(),
+            "docx".into(),
+            document_with_control_characters(),
+        )
+        .unwrap();
+        crate::parsers::xml_text::assert_archive_well_formed(&fs::read(&path).unwrap());
+        let xml = member(&path, "word/document.xml");
+        let paragraph = xml.split("</w:p>").find(|p| p.contains("Line")).unwrap();
+        assert!(
+            paragraph.contains("<w:br w:type=\"textWrapping\" />") && paragraph.contains("two."),
+            "U+000B should become a soft line break: {paragraph}"
+        );
+        assert!(member(&path, "word/header1.xml").contains("A Writer / The Book"));
+    }
+    #[test]
+    fn epub_with_control_characters_is_well_formed() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("book.epub");
+        export_workspace_document(
+            path.to_string_lossy().into(),
+            "epub".into(),
+            document_with_control_characters(),
+        )
+        .unwrap();
+        crate::parsers::xml_text::assert_archive_well_formed(&fs::read(&path).unwrap());
+        let opf = member(&path, "OEBPS/content.opf");
+        assert!(opf.contains("<dc:title>The Book</dc:title>"), "{opf}");
+        assert!(opf.contains("<dc:creator>A Writer</dc:creator>"), "{opf}");
+        assert!(member(&path, "OEBPS/chapter-0.xhtml").contains("Line two."));
     }
     #[test]
     fn invalid_cover_and_existing_output_leave_previous_files_intact() {
