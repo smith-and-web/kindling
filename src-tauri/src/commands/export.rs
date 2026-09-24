@@ -1531,6 +1531,86 @@ fn export_folder(output: &std::path::Path, name: &str) -> Result<PathBuf, String
     Ok(folder)
 }
 
+/// Written into every Markdown/Longform export folder kindling creates. "Delete
+/// existing export folder" only ever removes a folder carrying it, so a
+/// destination and export name that happen to match one of the writer's own
+/// folders (`~` plus a project called "Documents") can never delete it.
+const EXPORT_MARKER: &str = ".kindling-export";
+const EXPORT_MARKER_TEXT: &str = "This folder was created by a kindling export. When you export \
+again with \"Delete existing export folder\", kindling may replace it, but only while it holds \
+nothing except the Markdown files kindling writes. Delete this file to stop kindling from ever \
+replacing the folder.\n";
+
+/// Create `folder` (inside an already-validated destination) for an export,
+/// replacing it first when asked and when kindling owns it. The ownership
+/// marker is written only when kindling creates the folder itself, never into
+/// a folder that already existed.
+fn prepare_export_folder(folder: &Path, delete_existing: bool) -> Result<(), String> {
+    if delete_existing && folder.exists() {
+        remove_owned_export_folder(folder, folder)?;
+    }
+    if let Some(parent) = folder.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create output directory: {}", e))?;
+    }
+    match fs::create_dir(folder) {
+        Ok(()) => fs::write(folder.join(EXPORT_MARKER), EXPORT_MARKER_TEXT)
+            .map_err(|e| format!("Failed to create output directory: {}", e)),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && folder.is_dir() => Ok(()),
+        Err(e) => Err(format!("Failed to create output directory: {}", e)),
+    }
+}
+
+/// Recursively delete `folder`, which is `export_root` or lies inside it, only
+/// if `export_root` carries kindling's marker and `folder` holds nothing but
+/// what a Markdown/Longform export writes: folders, `.md` files, the marker and
+/// OS metadata. Anything else (a legacy export without a marker, a user's own
+/// folder, an image or an `.obsidian` settings file added later) is refused
+/// and left untouched.
+fn remove_owned_export_folder(folder: &Path, export_root: &Path) -> Result<(), String> {
+    let name = folder
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| folder.display().to_string());
+    let refuse = |why: String| {
+        Err(format!(
+            "kindling didn't replace “{name}”: {why}. It only replaces export folders it \
+             created itself. Move or delete the folder yourself, or choose another export name."
+        ))
+    };
+    if !fs::symlink_metadata(export_root.join(EXPORT_MARKER)).is_ok_and(|m| m.is_file()) {
+        return refuse(if folder == export_root {
+            "it wasn't created by a kindling export (exports made before kindling 1.3 aren't marked)"
+                .into()
+        } else {
+            "the export folder containing it wasn't created by a kindling export".into()
+        });
+    }
+    for entry in walkdir::WalkDir::new(folder).min_depth(1) {
+        let entry = entry.map_err(|e| format!("Failed to delete existing folder: {}", e))?;
+        let file_name = entry.file_name().to_string_lossy();
+        let kind = entry.file_type();
+        let expected = kind.is_dir()
+            || (kind.is_file()
+                && (file_name == EXPORT_MARKER
+                    || matches!(
+                        file_name.as_ref(),
+                        ".DS_Store" | "Thumbs.db" | "desktop.ini"
+                    )
+                    || Path::new(file_name.as_ref())
+                        .extension()
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))));
+        if !expected {
+            let relative = entry.path().strip_prefix(folder).unwrap_or(entry.path());
+            return refuse(format!(
+                "it contains “{}”, which kindling didn't write",
+                relative.display()
+            ));
+        }
+    }
+    fs::remove_dir_all(folder).map_err(|e| format!("Failed to delete existing folder: {}", e))
+}
+
 /// Export project to markdown files
 ///
 /// Creates a folder structure: `ProjectName/ChapterName/SceneName.md`
@@ -1601,14 +1681,8 @@ fn export_to_markdown_with_connection(
 
     match options.scope {
         ExportScope::Project => {
-            // Delete existing project folder if requested (only for project-level export)
-            if options.delete_existing && project_folder.exists() {
-                fs::remove_dir_all(&project_folder)
-                    .map_err(|e| format!("Failed to delete existing folder: {}", e))?;
-            }
-
-            fs::create_dir_all(&project_folder)
-                .map_err(|e| format!("Failed to create output directory: {}", e))?;
+            // Replace the project folder if requested (only for project-level export)
+            prepare_export_folder(&project_folder, options.delete_existing)?;
             // Get all chapters
             let chapters =
                 db::queries::get_chapters(conn, &project_uuid).map_err(|e| e.to_string())?;
@@ -1661,8 +1735,7 @@ fn export_to_markdown_with_connection(
         }
         ExportScope::Chapter(chapter_id) => {
             // Create project folder (don't delete it for chapter-level export)
-            fs::create_dir_all(&project_folder)
-                .map_err(|e| format!("Failed to create output directory: {}", e))?;
+            prepare_export_folder(&project_folder, false)?;
 
             let chapter_uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
 
@@ -1692,8 +1765,7 @@ fn export_to_markdown_with_connection(
 
             // Delete existing chapter folder if requested
             if options.delete_existing && chapter_folder.exists() {
-                fs::remove_dir_all(&chapter_folder)
-                    .map_err(|e| format!("Failed to delete existing chapter folder: {}", e))?;
+                remove_owned_export_folder(&chapter_folder, &project_folder)?;
             }
 
             fs::create_dir_all(&chapter_folder)
@@ -1730,8 +1802,7 @@ fn export_to_markdown_with_connection(
         }
         ExportScope::Scene(scene_id) => {
             // Create project folder (don't delete it for scene-level export)
-            fs::create_dir_all(&project_folder)
-                .map_err(|e| format!("Failed to create output directory: {}", e))?;
+            prepare_export_folder(&project_folder, false)?;
 
             let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
 
@@ -1867,13 +1938,7 @@ fn export_to_longform_with_connection(
     let folder_name = sanitize_filename(&export_name);
     let project_folder = export_folder(&output_base, &folder_name)?;
 
-    if options.delete_existing && project_folder.exists() {
-        fs::remove_dir_all(&project_folder)
-            .map_err(|e| format!("Failed to delete existing folder: {}", e))?;
-    }
-
-    fs::create_dir_all(&project_folder)
-        .map_err(|e| format!("Failed to create output directory: {}", e))?;
+    prepare_export_folder(&project_folder, options.delete_existing)?;
 
     let mut scenes_to_export: Vec<(Scene, Vec<Beat>)> = Vec::new();
     let mut chapter_ids = std::collections::HashSet::new();
@@ -5021,6 +5086,150 @@ mod tests {
                 assert!(prose.contains(&format!("Unique sentinel {i}")));
             }
         }
+    }
+
+    fn markdown_options(output: &Path, name: &str, delete_existing: bool) -> MarkdownExportOptions {
+        MarkdownExportOptions {
+            scope: ExportScope::Project,
+            output_path: output.to_string_lossy().into(),
+            export_name: Some(name.into()),
+            delete_existing,
+            create_snapshot: false,
+            include_beat_markers: false,
+        }
+    }
+
+    fn longform_options(output: &Path, name: &str, delete_existing: bool) -> LongformExportOptions {
+        LongformExportOptions {
+            scope: ExportScope::Project,
+            output_path: output.to_string_lossy().into(),
+            export_name: Some(name.into()),
+            delete_existing,
+            create_snapshot: false,
+        }
+    }
+
+    /// Destination `~` plus a project named "Documents" must never delete the
+    /// writer's own Documents folder.
+    #[test]
+    fn delete_existing_never_removes_a_folder_kindling_did_not_create() {
+        let (conn, project) = crate::parsers::novelwriter::tests::fixture();
+        let home = tempfile::tempdir().unwrap();
+        let documents = home.path().join("Documents");
+        fs::create_dir_all(documents.join("Taxes")).unwrap();
+        fs::write(documents.join("Taxes").join("2025.pdf"), "return").unwrap();
+        fs::write(documents.join("notes.md"), "my notes").unwrap();
+
+        let err = export_to_markdown_with_connection(
+            &conn,
+            project.id,
+            markdown_options(home.path(), "Documents", true),
+        )
+        .unwrap_err();
+        assert!(err.contains("wasn't created by a kindling export"), "{err}");
+        let err = export_to_longform_with_connection(
+            &conn,
+            project.id,
+            longform_options(home.path(), "Documents", true),
+        )
+        .unwrap_err();
+        assert!(err.contains("wasn't created by a kindling export"), "{err}");
+
+        assert_eq!(
+            fs::read_to_string(documents.join("Taxes").join("2025.pdf")).unwrap(),
+            "return"
+        );
+        assert_eq!(
+            fs::read_to_string(documents.join("notes.md")).unwrap(),
+            "my notes"
+        );
+        assert!(!documents.join(EXPORT_MARKER).exists());
+
+        // Exporting into it without deleting must not claim it for later.
+        export_to_markdown_with_connection(
+            &conn,
+            project.id,
+            markdown_options(home.path(), "Documents", false),
+        )
+        .unwrap();
+        assert!(!documents.join(EXPORT_MARKER).exists());
+        assert!(export_to_markdown_with_connection(
+            &conn,
+            project.id,
+            markdown_options(home.path(), "Documents", true),
+        )
+        .is_err());
+        assert_eq!(
+            fs::read_to_string(documents.join("notes.md")).unwrap(),
+            "my notes"
+        );
+    }
+
+    #[test]
+    fn delete_existing_replaces_kindlings_own_export_folder() {
+        let (conn, project) = crate::parsers::novelwriter::tests::fixture();
+        let out = tempfile::tempdir().unwrap();
+        for (export, folder) in [("markdown", "Book MD"), ("longform", "Book LF")] {
+            let run = |delete: bool| match export {
+                "markdown" => export_to_markdown_with_connection(
+                    &conn,
+                    project.id,
+                    markdown_options(out.path(), folder, delete),
+                ),
+                _ => export_to_longform_with_connection(
+                    &conn,
+                    project.id,
+                    longform_options(out.path(), folder, delete),
+                ),
+            };
+            run(false).unwrap();
+            let root = out.path().join(folder);
+            assert!(
+                root.join(EXPORT_MARKER).is_file(),
+                "{export} export is unmarked"
+            );
+            fs::write(root.join("stale scene.md"), "old").unwrap();
+
+            run(true).unwrap();
+            assert!(
+                !root.join("stale scene.md").exists(),
+                "{export} kept a stale file"
+            );
+            assert!(root.join(EXPORT_MARKER).is_file());
+
+            // A file kindling never writes makes the folder the writer's again.
+            fs::write(root.join("cover.png"), "art").unwrap();
+            let err = run(true).unwrap_err();
+            assert!(err.contains("cover.png"), "{err}");
+            assert_eq!(fs::read_to_string(root.join("cover.png")).unwrap(), "art");
+        }
+        assert!(out.path().exists());
+    }
+
+    #[test]
+    fn chapter_delete_existing_requires_a_kindling_export_folder() {
+        let (conn, project) = crate::parsers::novelwriter::tests::fixture();
+        let chapter = db::get_chapters(&conn, &project.id)
+            .unwrap()
+            .into_iter()
+            .find(|c| !c.archived)
+            .unwrap();
+        let out = tempfile::tempdir().unwrap();
+        let user_folder = out.path().join("Projects");
+        let chapter_folder =
+            user_folder.join(format!("{:02} - {}", 1, sanitize_filename(&chapter.title)));
+        fs::create_dir_all(&chapter_folder).unwrap();
+        fs::write(chapter_folder.join("draft.md"), "mine").unwrap();
+        let mut options = markdown_options(out.path(), "Projects", true);
+        options.scope = ExportScope::Chapter(chapter.id.to_string());
+
+        let err = export_to_markdown_with_connection(&conn, project.id, options).unwrap_err();
+
+        assert!(err.contains("containing it wasn't created"), "{err}");
+        assert_eq!(
+            fs::read_to_string(chapter_folder.join("draft.md")).unwrap(),
+            "mine"
+        );
     }
 
     #[test]
