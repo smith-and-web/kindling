@@ -12,7 +12,7 @@
   } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { proseSaves, type ProseSave } from "../utils/proseSaves";
-  import { tick } from "svelte";
+  import { tick, untrack } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
   import type { Beat } from "../types";
   import { currentProject } from "../stores/project.svelte";
@@ -216,6 +216,25 @@
         saveBeatProse(draft);
       }
     }, 500);
+  }
+
+  // beat.prose only advances on a successful save. Mount and preview from the newest unsaved
+  // text instead (this editor's draft, then a failed or in-flight save), as Page View does, so
+  // reopening a beat after a failed save never shows stale prose that the next keystroke saves.
+  function unsavedBeatProse(beat: Beat): string {
+    const projectId = currentProject.value?.id ?? "";
+    const local = draftProse.get(beat.id);
+    if (local?.projectId === projectId) return local.prose;
+    const unsaved = proseSaves
+      .draftsForRecovery(projectId)
+      .find((draft) => draft.kind === "beat" && draft.id === beat.id);
+    return unsaved?.prose ?? beat.prose ?? "";
+  }
+
+  // The open editor already holds its own draft; only a changed beat may push new content in.
+  // Tracking draftProse here would reset the editor whenever a saved draft is cleared.
+  function editorProse(beat: Beat): string {
+    return untrack(() => unsavedBeatProse(beat));
   }
 
   function handleEditorUpdate(beatId: string) {
@@ -574,6 +593,7 @@
     <div class="beats-list">
       {#each beats as beat, index (beat.id)}
         {@const isExpanded = ui.expandedBeatId === beat.id}
+        {@const prose = unsavedBeatProse(beat)}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <article
           data-drag-beat={beat.id}
@@ -628,10 +648,8 @@
                 <ChevronRight class="w-5 h-5 beat-chev" aria-hidden="true" />
                 <span class="ka-beat-number">{index + 1}</span>
                 <span class="beat-title" title={beat.content}>{beat.content}</span>
-                {#if beat.prose || draftProse.get(beat.id)}
-                  <small class="beat-count"
-                    >{getBeatWordCount(draftProse.get(beat.id)?.prose ?? beat.prose)} words</small
-                  >
+                {#if prose}
+                  <small class="beat-count">{getBeatWordCount(prose)} words</small>
                 {/if}
               </button>
             {/if}
@@ -659,14 +677,14 @@
                 projectId={currentProject.value?.id}
                 sceneId={beat.scene_id}
                 beatId={beat.id}
-                content={beat.prose || ""}
+                content={editorProse(beat)}
                 placeholder={isLocked ? "Scene is locked" : "Write your prose for this beat…"}
                 readonly={isLocked || changingBeats}
                 saveStatus={localSaveStatus}
                 onUpdate={handleEditorUpdate(beat.id)}
               />
             </div>
-          {:else if beat.prose}
+          {:else if prose}
             <div
               class="beat-preview"
               onclick={() => toggleBeat(beat.id)}
@@ -680,7 +698,7 @@
               tabindex="0"
               aria-label={`Open beat ${index + 1} prose`}
             >
-              <p>{stripHtml(beat.prose)}</p>
+              <p>{stripHtml(prose)}</p>
             </div>
           {/if}
         </article>
