@@ -260,6 +260,15 @@ CREATE TABLE IF NOT EXISTS writing_goals (
             PRIMARY KEY (item_id, field)
         );
 
+        -- novelWriter documents with several headings that kindling has read
+        -- one chapter or scene per heading (1.3 and later). A document without
+        -- a row was imported whole by kindling 1.2 and keeps that shape.
+        CREATE TABLE IF NOT EXISTS novelwriter_split_documents (
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            handle TEXT NOT NULL,
+            PRIMARY KEY (project_id, handle)
+        );
+
         -- Create indexes for common queries
         CREATE INDEX IF NOT EXISTS idx_chapters_project ON chapters(project_id);
         CREATE INDEX IF NOT EXISTS idx_scenes_chapter ON scenes(chapter_id);
@@ -868,6 +877,7 @@ mod tests {
         assert!(tables.contains(&"dismissed_suggestions".to_string()));
         assert!(tables.contains(&"story_templates".to_string()));
         assert!(tables.contains(&"novelwriter_sync_baselines".to_string()));
+        assert!(tables.contains(&"novelwriter_split_documents".to_string()));
     }
 
     #[test]
@@ -875,8 +885,10 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         initialize_schema(&conn).unwrap();
         // A 1.2 database: no baselines table, existing project data.
-        conn.execute_batch("DROP TABLE novelwriter_sync_baselines;")
-            .unwrap();
+        conn.execute_batch(
+            "DROP TABLE novelwriter_sync_baselines; DROP TABLE novelwriter_split_documents;",
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO projects (id, name, source_type, created_at, modified_at)
              VALUES ('p', 'Old', 'novelwriter', 'then', 'then')",
@@ -889,15 +901,20 @@ mod tests {
             [],
         )
         .unwrap();
+        conn.execute(
+            "INSERT INTO novelwriter_split_documents VALUES ('p', 'handle')",
+            [],
+        )
+        .unwrap();
         initialize_schema(&conn).unwrap();
-        let (projects, baselines): (i64, i64) = conn
+        let (projects, baselines, split): (i64, i64, i64) = conn
             .query_row(
-                "SELECT (SELECT COUNT(*) FROM projects), (SELECT COUNT(*) FROM novelwriter_sync_baselines)",
+                "SELECT (SELECT COUNT(*) FROM projects), (SELECT COUNT(*) FROM novelwriter_sync_baselines), (SELECT COUNT(*) FROM novelwriter_split_documents)",
                 [],
-                |r| Ok((r.get(0)?, r.get(1)?)),
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
             .unwrap();
-        assert_eq!((projects, baselines), (1, 1));
+        assert_eq!((projects, baselines, split), (1, 1, 1));
     }
 
     #[test]

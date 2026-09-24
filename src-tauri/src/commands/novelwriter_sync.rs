@@ -13,9 +13,11 @@ use std::{
 use uuid::Uuid;
 
 /// Reads the source for sync. A document with several headings that kindling
-/// 1.2 imported as one chapter or scene (its first heading's items are here,
-/// its later headings' are not) is read that same way, so upgrading never
-/// offers its later headings as new scenes over text the project already has.
+/// 1.2 imported as one chapter or scene is read that same way, so upgrading
+/// never offers its later headings as new scenes over text the project already
+/// has. Such a document has its first heading's items here, none of its later
+/// headings', and no split record: 1.3 records every document it reads split,
+/// so one whose later scenes the writer deleted still reads split.
 pub(super) fn load(conn: &Connection, project: &Project) -> Result<ParsedNovelWriter, String> {
     let path = project
         .source_path
@@ -34,11 +36,13 @@ pub(super) fn load(conn: &Connection, project: &Project) -> Result<ParsedNovelWr
         .filter_map(|c| c.source_id.as_deref())
         .chain(scenes.iter().filter_map(|s| s.source_id.as_deref()))
         .collect();
+    let recorded = split_documents(conn, project)?;
     let unsplit: HashSet<_> = parsed
         .split_documents
         .iter()
         .filter(|d| {
-            d.first.iter().any(|id| known.contains(id.as_str()))
+            !recorded.contains(&d.handle)
+                && d.first.iter().any(|id| known.contains(id.as_str()))
                 && !d.later.iter().any(|id| known.contains(id.as_str()))
         })
         .map(|d| d.handle.clone())
@@ -48,6 +52,34 @@ pub(super) fn load(conn: &Connection, project: &Project) -> Result<ParsedNovelWr
     }
     parse_novelwriter_project_with(Path::new(path), &unsplit).map_err(|e| e.to_string())
 }
+/// Documents this project has read one chapter or scene per heading.
+fn split_documents(conn: &Connection, project: &Project) -> Result<HashSet<String>, String> {
+    let mut stmt = conn
+        .prepare("SELECT handle FROM novelwriter_split_documents WHERE project_id = ?1")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([project.id.to_string()], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
+}
+
+/// Records the documents this read split, at import and after each sync, so
+/// they keep reading split whatever the writer later deletes.
+pub(crate) fn record_split_documents(
+    conn: &Connection,
+    project: &Project,
+    parsed: &ParsedNovelWriter,
+) -> Result<(), String> {
+    for document in &parsed.split_documents {
+        conn.execute(
+            "INSERT OR IGNORE INTO novelwriter_split_documents (project_id, handle) VALUES (?1, ?2)",
+            rusqlite::params![project.id.to_string(), document.handle],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 /// One field as kindling holds it and as novelWriter holds it now.
 struct Field {
     kind: &'static str,
@@ -798,6 +830,7 @@ pub(super) fn apply(
     if summary.chapters_added + summary.scenes_added + summary.beats_added > 0 {
         record_baselines(&tx, project, parsed)?;
     }
+    record_split_documents(&tx, project, parsed)?;
     db::update_project_modified(&tx, &project.id).map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
     Ok(summary)
@@ -1496,5 +1529,64 @@ mod tests {
             parse_novelwriter_project(temp.path()).unwrap().scenes.len(),
             2
         );
+    }
+
+    #[test]
+    fn a_1_3_import_stays_split_after_the_writer_deletes_a_later_scene() {
+        let (original, source) = fixture();
+        let temp = tempfile::tempdir().unwrap();
+        export_novelwriter_project(&original, &source.id, temp.path(), &Default::default())
+            .unwrap();
+        let handle = parse_novelwriter_project(temp.path()).unwrap().scenes[0]
+            .source_id
+            .clone()
+            .unwrap();
+        let file = temp.path().join("content").join(format!("{handle}.md"));
+        let text = std::fs::read_to_string(&file).unwrap();
+        std::fs::write(&file, format!("{text}\n### Second half\n\nMore text.\n")).unwrap();
+        // Imported by 1.3: one scene per heading.
+        let parsed = parse_novelwriter_project(temp.path()).unwrap();
+        assert_eq!(parsed.scenes.len(), 2);
+        let conn = Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        super::super::import::insert_novelwriter(&conn, &parsed).unwrap();
+        let project = parsed.project;
+        // The writer deletes the second scene in kindling.
+        let second = db::get_all_project_scenes(&conn, &project.id)
+            .unwrap()
+            .into_iter()
+            .find(|s| s.title == "Second half")
+            .unwrap();
+        conn.execute(
+            "DELETE FROM beats WHERE scene_id = ?1",
+            [second.id.to_string()],
+        )
+        .unwrap();
+        conn.execute("DELETE FROM scenes WHERE id = ?1", [second.id.to_string()])
+            .unwrap();
+
+        // The first scene is not offered the whole document.
+        let diff = preview(&conn, &project, &load(&conn, &project).unwrap()).unwrap();
+        assert!(diff.changes.is_empty(), "{:?}", diff.changes);
+        // Only the deleted scene (with its own beat) is offered back.
+        let scenes: Vec<_> = diff
+            .additions
+            .iter()
+            .filter(|a| a.item_type == "scene")
+            .map(|a| a.title.as_str())
+            .collect();
+        assert_eq!(scenes, ["Second half"]);
+        // Declining the re-offered scene still leaves the document split next time.
+        apply(
+            &conn,
+            &project,
+            &load(&conn, &project).unwrap(),
+            &[],
+            &[],
+            &[],
+        )
+        .unwrap();
+        let diff = preview(&conn, &project, &load(&conn, &project).unwrap()).unwrap();
+        assert!(diff.changes.is_empty(), "{:?}", diff.changes);
     }
 }
