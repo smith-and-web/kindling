@@ -217,6 +217,8 @@ struct NoteFrontmatter {
 struct SceneBuildContext<'a> {
     index_dir: &'a Path,
     scene_dir: &'a Path,
+    /// Canonical vault root; scene files must resolve inside it.
+    vault: &'a Path,
     scenes: &'a mut Vec<Scene>,
     beats: &'a mut Vec<Beat>,
     characters: &'a mut Vec<Character>,
@@ -249,7 +251,15 @@ struct DataviewContext<'a> {
 // ============================================================================
 
 pub fn parse_longform_index<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, LongformError> {
-    let path = path.as_ref();
+    parse_longform_index_in(path.as_ref(), None)
+}
+
+/// Parse an index, reading only files inside `vault` (by default the vault
+/// that contains the index; see `vault_root`).
+fn parse_longform_index_in(
+    path: &Path,
+    vault: Option<PathBuf>,
+) -> Result<ParsedLongform, LongformError> {
     let content = fs::read_to_string(path)?;
 
     let (frontmatter_str, _) = split_frontmatter(&content)
@@ -295,7 +305,18 @@ pub fn parse_longform_index<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, L
     );
 
     let index_dir = path.parent().unwrap_or_else(|| Path::new("."));
+    let vault = match vault {
+        Some(vault) => vault,
+        None if index_dir.as_os_str().is_empty() => vault_root(Path::new("."))?,
+        None => vault_root(index_dir)?,
+    };
     let scene_dir = resolve_scene_dir(index_dir, &scene_folder);
+    // A missing folder cannot leak anything; its scenes fail to read below.
+    if scene_dir.exists() {
+        resolve_in_vault(&vault, &scene_dir, || {
+            format!("The Longform sceneFolder \u{201c}{scene_folder}\u{201d}")
+        })?;
+    }
 
     let mut parsed = build_longform_structure(
         project,
@@ -303,6 +324,7 @@ pub fn parse_longform_index<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, L
         &ignored_patterns,
         index_dir,
         &scene_dir,
+        &vault,
     )?;
 
     let mut skip_paths = HashSet::new();
@@ -313,7 +335,7 @@ pub fn parse_longform_index<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, L
         }
     }
     let reference_names = ReferenceNameIndex::new(&parsed);
-    let notes = collect_reference_notes(index_dir, &skip_paths, &reference_names)?;
+    let notes = collect_reference_notes(index_dir, &vault, &skip_paths, &reference_names)?;
     merge_reference_notes(&mut parsed, notes);
     update_project_reference_types(&mut parsed.project, &parsed.reference_items);
 
@@ -323,7 +345,8 @@ pub fn parse_longform_index<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, L
 pub fn parse_longform_path<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, LongformError> {
     let path = path.as_ref();
     if path.is_dir() {
-        let indexes = find_longform_indexes(path)?;
+        let vault = vault_root(path)?;
+        let indexes = find_longform_indexes(path, &vault)?;
         if indexes.is_empty() {
             return Err(LongformError::InvalidStructure(
                 "No Longform index files found in vault".to_string(),
@@ -339,18 +362,68 @@ pub fn parse_longform_path<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, Lo
                 "Multiple Longform index files found. Please pick one:\n{list}"
             )));
         }
-        return parse_longform_index(&indexes[0]);
+        return parse_longform_index_in(&indexes[0], Some(vault));
     }
 
     parse_longform_index(path)
 }
 
-fn find_longform_indexes(vault_dir: &Path) -> Result<Vec<PathBuf>, LongformError> {
+/// The folder a Longform import may read from: the nearest ancestor of
+/// `start` that holds Obsidian's `.obsidian` settings folder (the vault), or
+/// `start` itself when there is none. Returned canonicalised.
+fn vault_root(start: &Path) -> Result<PathBuf, LongformError> {
+    let start = fs::canonicalize(start)?;
+    Ok(start
+        .ancestors()
+        .find(|dir| dir.join(".obsidian").is_dir())
+        .unwrap_or(&start)
+        .to_path_buf())
+}
+
+/// Resolve `path`, following `..` and symlinks, and refuse it when it lands
+/// outside `vault`. Scene names and `sceneFolder` come from the index file, so
+/// without this an index could pull any Markdown file on disk into a project.
+fn resolve_in_vault(
+    vault: &Path,
+    path: &Path,
+    describe: impl FnOnce() -> String,
+) -> Result<PathBuf, LongformError> {
+    let resolved = fs::canonicalize(path)?;
+    if resolved.starts_with(vault) {
+        return Ok(resolved);
+    }
+    Err(LongformError::InvalidStructure(format!(
+        "{} is outside the vault ({}), so kindling did not import it.",
+        describe(),
+        vault.display()
+    )))
+}
+
+/// Walk filter: keep entries inside `vault`, and report any that a symlink
+/// takes outside it instead of reading them.
+fn stays_in_vault(vault: &Path, path: &Path) -> bool {
+    match fs::canonicalize(path) {
+        Ok(resolved) if resolved.starts_with(vault) => true,
+        Ok(_) => {
+            eprintln!(
+                "[kindling] Longform import skipped {}: it links outside the vault ({}).",
+                path.display(),
+                vault.display()
+            );
+            false
+        }
+        // Broken links are skipped by the walk as before.
+        Err(_) => true,
+    }
+}
+
+fn find_longform_indexes(vault_dir: &Path, vault: &Path) -> Result<Vec<PathBuf>, LongformError> {
     let mut indexes = Vec::new();
 
     for entry in WalkDir::new(vault_dir)
         .follow_links(true)
         .into_iter()
+        .filter_entry(|entry| stays_in_vault(vault, entry.path()))
         .filter_map(Result::ok)
     {
         if !entry.file_type().is_file() {
@@ -428,6 +501,7 @@ fn collect_scene_entries(
 
 fn collect_reference_notes(
     vault_dir: &Path,
+    vault: &Path,
     skip_paths: &HashSet<String>,
     reference_names: &ReferenceNameIndex,
 ) -> Result<Vec<ReferenceNote>, LongformError> {
@@ -436,6 +510,7 @@ fn collect_reference_notes(
     for entry in WalkDir::new(vault_dir)
         .follow_links(true)
         .into_iter()
+        .filter_entry(|entry| stays_in_vault(vault, entry.path()))
         .filter_map(Result::ok)
     {
         if !entry.file_type().is_file() {
@@ -1929,6 +2004,7 @@ fn build_longform_structure(
     ignored_patterns: &[String],
     index_dir: &Path,
     scene_dir: &Path,
+    vault: &Path,
 ) -> Result<ParsedLongform, LongformError> {
     let mut chapters = Vec::new();
     let mut scenes = Vec::new();
@@ -1945,6 +2021,7 @@ fn build_longform_structure(
     let mut build_context = SceneBuildContext {
         index_dir,
         scene_dir,
+        vault,
         scenes: &mut scenes,
         beats: &mut beats,
         characters: &mut characters,
@@ -2054,7 +2131,10 @@ fn add_scene_from_entry(
     let scene_path = context.scene_dir.join(&scene_file_name);
     let scene_source_id = build_scene_source_id(context.index_dir, &scene_path);
 
-    let scene_content = parse_scene_file(&scene_path)?;
+    let scene_file = resolve_in_vault(context.vault, &scene_path, || {
+        format!("Scene \u{201c}{}\u{201d}", entry.name.trim())
+    })?;
+    let scene_content = parse_scene_file(&scene_file)?;
 
     let mut scene = Scene::new(
         chapter.id,
@@ -2953,5 +3033,127 @@ longform:
         let parsed = parse_longform_path(dir.path()).unwrap();
         assert_eq!(parsed.project.name, "Test Project");
         assert_eq!(parsed.scenes.len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod vault_boundary_tests {
+    use super::*;
+
+    /// `root/vault` is an Obsidian vault (it has `.obsidian/`) holding a
+    /// Longform index in `Book/`; `root/outside` is elsewhere on disk and
+    /// `{outside}` in a scene name expands to its absolute path.
+    fn vault_with_index(scenes: &[&str], scene_folder: &str) -> (tempfile::TempDir, PathBuf) {
+        let root = tempfile::tempdir().unwrap();
+        let vault = root.path().join("vault");
+        fs::create_dir_all(vault.join(".obsidian")).unwrap();
+        fs::create_dir_all(vault.join("Book")).unwrap();
+        fs::create_dir_all(root.path().join("outside")).unwrap();
+        fs::write(
+            root.path().join("outside/secret.md"),
+            "Private text from outside the vault.",
+        )
+        .unwrap();
+        let outside = root.path().join("outside");
+        let list: String = scenes
+            .iter()
+            .map(|s| s.replace("{outside}", outside.to_str().unwrap()))
+            .map(|s| format!("    - \"{s}\"\n"))
+            .collect();
+        let index = vault.join("Book/Index.md");
+        fs::write(
+            &index,
+            format!(
+                "---\nlongform:\n  format: scenes\n  title: Book\n  sceneFolder: {scene_folder}\n  scenes:\n{list}---\n"
+            ),
+        )
+        .unwrap();
+        (root, index)
+    }
+
+    fn outside_vault_error(result: Result<ParsedLongform, LongformError>) -> String {
+        match result {
+            Err(LongformError::InvalidStructure(message)) => message,
+            Err(other) => panic!("expected an outside-the-vault error, got {other}"),
+            Ok(parsed) => panic!(
+                "outside file was imported: {:?}",
+                parsed.scenes.iter().map(|s| &s.prose).collect::<Vec<_>>()
+            ),
+        }
+    }
+
+    #[test]
+    fn scene_names_with_parent_segments_cannot_leave_the_vault() {
+        let (_root, index) = vault_with_index(&["../../outside/secret"], "/");
+        let message = outside_vault_error(parse_longform_index(&index));
+        assert!(message.contains("outside the vault"), "{message}");
+        assert!(message.contains("../../outside/secret"), "{message}");
+    }
+
+    #[test]
+    fn parent_segments_that_stay_inside_the_vault_still_import() {
+        let (root, index) = vault_with_index(&["../Shared/Opening"], "/");
+        fs::create_dir_all(root.path().join("vault/Shared")).unwrap();
+        fs::write(root.path().join("vault/Shared/Opening.md"), "Shared prose.").unwrap();
+        let parsed = parse_longform_index(&index).unwrap();
+        assert_eq!(parsed.scenes.len(), 1);
+        assert_eq!(parsed.scenes[0].prose.as_deref(), Some("Shared prose."));
+    }
+
+    #[test]
+    fn absolute_scene_paths_cannot_leave_the_vault() {
+        let (_root, index) = vault_with_index(&["{outside}/secret"], "/");
+        let message = outside_vault_error(parse_longform_index(&index));
+        assert!(message.contains("outside the vault"), "{message}");
+    }
+
+    #[test]
+    fn scene_folder_cannot_leave_the_vault() {
+        let (_root, index) = vault_with_index(&["secret"], "../../outside");
+        let message = outside_vault_error(parse_longform_index(&index));
+        assert!(message.contains("sceneFolder"), "{message}");
+        assert!(message.contains("outside the vault"), "{message}");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn symlinked_scene_cannot_leave_the_vault() {
+        let (root, index) = vault_with_index(&["Opening"], "/");
+        std::os::unix::fs::symlink(
+            root.path().join("outside/secret.md"),
+            root.path().join("vault/Book/Opening.md"),
+        )
+        .unwrap();
+        let message = outside_vault_error(parse_longform_index(&index));
+        assert!(message.contains("Opening"), "{message}");
+        assert!(message.contains("outside the vault"), "{message}");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn symlinked_notes_and_indexes_outside_the_vault_are_skipped() {
+        let (root, index) = vault_with_index(&["Opening"], "/");
+        fs::write(root.path().join("vault/Book/Opening.md"), "Scene prose.").unwrap();
+        let outside = root.path().join("outside");
+        fs::write(
+            outside.join("Mallory.md"),
+            "---\ntype: character\nname: Mallory\n---\nOutside notes.",
+        )
+        .unwrap();
+        fs::write(
+            outside.join("Other.md"),
+            "---\nlongform:\n  format: scenes\n  title: Other\n  scenes: [secret]\n---\n",
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(&outside, root.path().join("vault/Book/characters")).unwrap();
+
+        let parsed = parse_longform_index(&index).unwrap();
+        assert!(
+            parsed.characters.iter().all(|c| c.name != "Mallory"),
+            "outside note imported"
+        );
+        // Picking the vault finds only the index inside it.
+        let parsed = parse_longform_path(root.path().join("vault")).unwrap();
+        assert_eq!(parsed.project.name, "Book");
     }
 }
