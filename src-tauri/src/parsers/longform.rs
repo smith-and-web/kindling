@@ -1449,13 +1449,10 @@ fn parse_scene_body(content: &str) -> SceneContent {
                 // Unspaced `key::text` is only a field for a mapped key or a
                 // link value, so text like `std::vector` stays prose. A
                 // capitalised key with a plain value is a field only when it
-                // is mapped and the value isn't a sentence.
-                let sentence = field.capitalized && reads_as_sentence(&field.value);
-                if !sentence {
-                    let mapped = apply_dataview_field(&field.key, &field.value, &mut context);
-                    if mapped || (!field.capitalized && (field.spaced || field.links_only)) {
-                        continue;
-                    }
+                // is mapped.
+                let mapped = apply_dataview_field(&field.key, &field.value, &mut context);
+                if mapped || (!field.capitalized && (field.spaced || field.links_only)) {
+                    continue;
                 }
             }
             if !status_locked {
@@ -1858,8 +1855,8 @@ struct DataviewField {
     /// The value is only wikilinks (`[[A]]` or `[[A]], [[B]]`).
     links_only: bool,
     /// A capitalised key with a plain value (`POV:: Zoe`). Only a field when
-    /// Kindling maps the key and the value doesn't read as a sentence, so
-    /// `Crew:: all hands stood silent.` stays prose.
+    /// Kindling maps the key, as 1.2 read it; `Meanwhile:: the ship sank.`
+    /// stays prose.
     capitalized: bool,
 }
 
@@ -1901,23 +1898,33 @@ fn parse_dataview_field(line: &str) -> Option<DataviewField> {
     })
 }
 
-/// Whether a field value ends like a sentence rather than a metadata value.
-fn reads_as_sentence(value: &str) -> bool {
-    value
-        .trim_end_matches(['"', '\'', '”', '’', ')', '*', '_'])
-        .ends_with(['.', '!', '?', '…', ',', ';', ':'])
-}
-
-/// Whether `value` is one wikilink or a comma list of them, and nothing else.
+/// Whether `value` is one wikilink (or embed) or a comma list of them, and
+/// nothing else. Commas inside a link's alias don't separate entries.
 fn is_wikilink_list(value: &str) -> bool {
-    !value.is_empty()
-        && value.split(',').all(|entry| {
-            entry
-                .trim()
-                .strip_prefix("[[")
-                .and_then(|inner| inner.strip_suffix("]]"))
-                .is_some_and(|inner| !inner.trim().is_empty() && !inner.contains("]]"))
-        })
+    let mut rest = value.trim();
+    if rest.is_empty() {
+        return false;
+    }
+    loop {
+        let link = rest.strip_prefix('!').unwrap_or(rest);
+        let Some(inner) = link.strip_prefix("[[") else {
+            return false;
+        };
+        let Some(end) = inner.find("]]") else {
+            return false;
+        };
+        if inner[..end].trim().is_empty() {
+            return false;
+        }
+        rest = inner[end + 2..].trim_start();
+        if rest.is_empty() {
+            return true;
+        }
+        let Some(next) = rest.strip_prefix(',') else {
+            return false;
+        };
+        rest = next.trim_start();
+    }
 }
 
 fn split_inline_list(value: &str) -> Vec<String> {
@@ -2892,43 +2899,39 @@ Night falls:: the long wait begins.\n\
 
     #[test]
     fn test_parse_scene_body_keeps_sentences_that_look_like_fields() {
-        // Capitalised words before `::` followed by ordinary text are prose,
-        // even when the word is a key Kindling maps ("Crew").
+        // Capitalised words before `::` that kindling doesn't map are prose.
         let scene = parse_scene_body(
             "Meanwhile:: the ship sank.\n\
 Later:: she remembered.\n\
-Crew:: all hands stood silent.\n\
 characters:: [[John]]\n\
 Characters:: [[Mila]]\n\
 pov:: Zoe",
         );
         assert_eq!(
             scene.prose.as_deref(),
-            Some("Meanwhile:: the ship sank.\nLater:: she remembered.\nCrew:: all hands stood silent.")
+            Some("Meanwhile:: the ship sank.\nLater:: she remembered.")
         );
         let mut characters = scene.characters.clone();
         characters.sort();
         assert_eq!(characters, ["John", "Mila", "Zoe"]);
-        assert!(scene.organizations.is_empty(), "{:?}", scene.organizations);
     }
 
     #[test]
     fn test_parse_scene_body_reads_capitalised_mapped_keys_with_plain_values() {
         // `POV:: Zoe` is how many writers type a mapped field; it stays
-        // metadata as in 1.2. A capitalised unmapped key is prose, as is a
-        // mapped one whose value reads as a sentence.
+        // metadata as in 1.2. A capitalised unmapped key is prose, and a
+        // link-only value is a breadcrumb even with a comma in an alias.
         let scene = parse_scene_body(
             "POV:: Zoe\n\
 Crew:: Night watch\n\
+Synopsis:: She arrives at the dock.\n\
 Later:: she remembered\n\
-Crew:: all hands stood silent.",
+Next:: [[Scene 5|the next, one]], ![[Chapter One]]",
         );
-        assert_eq!(
-            scene.prose.as_deref(),
-            Some("Later:: she remembered\nCrew:: all hands stood silent.")
-        );
+        assert_eq!(scene.prose.as_deref(), Some("Later:: she remembered"));
         assert_eq!(scene.characters, ["Zoe"]);
         assert_eq!(scene.organizations, ["Night watch"]);
+        assert_eq!(scene.synopsis.as_deref(), Some("She arrives at the dock."));
     }
 
     #[test]
