@@ -1346,7 +1346,7 @@ fn parse_scene_body(content: &str) -> SceneContent {
         if in_beats {
             beat_lines.push(line);
         } else {
-            if let Some((key, value)) = parse_dataview_field(trimmed_start) {
+            if let Some(field) = parse_dataview_field(trimmed_start) {
                 let mut context = DataviewContext {
                     scene_status: &mut scene_status,
                     status_locked,
@@ -1360,8 +1360,12 @@ fn parse_scene_body(content: &str) -> SceneContent {
                     timelines: &mut timelines,
                     custom: &mut custom,
                 };
-                apply_dataview_field(&key, &value, &mut context);
-                continue;
+                let mapped = apply_dataview_field(&field.key, &field.value, &mut context);
+                // Without a space after `::` only keys Kindling maps count as
+                // fields, so text like `std::vector` stays prose.
+                if mapped || field.spaced {
+                    continue;
+                }
             }
             if !status_locked {
                 if let Some(status) = parse_status_from_tags(trimmed_start) {
@@ -1605,7 +1609,9 @@ fn reference_type_for_kind(kind: ReferenceKind) -> Option<&'static str> {
     }
 }
 
-fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_>) {
+/// Apply a Dataview field Kindling understands. Returns `false` for keys it
+/// does not map, leaving the context untouched.
+fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_>) -> bool {
     let normalized_key = key.trim().to_lowercase();
     match normalized_key.as_str() {
         "pov" => {
@@ -1743,19 +1749,42 @@ fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_
                 *context.synopsis = Some(text);
             }
         }
-        _ => {}
+        _ => return false,
     }
+    true
 }
 
-fn parse_dataview_field(line: &str) -> Option<(String, String)> {
-    let trimmed = line.trim();
-    let (key, value) = trimmed.split_once("::")?;
-    let key = key.trim();
-    let value = value.trim();
-    if key.is_empty() {
+/// A line that is exactly one Dataview inline field, `key:: value`.
+struct DataviewField {
+    key: String,
+    value: String,
+    /// `::` was followed by whitespace or ended the line, as Dataview
+    /// fields are normally written.
+    spaced: bool,
+}
+
+/// Parse a scene line as a Dataview inline field.
+///
+/// Field lines are removed from the prose, so this errs towards keeping text:
+/// the key must be a single field-name token (a letter, then letters, digits,
+/// `_` or `-`). Prose that merely contains `::` ("the odds were 3::1",
+/// "Night falls:: ...", list items, quotes) is not a field. Dataview's
+/// multi-word keys are therefore left in the prose rather than risk dropping
+/// a sentence.
+fn parse_dataview_field(line: &str) -> Option<DataviewField> {
+    let (key, rest) = line.trim().split_once("::")?;
+    let key = key.trim_end();
+    let mut key_chars = key.chars();
+    if !key_chars.next().is_some_and(char::is_alphabetic)
+        || !key_chars.all(|ch| ch.is_alphanumeric() || ch == '_' || ch == '-')
+    {
         return None;
     }
-    Some((key.to_string(), value.to_string()))
+    Some(DataviewField {
+        key: key.to_string(),
+        value: rest.trim().to_string(),
+        spaced: rest.is_empty() || rest.starts_with(char::is_whitespace),
+    })
 }
 
 fn split_inline_list(value: &str) -> Vec<String> {
@@ -2692,6 +2721,45 @@ Scene prose with [[;Mila]] and [[~Warehouse]]."#;
             .collect();
         assert!(organization_names.contains(&"Guild"));
         assert_eq!(parsed.scene_reference_item_refs.len(), 4);
+    }
+
+    #[test]
+    fn test_parse_scene_body_keeps_prose_lines_containing_double_colon() {
+        let content = "pov:: [[;Sarah]]\n\
+mood:: tense\n\
+\n\
+The ratio was 3::1 against them.\n\
+She read the label aloud: Warning:: do not open.\n\
+std::vector was the only word on the screen.\n\
+Night falls:: the long wait begins.\n\
+- characters:: [[John]]\n\
+> Aside:: a quoted line.";
+        let scene = parse_scene_body(content);
+        assert!(scene.characters.contains(&"Sarah".to_string()));
+        let prose = scene.prose.expect("prose kept");
+        for line in [
+            "The ratio was 3::1 against them.",
+            "She read the label aloud: Warning:: do not open.",
+            "std::vector was the only word on the screen.",
+            "Night falls:: the long wait begins.",
+            "- characters:: [[John]]",
+            "> Aside:: a quoted line.",
+        ] {
+            assert!(prose.contains(line), "lost {line:?} from {prose:?}");
+        }
+        // Genuine field lines are still metadata, not prose.
+        assert!(!prose.contains("pov::"), "{prose:?}");
+        assert!(!prose.contains("mood::"), "{prose:?}");
+    }
+
+    #[test]
+    fn test_parse_scene_body_dataview_field_forms() {
+        // Mapped keys work without a space after `::` or with one before it,
+        // and an unmapped field with no value is still metadata.
+        let scene = parse_scene_body("setting::[[~Dock]]\nPOV :: Zoe\nmood::\n\nBody.");
+        assert_eq!(scene.locations, vec!["Dock".to_string()]);
+        assert_eq!(scene.characters, vec!["Zoe".to_string()]);
+        assert_eq!(scene.prose.as_deref(), Some("Body."));
     }
 
     #[test]
