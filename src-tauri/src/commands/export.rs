@@ -4499,6 +4499,9 @@ fn create_new_scriv_bundle(
         _ => Path::new("."),
     };
     fs::create_dir_all(parent).map_err(|e| format!("Failed to create .scriv directory: {}", e))?;
+    // Unlike its files (0600), tempfile creates directories with the ordinary
+    // umask-derived mode, so the published bundle root matches any other new
+    // folder here. A unix test pins this.
     let staging = tempfile::Builder::new()
         .prefix(".kindling-scriv-")
         .tempdir_in(parent)
@@ -6987,6 +6990,32 @@ mod tests {
             .map(|e| e.unwrap().file_name())
             .collect();
         assert_eq!(names, ["Novel.scriv"]);
+    }
+
+    /// The published bundle must not be owner-only: it gets the same mode as
+    /// any folder created beside it, like every other Scrivener project there.
+    #[cfg(unix)]
+    #[test]
+    fn test_create_new_scriv_bundle_root_has_default_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o7777;
+        let dir = tempfile::tempdir().unwrap();
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let (project, chapters) = scriv_create_fixture(&conn);
+        let active: Vec<&Chapter> = chapters.iter().collect();
+        let scriv = dir.path().join("Novel.scriv");
+        let sibling = dir.path().join("Sibling.scriv");
+        std::fs::create_dir(&sibling).unwrap();
+
+        create_new_scriv_bundle(&conn, &project, &active, &scriv).unwrap();
+
+        assert_eq!(
+            mode(&scriv),
+            mode(&sibling),
+            "bundle root is {:o}, a new folder here is {:o}",
+            mode(&scriv),
+            mode(&sibling)
+        );
     }
 
     #[test]
