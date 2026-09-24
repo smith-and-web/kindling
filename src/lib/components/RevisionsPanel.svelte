@@ -2,7 +2,7 @@
   import DialogHeader from "./DialogHeader.svelte";
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { History, Loader2, Lock, Plus, RotateCcw, TriangleAlert } from "lucide-svelte";
+  import { History, Info, Loader2, Lock, Plus, RotateCcw, TriangleAlert } from "lucide-svelte";
   import { proseText } from "../utils/proseSearch";
   import {
     activeDocuments,
@@ -34,6 +34,8 @@
   let overview = $state<RevisionOverview[]>([]);
   let busy = $state(false);
   let error = $state("");
+  // Set when a save pruned a draft the writer was comparing.
+  let prunedNotice = $state("");
   let tab = $state<"history" | "overview">("history");
   let name = $state("");
   let before = $state(0);
@@ -87,23 +89,35 @@
     if (!review || busy || locked) return false;
     busy = true;
     error = "";
+    prunedNotice = "";
     try {
       const previous = review.data.drafts;
       review = await invoke<SceneReview>("save_scene_review", { expected: review, data, next });
       // Saving can prune old automatic drafts, so keep the comparison on the same drafts.
+      // If one was pruned, move to its nearest surviving neighbour (older first) and say so.
       const drafts = review.data.drafts;
-      const same = (index: number) =>
-        index < 0
-          ? index
-          : Math.max(
-              0,
-              drafts.findIndex(
-                (d) =>
-                  d.created_at === previous[index]?.created_at && d.name === previous[index]?.name
-              )
-            );
+      const find = (draft: ReviewDraft | undefined) =>
+        draft
+          ? drafts.findIndex((d) => d.created_at === draft.created_at && d.name === draft.name)
+          : -1;
+      const removed: string[] = [];
+      const same = (index: number) => {
+        if (index < 0 || !previous[index]) return index;
+        const kept = find(previous[index]);
+        if (kept >= 0) return kept;
+        const neighbours = [
+          ...previous.slice(0, index).reverse(),
+          ...previous.slice(index + 1),
+        ].map(find);
+        const nearest = Math.max(0, neighbours.find((i) => i >= 0) ?? 0);
+        removed.push(
+          `“${previous[index].name}” was removed because only the newest automatic drafts are kept. Comparing “${drafts[nearest]?.name}” instead.`
+        );
+        return nearest;
+      };
       before = same(before);
       after = same(after);
+      prunedNotice = [...new Set(removed)].join(" ");
       if (next) {
         onApplied(review);
       }
@@ -202,6 +216,12 @@
       <div class="ka-notice ka-notice--warning od-row-top locked-notice" role="status">
         <Lock class="w-5 h-5" aria-hidden="true" />
         <p>This scene is locked. History is read-only.</p>
+      </div>
+    {/if}
+    {#if prunedNotice}
+      <div class="ka-notice od-row-top locked-notice" role="status">
+        <Info class="w-5 h-5" aria-hidden="true" />
+        <p>{prunedNotice}</p>
       </div>
     {/if}
     {#if tab === "history"}

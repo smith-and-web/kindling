@@ -235,3 +235,53 @@ it("marks the drafts it keeps automatically and stays on the chosen draft when o
   expect(persisted.data.drafts[2]).not.toHaveProperty("automatic");
   await waitFor(() => expect(within(left).getByRole("heading", { name: "Keeper" })).toBeTruthy());
 });
+
+it("moves to the nearest older draft and says so when the compared draft is pruned", async () => {
+  const draft = (name: string, day: number, automatic = false) => ({
+    name,
+    created_at: `2026-01-0${day}`,
+    mode: "page" as const,
+    documents: [{ id: "scene", label: "Page", html: `<p>${name} fox.</p>` }],
+    ...(automatic && { automatic }),
+  });
+  persisted.data.drafts = [
+    draft("Opening", 1),
+    draft("Middle", 2),
+    draft("Before accepting A", 3, true),
+    draft("Before accepting B", 4, true),
+  ];
+  const original = vi.mocked(invoke).getMockImplementation()!;
+  vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+    if (cmd !== "save_scene_review") return original(cmd, args);
+    // As the backend does past its limit (here one), drop the oldest automatic draft.
+    const { data } = args as { data: SceneReview["data"] };
+    const automatic = data.drafts.filter((d) => d.automatic);
+    const pruned = automatic.length > 1 ? automatic[0] : null;
+    return original(cmd, {
+      ...args,
+      data: { ...data, drafts: data.drafts.filter((d) => d !== pruned) },
+    });
+  });
+  render(RevisionsPanel, {
+    sceneId: "scene",
+    projectId: "project",
+    title: "Arrival",
+    locked: false,
+    onApplied: vi.fn(),
+    onClose: vi.fn(),
+  });
+  const left = await screen.findByRole("region", { name: "Saved draft" });
+  await fireEvent.click(screen.getByRole("button", { name: /Draft 3.*Before accepting A/ }));
+  expect(within(left).getByRole("heading", { name: "Before accepting A" })).toBeTruthy();
+  expect(screen.queryByText(/was removed/)).toBeNull();
+
+  await fireEvent.change(screen.getByLabelText("Revision status"), {
+    target: { value: "editor_review" },
+  });
+  await waitFor(() => expect(persisted.data.drafts).toHaveLength(3));
+  // Not the first draft: the nearest surviving draft older than the one that went.
+  await waitFor(() => expect(within(left).getByRole("heading", { name: "Middle" })).toBeTruthy());
+  expect(screen.getByRole("status").textContent).toContain(
+    "“Before accepting A” was removed because only the newest automatic drafts are kept. Comparing “Middle” instead."
+  );
+});
