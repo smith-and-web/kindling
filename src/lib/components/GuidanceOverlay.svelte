@@ -13,6 +13,7 @@
   import { currentProject } from "../stores/project.svelte";
   import type { GuidanceArea } from "../stores/ui.svelte";
   import { Check, Info, EyeOff } from "lucide-svelte";
+  import { modalFocus } from "../utils/modalFocus";
 
   const TOOLTIP_CONFIG: Record<
     GuidanceArea,
@@ -159,10 +160,12 @@
     style:left={anchor?.left !== undefined ? `${anchor.left}px` : null}
     style:right={anchor?.right !== undefined ? `${anchor.right}px` : null}
     style:top={anchor ? `${anchor.top}px` : null}
+    use:modalFocus={{ onEscape: dismiss, initialFocus: ".guidance-actions .ka-button:last-child" }}
     role="dialog"
     aria-modal="true"
     aria-labelledby="guidance-title"
     aria-describedby="guidance-message"
+    tabindex="-1"
   >
     <div class="ka-coach guidance-card">
       <div class="guidance-body">

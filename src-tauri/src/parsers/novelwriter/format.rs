@@ -36,7 +36,7 @@ pub fn stable_handle(key: &str) -> String {
     sha1(key.as_bytes())[..13].into()
 }
 fn xml(s: &str) -> String {
-    quick_xml::escape::escape(s).into_owned()
+    quick_xml::escape::escape(crate::parsers::xml_text::xml_safe_text(s).as_ref()).into_owned()
 }
 
 pub fn write_nwx(doc: &Nwx) -> String {
@@ -75,7 +75,11 @@ pub fn read_nwx(text: &str) -> Result<Nwx, NovelWriterError> {
                         let a = a.map_err(|e| NovelWriterError::Invalid(e.to_string()))?;
                         Ok((
                             String::from_utf8_lossy(a.key.as_ref()).into_owned(),
-                            a.decode_and_unescape_value(reader.decoder())?.into_owned(),
+                            a.decoded_and_normalized_value(
+                                quick_xml::XmlVersion::Explicit1_0,
+                                reader.decoder(),
+                            )?
+                            .into_owned(),
                         ))
                     })
                     .collect::<Result<_, NovelWriterError>>()?;
@@ -132,7 +136,7 @@ pub fn read_nwx(text: &str) -> Result<Nwx, NovelWriterError> {
             }
             Event::Text(e) => {
                 let value = e
-                    .xml_content()
+                    .xml_content(quick_xml::XmlVersion::Explicit1_0)
                     .map_err(|e| NovelWriterError::Invalid(e.to_string()))?;
                 append_text(&mut doc, &mut current, &stack, &value);
             }
@@ -277,4 +281,14 @@ pub fn read_document(text: &str) -> Result<NwDocument, NovelWriterError> {
 pub fn sha1(data: &[u8]) -> String {
     use sha1::{Digest, Sha1};
     format!("{:x}", Sha1::digest(data))
+}
+
+#[cfg(test)]
+mod xml_tests {
+    use super::xml;
+
+    #[test]
+    fn project_xml_text_drops_xml_invalid_characters() {
+        assert_eq!(xml("Act\u{0001} <One>\u{000B}Two"), "Act &lt;One&gt; Two");
+    }
 }

@@ -9,10 +9,12 @@
     MoreVertical,
     Trash2,
     Pencil,
+    ArrowUp,
+    ArrowDown,
   } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { proseSaves, type ProseSave } from "../utils/proseSaves";
-  import { tick } from "svelte";
+  import { tick, untrack } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
   import type { Beat } from "../types";
   import { currentProject } from "../stores/project.svelte";
@@ -58,6 +60,8 @@
   let changingBeats = $state(false);
   let editingBeatId: string | null = $state(null);
   let editingBeatContent = $state("");
+  // Screen-reader announcement for keyboard moves (polite live region).
+  let moveAnnouncement = $state("");
 
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   let pendingSaveBeatId: string | null = null;
@@ -218,6 +222,33 @@
     }, 500);
   }
 
+  // beat.prose only advances on a successful save. Mount and preview from the newest unsaved
+  // text instead (this editor's draft, then a failed or in-flight save), as Page View does, so
+  // reopening a beat after a failed save never shows stale prose that the next keystroke saves.
+  // Built once per queue change rather than searched per beat on every render. Observing the
+  // queue keeps a collapsed preview current when a save fails, succeeds or is discarded.
+  const queuedBeatProse: ReadonlyMap<string, string> = $derived.by(() => {
+    proseSaves.observe();
+    return new Map(
+      proseSaves
+        .draftsForRecovery(currentProject.value?.id ?? "")
+        .filter((draft) => draft.kind === "beat")
+        .map((draft) => [draft.id, draft.prose])
+    );
+  });
+
+  function unsavedBeatProse(beat: Beat): string {
+    const local = draftProse.get(beat.id);
+    if (local?.projectId === (currentProject.value?.id ?? "")) return local.prose;
+    return queuedBeatProse.get(beat.id) ?? beat.prose ?? "";
+  }
+
+  // The open editor already holds its own draft; only a changed beat may push new content in.
+  // Tracking draftProse here would reset the editor whenever a saved draft is cleared.
+  function editorProse(beat: Beat): string {
+    return untrack(() => unsavedBeatProse(beat));
+  }
+
   function handleEditorUpdate(beatId: string) {
     return (html: string) => {
       handleProseInput(beatId, html);
@@ -262,6 +293,7 @@
       ui.setExpandedBeat(beat.id);
     } catch (e) {
       console.error("Failed to create beat:", e);
+      ui.showError(`Failed to create beat: ${String(e)}`);
     } finally {
       creatingBeat = false;
     }
@@ -292,17 +324,22 @@
       editingBeatContent = "";
       return;
     }
+    const beatId = editingBeatId;
     try {
-      await invoke("rename_beat", { beatId: editingBeatId, content });
-      const freshBeats = await invoke<Beat[]>("get_beats", {
-        sceneId: currentProject.currentScene!.id,
-      });
-      currentProject.setBeats(freshBeats);
+      await invoke("rename_beat", { beatId, content });
     } catch (e) {
+      // Keep the field open with the typed title so the writer can retry.
       console.error("Failed to rename beat:", e);
+      ui.showError(`Failed to rename beat: ${String(e)}`);
+      return;
     }
-    editingBeatId = null;
-    editingBeatContent = "";
+    currentProject.setBeats(
+      currentProject.beats.map((b) => (b.id === beatId ? { ...b, content } : b))
+    );
+    if (editingBeatId === beatId) {
+      editingBeatId = null;
+      editingBeatContent = "";
+    }
   }
 
   function handleRenameKeydown(e: KeyboardEvent) {
@@ -345,6 +382,18 @@
         },
         disabled: !nextBeat,
       },
+      {
+        label: "Move up",
+        icon: ArrowUp,
+        action: () => moveBeatOneStep(beat, -1),
+        disabled: beatIndex <= 0,
+      },
+      {
+        label: "Move down",
+        icon: ArrowDown,
+        action: () => moveBeatOneStep(beat, 1),
+        disabled: !nextBeat,
+      },
       { label: "", divider: true, action: () => {} },
       {
         label: "Delete",
@@ -369,6 +418,7 @@
       }
     } catch (e) {
       console.error("Failed to delete beat:", e);
+      ui.showError(`Failed to delete beat: ${String(e)}`);
     } finally {
       deletingBeat = false;
       deleteBeatDialog = null;
@@ -510,35 +560,61 @@
     if (currentDragOverBeatElement) {
       currentDragOverBeatElement.style.outline = "";
     }
-    if (
-      draggedBeatId &&
-      dragOverBeatId &&
-      draggedBeatId !== dragOverBeatId &&
-      currentProject.currentScene
-    ) {
-      const fromIndex = beats.findIndex((b) => b.id === draggedBeatId);
+    if (draggedBeatId && dragOverBeatId && draggedBeatId !== dragOverBeatId) {
       const toIndex = beats.findIndex((b) => b.id === dragOverBeatId);
-      if (fromIndex !== -1 && toIndex !== -1) {
-        const newOrder = [...beats];
-        const [moved] = newOrder.splice(fromIndex, 1);
-        newOrder.splice(toIndex, 0, moved);
-        const newIds = newOrder.map((b) => b.id);
-        try {
-          await invoke("reorder_beats", {
-            sceneId: currentProject.currentScene.id,
-            beatIds: newIds,
-          });
-          currentProject.reorderBeats(newIds);
-        } catch (e) {
-          console.error("Failed to reorder beats:", e);
-        }
-      }
+      if (toIndex !== -1) await moveBeat(draggedBeatId, toIndex);
     }
     isDraggingBeat = false;
     draggedBeatId = null;
     dragOverBeatId = null;
     draggedBeatElement = null;
     currentDragOverBeatElement = null;
+  }
+
+  /** Moves a beat to `toIndex` within the scene; resolves true once saved. */
+  async function moveBeat(beatId: string, toIndex: number): Promise<boolean> {
+    const sceneId = currentProject.currentScene?.id;
+    const fromIndex = beats.findIndex((b) => b.id === beatId);
+    if (!sceneId || isLocked || fromIndex === -1 || toIndex < 0 || toIndex >= beats.length)
+      return false;
+    if (fromIndex === toIndex) return false;
+    const newOrder = [...beats];
+    const [moved] = newOrder.splice(fromIndex, 1);
+    newOrder.splice(toIndex, 0, moved);
+    const newIds = newOrder.map((b) => b.id);
+    try {
+      await invoke("reorder_beats", { sceneId, beatIds: newIds });
+      currentProject.reorderBeats(newIds);
+      return true;
+    } catch (e) {
+      console.error("Failed to reorder beats:", e);
+      ui.showError(`Failed to reorder beats: ${String(e)}`);
+      return false;
+    }
+  }
+
+  /** Keyboard alternative to dragging: move one place, announce it, keep focus on the beat. */
+  async function moveBeatOneStep(beat: Beat, step: -1 | 1) {
+    const toIndex = beats.findIndex((b) => b.id === beat.id) + step;
+    const total = beats.length;
+    if (!(await moveBeat(beat.id, toIndex))) return;
+    moveAnnouncement = `Moved beat “${beat.content}” ${step < 0 ? "up" : "down"}, to position ${toIndex + 1} of ${total}.`;
+    await tick();
+    document
+      .querySelector<HTMLElement>(`[data-drag-beat="${beat.id}"] [data-testid="beat-menu-button"]`)
+      ?.focus({ preventScroll: true });
+  }
+
+  /** Opens the beat menu at the pointer, or under the button when opened from the keyboard. */
+  function openBeatMenu(e: MouseEvent, beat: Beat) {
+    let x = e.clientX;
+    let y = e.clientY;
+    if (x === 0 && y === 0 && e.currentTarget instanceof HTMLElement) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      x = rect.left;
+      y = rect.bottom;
+    }
+    beatContextMenu = { beat, x, y };
   }
 
   function stripHtml(html: string): string {
@@ -557,6 +633,7 @@
 </script>
 
 <section class="beats" aria-labelledby="beats-title">
+  <p class="ka-sr" role="status" aria-live="polite">{moveAnnouncement}</p>
   <div class="beats-head">
     <h3 id="beats-title">Beats</h3>
     {#if beats.length > 0 && !addingBeat && !isLocked}
@@ -574,6 +651,7 @@
     <div class="beats-list">
       {#each beats as beat, index (beat.id)}
         {@const isExpanded = ui.expandedBeatId === beat.id}
+        {@const prose = unsavedBeatProse(beat)}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <article
           data-drag-beat={beat.id}
@@ -628,10 +706,8 @@
                 <ChevronRight class="w-5 h-5 beat-chev" aria-hidden="true" />
                 <span class="ka-beat-number">{index + 1}</span>
                 <span class="beat-title" title={beat.content}>{beat.content}</span>
-                {#if beat.prose || draftProse.get(beat.id)}
-                  <small class="beat-count"
-                    >{getBeatWordCount(draftProse.get(beat.id)?.prose ?? beat.prose)} words</small
-                  >
+                {#if prose}
+                  <small class="beat-count">{getBeatWordCount(prose)} words</small>
                 {/if}
               </button>
             {/if}
@@ -640,7 +716,7 @@
                 data-testid="beat-menu-button"
                 onclick={(e) => {
                   e.stopPropagation();
-                  beatContextMenu = { beat, x: e.clientX, y: e.clientY };
+                  openBeatMenu(e, beat);
                 }}
                 class="ka-button ka-button--ghost ka-icon-button beat-menu"
                 aria-label="Beat menu"
@@ -659,14 +735,14 @@
                 projectId={currentProject.value?.id}
                 sceneId={beat.scene_id}
                 beatId={beat.id}
-                content={beat.prose || ""}
+                content={editorProse(beat)}
                 placeholder={isLocked ? "Scene is locked" : "Write your prose for this beat…"}
                 readonly={isLocked || changingBeats}
                 saveStatus={localSaveStatus}
                 onUpdate={handleEditorUpdate(beat.id)}
               />
             </div>
-          {:else if beat.prose}
+          {:else if prose}
             <div
               class="beat-preview"
               onclick={() => toggleBeat(beat.id)}
@@ -680,7 +756,7 @@
               tabindex="0"
               aria-label={`Open beat ${index + 1} prose`}
             >
-              <p>{stripHtml(beat.prose)}</p>
+              <p>{stripHtml(prose)}</p>
             </div>
           {/if}
         </article>

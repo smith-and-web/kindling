@@ -1,5 +1,6 @@
 <script lang="ts">
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus } from "../utils/modalFocus";
   interface Props {
     partTitle: string;
     childChapterCount: number;
@@ -19,19 +20,12 @@
     onDeletePartAndChapters,
     onCancel,
   }: Props = $props();
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === "Escape") {
-      onCancel();
-    }
-  }
 </script>
-
-<svelte:window onkeydown={handleKeydown} />
 
 <div
   data-testid="part-delete-dialog"
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: onCancel, initialFocus: '[data-testid="dialog-cancel"]' }}
   role="alertdialog"
   aria-modal="true"
   aria-labelledby="dialog-title"

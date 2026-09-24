@@ -1,6 +1,7 @@
 <script lang="ts">
   import { FileText, FolderOpen } from "lucide-svelte";
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus } from "../utils/modalFocus";
   interface Props {
     onSelectIndex: () => void;
     onSelectVault: () => void;
@@ -8,18 +9,11 @@
   }
 
   let { onSelectIndex, onSelectVault, onClose }: Props = $props();
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      onClose();
-    }
-  }
 </script>
-
-<svelte:window onkeydown={handleKeydown} />
 
 <div
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: onClose }}
   role="dialog"
   aria-modal="true"
   aria-labelledby="longform-import-title"

@@ -832,6 +832,7 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       const mode = getArg<string>(args, "mode") ?? "beat";
       const sc = scenes.find((s) => s.id === sceneId);
       if (!sc) throw new Error(`Scene not found: ${sceneId}`);
+      if (sc.editor_mode === mode) return sc as T;
       sc.editor_mode = mode as "beat" | "page";
       if (mode === "page") {
         const sceneBeats = beats.filter((b) => b.scene_id === sceneId);

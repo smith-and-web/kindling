@@ -153,8 +153,8 @@ pub fn run() {
         }))
     };
 
-    // MCP plugin for QA automation — only in dev builds
-    #[cfg(debug_assertions)]
+    // MCP plugin for QA automation — only in dev builds with the `mcp` feature
+    #[cfg(all(debug_assertions, feature = "mcp"))]
     let builder = {
         let mut config = tauri_plugin_mcp::PluginConfig::new("Kindling".to_string())
             .start_socket_server(true)

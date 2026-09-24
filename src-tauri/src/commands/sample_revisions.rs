@@ -57,6 +57,7 @@ pub fn seed(conn: &Connection, project: &Uuid) -> rusqlite::Result<()> {
             created_at: DATE.into(),
             mode: review.mode,
             documents: review.documents.clone(),
+            automatic: false,
         };
         match scene.title.as_str() {
             "On the Cliff" => {

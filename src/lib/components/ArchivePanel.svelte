@@ -5,6 +5,7 @@
   import type { Chapter, Scene, ArchivedItems } from "../types";
   import { currentProject } from "../stores/project.svelte";
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus } from "../utils/modalFocus";
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -143,14 +144,10 @@
     }
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    // The scrim and the window both listen; handle each keypress once.
-    if (event.defaultPrevented) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      if (confirmingId) void cancelDelete();
-      else onClose();
-    }
+  // Escape backs out one layer: the open delete confirmation first, then the panel.
+  function handleEscape() {
+    if (confirmingId) void cancelDelete();
+    else onClose();
   }
 
   // Get parent chapter title for a scene
@@ -159,8 +156,6 @@
     return chapter?.title || "Unknown Chapter";
   }
 </script>
-
-<svelte:window onkeydown={handleKeydown} />
 
 {#snippet itemRow(
   id: string,
@@ -256,10 +251,12 @@
   </li>
 {/snippet}
 
+<!-- Escape is the keyboard equivalent of the backdrop click; modalFocus handles it. -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: handleEscape }}
   onclick={handleBackdropClick}
-  onkeydown={handleKeydown}
   role="dialog"
   aria-modal="true"
   aria-labelledby="archive-panel-title"

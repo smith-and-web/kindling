@@ -144,12 +144,23 @@ pub async fn create_snapshot(
 ) -> Result<SnapshotMetadata, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    write_snapshot(&conn, &app_handle, &project_uuid, options)
+}
 
+/// Writes a snapshot with a connection the caller already holds, so work that
+/// is under the lock (a sync apply) can take one without releasing it.
+pub(super) fn write_snapshot(
+    conn: &rusqlite::Connection,
+    app_handle: &AppHandle,
+    project_uuid: &Uuid,
+    options: CreateSnapshotOptions,
+) -> Result<SnapshotMetadata, String> {
+    let project_uuid = *project_uuid;
     // Collect project data
-    let data = collect_project_data(&conn, &project_uuid)?;
+    let data = collect_project_data(conn, &project_uuid)?;
 
     // Generate file path
-    let snapshots_dir = get_snapshots_dir(&app_handle, &project_uuid)?;
+    let snapshots_dir = get_snapshots_dir(app_handle, &project_uuid)?;
     let filename = generate_snapshot_filename(&options.trigger_type);
     let file_path = snapshots_dir.join(&filename);
 
@@ -171,8 +182,12 @@ pub async fn create_snapshot(
         Some(data.word_count()),
     );
 
-    // Store metadata in database
-    db::insert_snapshot_metadata(&conn, &metadata).map_err(|e| e.to_string())?;
+    // Store metadata in database. Without its record the file is invisible and never
+    // pruned, so remove it if the insert fails.
+    if let Err(e) = db::insert_snapshot_metadata(conn, &metadata) {
+        let _ = std::fs::remove_file(&file_path);
+        return Err(e.to_string());
+    }
 
     Ok(metadata)
 }
@@ -198,9 +213,16 @@ pub async fn delete_snapshot(
 ) -> Result<(), String> {
     let snapshot_uuid = Uuid::parse_str(&snapshot_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    remove_snapshot(&conn, &snapshot_uuid)
+}
 
+/// Deletes a snapshot's file and record with a connection the caller holds.
+pub(super) fn remove_snapshot(
+    conn: &rusqlite::Connection,
+    snapshot_uuid: &Uuid,
+) -> Result<(), String> {
     // Get snapshot metadata to find file path
-    let metadata = db::get_snapshot_by_id(&conn, &snapshot_uuid)
+    let metadata = db::get_snapshot_by_id(conn, snapshot_uuid)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "Snapshot not found".to_string())?;
 
@@ -211,7 +233,7 @@ pub async fn delete_snapshot(
     }
 
     // Delete metadata from database
-    db::delete_snapshot_metadata(&conn, &snapshot_uuid).map_err(|e| e.to_string())?;
+    db::delete_snapshot_metadata(conn, snapshot_uuid).map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -256,6 +278,9 @@ fn restore_replace_current(
     // Begin transaction
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
+    // Draft history is deleted with the scenes below. Keep it to merge back in.
+    let current_reviews = db::revisions::backup(&tx, &project_id)?;
+
     // Delete all existing project content
     db::delete_all_project_content(&tx, &project_id).map_err(|e| e.to_string())?;
 
@@ -274,7 +299,27 @@ fn restore_replace_current(
         db::insert_beat(&tx, beat).map_err(|e| e.to_string())?;
     }
 
-    for review in &data.scene_reviews {
+    // A scene the snapshot restores keeps the draft history recorded since the snapshot.
+    // A scene it doesn't contain is removed with its history, like the rest of its content.
+    let statuses: HashMap<Uuid, &str> = data
+        .scenes
+        .iter()
+        .map(|scene| (scene.id, scene.scene_status.as_str()))
+        .collect();
+    let mut snapshot_reviews: HashMap<Uuid, db::revisions::ReviewBackup> = data
+        .scene_reviews
+        .iter()
+        .map(|review| (review.scene_id, review.clone()))
+        .collect();
+    let mut reviews = Vec::new();
+    for current in current_reviews {
+        if let Some(status) = statuses.get(&current.scene_id) {
+            let snapshot = snapshot_reviews.remove(&current.scene_id);
+            reviews.push(db::revisions::merge_backup(snapshot, current, status));
+        }
+    }
+    reviews.extend(snapshot_reviews.into_values());
+    for review in &reviews {
         db::revisions::restore_backup(&tx, review, &HashMap::new())?;
     }
 
@@ -609,6 +654,7 @@ mod tests {
             created_at: "today".into(),
             mode: review.mode,
             documents: review.documents.clone(),
+            automatic: false,
         });
         data.annotations.push(Annotation {
             id: "thread".into(),
@@ -653,6 +699,96 @@ mod tests {
             .unwrap()
             .scene_reviews
             .is_empty());
+    }
+
+    #[test]
+    fn replacing_from_a_snapshot_keeps_draft_history_it_never_contained() {
+        use crate::db::revisions::{self, Annotation, ReviewDraft};
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        conn.execute_batch("PRAGMA foreign_keys=ON").unwrap();
+        let project = Project::new("History".into(), SourceType::Blank, None);
+        db::insert_project(&conn, &project).unwrap();
+        let chapter = Chapter::new(project.id, "Chapter".into(), 0);
+        db::insert_chapter(&conn, &chapter).unwrap();
+        let scene = Scene::new(chapter.id, "Scene".into(), None, 0);
+        db::insert_scene(&conn, &scene).unwrap();
+        let mut beat = Beat::new(scene.id, "Beat".into(), 0);
+        beat.prose = Some("<p>Original prose</p>".into());
+        db::insert_beat(&conn, &beat).unwrap();
+        let named = |review: &revisions::SceneReview, name: &str| ReviewDraft {
+            name: name.into(),
+            created_at: "today".into(),
+            mode: review.mode,
+            documents: review.documents.clone(),
+            automatic: false,
+        };
+        let note = |id: &str| Annotation {
+            id: id.into(),
+            document_id: beat.id.to_string(),
+            anchor_html: "<p>Original prose</p>".into(),
+            from: 1,
+            to: 9,
+            quote: "Original".into(),
+            replacement: None,
+            state: "open".into(),
+            messages: vec![],
+        };
+        let review = revisions::load(&conn, &scene.id).unwrap();
+        let mut data = review.data.clone();
+        data.drafts.push(named(&review, "First draft"));
+        data.annotations.push(note("thread"));
+        revisions::save(&conn, &review, &data, None).unwrap();
+        let snapshot = collect_project_data(&conn, &project.id).unwrap();
+
+        // Since the snapshot: another draft, the thread resolved, a new comment, and a new
+        // scene with history of its own.
+        let review = revisions::load(&conn, &scene.id).unwrap();
+        let mut data = review.data.clone();
+        data.drafts.push(named(&review, "Second draft"));
+        data.annotations[0].state = "resolved".into();
+        data.annotations.push(note("later"));
+        data.status = "editor_review".into();
+        revisions::save(&conn, &review, &data, None).unwrap();
+        let added = Scene::new(chapter.id, "Added".into(), None, 1);
+        db::insert_scene(&conn, &added).unwrap();
+        let review = revisions::load(&conn, &added.id).unwrap();
+        let mut data = review.data.clone();
+        data.drafts.push(named(&review, "Added draft"));
+        revisions::save(&conn, &review, &data, None).unwrap();
+
+        let names = |review: &revisions::SceneReview| {
+            review
+                .data
+                .drafts
+                .iter()
+                .map(|d| d.name.clone())
+                .collect::<Vec<_>>()
+        };
+        restore_replace_current(&conn, snapshot.clone()).unwrap();
+        let restored = revisions::load(&conn, &scene.id).unwrap();
+        assert_eq!(names(&restored), ["First draft", "Second draft"]);
+        // What the snapshot held is restored as it was; what it never held is kept.
+        let states: Vec<_> = restored
+            .data
+            .annotations
+            .iter()
+            .map(|a| (a.id.as_str(), a.state.as_str()))
+            .collect();
+        assert_eq!(states, [("thread", "open"), ("later", "open")]);
+        assert_eq!(restored.data.status, "first_draft");
+        // A scene the snapshot doesn't contain goes, with its history, like its prose.
+        assert!(revisions::load(&conn, &added.id).is_err());
+
+        // A snapshot from before 1.3 carries no reviews at all.
+        let mut old = serde_json::to_value(&snapshot).unwrap();
+        old.as_object_mut().unwrap().remove("scene_reviews");
+        let old: SnapshotData = serde_json::from_value(old).unwrap();
+        restore_replace_current(&conn, old).unwrap();
+        let restored = revisions::load(&conn, &scene.id).unwrap();
+        assert_eq!(names(&restored), ["First draft", "Second draft"]);
+        assert_eq!(restored.data.annotations.len(), 2);
+        assert_eq!(restored.data.status, "first_draft");
     }
 
     #[test]

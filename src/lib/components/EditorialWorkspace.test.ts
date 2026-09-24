@@ -238,6 +238,38 @@ describe("editorial workspace", () => {
     expect(restored).toBeGreaterThan(1000);
     expect(pane.scrollTop).toBe(restored);
   });
+  it.each([false, true])(
+    "never follows a reviewed link out of the app (read-only: %s)",
+    async (readonly) => {
+      const linked = {
+        ...source,
+        html: '<p><a href="https://example.com/elsewhere" target="_top">Eleanor</a> opened it.</p>',
+      };
+      const open = vi.spyOn(window, "open").mockReturnValue(null);
+      render(EditorialManuscript, {
+        sources: [linked],
+        initial: manuscript([linked]).toJSON(),
+        readonly,
+        onChange: vi.fn(),
+        onSelection: vi.fn(),
+        onComment: vi.fn(),
+        onError: vi.fn(),
+        onAnnotation: vi.fn(),
+        onReadingPosition: vi.fn(),
+      });
+      const link = document.querySelector(".editorial-prose a")!;
+      expect(link.getAttribute("target")).toBe("_top");
+      const event = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+      link.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      // ProseMirror delivers the same click to every handleClick prop, including TipTap's
+      // link plugin, which would call window.open(href, "_top") and replace the app.
+      const view = editor().view;
+      view.someProp("handleClick", (handle) => handle(view, 2, event));
+      expect(open).not.toHaveBeenCalled();
+      open.mockRestore();
+    }
+  );
   it("scrolls the read-only manuscript to feedback selected in the sidebar", async () => {
     const original = vi.mocked(invoke).getMockImplementation()!;
     vi.mocked(invoke).mockImplementation((cmd, args) =>
@@ -679,6 +711,73 @@ describe("editorial workspace", () => {
     expect(view.getByText("Open review or feedback file…")).toBeTruthy();
     await fireEvent.click(view.getByRole("button", { name: "Close review" }));
     await waitFor(() => expect(view.component.isOpen()).toBe(false));
+  });
+  it("closes draft history while a restore is still reloading, then reloads once that finishes", async () => {
+    localReview.data.drafts = [
+      {
+        name: "First pass",
+        created_at: "2026-01-01",
+        mode: "page",
+        documents: [{ id: "s", label: "Page", html: "<p>An earlier letter.</p>" }],
+      },
+    ];
+    const original = vi.mocked(invoke).getMockImplementation()!;
+    let hold = false;
+    let release!: () => void;
+    const sources = () =>
+      vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === "editorial_sources").length;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === "editorial_sources" && hold) {
+        hold = false;
+        await new Promise<void>((resolve) => (release = resolve));
+      }
+      return original(cmd, args);
+    });
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openLocal("project", "s");
+    await fireEvent.click(view.getByLabelText("Manuscript actions"));
+    await fireEvent.click(view.getByRole("menuitem", { name: "Draft history" }));
+    await fireEvent.click(await view.findByRole("button", { name: /Restore selected draft/ }));
+    hold = true;
+    await fireEvent.click(view.getByRole("button", { name: /Restore and preserve current prose/ }));
+    // The restore's own reload is now in flight, so the workspace is busy.
+    await waitFor(() => expect(release).toBeTypeOf("function"));
+    const during = sources();
+    await fireEvent.click(view.getByRole("button", { name: "Close Draft history" }));
+    await waitFor(() => expect(view.queryByRole("dialog")).toBeNull());
+    // Closing waits for the reload under way rather than racing it…
+    expect(sources()).toBe(during);
+    release();
+    // …then reloads the saved drafts once more.
+    await waitFor(() => expect(sources()).toBe(during + 1));
+    expect(view.queryByRole("alert")).toBeNull();
+  });
+  it("closes draft history with Escape even when reloading the manuscript fails", async () => {
+    const original = vi.mocked(invoke).getMockImplementation()!;
+    let fail = false;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === "editorial_sources" && fail) throw new Error("database is locked");
+      return original(cmd, args);
+    });
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openLocal("project", "s");
+    await fireEvent.click(view.getByLabelText("Manuscript actions"));
+    await fireEvent.click(view.getByRole("menuitem", { name: "Draft history" }));
+    const dialog = await view.findByRole("dialog");
+    await view.findByLabelText("Draft name");
+    fail = true;
+    await fireEvent(dialog, new Event("cancel", { cancelable: true }));
+    await waitFor(() => expect(view.queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(view.getByRole("alert").textContent).toContain("database is locked")
+    );
+    // The workspace stays usable: history opens again once the reload recovers.
+    fail = false;
+    await fireEvent.click(view.getByLabelText("Manuscript actions"));
+    await fireEvent.click(view.getByRole("menuitem", { name: "Draft history" }));
+    await fireEvent.click(await view.findByRole("button", { name: "Close Draft history" }));
+    await waitFor(() => expect(view.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(view.queryByRole("alert")).toBeNull());
   });
   it("resumes separate saved suggestions in a substantial scene without changing their identities", async () => {
     const bookSource = {

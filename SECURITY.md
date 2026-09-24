@@ -50,7 +50,14 @@ Kindling is a desktop application that:
 
 - Stores data locally in SQLite databases
 - Reads project files from user-specified locations
-- Does not transmit data over the network (in current version)
+- Has no analytics, telemetry, accounts or cloud sync, and never sends your manuscript
+- Makes network requests in only two cases:
+  - **Updates:** release builds check GitHub Releases over HTTPS shortly after launch and
+    download an available update in the background. Updates are verified against the
+    bundled signing key, and nothing installs until you choose **Restart**.
+  - **Feedback you send:** **Help → Send Feedback…** posts the feedback type, summary,
+    message and rating you enter, plus the app version, OS and locale, to the kindling
+    feedback service, only when you press **Send**.
 
 ### For Users
 

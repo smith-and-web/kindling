@@ -1,5 +1,6 @@
 import { writing as writingStats } from "../stores/writing.svelte";
 import { invoke } from "@tauri-apps/api/core";
+import { createSubscriber } from "svelte/reactivity";
 
 export type ProseSave = { projectId: string; kind: "beat" | "page"; id: string; prose: string };
 
@@ -18,6 +19,21 @@ export class ProseSaveQueue {
   private pending = new Map<string, ProseSave>();
   private recovery = new Map<string, { draft: ProseSave; error: unknown }>();
   private queue: Promise<void> = Promise.resolve();
+  private listeners = new Set<() => void>();
+  private subscribe = createSubscriber((update) => {
+    this.listeners.add(update);
+    return () => this.listeners.delete(update);
+  });
+
+  private changed() {
+    for (const update of this.listeners) update();
+  }
+
+  /** Opt in to re-running the calling template, effect or derived whenever a draft is
+   * queued, saved, retained for recovery or discarded. The queue's Maps are not reactive. */
+  observe() {
+    this.subscribe();
+  }
 
   save(save: ProseSave, retryRecovered = false): Promise<void> {
     const recovered = this.recovery.get(save.id);
@@ -31,18 +47,23 @@ export class ProseSaveQueue {
     }
     this.recovery.delete(save.id);
     this.pending.set(save.id, save);
+    this.changed();
     const writing = this.queue.then(async () => {
       try {
         await invoke(save.kind === "beat" ? "save_beat_prose" : "save_scene_page_prose", {
           [save.kind === "beat" ? "beatId" : "sceneId"]: save.id,
           prose: save.prose,
         });
-        if (this.pending.get(save.id) === save) this.pending.delete(save.id);
+        if (this.pending.get(save.id) === save) {
+          this.pending.delete(save.id);
+          this.changed();
+        }
         writingStats.scheduleRefresh(save.projectId);
       } catch (error) {
         if (isTerminal(error) && this.pending.get(save.id) === save) {
           this.pending.delete(save.id);
           this.recovery.set(save.id, { draft: save, error });
+          this.changed();
         }
         throw error;
       }
@@ -93,6 +114,7 @@ export class ProseSaveQueue {
       this.pending.delete(draft.id);
       this.recovery.delete(draft.id);
     }
+    if (drafts.length) this.changed();
     // Clear editor copies in the same turn, before they can be submitted again.
     onDiscarded?.();
   }

@@ -309,6 +309,8 @@ describe("SnapshotsPanel", () => {
       expect(document.activeElement).toBe(
         within(confirm).getByRole("radio", { name: /Replace current project/ })
       );
+      // Replacing keeps draft history only for scenes the snapshot restores; say so.
+      expect(confirm.textContent).toMatch(/Scenes in the snapshot keep their draft\s+history/);
 
       await fireEvent.click(within(confirm).getByRole("radio", { name: /Create new project/ }));
       const nameInput = within(confirm).getByLabelText("New project name") as HTMLInputElement;

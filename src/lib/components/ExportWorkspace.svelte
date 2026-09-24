@@ -2,8 +2,8 @@
   import { countLabel } from "../utils/plural";
   import { onMount, tick, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { open, save } from "@tauri-apps/plugin-dialog";
-  import { openPath } from "@tauri-apps/plugin-opener";
+  import { open, save } from "../utils/nativeDialog";
+  import { revealItemInDir } from "@tauri-apps/plugin-opener";
   import {
     ArrowLeft,
     ArrowRight,
@@ -21,6 +21,7 @@
     X,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
+  import { saveProseBefore } from "../utils/proseFlush";
   import {
     compileWorkspaceDocument,
     exportFilename,
@@ -224,8 +225,6 @@
           !chapters.some((c) => c.scenes.some((s) => s.id === draft.sceneId))))
   );
 
-  /** The preview sits on the app's desk: drop the export's own page backdrop
-      (the exported file keeps it) so the sheet reads as paper in both themes. */
   /** Keep the selected section in view when the nav scrolls (compact windows). */
   function keepVisible(node: HTMLElement, selected: boolean) {
     const reveal = (on: boolean) => {
@@ -235,14 +234,26 @@
     return { update: reveal };
   }
 
+  /** The preview sits on the app's desk: drop the export's own page backdrop
+      (the exported file keeps it) so the sheet reads as paper in both themes.
+      An unstyled HTML export has no sheet colours of its own, so it falls back
+      to manuscript paper and ink; `:where()` keeps that fallback below any
+      styling the export does carry. */
   function deskDocument(html: string): string {
-    // The sandboxed frame can't read app tokens, so pass the prose shadow in.
+    // The sandboxed frame can't read app tokens, so resolve them here.
     const probe = document.createElement("span");
     probe.style.boxShadow = "var(--shadow-prose)";
+    probe.style.backgroundColor = "var(--color-prose-bg)";
+    probe.style.color = "var(--color-prose-text)";
     document.body.appendChild(probe);
-    const shadow = getComputedStyle(probe).boxShadow || "none";
+    const computed = getComputedStyle(probe);
+    const resolved = (value: string, fallback: string) =>
+      value && !value.includes("var(") ? value : fallback;
+    const shadow = resolved(computed.boxShadow, "none");
+    const paper = resolved(computed.backgroundColor, "Canvas");
+    const ink = resolved(computed.color, "CanvasText");
     probe.remove();
-    const mount = `body{background:transparent;padding:16px 24px 32px}.manuscript{margin:0 auto;box-shadow:${shadow}}`;
+    const mount = `body{background:transparent;padding:16px 24px 32px}:where(.manuscript){background:${paper};color:${ink};padding:32px}.manuscript{margin:0 auto;box-shadow:${shadow}}`;
     return html.replace("</head>", `<style>${mount}</style></head>`);
   }
 
@@ -289,7 +300,11 @@
       storageError = `Could not load saved profiles. Their stored data is preserved. ${String(e)}`;
     }
     ready = true;
-    void loadManuscript(true);
+    // Preview the latest prose, not only what had reached the database. A draft
+    // that cannot be saved is reported when exporting.
+    void saveProseBefore(project.id, "exporting")
+      .catch(() => {})
+      .then(() => loadManuscript(true));
   });
 
   $effect(() => {
@@ -454,6 +469,14 @@
     const profile = $state.snapshot(draft);
     const filename = exportFilename(profile);
     try {
+      // The manuscript was read when the workspace opened; save and re-read it
+      // so the file never carries stale prose.
+      await saveProseBefore(project.id, "exporting");
+      if (!isExchange(profile.format)) {
+        // The loader reports its own failure; never export the old copy.
+        await loadManuscript();
+        if (!documentLoaded) return;
+      }
       let path: string | null;
       if (["longform", "novelwriter"].includes(profile.format)) {
         const parent = await open({
@@ -496,7 +519,7 @@
       savedPath = path;
       message = `${formatLabels[profile.format]} exported. ${isExchange(profile.format) ? "The whole project was used." : "The full selection was included."}`;
     } catch (e) {
-      error = String(e);
+      error = e instanceof Error ? e.message : String(e);
     } finally {
       saving = false;
     }
@@ -513,11 +536,17 @@
     }
   }
 
+  // Reveal rather than open: the opener capability grants reveal-in-folder
+  // (the classic export's success dialog uses it too) but not open-path, so
+  // openPath was always refused at runtime.
+  const revealFailed = "Couldn’t show the export in its folder";
   async function openSaved() {
     try {
-      await openPath(savedPath);
+      await revealItemInDir(savedPath);
+      if (error.startsWith(revealFailed)) error = "";
     } catch (e) {
-      error = `Could not open export: ${String(e)}`;
+      console.error("Failed to show export in folder:", e);
+      error = `${revealFailed}: ${e instanceof Error ? e.message : String(e)}`;
     }
   }
 </script>
@@ -1444,7 +1473,7 @@
                 type="button"
                 class="ka-button ka-button--ghost"
                 onclick={openSaved}
-                >Open export <ArrowRight class="w-5 h-5" aria-hidden="true" /></button
+                >Show in folder <ArrowRight class="w-5 h-5" aria-hidden="true" /></button
               >{/if}
           </div>
         </div>{/if}

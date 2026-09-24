@@ -4,9 +4,13 @@ import TextAlign from "@tiptap/extension-text-align";
 import { DOMParser as ProseParser, DOMSerializer } from "@tiptap/pm/model";
 import { Transform } from "@tiptap/pm/transform";
 import type { EditorMode } from "../types";
+import { inertElement } from "./safeHtml";
 
 export const reviewExtensions = [
   StarterKit.configure({
+    // A review package sets each link's target, and window.open(href, "_top") would
+    // navigate the app's window. The editor holds link clicks instead (holdLinkClick).
+    link: { openOnClick: false },
     heading: false,
     bulletList: false,
     orderedList: false,
@@ -27,6 +31,8 @@ export interface ReviewDraft {
   created_at: string;
   mode: EditorMode;
   documents: ReviewDocument[];
+  /** Kept by the app before it changed prose. The newest few are kept; named drafts always are. */
+  automatic?: boolean;
 }
 export interface ReviewMessage {
   author: string;
@@ -71,17 +77,16 @@ export const revisionStatuses = {
 };
 
 export function parseReviewHtml(html: string) {
-  const root = document.createElement("div");
-  root.innerHTML = html;
-  return ProseParser.fromSchema(schema).parse(root);
+  return ProseParser.fromSchema(schema).parse(inertElement(html));
 }
 
-export function draftOf(review: SceneReview, name: string): ReviewDraft {
+export function draftOf(review: SceneReview, name: string, automatic = false): ReviewDraft {
   return {
     name: name.trim(),
     created_at: new Date().toISOString(),
     mode: review.mode,
     documents: structuredClone(review.documents),
+    ...(automatic && { automatic }),
   };
 }
 
@@ -172,7 +177,7 @@ export function acceptSuggestions(
       other.anchor_html = doc.html;
     }
   }
-  data.drafts.push(draftOf(review, "Before accepting changes"));
+  data.drafts.push(draftOf(review, "Before accepting changes", true));
   data.status = "revised";
   return { data, next };
 }

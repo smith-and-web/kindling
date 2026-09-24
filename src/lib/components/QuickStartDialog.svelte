@@ -10,6 +10,7 @@
 <script lang="ts">
   import DialogHeader from "./DialogHeader.svelte";
   import { shortcuts } from "../stores/shortcuts.svelte";
+  import { modalFocus } from "../utils/modalFocus";
   import {
     BookOpen,
     ChevronDown,
@@ -23,18 +24,11 @@
   } from "lucide-svelte";
 
   let { onClose }: { onClose: () => void } = $props();
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      onClose();
-    }
-  }
 </script>
-
-<svelte:window onkeydown={handleKeydown} />
 
 <div
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: onClose }}
   role="dialog"
   aria-modal="true"
   aria-labelledby="quick-start-title"

@@ -2,7 +2,7 @@
   import DialogHeader from "./DialogHeader.svelte";
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { History, Loader2, Lock, Plus, RotateCcw, TriangleAlert } from "lucide-svelte";
+  import { History, Info, Loader2, Lock, Plus, RotateCcw, TriangleAlert } from "lucide-svelte";
   import { proseText } from "../utils/proseSearch";
   import {
     activeDocuments,
@@ -34,6 +34,8 @@
   let overview = $state<RevisionOverview[]>([]);
   let busy = $state(false);
   let error = $state("");
+  // Set when a save pruned a draft the writer was comparing.
+  let prunedNotice = $state("");
   let tab = $state<"history" | "overview">("history");
   let name = $state("");
   let before = $state(0);
@@ -87,15 +89,56 @@
     if (!review || busy || locked) return false;
     busy = true;
     error = "";
+    prunedNotice = "";
     try {
+      const previous = review.data.drafts;
       review = await invoke<SceneReview>("save_scene_review", { expected: review, data, next });
+      // Saving can prune old automatic drafts, so keep the comparison on the same drafts.
+      // If one was pruned, move that side to its nearest survivor (older for the saved draft,
+      // newer for the comparison) without collapsing both sides onto one draft, and say so.
+      const drafts = review.data.drafts;
+      const find = (draft: ReviewDraft) =>
+        drafts.findIndex((d) => d.created_at === draft.created_at && d.name === draft.name);
+      const keep = (index: number) => {
+        if (index < 0 || !previous[index]) return index;
+        const survivor = find(previous[index]);
+        return survivor >= 0 ? survivor : null;
+      };
+      const nearest = (index: number, newerFirst: boolean, avoid: number | null) => {
+        const older = previous.slice(0, index).reverse();
+        const newer = previous.slice(index + 1);
+        return (newerFirst ? [...newer, ...older] : [...older, ...newer])
+          .map(find)
+          .find((i) => i >= 0 && i !== avoid);
+      };
+      let nextBefore = keep(before);
+      let nextAfter = keep(after);
+      // Distinct drafts can share a name, so count pruned sides by index.
+      const prunedIndexes = [nextBefore === null ? before : -1, nextAfter === null ? after : -1];
+      const removed = prunedIndexes
+        .filter((index, i) => index >= 0 && prunedIndexes.indexOf(index) === i)
+        .map((index) => `“${previous[index].name}”`);
+      nextBefore ??= nearest(before, false, nextAfter) ?? nearest(before, false, null) ?? 0;
+      nextAfter ??= nearest(after, true, nextBefore) ?? -1;
+      // Current prose is never a saved draft, so it keeps two different drafts apart.
+      if (nextAfter === nextBefore && before !== after) nextAfter = -1;
+      before = nextBefore;
+      after = nextAfter;
+      const label = (index: number) =>
+        index < 0 ? "the current prose" : `“${drafts[index].name}”`;
+      prunedNotice = removed.length
+        ? `${removed.join(" and ")} ${removed.length > 1 ? "were" : "was"} removed because only the newest automatic drafts are kept.` +
+          (drafts[before] ? ` Now comparing ${label(before)} with ${label(after)}.` : "")
+        : "";
       if (next) {
         onApplied(review);
       }
       // Update the overview locally after the committed write, so a failed
       // auxiliary read cannot make a successful decision appear to have failed.
       overview = overview.map((row) =>
-        row.scene_id === sceneId ? { ...row, status: data.status, drafts: data.drafts.length } : row
+        row.scene_id === sceneId
+          ? { ...row, status: data.status, drafts: review!.data.drafts.length }
+          : row
       );
       return true;
     } catch (e) {
@@ -113,7 +156,7 @@
     const saved = await save(data);
     action = null;
     if (saved) {
-      before = data.drafts.length - 1;
+      before = review.data.drafts.length - 1;
       name = "";
     }
   }
@@ -121,7 +164,7 @@
     if (!review || restoreIndex === null) return;
     const next = review.data.drafts[restoreIndex];
     const data = window.structuredClone(review.data);
-    data.drafts.push(draftOf(review, "Before restoring " + next.name));
+    data.drafts.push(draftOf(review, "Before restoring " + next.name, true));
     action = "restore";
     const saved = await save(data, next);
     action = null;
@@ -185,6 +228,12 @@
       <div class="ka-notice ka-notice--warning od-row-top locked-notice" role="status">
         <Lock class="w-5 h-5" aria-hidden="true" />
         <p>This scene is locked. History is read-only.</p>
+      </div>
+    {/if}
+    {#if prunedNotice}
+      <div class="ka-notice od-row-top locked-notice" role="status">
+        <Info class="w-5 h-5" aria-hidden="true" />
+        <p>{prunedNotice}</p>
       </div>
     {/if}
     {#if tab === "history"}
@@ -303,9 +352,11 @@
                   <h3>{oldDraft.name}</h3>
                   <time datetime={oldDraft.created_at}>{dateLabel(oldDraft.created_at)}</time>
                 </header>
-                <div class="diff-prose">
-                  {#each comparison as part}{#if part.kind === "delete"}<del>{part.text}</del
-                      >{:else if part.kind !== "insert"}{part.text}{/if}{/each}
+                <div class="app-prose-sheet diff-sheet">
+                  <div class="diff-prose">
+                    {#each comparison as part}{#if part.kind === "delete"}<del>{part.text}</del
+                        >{:else if part.kind !== "insert"}{part.text}{/if}{/each}
+                  </div>
                 </div>
               </section>
               <section class="comparison-version" aria-label="Comparison version">
@@ -320,9 +371,11 @@
                       >{dateLabel(review.data.drafts[after].created_at)}</time
                     >{/if}
                 </header>
-                <div class="diff-prose">
-                  {#each comparison as part}{#if part.kind === "insert"}<ins>{part.text}</ins
-                      >{:else if part.kind !== "delete"}{part.text}{/if}{/each}
+                <div class="app-prose-sheet diff-sheet">
+                  <div class="diff-prose">
+                    {#each comparison as part}{#if part.kind === "insert"}<ins>{part.text}</ins
+                        >{:else if part.kind !== "delete"}{part.text}{/if}{/each}
+                  </div>
                 </div>
               </section>
             </div>
@@ -551,22 +604,32 @@
     color: var(--color-text);
     overflow-wrap: anywhere;
   }
+  /* Prose is compared on manuscript paper, which stays light in both themes. */
+  .diff-sheet {
+    padding: var(--space-m) var(--space-l);
+  }
   .diff-prose {
     font: var(--text-body) / var(--leading-relaxed) var(--font-body);
-    color: var(--color-text);
+    color: var(--color-prose-text);
     max-width: var(--measure);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
+  /* Changed words keep manuscript ink: the chrome's status text colours are
+     tuned for the chrome and fall below 4.5:1 on paper in the dark theme
+     (success measured 4.33:1). The wash and the strike or underline carry the
+     change, as the success badge and notice adapters in app.css do. */
+  del,
+  ins {
+    color: var(--color-prose-text);
+  }
   del {
-    color: var(--color-error);
     background: var(--color-error-wash);
-    text-decoration: line-through;
+    text-decoration-line: line-through;
   }
   ins {
-    color: var(--color-success);
     background: var(--color-success-wash);
-    text-decoration: underline;
+    text-decoration-line: underline;
   }
 
   .history-empty {

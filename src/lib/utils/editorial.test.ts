@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Fragment, Slice } from "@tiptap/pm/model";
 import { Transform } from "@tiptap/pm/transform";
+import editorialSource from "./editorial.ts?raw";
 import {
   manuscript,
   normalizeOwnership,
@@ -18,6 +19,7 @@ import {
   validateEditorialPackage,
   sliceHtml,
   restoreTracking,
+  repairSplitCharacters,
   type EditorialSource,
   type EditorialFeedback,
   type FeedbackEntry,
@@ -63,6 +65,24 @@ function feedback(next: ReturnType<typeof manuscript>): EditorialFeedback {
 }
 
 describe("continuous editorial manuscript", () => {
+  it("keeps edits made in one step separate across long scenes and paragraphs", () => {
+    const long = `${"The tide reaches the lighthouse. ".repeat(400)}`;
+    const scene = source("long", `<p>${long}</p><p>${long}</p><p>${long}</p>`);
+    const base = manuscript([scene]);
+    // One transform edits all three paragraphs, as replace-all does; each range is far
+    // beyond the 2500-token size at which the diff library stops trimming a change.
+    let tr = new Transform(base);
+    for (const index of [2, 1, 0]) {
+      let pos = 1;
+      for (let j = 0; j < index; j++) pos += base.child(j).nodeSize;
+      tr = tr.insert(pos + 200 + index * 50, editorialSchema.text("Quietly. "));
+    }
+    const changes = changesBetween(base, tr.doc);
+    expect(changes).toHaveLength(3);
+    expect(changes.every((c) => c.toA === c.fromA && c.toB - c.fromB === "Quietly. ".length)).toBe(
+      true
+    );
+  });
   it("keeps edits separate across a substantial manuscript and across reopening", () => {
     const book = Array.from({ length: 60 }, (_, i) =>
       source(`book-${i}`, `<p>${`Passage ${i} beside the lighthouse. `.repeat(200)}</p>`)
@@ -339,5 +359,119 @@ describe("continuous editorial manuscript", () => {
     expect(trackChanges(base, base, [comment])).toEqual([comment]);
     expect(projectedRange(base, base, comment)).toEqual({ from: 1, to: 4 });
     expect(locateChange(base, base, comment).conflict).toBe(false);
+  });
+
+  // serde_json rejects the `\udXXX` escape JSON.stringify writes for a lone surrogate, because a
+  // Rust String must be valid UTF-8. A string survives a UTF-8 round trip only if it has none.
+  const savesAsUtf8 = (value: unknown) => {
+    let valid = true;
+    JSON.stringify(value, (_key, v: unknown) => {
+      if (typeof v === "string" && new TextDecoder().decode(new TextEncoder().encode(v)) !== v)
+        valid = false;
+      return v;
+    });
+    return valid;
+  };
+
+  it.each([
+    ["Hi 😀 there.", "Hi 🙂 there.", "😀", "🙂"],
+    ["😀😃 end.", "😀🙂 end.", "😃", "🙂"],
+    ["Wave 👋🏽 now.", "Wave 👋🏿 now.", "🏽", "🏿"],
+  ])("keeps whole characters when %s becomes %s", (before, after, removed, added) => {
+    const base = manuscript([source("a", `<p>${before}</p>`)]);
+    const next = manuscript([source("a", `<p>${after}</p>`)]);
+    const [change, ...rest] = trackChanges(base, next, []);
+    expect(rest).toEqual([]);
+    expect(sliceText(change.before)).toBe(removed);
+    expect(sliceText(change.after)).toBe(added);
+    expect(savesAsUtf8(change)).toBe(true);
+    const round = { ...feedback(next).round, sources: [source("a", `<p>${before}</p>`)] };
+    const [accepted] = prepareAcceptance(
+      {
+        round,
+        sources: round.sources,
+        version: 0,
+        entries: [{ key: change.id, reviewer: "Editor", change, decision: "open" }],
+      },
+      [{ key: change.id, reviewer: "Editor", change, decision: "open" }]
+    );
+    expect(accepted.html).toBe(`<p>${after}</p>`);
+  });
+
+  it("repairs a recovered suggestion that stored half an emoji, keeping its discussion", () => {
+    const sources = [source("a", "<p>Hi 😀 there.</p>")];
+    const round = { ...feedback(manuscript(sources)).round, sources };
+    const document = manuscript([source("a", "<p>Hi 🙂 there.</p>")]).toJSON();
+    const note = message("Rowan", "Softer?");
+    const text = (t: string) => ({ content: [{ type: "text", text: t }] });
+    const poisoned = {
+      id: "emoji",
+      revision: 1,
+      kind: "suggestion" as const,
+      from: 5,
+      to: 6,
+      before: text("\ude00"),
+      after: text("\ude42"),
+      state: "open" as const,
+      messages: [note],
+    };
+    const comment = { ...poisoned, id: "comment", kind: "comment" as const, messages: [note] };
+    const session = {
+      reviewer_id: "editor",
+      name: "Rowan",
+      generation: 1,
+      document,
+      changes: [poisoned, comment],
+      position: 1,
+    };
+    expect(savesAsUtf8(session)).toBe(false);
+    const repaired = repairSplitCharacters(round, session);
+    expect(savesAsUtf8(repaired)).toBe(true);
+    const suggestion = repaired.find((c) => c.id === "emoji")!;
+    expect(sliceText(suggestion.before)).toBe("😀");
+    expect(sliceText(suggestion.after)).toBe("🙂");
+    expect(suggestion.messages).toEqual([note]);
+    const kept = repaired.find((c) => c.id === "comment")!;
+    expect([kept.from, kept.to, sliceText(kept.before)]).toEqual([4, 6, "😀"]);
+    expect(kept.messages).toEqual([note]);
+    const clean = { ...session, changes: repaired };
+    expect(repairSplitCharacters(round, clean)).toBe(repaired);
+  });
+
+  it.each([
+    ["a lone trailing half", "\ude00", true],
+    ["a lone leading half mid-text", "a\ud83db", true],
+    ["a leading half at the end", "a\ud83d", true],
+    ["two leading halves", "\ud83d😀", true],
+    ["whole emoji and plain text", "😀 and 👋🏽", false],
+  ])("detects %s before repairing a recovered review", (_label, broken, repairs) => {
+    const sources = [source("a", "<p>Hi 😀 there.</p>")];
+    const round = { ...feedback(manuscript(sources)).round, sources };
+    const changes = [
+      {
+        id: "comment",
+        revision: 1,
+        kind: "comment" as const,
+        from: 1,
+        to: 3,
+        before: { content: [{ type: "text", text: broken }] },
+        after: null,
+        state: "open" as const,
+        messages: [],
+      },
+    ];
+    const session = {
+      reviewer_id: "editor",
+      name: "Rowan",
+      generation: 1,
+      document: manuscript(sources).toJSON(),
+      changes,
+      position: 1,
+    };
+    expect(repairSplitCharacters(round, session) !== changes).toBe(repairs);
+  });
+
+  it("parses on WebKit before Safari 16.4, which has no regex lookbehind", () => {
+    expect(editorialSource).not.toMatch(/\(\?<[=!]/);
   });
 });

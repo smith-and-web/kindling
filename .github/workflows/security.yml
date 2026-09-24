@@ -47,8 +47,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run security audit
+      # Shipped dependencies must be clean. Development-only advisories are reported
+      # without failing: some have no fixed release (extract-zip, reached through
+      # WebdriverIO's browser downloader) and never run in the app.
+      - name: Run security audit (shipped dependencies)
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Report development dependency advisories
         run: npm audit --audit-level=moderate
+        continue-on-error: true
 
       - name: Check for outdated packages
         run: npm outdated || true

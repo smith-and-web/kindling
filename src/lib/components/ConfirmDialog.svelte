@@ -1,5 +1,6 @@
 <script lang="ts">
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus, type ModalFocusOptions } from "../utils/modalFocus";
   interface Props {
     title: string;
     titleId?: string;
@@ -27,18 +28,16 @@
     queueMicrotask(() => node.focus());
   }
 
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === "Escape") {
-      onCancel();
-    }
+  // Standalone, this is its own modal. Embedded, the host dialog owns focus and keys.
+  function dialogFocus(node: HTMLElement, options: ModalFocusOptions) {
+    return embedded ? undefined : modalFocus(node, options);
   }
 </script>
-
-<svelte:window onkeydown={handleKeydown} />
 
 <div
   data-testid="confirm-dialog"
   class="dialog-scrim"
+  use:dialogFocus={{ onEscape: onCancel, initialFocus: '[data-testid="dialog-cancel"]' }}
   role={embedded ? undefined : "alertdialog"}
   aria-modal={embedded ? undefined : true}
   aria-labelledby={embedded ? undefined : titleId}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Loader2 } from "lucide-svelte";
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus, ownsEnterKey } from "../utils/modalFocus";
 
   let {
     title,
@@ -41,16 +42,16 @@
       await onSave(trimmedName);
       onClose();
     } catch (e) {
-      error = e instanceof Error ? e.message : "Failed to rename";
+      error = e instanceof Error ? e.message : String(e || "Failed to rename");
     } finally {
       saving = false;
     }
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      onClose();
-    } else if (event.key === "Enter" && !saving) {
+    // Enter saves from the name field; on Cancel or Close it activates that button.
+    if (event.key === "Enter" && !event.isComposing && !ownsEnterKey(event.target) && !saving) {
+      event.preventDefault();
       handleSave();
     }
   }
@@ -62,12 +63,12 @@
   }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
+<!-- Escape is the keyboard equivalent of the backdrop click; modalFocus handles it. -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: onClose, onKeydown: handleKeydown, initialFocus: "#rename-input" }}
   onclick={handleBackdropClick}
-  onkeydown={handleKeydown}
   role="dialog"
   aria-modal="true"
   aria-labelledby="rename-dialog-title"

@@ -4,11 +4,11 @@
 
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
-use tauri::State;
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 use crate::db;
-use crate::models::{Beat, Chapter, EditorMode, PlanningStatus, Scene};
+use crate::models::{Beat, Chapter, EditorMode, PlanningStatus, Scene, SnapshotTrigger};
 use crate::parsers::{
     parse_longform_index, parse_markdown_outline, parse_plottr_file, parse_ywriter_file,
 };
@@ -48,6 +48,9 @@ pub struct SyncChange {
     pub current_value: String,
     pub new_value: String,
     pub db_id: String, // The database ID to update if accepted
+    /// Both sides changed since the last sync (or there is no baseline), so
+    /// accepting may discard a kindling edit. Never bulk-selected.
+    pub conflict: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -145,7 +148,7 @@ fn reimport_project_with_connection(
                 &preview
                     .changes
                     .into_iter()
-                    .filter(|c| c.field != "prose")
+                    .filter(|c| c.field != "prose" && !c.conflict)
                     .map(|c| c.id)
                     .collect::<Vec<_>>(),
                 &preview
@@ -153,6 +156,8 @@ fn reimport_project_with_connection(
                     .into_iter()
                     .map(|a| a.id)
                     .collect::<Vec<_>>(),
+                &[],
+                &mut |_| Ok(()),
             );
         }
         crate::models::SourceType::Blank => {
@@ -472,6 +477,7 @@ pub(super) fn get_sync_preview_with_connection(
                         current_value: existing.title.clone(),
                         new_value: new_chapter.title.clone(),
                         db_id: existing.id.to_string(),
+                        conflict: false,
                     });
                 }
             } else {
@@ -547,6 +553,7 @@ pub(super) fn get_sync_preview_with_connection(
                         current_value: existing.title.clone(),
                         new_value: new_scene.title.clone(),
                         db_id: existing.id.to_string(),
+                        conflict: false,
                     });
                 }
                 // Check for synopsis changes
@@ -561,6 +568,7 @@ pub(super) fn get_sync_preview_with_connection(
                         current_value: existing_synopsis,
                         new_value: new_synopsis,
                         db_id: existing.id.to_string(),
+                        conflict: false,
                     });
                 }
             } else {
@@ -634,6 +642,7 @@ pub(super) fn get_sync_preview_with_connection(
                         current_value: existing.content.clone(),
                         new_value: new_beat.content.clone(),
                         db_id: existing.id.to_string(),
+                        conflict: false,
                     });
                 }
             } else {
@@ -1013,23 +1022,72 @@ pub async fn apply_sync(
     project_id: String,
     accepted_change_ids: Vec<String>,
     accepted_addition_ids: Vec<String>,
+    // Conflicts the writer saw and left unticked, to settle as "keep kindling".
+    kept_conflict_ids: Option<Vec<String>>,
+    app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<ReimportSummary, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    apply_sync_with_connection(
+    // Accepted prose replaces the writer's text, so apply takes a restorable
+    // copy first, once it has checked the changes are current: a stale or
+    // refused apply writes no snapshot.
+    let mut snapshot = None;
+    let result = apply_reviewed_sync(
         &conn,
         project_uuid,
         accepted_change_ids,
         accepted_addition_ids,
-    )
+        &kept_conflict_ids.unwrap_or_default(),
+        &mut |conn| {
+            snapshot = Some(super::snapshot::write_snapshot(
+                conn,
+                &app_handle,
+                &project_uuid,
+                super::CreateSnapshotOptions {
+                    name: "Before sync".to_string(),
+                    description: Some(
+                        "Automatic snapshot created before sync replaced prose".into(),
+                    ),
+                    trigger_type: SnapshotTrigger::Auto,
+                },
+            )?);
+            Ok(())
+        },
+    );
+    if let (Err(_), Some(snapshot)) = (&result, snapshot) {
+        // The writes failed and rolled back, so the copy is only clutter.
+        if let Err(e) = super::snapshot::remove_snapshot(&conn, &snapshot.id) {
+            eprintln!("Warning: failed to remove unused pre-sync snapshot: {e}");
+        }
+    }
+    result
 }
 
+#[cfg(test)]
 fn apply_sync_with_connection(
     conn: &Connection,
     project_uuid: Uuid,
     accepted_change_ids: Vec<String>,
     accepted_addition_ids: Vec<String>,
+) -> Result<ReimportSummary, String> {
+    apply_reviewed_sync(
+        conn,
+        project_uuid,
+        accepted_change_ids,
+        accepted_addition_ids,
+        &[],
+        &mut |_| Ok(()),
+    )
+}
+
+fn apply_reviewed_sync(
+    conn: &Connection,
+    project_uuid: Uuid,
+    accepted_change_ids: Vec<String>,
+    accepted_addition_ids: Vec<String>,
+    kept_conflict_ids: &[String],
+    before_prose: &mut dyn FnMut(&Connection) -> Result<(), String>,
 ) -> Result<ReimportSummary, String> {
     // Get the existing project to find source path and type
     let project = db::get_project(conn, &project_uuid)
@@ -1098,6 +1156,8 @@ fn apply_sync_with_connection(
                 &parsed,
                 &accepted_change_ids,
                 &accepted_addition_ids,
+                kept_conflict_ids,
+                before_prose,
             );
         }
         crate::models::SourceType::Blank => {
@@ -1147,11 +1207,17 @@ fn apply_sync_with_connection(
                 // Check if user accepted this addition
                 let addition_id = format!("chapter-{}", source_id);
                 if accepted_additions_set.contains(&addition_id) {
+                    let earlier = earlier_source_siblings(
+                        parsed.chapters.iter().map(|c| (c.position, &c.source_id)),
+                        new_chapter.position,
+                    );
+                    let position =
+                        open_sync_slot(&tx, SyncSiblings::Chapters, &project_uuid, &earlier)?;
                     let chapter_to_insert = Chapter {
                         id: new_chapter.id,
                         project_id: project_uuid,
                         title: new_chapter.title.clone(),
-                        position: new_chapter.position,
+                        position,
                         source_id: new_chapter.source_id.clone(),
                         archived: false,
                         locked: false,
@@ -1253,13 +1319,23 @@ fn apply_sync_with_connection(
                 // Check if user accepted this addition
                 let addition_id = format!("scene-{}", source_id);
                 if accepted_additions_set.contains(&addition_id) {
+                    let earlier = earlier_source_siblings(
+                        parsed
+                            .scenes
+                            .iter()
+                            .filter(|s| s.chapter_id == new_scene.chapter_id)
+                            .map(|s| (s.position, &s.source_id)),
+                        new_scene.position,
+                    );
+                    let position =
+                        open_sync_slot(&tx, SyncSiblings::Scenes, &db_chapter.id, &earlier)?;
                     let scene_to_insert = Scene {
                         id: new_scene.id,
                         chapter_id: db_chapter.id,
                         title: new_scene.title.clone(),
                         synopsis: new_scene.synopsis.clone(),
                         prose: None,
-                        position: new_scene.position,
+                        position,
                         source_id: new_scene.source_id.clone(),
                         archived: false,
                         locked: false,
@@ -1348,12 +1424,22 @@ fn apply_sync_with_connection(
                 // Check if user accepted this addition
                 let addition_id = format!("beat-{}", source_id);
                 if accepted_additions_set.contains(&addition_id) {
+                    let earlier = earlier_source_siblings(
+                        parsed
+                            .beats
+                            .iter()
+                            .filter(|b| b.scene_id == new_beat.scene_id)
+                            .map(|b| (b.position, &b.source_id)),
+                        new_beat.position,
+                    );
+                    let position =
+                        open_sync_slot(&tx, SyncSiblings::Beats, &db_scene.id, &earlier)?;
                     let beat_to_insert = Beat {
                         id: new_beat.id,
                         scene_id: db_scene.id,
                         content: new_beat.content.clone(),
                         prose: None,
-                        position: new_beat.position,
+                        position,
                         source_id: new_beat.source_id.clone(),
                     };
                     db::insert_beat(&tx, &beat_to_insert).map_err(|e| e.to_string())?;
@@ -1370,6 +1456,87 @@ fn apply_sync_with_connection(
     tx.commit().map_err(|e| e.to_string())?;
 
     Ok(summary)
+}
+
+/// A sibling list that sync inserts into.
+#[derive(Clone, Copy)]
+pub(super) enum SyncSiblings {
+    Chapters,
+    Scenes,
+    Beats,
+}
+
+impl SyncSiblings {
+    /// Table and parent column. Fixed strings, never user input.
+    fn table(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Chapters => ("chapters", "project_id"),
+            Self::Scenes => ("scenes", "chapter_id"),
+            Self::Beats => ("beats", "scene_id"),
+        }
+    }
+}
+
+/// Source ids of the siblings that precede `position` in the source, nearest
+/// first.
+pub(super) fn earlier_source_siblings<'a>(
+    siblings: impl Iterator<Item = (i32, &'a Option<String>)>,
+    position: i32,
+) -> Vec<&'a str> {
+    let mut earlier: Vec<_> = siblings
+        .filter(|(p, _)| *p < position)
+        .filter_map(|(p, sid)| sid.as_deref().map(|sid| (p, sid)))
+        .collect();
+    earlier.sort_by_key(|(p, _)| std::cmp::Reverse(*p));
+    earlier.into_iter().map(|(_, sid)| sid).collect()
+}
+
+/// Make room for a sync addition and return the position it should take.
+///
+/// The new row goes straight after its nearest earlier source sibling that is
+/// already under this parent (a matched row or one added earlier in the same
+/// sync), or first if there is none. Every row at or after that slot moves
+/// down one, so positions stay unique and the writer's existing order is kept
+/// whatever order the additions are applied in.
+///
+/// Locked rows shift too. A lock stops a row being moved relative to the
+/// writer's other rows; making room for a new row keeps that order, as
+/// inserting a chapter from the outline does. Placing the addition after
+/// locked rows instead would put it where the source does not have it.
+pub(super) fn open_sync_slot(
+    conn: &Connection,
+    siblings: SyncSiblings,
+    parent_id: &Uuid,
+    earlier_sources: &[&str],
+) -> Result<i32, String> {
+    use rusqlite::OptionalExtension;
+    let (table, parent) = siblings.table();
+    let mut slot = 0;
+    for source_id in earlier_sources {
+        let anchor: Option<i32> = conn
+            .query_row(
+                &format!(
+                    "SELECT MAX(position) FROM {table} WHERE {parent} = ?1 AND source_id = ?2"
+                ),
+                rusqlite::params![parent_id.to_string(), source_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?
+            .flatten();
+        if let Some(anchor) = anchor {
+            slot = anchor + 1;
+            break;
+        }
+    }
+    conn.execute(
+        &format!(
+            "UPDATE {table} SET position = position + 1 WHERE {parent} = ?1 AND position >= ?2"
+        ),
+        rusqlite::params![parent_id.to_string(), slot],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(slot)
 }
 
 /// Only groups receiving accepted additions are reordered. Rejected additions
@@ -1835,7 +2002,8 @@ mod source_regression_tests {
             .unwrap()
             .remove(0);
         db::update_scene_prose(&conn, &original.id, "Moved scene sentinel").unwrap();
-        db::move_scene_to_chapter(&conn, &original.id, &parsed.chapters[1].id, 1).unwrap();
+        let plan = db::plan_scene_move(&conn, &original.id, &parsed.chapters[1].id, 1).unwrap();
+        db::apply_scene_move(&conn, &plan).unwrap();
         std::fs::write(
             &path,
             "# C1\n## Existing\n- Old\n# C2\n## B\n- B\n## A\n- A\n",
@@ -2137,10 +2305,34 @@ mod source_regression_tests {
         super::super::import::insert_novelwriter(&conn, &parsed).unwrap();
         let project = parsed.project;
         let beat = &parsed.beats[0];
+        let scene = &parsed.scenes[0];
         db::update_beat_prose(&conn, &beat.id, "<p>Local draft</p>").unwrap();
+        // A kindling-only edit is not an incoming change.
+        assert!(get_sync_preview_with_connection(&conn, project.id)
+            .unwrap()
+            .changes
+            .is_empty());
+        // Edit the same prose and scene title in novelWriter too.
+        let file = temp
+            .path()
+            .join("content")
+            .join(format!("{}.md", scene.source_id.as_deref().unwrap()));
+        let text = std::fs::read_to_string(&file).unwrap();
+        std::fs::write(
+            &file,
+            text.replace("door", "gate")
+                .replace("### Arrival", "### Departure"),
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE scenes SET title = 'Landing' WHERE id = ?1",
+            [scene.id.to_string()],
+        )
+        .unwrap();
         let preview = get_sync_preview_with_connection(&conn, project.id).unwrap();
-        assert_eq!(preview.changes.len(), 1);
-        assert_eq!(preview.changes[0].field, "prose");
+        assert_eq!(preview.changes.len(), 2, "{:?}", preview.changes);
+        assert!(preview.changes.iter().all(|c| c.conflict));
+        // Reimport applies nothing that needs the writer's choice.
         reimport_project_with_connection(&conn, project.id).unwrap();
         assert_eq!(
             db::get_beats(&conn, &beat.scene_id).unwrap()[0]
@@ -2148,18 +2340,51 @@ mod source_regression_tests {
                 .as_deref(),
             Some("<p>Local draft</p>")
         );
-        let summary = apply_sync_with_connection(
-            &conn,
-            project.id,
-            vec![preview.changes[0].id.clone()],
-            vec![],
-        )
-        .unwrap();
-        assert_eq!(summary.prose_updated, 1);
+        assert_eq!(
+            db::get_all_project_scenes(&conn, &project.id).unwrap()[0].title,
+            "Landing"
+        );
+        let prose = preview.changes.iter().find(|c| c.field == "prose").unwrap();
+        let title = preview.changes.iter().find(|c| c.field == "title").unwrap();
+        // The pre-sync snapshot hook runs once, and only when current changes
+        // replace prose; a stale or failed apply never reaches it.
+        let snapshots = std::cell::Cell::new(0);
+        let apply = |accepted: &[String], kept: &[String]| {
+            apply_reviewed_sync(
+                &conn,
+                project.id,
+                accepted.to_vec(),
+                vec![],
+                kept,
+                &mut |_| {
+                    snapshots.set(snapshots.get() + 1);
+                    Ok(())
+                },
+            )
+        };
+        let result = apply(
+            std::slice::from_ref(&prose.id),
+            std::slice::from_ref(&title.id),
+        );
+        assert_eq!(result.unwrap().prose_updated, 1);
+        assert_eq!(snapshots.get(), 1, "the pre-sync snapshot is taken");
+        // The title conflict the writer saw unticked was settled in kindling's favour.
         assert!(get_sync_preview_with_connection(&conn, project.id)
             .unwrap()
             .changes
             .is_empty());
+        assert_eq!(
+            db::get_all_project_scenes(&conn, &project.id).unwrap()[0].title,
+            "Landing"
+        );
+        // A stale retry is refused before a snapshot is ever written.
+        let stale = apply(std::slice::from_ref(&prose.id), &[]);
+        assert!(stale.err().unwrap().contains("changed after you reviewed"));
+        assert_eq!(snapshots.get(), 1);
+        // An unreadable folder fails before the snapshot too.
+        std::fs::remove_file(temp.path().join("nwProject.nwx")).unwrap();
+        assert!(apply(std::slice::from_ref(&prose.id), &[]).is_err());
+        assert_eq!(snapshots.get(), 1);
     }
 }
 
@@ -2298,6 +2523,195 @@ mod release_sync_tests {
             );
             assert!(db::get_scene_by_id(&conn, &removed.id).unwrap().is_none());
         }
+    }
+
+    /// Hamlet as a library imported before the source gained some items: the
+    /// listed chapters, scenes and beats (by source id) are missing, and the
+    /// remaining siblings are numbered contiguously as import numbered them.
+    fn partial_hamlet_import(
+        missing_chapters: &[&str],
+        missing_scenes: &[&str],
+        missing_beats: &[&str],
+    ) -> (Connection, crate::parsers::ParsedPlottr) {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/hamlet.pltr");
+        let p = parse_plottr_file(path).unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        db::insert_project(&conn, &p.project).unwrap();
+        let missing = |list: &[&str], sid: &Option<String>| {
+            sid.as_deref().is_some_and(|sid| list.contains(&sid))
+        };
+        let mut chapters: Vec<_> = p
+            .chapters
+            .iter()
+            .filter(|c| !missing(missing_chapters, &c.source_id))
+            .collect();
+        chapters.sort_by_key(|c| c.position);
+        for (position, chapter) in chapters.iter().enumerate() {
+            let mut old = (*chapter).clone();
+            old.position = position as i32;
+            db::insert_chapter(&conn, &old).unwrap();
+            let mut scenes: Vec<_> = p
+                .scenes
+                .iter()
+                .filter(|s| s.chapter_id == chapter.id && !missing(missing_scenes, &s.source_id))
+                .collect();
+            scenes.sort_by_key(|s| s.position);
+            for (position, scene) in scenes.iter().enumerate() {
+                let mut old = (*scene).clone();
+                old.position = position as i32;
+                db::insert_scene(&conn, &old).unwrap();
+                let mut beats: Vec<_> = p
+                    .beats
+                    .iter()
+                    .filter(|b| b.scene_id == scene.id && !missing(missing_beats, &b.source_id))
+                    .collect();
+                beats.sort_by_key(|b| b.position);
+                for (position, beat) in beats.iter().enumerate() {
+                    let mut old = (*beat).clone();
+                    old.position = position as i32;
+                    db::insert_beat(&conn, &old).unwrap();
+                }
+            }
+        }
+        (conn, p)
+    }
+
+    fn accept_all_additions(conn: &Connection, project_id: Uuid) -> ReimportSummary {
+        let preview = get_sync_preview_with_connection(conn, project_id).unwrap();
+        let additions = preview.additions.iter().map(|a| a.id.clone()).collect();
+        apply_sync_with_connection(conn, project_id, vec![], additions).unwrap()
+    }
+
+    fn set_scene_position(conn: &Connection, scene: &Scene, position: i32) {
+        db::update_scene(
+            conn,
+            &scene.id,
+            &scene.title,
+            scene.synopsis.as_deref(),
+            position,
+            &scene.scene_type,
+            &scene.scene_status,
+        )
+        .unwrap();
+    }
+
+    fn scene_titles_and_positions(conn: &Connection, chapter_id: &Uuid) -> (Vec<String>, Vec<i32>) {
+        db::get_scenes(conn, chapter_id)
+            .unwrap()
+            .into_iter()
+            .map(|s| (s.title, s.position))
+            .unzip()
+    }
+
+    const ACT1_SUMMARY: &str = "Hamlet learns the truth from the ghost of his father";
+    const GUARDS: &str = "The guards see a ghost";
+    const ANNOUNCEMENT: &str = "Claudius makes an announcement & Hamlet laments";
+    const LAERTES: &str = "Laertes leaves for France";
+    const AFTER_GHOST: &str = "Hamlet goes after the ghost of his father";
+    const SPEAKS: &str = "Hamlet speaks with his father's ghost";
+
+    #[test]
+    fn plottr_card_additions_keep_the_writers_scene_order() {
+        // A 1.2 project, imported before titled cards without a description
+        // were imported: the five Summary-line scenes are missing.
+        let (conn, p) = partial_hamlet_import(&[], &["11", "12", "13", "22", "24"], &[]);
+        // The writer swaps the first two scenes of Act 1.
+        let act1 = &p.chapters[0];
+        let local = db::get_scenes(&conn, &act1.id).unwrap();
+        set_scene_position(&conn, &local[0], 1);
+        set_scene_position(&conn, &local[1], 0);
+
+        assert_eq!(accept_all_additions(&conn, p.project.id).scenes_added, 5);
+
+        // The new card is strictly first, where Plottr has it; the writer's
+        // order follows untouched and no two scenes share a position.
+        let (titles, positions) = scene_titles_and_positions(&conn, &act1.id);
+        assert_eq!(
+            titles,
+            [
+                ACT1_SUMMARY,
+                ANNOUNCEMENT,
+                GUARDS,
+                LAERTES,
+                AFTER_GHOST,
+                SPEAKS
+            ]
+        );
+        assert_eq!(positions, [0, 1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn several_scene_additions_to_one_chapter_follow_their_source_neighbours() {
+        // Act 1 in Plottr: SUMMARY GUARDS ANNOUNCEMENT LAERTES AFTER_GHOST SPEAKS.
+        // The library lacks SUMMARY, ANNOUNCEMENT and SPEAKS.
+        let (conn, p) = partial_hamlet_import(&[], &["12", "2", "5"], &[]);
+        let act1 = &p.chapters[0];
+        let local = db::get_scenes(&conn, &act1.id).unwrap();
+        // The writer moves LAERTES after AFTER_GHOST, then locks GUARDS.
+        let (guards, laertes, after_ghost) = (&local[0], &local[1], &local[2]);
+        set_scene_position(&conn, after_ghost, 1);
+        set_scene_position(&conn, laertes, 2);
+        db::lock_scene(&conn, &guards.id).unwrap();
+
+        assert_eq!(accept_all_additions(&conn, p.project.id).scenes_added, 3);
+
+        // Each addition lands straight after its nearest earlier Plottr
+        // sibling in the library (or first), and the locked scene shifts to
+        // make room without changing its place among the writer's scenes.
+        let (titles, positions) = scene_titles_and_positions(&conn, &act1.id);
+        assert_eq!(
+            titles,
+            [
+                ACT1_SUMMARY,
+                GUARDS,
+                ANNOUNCEMENT,
+                AFTER_GHOST,
+                SPEAKS,
+                LAERTES
+            ]
+        );
+        assert_eq!(positions, [0, 1, 2, 3, 4, 5]);
+        assert!(db::is_scene_locked(&conn, &guards.id).unwrap());
+    }
+
+    #[test]
+    fn chapter_and_beat_additions_take_their_own_positions() {
+        let parsed = parse_plottr_file(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/hamlet.pltr"),
+        )
+        .unwrap();
+        let act2 = parsed.chapters.iter().find(|c| c.title == "Act 2").unwrap();
+        let act2_source = act2.source_id.clone().unwrap();
+        let guards_source = parsed
+            .scenes
+            .iter()
+            .find(|s| s.title == GUARDS)
+            .and_then(|s| s.source_id.clone())
+            .unwrap();
+        let first_guards_beat = format!("{guards_source}:0");
+        let (conn, p) = partial_hamlet_import(&[&act2_source], &[], &[&first_guards_beat]);
+
+        let summary = accept_all_additions(&conn, p.project.id);
+        assert_eq!(summary.chapters_added, 1);
+        assert!(summary.beats_added > 1, "Act 2 beats plus the guards beat");
+
+        let chapters = db::get_chapters(&conn, &p.project.id).unwrap();
+        let titles: Vec<_> = chapters.iter().map(|c| c.title.as_str()).collect();
+        assert_eq!(titles, ["Act 1", "Act 2", "Act 3", "Act 4", "Act 5"]);
+        let positions: Vec<_> = chapters.iter().map(|c| c.position).collect();
+        assert_eq!(positions, [0, 1, 2, 3, 4]);
+
+        let guards = p.scenes.iter().find(|s| s.title == GUARDS).unwrap();
+        let beats = db::get_beats(&conn, &guards.id).unwrap();
+        let sources: Vec<_> = beats.iter().map(|b| b.source_id.clone().unwrap()).collect();
+        let expected: Vec<_> = (0..beats.len())
+            .map(|i| format!("{guards_source}:{i}"))
+            .collect();
+        assert_eq!(sources, expected);
+        let positions: Vec<_> = beats.iter().map(|b| b.position).collect();
+        assert_eq!(positions, (0..beats.len() as i32).collect::<Vec<_>>());
     }
 
     #[test]

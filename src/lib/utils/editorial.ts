@@ -3,6 +3,7 @@ import { ChangeSet, type Change as TrackedChange } from "@tiptap/pm/changeset";
 import { DOMParser, DOMSerializer, Fragment, Node, Slice } from "@tiptap/pm/model";
 import { Mapping, StepMap, Transform } from "@tiptap/pm/transform";
 import { reviewExtensions } from "./revisions";
+import { inertElement } from "./safeHtml";
 import type { EditorMode } from "../types";
 
 export interface EditorialSource {
@@ -163,9 +164,8 @@ export function manuscript(sources: EditorialSource[]): Node {
   if (cached) return cached;
   const blocks: Node[] = [];
   for (const source of sources) {
-    const root = document.createElement("div");
-    root.innerHTML = source.html;
-    const parsed = DOMParser.fromSchema(editorialSchema).parse(root);
+    // Runs before package validation, so the HTML must not be activated while parsing.
+    const parsed = DOMParser.fromSchema(editorialSchema).parse(inertElement(source.html));
     parsed.forEach((node) => blocks.push(own(node, source.id)));
   }
   const result = editorialSchema.node(
@@ -264,7 +264,7 @@ const encoder = {
   compareTokens: (a: string, b: string) => a === b,
 };
 
-const comparisons = new WeakMap<Node, WeakMap<Node, readonly TrackedChange<string>[]>>();
+const comparisons = new WeakMap<Node, WeakMap<Node, readonly ChangeRange[]>>();
 const tracking = new WeakMap<Node, { doc: Node; set: ChangeSet<string> }>();
 const schemaDocuments = new WeakMap<Node, Node>();
 function sharedSchema(doc: Node): Node {
@@ -290,20 +290,84 @@ function alignedSourceMaps(before: Node, after: Node): StepMap[] | null {
   const old = groups(before),
     next = groups(after);
   if (old.length !== next.length || old.some((g, i) => !g.id || g.id !== next[i].id)) return null;
-  return old
-    .flatMap((g, i) =>
-      g.content.eq(next[i].content)
-        ? []
-        : [new StepMap([g.from, g.content.size, next[i].content.size])]
-    )
-    .reverse();
+  return old.flatMap((g, i) => narrowedSteps(g.from, g.content, next[i].content)).reverse();
+}
+
+/** Step maps (in document order) covering only where `a` and `b` differ, `from` being the
+ * position of `a`. prosemirror-changeset returns any range over 2500 tokens as one change
+ * without trimming it, so replacing a whole source or document in one step would coalesce
+ * every edit inside it. Blocks are compared pairwise when the counts line up, then each
+ * pair is trimmed to its differing middle. */
+function narrowedSteps(from: number, a: Fragment, b: Fragment): StepMap[] {
+  if (a.childCount > 1 && a.childCount === b.childCount) {
+    const steps: StepMap[] = [];
+    a.forEach((child, offset, i) =>
+      steps.push(...narrowedSteps(from + offset, Fragment.from(child), Fragment.from(b.child(i))))
+    );
+    return steps;
+  }
+  const start = a.findDiffStart(b);
+  if (start === null) return [];
+  const end = a.findDiffEnd(b)!;
+  const overlap = start - Math.min(end.a, end.b);
+  return [
+    new StepMap([
+      from + start,
+      end.a + Math.max(0, overlap) - start,
+      end.b + Math.max(0, overlap) - start,
+    ]),
+  ];
+}
+
+/** The document ranges of a tracked change. */
+export type ChangeRange = Pick<TrackedChange<string>, "fromA" | "toA" | "fromB" | "toB">;
+
+/** True when `pos` falls between the two UTF-16 halves of one character (an emoji, say). */
+function splitsCharacter(doc: Node, pos: number): boolean {
+  if (pos <= 0 || pos >= doc.content.size) return false;
+  const $pos = doc.resolve(pos);
+  const before = $pos.nodeBefore,
+    after = $pos.nodeAfter;
+  if (!before?.isText || !after?.isText) return false;
+  const lead = before.text!.charCodeAt(before.text!.length - 1),
+    trail = after.text!.charCodeAt(0);
+  return lead >= 0xd800 && lead <= 0xdbff && trail >= 0xdc00 && trail <= 0xdfff;
+}
+
+/** The changeset diffs UTF-16 units, so 😀→🙂 (which share a lead surrogate) yields a change
+ * holding only the trailing halves. Stored as text, a lone surrogate cannot be saved or
+ * exported (serde_json rejects it), so widen every change to whole characters. The text
+ * either side of a change is identical in both documents, so both sides widen together. */
+function wholeCharacters(
+  base: Node,
+  next: Node,
+  changes: readonly TrackedChange<string>[]
+): readonly ChangeRange[] {
+  const result: { fromA: number; toA: number; fromB: number; toB: number }[] = [];
+  for (const change of changes) {
+    const left = splitsCharacter(base, change.fromA) || splitsCharacter(next, change.fromB) ? 1 : 0;
+    const right = splitsCharacter(base, change.toA) || splitsCharacter(next, change.toB) ? 1 : 0;
+    const range = {
+      fromA: change.fromA - left,
+      toA: change.toA + right,
+      fromB: change.fromB - left,
+      toB: change.toB + right,
+    };
+    const last = result[result.length - 1];
+    if (last && (range.fromA < last.toA || range.fromB < last.toB)) {
+      last.toA = Math.max(last.toA, range.toA);
+      last.toB = Math.max(last.toB, range.toB);
+    } else result.push(range);
+  }
+  return result;
 }
 
 function remember(base: Node, doc: Node, set: ChangeSet<string>) {
   tracking.set(base, { doc, set });
+  const changes = wholeCharacters(base, doc, set.changes);
   if (!comparisons.has(base)) comparisons.set(base, new WeakMap());
-  comparisons.get(base)!.set(doc, set.changes);
-  return set.changes;
+  comparisons.get(base)!.set(doc, changes);
+  return changes;
 }
 
 /** Restore the individual ranges, rather than diffing a whole edited novel and
@@ -328,7 +392,7 @@ export function restoreTracking(base: Node, doc: Node, changes: EditorialChange[
   );
 }
 
-export function changesBetween(base: Node, next: Node): readonly TrackedChange<string>[] {
+export function changesBetween(base: Node, next: Node): readonly ChangeRange[] {
   base = sharedSchema(base);
   next = sharedSchema(next);
   const cached = comparisons.get(base)?.get(next);
@@ -341,25 +405,12 @@ export function changesBetween(base: Node, next: Node): readonly TrackedChange<s
     const maps = alignedSourceMaps(base, next);
     if (maps) return remember(base, next, previous.set.addSteps(next, maps, "change"));
   }
-  const start = previous.doc.content.findDiffStart(next.content);
-  if (start === null) return remember(base, next, previous.set);
-  const end = previous.doc.content.findDiffEnd(next.content)!;
-  const overlap = start - Math.min(end.a, end.b);
-  const result = previous.set.addSteps(
-    next,
-    [
-      new StepMap([
-        start,
-        end.a + Math.max(0, overlap) - start,
-        end.b + Math.max(0, overlap) - start,
-      ]),
-    ],
-    "change"
-  );
-  return remember(base, next, result);
+  const steps = narrowedSteps(0, previous.doc.content, next.content);
+  if (!steps.length) return remember(base, next, previous.set);
+  return remember(base, next, previous.set.addSteps(next, steps.reverse(), "change"));
 }
 
-export function changeMap(changes: readonly TrackedChange<string>[]): Mapping {
+export function changeMap(changes: readonly ChangeRange[]): Mapping {
   return new Mapping([
     new StepMap(changes.flatMap((c) => [c.fromA, c.toA - c.fromA, c.toB - c.fromB])),
   ]);
@@ -437,6 +488,46 @@ export function trackChanges(
     });
   }
   return result;
+}
+
+// A charCode scan rather than a lookbehind regex: WebKit before Safari 16.4 cannot parse one.
+function hasLoneSurrogate(value: unknown): boolean {
+  if (typeof value === "string") {
+    for (let i = 0; i < value.length; i++) {
+      const unit = value.charCodeAt(i);
+      if (unit < 0xd800 || unit > 0xdfff) continue;
+      const next = value.charCodeAt(i + 1);
+      if (unit > 0xdbff || !(next >= 0xdc00 && next <= 0xdfff)) return true;
+      i++;
+    }
+    return false;
+  }
+  return !!value && typeof value === "object" && Object.values(value).some(hasLoneSurrogate);
+}
+
+/** Recovery journals written before changes were widened to whole characters can hold half
+ * an emoji, which every save and export then rejects. The session document is intact, so
+ * re-derive its suggestions (keeping ids and discussion); a comment anchored through a split
+ * character falls back to its whole-character original passage. */
+export function repairSplitCharacters(
+  round: EditorialRound,
+  session: EditorialSession
+): EditorialChange[] {
+  if (!hasLoneSurrogate(session.changes)) return session.changes;
+  const base = manuscript(round.sources);
+  const doc = Node.fromJSON(editorialSchema, session.document);
+  restoreTracking(base, doc, session.changes);
+  const changes = trackChanges(base, doc, session.changes);
+  for (const change of changes) {
+    if (!hasLoneSurrogate(change)) continue;
+    if (splitsCharacter(base, change.from)) change.from--;
+    if (splitsCharacter(base, change.to)) change.to++;
+    change.before = base.slice(change.from, change.to).toJSON();
+    change.after = null;
+    change.anchor_offset = null;
+    change.revision++;
+  }
+  return changes;
 }
 
 export function projectedRange(base: Node, next: Node, change: EditorialChange) {

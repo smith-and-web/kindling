@@ -27,6 +27,7 @@
   } from "../types";
   import { currentProject } from "../stores/project.svelte";
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus } from "../utils/modalFocus";
   import { proseSaves } from "../utils/proseSaves";
   import { synopsisSaves } from "../stores/synopsisSaves.svelte";
 
@@ -255,18 +256,15 @@
     }
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    // The scrim and the window both listen; handle each keypress once.
-    if (event.defaultPrevented || restoringId) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      if (confirming) {
-        void cancelConfirm();
-      } else if (showCreateDialog) {
-        void closeCreateDialog();
-      } else {
-        onClose();
-      }
+  // Escape backs out one layer: a confirmation, then the create form, then the panel.
+  function handleEscape() {
+    if (restoringId) return;
+    if (confirming) {
+      void cancelConfirm();
+    } else if (showCreateDialog) {
+      void closeCreateDialog();
+    } else {
+      onClose();
     }
   }
 
@@ -309,12 +307,12 @@
   }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
+<!-- Escape is the keyboard equivalent of the backdrop click; modalFocus handles it. -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: handleEscape }}
   onclick={handleBackdropClick}
-  onkeydown={handleKeydown}
   role="dialog"
   aria-modal="true"
   aria-labelledby="snapshots-panel-title"
@@ -522,8 +520,9 @@
                         <span class="od-field">
                           <span>Replace current project</span>
                           <span class="ka-help"
-                            >Overwrites this project. Create a snapshot first if you want to keep
-                            the current state.</span
+                            >Overwrites this project. Scenes in the snapshot keep their draft
+                            history; scenes it doesn't contain are removed with theirs. Create a
+                            snapshot first if you want to keep the current state.</span
                           >
                         </span>
                       </label>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { shortcuts } from "../stores/shortcuts.svelte";
   import { KeyboardFormatting } from "../utils/keyboardFormatting";
+  import { holdLinkClick } from "../utils/safeHtml";
   import { onMount, tick } from "svelte";
   import ProseToolbar from "./ProseToolbar.svelte";
   import { MessageSquare } from "lucide-svelte";
@@ -221,6 +222,11 @@
       editable: !readonly,
       editorProps: {
         handleDOMEvents: {
+          // A read-only editor would otherwise follow a reviewed link natively.
+          click: (_view, event) => {
+            holdLinkClick(event);
+            return false;
+          },
           mouseup: (view) => {
             const { from, to } = view.state.selection;
             onSelection(from, to, true);

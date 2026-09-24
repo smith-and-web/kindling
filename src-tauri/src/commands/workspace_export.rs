@@ -1,6 +1,8 @@
 //! Format writers for the export workspace. Rendering is staged before publishing new output.
 use super::*;
+use crate::models::AppSettings;
 use crate::parsers::html::{html_paragraphs, ParagraphKind};
+use crate::parsers::xml_text::{pack_docx, xml_safe_text, LINE_BREAK_CONTROLS};
 use docx_rs::*;
 use serde::Deserialize;
 use std::{
@@ -66,7 +68,8 @@ struct Layout {
     header: String,
 }
 fn xml(text: &str) -> String {
-    text.replace('&', "&amp;")
+    xml_safe_text(text)
+        .replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
@@ -109,7 +112,8 @@ fn new_file(path: &Path, extension: &str) -> Result<tempfile::NamedTempFile> {
                 .into(),
         );
     }
-    tempfile::NamedTempFile::new_in(path.parent().ok_or("Choose a destination folder.")?)
+    // Not NamedTempFile::new_in: its 0600 file would publish as owner-only.
+    super::staging::staged_file_in(path.parent().ok_or("Choose a destination folder.")?)
         .map_err(|e| e.to_string())
 }
 fn publish(file: tempfile::NamedTempFile, target: &Path) -> Result<()> {
@@ -118,23 +122,91 @@ fn publish(file: tempfile::NamedTempFile, target: &Path) -> Result<()> {
         .map_err(|e| format!("Could not publish export; existing files are preserved. {e}"))?;
     Ok(())
 }
-fn run(text: &str, l: &Layout) -> Run {
-    Run::new()
-        .add_text(text)
-        .fonts(RunFonts::new().ascii(&l.font).hi_ansi(&l.font))
+fn styled(r: Run, l: &Layout) -> Run {
+    r.fonts(super::manuscript::manuscript_fonts(&l.font))
         .size((l.font_size * 2.).round() as usize)
 }
+fn run(text: &str, l: &Layout) -> Run {
+    styled(Run::new().add_text(text), l)
+}
+/// Scene titles, beat headings and similar secondary headings: body size, bold,
+/// as the classic Standard Manuscript Format exporter sets them.
 fn heading(text: &str, l: &Layout, style: &str) -> Paragraph {
     Paragraph::new()
         .style(style)
         .align(AlignmentType::Center)
-        .add_run(
-            run(text, l)
-                .bold()
-                .size((l.font_size * if style == "Heading1" { 2.8 } else { 2.2 }).round() as usize),
-        )
+        .add_run(run(text, l).bold())
         .line_spacing(LineSpacing::new().before(240).after(240))
         .keep_next(true)
+}
+/// One body line, in twips, at the layout's font size and line spacing.
+fn body_line(l: &Layout) -> u32 {
+    (l.font_size * 20. * l.line_spacing).round() as u32
+}
+/// Standard Manuscript Format chapter and part headings: centred, the same size
+/// and weight as the body text, and spaced with the body's line spacing.
+fn manuscript_heading(text: &str, l: &Layout, before: u32, after: u32) -> Paragraph {
+    Paragraph::new()
+        .style("Heading1")
+        .align(AlignmentType::Center)
+        .add_run(run(text, l))
+        .line_spacing(
+            LineSpacing::new()
+                .line((l.line_spacing * 240.).round() as i32)
+                .before(before)
+                .after(after),
+        )
+        .keep_next(true)
+}
+fn page_break() -> Paragraph {
+    Paragraph::new().add_run(Run::new().add_break(BreakType::Page))
+}
+/// "Surname / SHORT TITLE / page", right-aligned, with a live PAGE field.
+fn running_header(d: &WorkspaceDocument) -> Header {
+    let l = &d.layout;
+    let author = if l.header == "author_title" {
+        super::manuscript::header_surname(&d.author)
+    } else {
+        ""
+    };
+    let text = super::manuscript::running_header_text(author, &d.title);
+    Header::new().add_paragraph(
+        Paragraph::new()
+            .align(AlignmentType::Right)
+            .add_run(run(&text, l))
+            .add_run(styled(
+                Run::new().add_field_char(FieldCharType::Begin, false),
+                l,
+            ))
+            .add_run(styled(
+                Run::new().add_instr_text(InstrText::PAGE(InstrPAGE {})),
+                l,
+            ))
+            .add_run(styled(
+                Run::new().add_field_char(FieldCharType::Separate, false),
+                l,
+            ))
+            .add_run(run("1", l))
+            .add_run(styled(
+                Run::new().add_field_char(FieldCharType::End, false),
+                l,
+            )),
+    )
+}
+/// The title page's top-left contact block, from Settings → Author & Contact.
+fn contact_block(settings: &AppSettings) -> Vec<String> {
+    [
+        &settings.author_name,
+        &settings.contact_address_line1,
+        &settings.contact_address_line2,
+        &settings.contact_phone,
+        &settings.contact_email,
+    ]
+    .into_iter()
+    .flatten()
+    .map(|line| line.trim().to_string())
+    .filter(|line| !line.is_empty())
+    .collect()
 }
 fn prose(mut doc: Docx, html: &str, l: &Layout, first: &mut bool) -> Docx {
     for p in html_paragraphs(html, str::to_string) {
@@ -167,7 +239,12 @@ fn prose(mut doc: Docx, html: &str, l: &Layout, first: &mut bool) -> Docx {
             para = para.style("Heading2").keep_next(true);
         }
         for source in p.runs {
-            for (i, line) in source.text.split('\n').enumerate() {
+            // `<br>` arrives as \n; a pasted manual line break as U+000B/U+000C.
+            for (i, line) in source
+                .text
+                .split(|c: char| c == '\n' || LINE_BREAK_CONTROLS.contains(&c))
+                .enumerate()
+            {
                 if i > 0 {
                     para = para.add_run(Run::new().add_break(BreakType::TextWrapping));
                 }
@@ -194,7 +271,12 @@ fn prose(mut doc: Docx, html: &str, l: &Layout, first: &mut bool) -> Docx {
     }
     doc
 }
-fn docx_document(d: &WorkspaceDocument) -> Docx {
+/// Word output is a Standard Manuscript Format submission manuscript. The rules
+/// follow the classic exporter (`export.rs`): contact block and word count at the
+/// top of the title page, "Surname / SHORT TITLE / page" running header, chapter
+/// headings at body size and weight about a third of the way down a new page, and
+/// the typography (font, size, spacing, indent, margins) chosen in the profile.
+fn docx_document(d: &WorkspaceDocument, contact: &[String]) -> Docx {
     let l = &d.layout;
     let margin = (l.margin * 1440.).round() as i32;
     let (width, height) = if l.paper == "a4" {
@@ -202,61 +284,91 @@ fn docx_document(d: &WorkspaceDocument) -> Docx {
     } else {
         (12240, 15840)
     };
-    let mut doc = Docx::new().page_size(width, height).page_margin(
-        PageMargin::new()
-            .top(margin)
-            .bottom(margin)
-            .left(margin)
-            .right(margin)
-            .header(margin / 2)
-            .footer(margin / 2),
-    );
-    for (id, size, bold) in [
-        ("Normal", l.font_size, false),
-        ("Heading1", l.font_size * 1.4, true),
-        ("Heading2", l.font_size * 1.1, true),
+    let body_size = (l.font_size * 2.).round() as usize;
+    let fonts = super::manuscript::manuscript_fonts(&l.font);
+    // docx-rs always writes a `Normal` style, so the body typography goes in the
+    // document defaults rather than in a second `Normal` definition.
+    let mut doc = Docx::new()
+        .page_size(width, height)
+        .page_margin(
+            PageMargin::new()
+                .top(margin)
+                .bottom(margin)
+                .left(margin)
+                .right(margin)
+                .header(margin / 2)
+                .footer(margin / 2),
+        )
+        .default_fonts(fonts.clone())
+        .default_size(body_size);
+    for (id, name, bold) in [
+        ("Heading1", "Heading 1", false),
+        ("Heading2", "Heading 2", true),
     ] {
         let mut style = Style::new(id, StyleType::Paragraph)
-            .name(id)
-            .fonts(RunFonts::new().ascii(&l.font).hi_ansi(&l.font))
-            .size((size * 2.).round() as usize);
+            .name(name)
+            .fonts(fonts.clone())
+            .size(body_size);
         if bold {
             style = style.bold();
         }
         doc = doc.add_style(style);
     }
     if l.header != "none" {
-        let text = if l.header == "author_title" && !d.author.is_empty() {
-            format!("{} / {}", d.author, d.title)
-        } else {
-            d.title.clone()
-        };
-        doc = doc.header(
-            Header::new().add_paragraph(
-                Paragraph::new()
-                    .align(AlignmentType::Right)
-                    .add_run(run(&text, l)),
-            ),
-        );
+        doc = doc.header(running_header(d));
         if d.title_page {
             doc = doc.title_pg().first_header(Header::new());
         }
     }
+    let line = body_line(l);
+    // About a third of the way down the text block, as SMF places chapter openings.
+    let drop = (height as i32 - 2 * margin).max(0) as u32 / 3;
     if d.title_page {
+        for text in contact {
+            doc = doc.add_paragraph(
+                Paragraph::new()
+                    .align(AlignmentType::Left)
+                    .add_run(run(text, l))
+                    .line_spacing(LineSpacing::new().line(240)),
+            );
+        }
+        if !d.word_count.is_empty() {
+            doc = doc.add_paragraph(
+                Paragraph::new()
+                    .align(AlignmentType::Right)
+                    .add_run(run(&d.word_count, l))
+                    .line_spacing(LineSpacing::new().line(240).before(if contact.is_empty() {
+                        0
+                    } else {
+                        240
+                    })),
+            );
+        }
         doc = doc.add_paragraph(
-            heading(&d.title, l, "Heading2")
-                .line_spacing(LineSpacing::new().before(1800).after(240)),
+            Paragraph::new()
+                .align(AlignmentType::Center)
+                .add_run(run(&d.title, l))
+                .line_spacing(LineSpacing::new().before(drop).after(240))
+                .keep_next(true),
         );
-        for text in [&d.subtitle, &d.author, &d.word_count] {
+        for text in [
+            d.subtitle.clone(),
+            if d.author.is_empty() {
+                String::new()
+            } else {
+                format!("by {}", d.author)
+            },
+        ] {
             if !text.is_empty() {
                 doc = doc.add_paragraph(
                     Paragraph::new()
                         .align(AlignmentType::Center)
-                        .add_run(run(text, l)),
+                        .add_run(run(&text, l))
+                        .line_spacing(LineSpacing::new().after(240)),
                 );
             }
         }
-        doc = doc.add_paragraph(Paragraph::new().add_run(Run::new().add_break(BreakType::Page)));
+        doc = doc.add_paragraph(page_break());
     }
     if d.contents {
         doc = doc.add_paragraph(heading("Contents", l, "Heading2"));
@@ -268,20 +380,27 @@ fn docx_document(d: &WorkspaceDocument) -> Docx {
                 ),
             );
         }
-        doc = doc.add_paragraph(Paragraph::new().add_run(Run::new().add_break(BreakType::Page)));
+        doc = doc.add_paragraph(page_break());
     }
     for (i, c) in d.chapters.iter().enumerate() {
+        let new_page = i == 0 || l.chapter_breaks;
         if i > 0 && l.chapter_breaks {
-            doc =
-                doc.add_paragraph(Paragraph::new().add_run(Run::new().add_break(BreakType::Page)));
+            doc = doc.add_paragraph(page_break());
         }
+        let mut before = if new_page { drop } else { 2 * line };
         if let Some(part) = &c.part {
-            doc = doc.add_paragraph(heading(part, l, "Heading2"));
+            // Like the classic exporter, a Part title opens its own page.
+            doc = doc.add_paragraph(manuscript_heading(part, l, before, 2 * line));
+            if l.chapter_breaks {
+                doc = doc.add_paragraph(page_break());
+            } else {
+                before = 0;
+            }
         }
         let mut title = if c.title.is_empty() {
             Paragraph::new()
         } else {
-            heading(&c.title, l, "Heading1")
+            manuscript_heading(&c.title, l, before, 4 * line)
         };
         title = title
             .add_bookmark_start(i, format!("chapter_{i}"))
@@ -381,6 +500,9 @@ fn epub(file: &mut fs::File, d: &WorkspaceDocument) -> Result<()> {
     entries.push(("OEBPS/nav.xhtml".into(),format!(r#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="{}"><head><title>Contents</title></head><body><nav epub:type="toc" id="toc"><h1>Contents</h1><ol>{nav}</ol></nav></body></html>"#,xml(&d.language))));
     entries.push(("OEBPS/content.opf".into(),format!(r#"<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">urn:uuid:{}</dc:identifier><dc:title>{}</dc:title><dc:creator>{}</dc:creator><dc:language>{}</dc:language><dc:description>{}</dc:description><meta property="dcterms:modified">{}</meta></metadata><manifest>{manifest}</manifest><spine>{spine}</spine></package>"#,uuid::Uuid::new_v4(),xml(&d.title),xml(&d.author),xml(&d.language),xml(&d.description),chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ"))));
     for (path, body) in entries {
+        // Chapter and title pages are rendered by the frontend; clean the whole
+        // document, since no XML 1.0 markup can legitimately hold these characters.
+        let body = xml_safe_text(&body);
         let mut reader = quick_xml::Reader::from_str(&body);
         loop {
             match reader.read_event() {
@@ -400,6 +522,23 @@ pub fn export_workspace_document(
     path: String,
     format: String,
     document: WorkspaceDocument,
+    app_handle: AppHandle,
+) -> Result<()> {
+    // Only a Word title page carries the contact block.
+    let contact = if format == "docx" && document.title_page {
+        contact_block(&load_app_settings(&app_handle).map_err(|e| {
+            format!("Could not read the contact details in Settings → Author & Contact. {e}")
+        })?)
+    } else {
+        Vec::new()
+    };
+    write_workspace_document(path, format, document, &contact)
+}
+fn write_workspace_document(
+    path: String,
+    format: String,
+    document: WorkspaceDocument,
+    contact: &[String],
 ) -> Result<()> {
     validate(&document)?;
     let extension = match format.as_str() {
@@ -412,10 +551,7 @@ pub fn export_workspace_document(
     let target = Path::new(&path);
     let mut staged = new_file(target, extension)?;
     match format.as_str() {
-        "docx" => docx_document(&document)
-            .build()
-            .pack(staged.as_file_mut())
-            .map_err(|e| e.to_string())?,
+        "docx" => pack_docx(docx_document(&document, contact), staged.as_file_mut())?,
         "epub" => epub(staged.as_file_mut(), &document)?,
         _ => staged
             .write_all(document.text.as_bytes())
@@ -574,6 +710,9 @@ mod tests {
             "scenes":[{"title":"The shore","synopsis":"Arrival at dawn","separator":null,"blocks":[{"heading":"First sight","html":"<p>She <em>waited</em> &amp; <strong>listened</strong>.<br/>Then <s>ran</s> walked. 🌊</p>"}]}]}]
         })).unwrap()
     }
+    fn export(path: String, format: String, document: WorkspaceDocument) -> Result<()> {
+        write_workspace_document(path, format, document, &[])
+    }
     fn member(path: &Path, name: &str) -> String {
         let mut zip = zip::ZipArchive::new(fs::File::open(path).unwrap()).unwrap();
         let mut text = String::new();
@@ -587,8 +726,7 @@ mod tests {
     fn docx_honors_layout_formatting_and_contents_links() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("book.docx");
-        export_workspace_document(path.to_string_lossy().into(), "docx".into(), document())
-            .unwrap();
+        export(path.to_string_lossy().into(), "docx".into(), document()).unwrap();
         let xml = member(&path, "word/document.xml");
         for value in [
             "Georgia",
@@ -603,7 +741,7 @@ mod tests {
         ] {
             assert!(xml.contains(value), "Missing {value}");
         }
-        assert!(member(&path, "word/header1.xml").contains("A Writer / The &amp; Book"));
+        assert!(member(&path, "word/header1.xml").contains("Writer / THE &amp; BOOK / "));
     }
     #[test]
     fn flush_indentation_resets_after_each_heading_but_not_each_beat() {
@@ -627,7 +765,7 @@ mod tests {
                     .into(),
             },
         ];
-        export_workspace_document(path.to_string_lossy().into(), "docx".into(), d).unwrap();
+        export(path.to_string_lossy().into(), "docx".into(), d).unwrap();
         let xml = member(&path, "word/document.xml");
         for (text, indent) in [
             ("First prose", 0),
@@ -647,8 +785,7 @@ mod tests {
     fn epub_has_required_package_navigation_metadata_and_uncompressed_mimetype() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("book.epub");
-        export_workspace_document(path.to_string_lossy().into(), "epub".into(), document())
-            .unwrap();
+        export(path.to_string_lossy().into(), "epub".into(), document()).unwrap();
         let mut zip = zip::ZipArchive::new(fs::File::open(&path).unwrap()).unwrap();
         let first = zip.by_index(0).unwrap();
         assert_eq!(first.name(), "mimetype");
@@ -661,31 +798,106 @@ mod tests {
         assert!(member(&path, "OEBPS/nav.xhtml").contains("chapter-0.xhtml"));
         assert!(member(&path, "OEBPS/chapter-0.xhtml").contains("Prose &amp; more."));
     }
+    /// Prose pasted from Word carries U+000B for Shift+Enter; imports can carry
+    /// other C0 controls. Neither may reach the XML.
+    fn document_with_control_characters() -> WorkspaceDocument {
+        let mut d = document();
+        d.title = "The\u{0001} Book".into();
+        d.author = "A\u{000B}Writer".into();
+        d.description = "An\u{0001} adventure\u{FFFF}".into();
+        d.front_matter = Some("<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Book\u{0001}</title></head><body>Title\u{000B}</body></html>".into());
+        let c = &mut d.chapters[0];
+        c.title = "Arrival\u{0001}".into();
+        c.navigation_title = "Arrival\u{000C}".into();
+        c.xhtml = "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Arrival\u{0001}</title></head><body><p>Line\u{000B}two\u{0001}.</p></body></html>".into();
+        c.scenes[0].synopsis = "Dawn\u{0001}".into();
+        c.scenes[0].blocks[0].html = "<p>Line\u{000B}two\u{0001}.</p>".into();
+        d
+    }
+    #[test]
+    fn docx_with_control_characters_is_well_formed_and_keeps_line_breaks() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("book.docx");
+        export(
+            path.to_string_lossy().into(),
+            "docx".into(),
+            document_with_control_characters(),
+        )
+        .unwrap();
+        crate::parsers::xml_text::assert_archive_well_formed(&fs::read(&path).unwrap());
+        let xml = member(&path, "word/document.xml");
+        let paragraph = xml.split("</w:p>").find(|p| p.contains("Line")).unwrap();
+        assert!(
+            paragraph.contains("<w:br w:type=\"textWrapping\" />") && paragraph.contains("two."),
+            "U+000B should become a soft line break: {paragraph}"
+        );
+        assert!(member(&path, "word/header1.xml").contains("Writer / THE BOOK / "));
+    }
+    /// Published exports must not be owner-only (tempfile's 0600): they get
+    /// the same mode as any file created beside them.
+    #[cfg(unix)]
+    #[test]
+    fn published_exports_get_default_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |p: &Path| fs::metadata(p).unwrap().permissions().mode() & 0o7777;
+        let dir = tempfile::tempdir().unwrap();
+        let reference = dir.path().join("reference.txt");
+        fs::File::create(&reference).unwrap();
+        for (name, format) in [
+            ("book.docx", "docx"),
+            ("book.epub", "epub"),
+            ("book.md", "markdown"),
+        ] {
+            let path = dir.path().join(name);
+            write_workspace_document(
+                path.to_string_lossy().into(),
+                format.into(),
+                document(),
+                &[],
+            )
+            .unwrap();
+            assert_eq!(
+                mode(&path),
+                mode(&reference),
+                "{name} is {:o}, a new file here is {:o}",
+                mode(&path),
+                mode(&reference)
+            );
+        }
+    }
+    #[test]
+    fn epub_with_control_characters_is_well_formed() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("book.epub");
+        export(
+            path.to_string_lossy().into(),
+            "epub".into(),
+            document_with_control_characters(),
+        )
+        .unwrap();
+        crate::parsers::xml_text::assert_archive_well_formed(&fs::read(&path).unwrap());
+        let opf = member(&path, "OEBPS/content.opf");
+        assert!(opf.contains("<dc:title>The Book</dc:title>"), "{opf}");
+        assert!(opf.contains("<dc:creator>A Writer</dc:creator>"), "{opf}");
+        assert!(member(&path, "OEBPS/chapter-0.xhtml").contains("Line two."));
+    }
     #[test]
     fn invalid_cover_and_existing_output_leave_previous_files_intact() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("book.epub");
         let mut d = document();
         d.cover_path = dir.path().join("missing.png").to_string_lossy().into();
-        assert!(
-            export_workspace_document(path.to_string_lossy().into(), "epub".into(), d).is_err()
-        );
+        assert!(export(path.to_string_lossy().into(), "epub".into(), d).is_err());
         assert!(!path.exists());
         fs::write(&path, "original").unwrap();
-        assert!(export_workspace_document(
-            path.to_string_lossy().into(),
-            "epub".into(),
-            document()
-        )
-        .is_err());
+        assert!(export(path.to_string_lossy().into(), "epub".into(), document()).is_err());
         assert_eq!(fs::read_to_string(path).unwrap(), "original");
     }
     #[test]
     fn plain_exports_and_folder_publication_never_replace_existing_destinations() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("book.md");
-        export_workspace_document(path.to_string_lossy().into(), "markdown".into(), document())
-            .unwrap();
+        export(path.to_string_lossy().into(), "markdown".into(), document()).unwrap();
         assert_eq!(fs::read_to_string(path).unwrap(), "A manuscript\n");
         let source = dir.path().join("source");
         let target = dir.path().join("target");
@@ -694,5 +906,197 @@ mod tests {
         copy_new_tree(&source, &target).unwrap();
         assert!(copy_new_tree(&source, &target).is_err());
         assert_eq!(fs::read_to_string(target.join("file.md")).unwrap(), "first");
+    }
+
+    /// The "Agent submission" starter profile's Word payload.
+    fn submission() -> WorkspaceDocument {
+        let mut d = document();
+        d.title = "The Long Way Home".into();
+        d.author = "Jane Q. Writer".into();
+        d.subtitle = String::new();
+        d.contents = false;
+        d.word_count = "80,000 words (approx.)".into();
+        d.layout = serde_json::from_value(serde_json::json!({
+            "font":"Times New Roman","fontSize":12,"lineSpacing":2,"paragraphSpacing":0,"indent":0.5,
+            "alignment":"left","firstParagraphFlush":true,"paper":"letter","margin":1,
+            "chapterBreaks":true,"header":"author_title"
+        }))
+        .unwrap();
+        let c = &mut d.chapters[0];
+        c.title = "Chapter 1: Arrival".into();
+        c.part = None;
+        c.scenes[0].title = String::new();
+        c.scenes[0].synopsis = String::new();
+        c.scenes[0].blocks = vec![WorkspaceBlock {
+            heading: String::new(),
+            html: "<p>First prose</p><p>Second prose</p>".into(),
+        }];
+        d
+    }
+    fn export_submission(d: WorkspaceDocument, contact: &[String]) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("book.docx");
+        write_workspace_document(path.to_string_lossy().into(), "docx".into(), d, contact).unwrap();
+        crate::parsers::xml_text::assert_archive_well_formed(&fs::read(&path).unwrap());
+        dir
+    }
+    fn paragraph<'a>(xml: &'a str, text: &str) -> &'a str {
+        xml.split("</w:p>")
+            .find(|p| p.contains(text))
+            .unwrap_or_else(|| panic!("No paragraph containing {text}"))
+    }
+    fn bold(xml: &str) -> bool {
+        xml.contains("<w:b />") || xml.contains("<w:b/>") || xml.contains("<w:b ")
+    }
+    fn style<'a>(styles: &'a str, id: &str) -> &'a str {
+        styles
+            .split("</w:style>")
+            .find(|s| s.contains(&format!("w:styleId=\"{id}\"")))
+            .unwrap_or_else(|| panic!("No style {id}"))
+    }
+    #[test]
+    fn submission_header_has_surname_short_title_and_page_field() {
+        let dir = export_submission(submission(), &[]);
+        let path = dir.path().join("book.docx");
+        let header = member(&path, "word/header1.xml");
+        assert!(
+            header.contains("Writer / THE LONG WAY / "),
+            "Running header should be Surname / SHORT TITLE / page: {header}"
+        );
+        assert!(!header.contains("Jane"), "{header}");
+        assert!(header.contains("w:fldCharType=\"begin\""), "{header}");
+        assert!(header.contains("PAGE"), "No PAGE field: {header}");
+        assert!(header.contains("w:fldCharType=\"end\""), "{header}");
+        assert!(header.contains("Times New Roman"), "{header}");
+        // The title page keeps its own empty first-page header.
+        assert!(member(&path, "word/document.xml").contains("w:titlePg"));
+    }
+    #[test]
+    fn title_only_header_keeps_the_page_field_without_an_author() {
+        let mut d = submission();
+        d.layout.header = "title".into();
+        let dir = export_submission(d, &[]);
+        let header = member(&dir.path().join("book.docx"), "word/header1.xml");
+        assert!(header.contains(">THE LONG WAY / <"), "{header}");
+        assert!(!header.contains("Writer"), "{header}");
+        assert!(header.contains("PAGE"), "{header}");
+    }
+    /// Every run and style names the layout font for all four script ranges,
+    /// or Word sets curly quotes, dashes and accented letters in a fallback.
+    #[test]
+    fn docx_runs_and_styles_name_the_font_for_every_script_slot() {
+        let mut d = submission();
+        d.chapters[0].scenes[0].blocks[0].html =
+            "<p>\u{201C}Curly\u{201D}\u{2014}caf\u{e9}</p>".into();
+        let dir = export_submission(d, &[]);
+        let path = dir.path().join("book.docx");
+        for part in ["word/document.xml", "word/styles.xml", "word/header1.xml"] {
+            let xml = member(&path, part);
+            let fonts: Vec<&str> = xml
+                .split("<w:rFonts")
+                .skip(1)
+                .map(|f| &f[..f.find("/>").unwrap()])
+                .collect();
+            assert!(!fonts.is_empty(), "{part} names no fonts");
+            for f in fonts {
+                for slot in ["w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"] {
+                    assert!(
+                        f.contains(&format!("{slot}=\"Times New Roman\"")),
+                        "{part}: {slot} missing in <w:rFonts{f}/>"
+                    );
+                }
+            }
+        }
+    }
+    #[test]
+    fn docx_defines_the_normal_style_exactly_once() {
+        let dir = export_submission(submission(), &[]);
+        let styles = member(&dir.path().join("book.docx"), "word/styles.xml");
+        assert_eq!(
+            styles.matches("w:styleId=\"Normal\"").count(),
+            1,
+            "{styles}"
+        );
+        for id in ["Heading1", "Heading2"] {
+            assert_eq!(styles.matches(&format!("w:styleId=\"{id}\"")).count(), 1);
+        }
+        // Body typography comes from the document defaults instead.
+        let defaults = styles.split("</w:docDefaults>").next().unwrap();
+        assert!(defaults.contains("Times New Roman"), "{defaults}");
+        assert!(defaults.contains("w:sz w:val=\"24\""), "{defaults}");
+    }
+    #[test]
+    fn submission_chapter_heading_is_body_size_not_bold_and_prose_is_flush_then_indented() {
+        let dir = export_submission(submission(), &[]);
+        let path = dir.path().join("book.docx");
+        let xml = member(&path, "word/document.xml");
+        let heading = paragraph(&xml, "Chapter 1: Arrival");
+        assert!(heading.contains("w:val=\"Heading1\""), "{heading}");
+        assert!(heading.contains("w:jc w:val=\"center\""), "{heading}");
+        assert!(heading.contains("w:sz w:val=\"24\""), "{heading}");
+        assert!(!bold(heading), "Heading run is bold: {heading}");
+        // About a third of the way down a letter page's text block (9in / 3).
+        assert!(heading.contains("w:before=\"4320\""), "{heading}");
+        let styles = member(&path, "word/styles.xml");
+        let h1 = style(&styles, "Heading1");
+        assert!(!bold(h1), "Heading 1 style is bold: {h1}");
+        // Control: the matcher does see bold where it is set.
+        assert!(bold(style(&styles, "Heading2")));
+        assert!(h1.contains("w:sz w:val=\"24\""), "{h1}");
+        let first = paragraph(&xml, "First prose");
+        assert!(
+            first.contains("w:firstLine=\"0\"") || !first.contains("w:firstLine"),
+            "First paragraph after a heading is indented: {first}"
+        );
+        assert!(
+            first.contains("w:line=\"480\""),
+            "Not double spaced: {first}"
+        );
+        assert!(first.contains("Times New Roman") && first.contains("w:sz w:val=\"24\""));
+        assert!(paragraph(&xml, "Second prose").contains("w:firstLine=\"720\""));
+    }
+    #[test]
+    fn submission_title_page_opens_with_contact_block_and_word_count() {
+        let contact = ["Jane Writer", "1 Main Street", "jane@example.com"].map(String::from);
+        let dir = export_submission(submission(), &contact);
+        let xml = member(&dir.path().join("book.docx"), "word/document.xml");
+        let body = xml.split("<w:body>").nth(1).unwrap();
+        let order: Vec<usize> = [
+            "Jane Writer",
+            "1 Main Street",
+            "jane@example.com",
+            "80,000 words (approx.)",
+            "The Long Way Home",
+            "by Jane Q. Writer",
+            "Chapter 1: Arrival",
+        ]
+        .iter()
+        .map(|text| body.find(text).unwrap_or_else(|| panic!("Missing {text}")))
+        .collect();
+        assert!(order.windows(2).all(|w| w[0] < w[1]), "{order:?}");
+        let name = paragraph(body, "Jane Writer");
+        assert!(name.contains("w:jc w:val=\"left\""), "{name}");
+        assert!(
+            name.contains("w:line=\"240\""),
+            "Contact block is single spaced"
+        );
+        assert!(paragraph(body, "80,000 words").contains("w:jc w:val=\"right\""));
+        let title = paragraph(body, "The Long Way Home");
+        assert!(!bold(title) && !title.contains("Heading"), "{title}");
+    }
+    #[test]
+    fn contact_block_uses_the_non_blank_author_settings_in_order() {
+        let settings = AppSettings {
+            author_name: Some(" Jane Writer ".into()),
+            contact_address_line1: Some("  ".into()),
+            contact_address_line2: Some("Springfield".into()),
+            contact_phone: None,
+            contact_email: Some("jane@example.com".into()),
+        };
+        assert_eq!(
+            contact_block(&settings),
+            ["Jane Writer", "Springfield", "jane@example.com"]
+        );
+        assert!(contact_block(&AppSettings::default()).is_empty());
     }
 }

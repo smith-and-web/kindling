@@ -71,6 +71,17 @@ button.ka-icon-button:disabled,
   background-color: transparent !important;
   border-color: transparent !important;
 }
+/* A disabled segment still shows which option is chosen (a locked scene's
+   Beats/Page view). The rule above strips the accent fill and leaves the
+   selected segment the same sunken colour as its track, so the selected one
+   takes the raised surface and a ring in the disabled ink: still the disabled
+   pair for its text, never opacity. (Raise upstream in Press: it has no
+   disabled-selected segment state, and `.ka-segment:has(input:disabled)`
+   dims with opacity.) */
+button.ka-segment:is(.ka-selected, [aria-pressed="true"]):disabled {
+  background-color: var(--color-surface) !important;
+  box-shadow: inset 0 0 0 1px var(--color-disabled-text);
+}
 
 /* Focus follows the Press application layer: a 2px accent-text outline offset
    3px, on every operable element, in both themes. */

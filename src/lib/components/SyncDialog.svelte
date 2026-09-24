@@ -10,6 +10,8 @@
   import { SvelteSet } from "svelte/reactivity";
   import type { SyncPreview, ReimportSummary, SyncChange } from "../types";
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus } from "../utils/modalFocus";
+  import { saveProseBefore } from "../utils/proseFlush";
 
   interface Props {
     projectId: string;
@@ -42,10 +44,11 @@
     }
   }
 
+  // Conflicts may replace a kindling edit, so they are only ever chosen one by one.
   function selectAllChanges() {
     selectedChanges.clear();
     for (const change of syncPreview.changes) {
-      selectedChanges.add(change.id);
+      if (!change.conflict) selectedChanges.add(change.id);
     }
   }
 
@@ -73,6 +76,11 @@
   }
 
   const selectedCount = $derived(selectedAdditions.size + selectedChanges.size);
+  const conflictCount = $derived(syncPreview.changes.filter((c) => c.conflict).length);
+  // Applying settles unticked conflicts as "keep kindling", so that alone is worth applying.
+  const keptCount = $derived(
+    syncPreview.changes.filter((c) => c.conflict && !selectedChanges.has(c.id)).length
+  );
   const hasNothingToSync = $derived(
     syncPreview.additions.length === 0 && syncPreview.changes.length === 0
   );
@@ -92,10 +100,15 @@
     syncing = true;
     error = null;
     try {
+      await saveProseBefore(projectId, "syncing");
       const summary = await invoke<ReimportSummary>("apply_sync", {
         projectId,
         acceptedChangeIds: Array.from(selectedChanges),
         acceptedAdditionIds: Array.from(selectedAdditions),
+        // Only conflicts shown here are settled as "keep kindling".
+        keptConflictIds: syncPreview.changes
+          .filter((c) => c.conflict && !selectedChanges.has(c.id))
+          .map((c) => c.id),
       });
       onSyncComplete(summary);
     } catch (e) {
@@ -110,6 +123,7 @@
 <div
   data-testid="sync-preview-dialog"
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: () => !syncing && onClose() }}
   role="dialog"
   aria-modal="true"
   aria-labelledby="sync-dialog-title"
@@ -146,7 +160,19 @@
           {#if syncPreview.changes.length > 0}
             <span class="ka-badge">{syncPreview.changes.length} changed</span>
           {/if}
+          {#if conflictCount > 0}
+            <span class="ka-badge ka-badge--warning" data-testid="sync-conflict-count"
+              >{conflictCount} conflict{conflictCount !== 1 ? "s" : ""}</span
+            >
+          {/if}
         </div>
+        {#if conflictCount > 0}
+          <p class="ka-help" data-testid="sync-conflict-note">
+            A conflict changed in kindling as well as in the outline file, or kindling can't tell
+            which side changed. Leave it unticked to keep the kindling version; it won't be offered
+            again unless the outline file changes it. All skips conflicts.
+          </p>
+        {/if}
 
         {#if syncPreview.additions.length > 0}
           <section class="ka-group sync-group" aria-labelledby="sync-additions-title">
@@ -212,8 +238,8 @@
                   type="button"
                   onclick={selectAllChanges}
                   class="ka-button ka-button--ghost"
-                  aria-label="Select all changes"
-                  title="Select all">All</button
+                  aria-label="Select all changes except conflicts"
+                  title="Select all except conflicts">All</button
                 >
                 <button
                   type="button"
@@ -236,12 +262,25 @@
                       onchange={() => toggleChange(change.id)}
                       disabled={syncing}
                     />
-                    <span class="sync-type"><span class="ka-badge">Changed</span></span>
+                    <span class="sync-type">
+                      {#if change.conflict}
+                        <span class="ka-badge ka-badge--warning">Conflict</span>
+                      {:else}
+                        <span class="ka-badge">Changed</span>
+                      {/if}
+                    </span>
                     <span class="sync-text">
                       <span class="ka-label sync-name"
                         >{kindLabel(change.item_type)} · {change.item_title}</span
                       >
                       <span class="sync-meta">{FIELD_LABELS[change.field] ?? change.field}</span>
+                      {#if change.conflict}
+                        <span class="ka-help" data-testid="sync-conflict-help">
+                          {selectedChanges.has(change.id)
+                            ? "Ticked: the incoming version will replace the kindling version."
+                            : "Unticked: the kindling version is kept. Tick to use the incoming version instead."}
+                        </span>
+                      {/if}
                       {#if change.field === "prose"}
                         <span class="sync-prose" data-testid="sync-prose-diff">
                           <span class="ka-help">
@@ -301,7 +340,8 @@
         </button>
       {:else}
         <p class="ka-help ka-dialog-footer-start">
-          {selectedCount} item{selectedCount !== 1 ? "s" : ""} selected
+          {selectedCount} item{selectedCount !== 1 ? "s" : ""} selected{#if keptCount > 0}, {keptCount}
+            kindling version{keptCount !== 1 ? "s" : ""} kept{/if}
         </p>
         <button
           type="button"
@@ -315,13 +355,15 @@
           type="button"
           data-testid="sync-confirm"
           onclick={applySync}
-          disabled={syncing || selectedCount === 0}
+          disabled={syncing || (selectedCount === 0 && keptCount === 0)}
           aria-busy={syncing || undefined}
           class="ka-button"
         >
           {#if syncing}
             <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
             Applying…
+          {:else if selectedCount === 0 && keptCount > 0}
+            Keep kindling version{keptCount !== 1 ? "s" : ""}
           {:else if selectedCount === 0}
             Apply changes
           {:else}

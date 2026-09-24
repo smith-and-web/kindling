@@ -38,6 +38,7 @@
   import { synopsisSaves, type SynopsisDraft } from "./lib/stores/synopsisSaves.svelte";
   import { proseSaves, type ProseSave } from "./lib/utils/proseSaves";
   import { ui } from "./lib/stores/ui.svelte";
+  import { isModalOpen } from "./lib/utils/modalFocus";
   import type { ProseDocument } from "./lib/utils/proseSearch";
   import type { Project, ExportResult, Chapter, Scene, Beat } from "./lib/types";
 
@@ -376,7 +377,7 @@
   // Handle menu events from Tauri
   onMount(() => {
     const unlisten = listen<string>("menu-event", (event) => {
-      if (!showSettings || event.payload === "quit") runCommand(event.payload);
+      if (!blockedByModal(event.payload)) runCommand(event.payload);
     });
 
     return () => {
@@ -513,6 +514,22 @@
     });
   });
 
+  const FIND_COMMANDS = ["find", "find_replace", "find_project"];
+  const FIND_DIALOG = 'dialog[aria-labelledby="find-title"]';
+
+  /**
+   * Menu accelerators and shortcuts must not act behind a modal (a file picker, an
+   * import in progress, any open dialog): Cmd+W there would close the project. Quit
+   * always gets through because it runs its own save-before-exit flow. Find and
+   * Replace is a working tool rather than a task in progress: menu commands still
+   * reach the app with it open, and it closes itself when the project changes.
+   */
+  function blockedByModal(id: string | null | undefined) {
+    if (id === "quit") return false;
+    if (showSettings) return true;
+    return isModalOpen((modal) => modal.matches(FIND_DIALOG));
+  }
+
   function handleKeydown(event: KeyboardEvent) {
     if (interactionBlocked || event.defaultPrevented || event.isComposing) return;
     const id = shortcuts.match(event);
@@ -524,15 +541,13 @@
       }
       return;
     }
+    const target = event.target instanceof Element ? event.target : null;
+    const findInFindDialog = !!id && FIND_COMMANDS.includes(id) && !!target?.closest(FIND_DIALOG);
+    // Focus can sit on <body> while a dialog is open, so check for open modals as
+    // well as whether the key came from inside one.
     if (
-      showCommandPalette ||
-      (event.target instanceof Element &&
-        event.target.closest('[role="dialog"], dialog') &&
-        !(
-          event.target.closest('dialog[aria-labelledby="find-title"]') &&
-          id &&
-          ["find", "find_replace", "find_project"].includes(id)
-        ))
+      !findInFindDialog &&
+      (showCommandPalette || !!target?.closest('[role="dialog"], dialog') || blockedByModal(id))
     )
       return;
     if (!id || !COMMAND_DEFS.some((def) => def.id === id)) return;

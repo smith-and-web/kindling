@@ -1,6 +1,7 @@
 <script lang="ts">
   import { shortcuts } from "../stores/shortcuts.svelte";
   import { countWordsInHtml } from "../utils/wordCount";
+  import { isModalOpen } from "../utils/modalFocus";
   import { writing } from "../stores/writing.svelte";
   import type { SceneReview } from "../utils/revisions";
   import WritingStatusBar from "./WritingStatusBar.svelte";
@@ -42,6 +43,7 @@
     Tag,
   } from "../types";
   import { proseSaves, type ProseSave } from "../utils/proseSaves";
+  import { registerProseFlush } from "../utils/proseFlush";
   import type { ProseReplacement } from "../utils/proseSearch";
   import BeatView from "./BeatView.svelte";
   import PageView from "./PageView.svelte";
@@ -99,6 +101,7 @@
     const prose = review.documents.find((d) => d.id === review.scene_id)?.html ?? "";
     currentProject.updateScene(review.scene_id, { prose, editor_mode: review.mode });
     pageProseContent = prose;
+    pageViewSceneId = review.mode === "page" ? review.scene_id : null;
     for (const doc of review.documents) {
       if (doc.id !== review.scene_id) currentProject.updateBeatProse(doc.id, doc.html);
     }
@@ -339,11 +342,17 @@
         currentProject.updateScene(scene.id, { title: title.trim() });
       } catch (e) {
         console.error("Failed to rename scene:", e);
+        ui.showError(`Failed to rename scene: ${String(e)}`);
       }
     }, 400);
   }
 
   function handleKeydown(e: KeyboardEvent) {
+    // An Escape meant for a dialog, or already handled by a control, must not discard
+    // drafts here. ProseMirror marks every Escape inside the editor as handled, so that
+    // one still counts: it is how a writer collapses the beat they are typing in.
+    const fromEditor = e.target instanceof Element && !!e.target.closest(".ProseMirror");
+    if (isModalOpen() || (e.defaultPrevented && !fromEditor)) return;
     if (e.key === "Escape") {
       if (ui.expandedBeatId) {
         beatViewRef?.flushOnSceneChange();
@@ -504,6 +513,7 @@
       newDiscoveryNoteContent = "";
     } catch (e) {
       console.error("Failed to create discovery note:", e);
+      ui.showError(`Failed to add discovery note: ${String(e)}`);
     } finally {
       creatingDiscoveryNote = false;
     }
@@ -521,6 +531,7 @@
       editingDiscoveryNoteContent = "";
     } catch (e) {
       console.error("Failed to update discovery note:", e);
+      ui.showError(`Failed to save discovery note: ${String(e)}`);
     }
   }
 
@@ -530,6 +541,7 @@
       discoveryNotes = discoveryNotes.filter((n) => n.id !== noteId);
     } catch (e) {
       console.error("Failed to delete discovery note:", e);
+      ui.showError(`Failed to delete discovery note: ${String(e)}`);
     }
   }
 
@@ -542,6 +554,7 @@
       ui.setExpandedBeat(beat.id);
     } catch (e) {
       console.error("Failed to promote note to beat:", e);
+      ui.showError(`Failed to turn note into a beat: ${String(e)}`);
     } finally {
       promotingNoteId = null;
     }
@@ -556,6 +569,8 @@
   let switchingMode = $state(false);
   let pageProseContent = $state("");
   let pageEditorVersion = $state(0);
+  // The page-mode scene whose prose pageProseContent currently holds.
+  let pageViewSceneId = $state<string | null>(null);
   let pageProseSaveTimeout: ReturnType<typeof setTimeout> | null = null;
   let pageProseSaveStatus = $state<"idle" | "saving" | "error">("idle");
   let showSwitchToBeatConfirm = $state(false);
@@ -573,12 +588,20 @@
     pageProseSaveStatus = "idle";
     lastPageViewSceneId = scene?.id ?? null;
     pageProseProjectId = currentProject.value?.id ?? "";
-    if (!scene || scene.editor_mode !== "page") return;
-    const unsaved = proseSaves
-      .draftsForRecovery(pageProseProjectId)
-      .find((draft) => draft.kind === "page" && draft.id === scene.id);
-    pageProseContent = unsaved?.prose ?? scene.prose ?? "";
+    if (!scene || scene.editor_mode !== "page") {
+      pageViewSceneId = null;
+      return;
+    }
+    pageProseContent = initialPageProse(scene);
+    pageViewSceneId = scene.id;
   });
+
+  function initialPageProse(scene: Scene) {
+    const unsaved = proseSaves
+      .draftsForRecovery(currentProject.value?.id ?? "")
+      .find((draft) => draft.kind === "page" && draft.id === scene.id);
+    return unsaved?.prose ?? scene.prose ?? "";
+  }
 
   async function switchEditorMode(targetMode: EditorMode) {
     const scene = currentProject.currentScene;
@@ -594,7 +617,7 @@
 
   async function doSwitchMode(targetMode: EditorMode) {
     const scene = currentProject.currentScene;
-    if (!scene || switchingMode || isLocked) return;
+    if (!scene || switchingMode || isLocked || scene.editor_mode === targetMode) return;
 
     switchingMode = true;
     try {
@@ -627,6 +650,7 @@
       if (targetMode === "page") {
         lastPageViewSceneId = updated.id;
         pageProseContent = updated.prose ?? "";
+        pageViewSceneId = updated.id;
       } else if (targetMode === "beat") {
         const freshBeats = await invoke<Beat[]>("get_beats", {
           sceneId: scene.id,
@@ -785,10 +809,13 @@
       switchEditorMode(scene.editor_mode === "page" ? "beat" : "page");
     };
     window.addEventListener("kindling:toggleEditorMode", emHandler);
+    // Export and sync read prose from the database, so they flush the editors first.
+    const unregisterProseFlush = registerProseFlush(prepareForSearch);
 
     return () => {
       window.removeEventListener("kindling:toggleDiscoveryNotes", dnHandler);
       window.removeEventListener("kindling:toggleEditorMode", emHandler);
+      unregisterProseFlush();
     };
   });
 
@@ -1335,11 +1362,13 @@
 
         <!-- Page View (Fixed + Page mode) -->
         {#if planning === "fixed" && scene.editor_mode === "page"}
-          {#key pageEditorVersion}
+          <!-- Keyed per scene so undo history never reaches into the previous scene. Until the
+               effect loads this scene, mount with its own prose rather than the last scene's. -->
+          {#key `${scene.id}:${pageEditorVersion}`}
             <PageView
               projectId={currentProject.value?.id}
               sceneId={scene.id}
-              content={pageProseContent}
+              content={pageViewSceneId === scene.id ? pageProseContent : initialPageProse(scene)}
               readonly={isLocked || switchingMode || openingRevisions}
               saveStatus={pageProseSaveStatus}
               wordCount={getPageWordCount()}

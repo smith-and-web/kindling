@@ -369,3 +369,19 @@ it("embeds references for the reviewed passage without changing the writing scen
     expect(invoke).toHaveBeenCalledWith("get_scene_reference_state", { sceneId: "next-passage" })
   );
 });
+
+it("renders an imported description as inert formatted prose", async () => {
+  // A crafted .yw7 bio: a refresh, a credential form and a full-window link overlay.
+  const description =
+    '<p><strong>Bio:</strong> Kind<meta http-equiv="refresh" content="0;url=https://example.com"><form action="https://example.com"><input name="password"><button>Sign in</button></form><a href="https://example.com" style="position:fixed;inset:0">Continue</a> and <em>brave</em></p>';
+  vi.mocked(invoke).mockImplementation(async (command) =>
+    command === "get_references" ? [{ ...reference, description }] : []
+  );
+  const { container } = render(ReferencesPanel);
+  // The collapsed row previews the description as plain text in the button's name.
+  await fireEvent.click(await screen.findByRole("button", { name: /^Eleanor Blackwood/ }));
+  const prose = await waitFor(() => container.querySelector(".refs-prose")!);
+  expect(prose.querySelector("meta, form, input, button, a, [style], [href]")).toBeNull();
+  expect(prose.querySelector("strong")?.textContent).toBe("Bio:");
+  expect(prose.querySelector("em")?.textContent).toBe("brave");
+});

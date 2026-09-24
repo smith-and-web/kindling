@@ -10,6 +10,7 @@
     TriangleAlert,
   } from "lucide-svelte";
   import type { ReviewItem } from "../utils/reviewItems";
+  import { holdLinkClick } from "../utils/safeHtml";
   let {
     items,
     selected,
@@ -143,7 +144,11 @@
 <svelte:window
   onpointerdowncapture={dismissOptionsOutside}
   onclickcapture={dismissOptionsOutside}
-  onclick={dismissOptions}
+  onclick={(event) => {
+    dismissOptions(event);
+    // Suggested passages render the reviewer's links; following one would replace the app.
+    if (event.target instanceof Node && container?.contains(event.target)) holdLinkClick(event);
+  }}
 />
 
 <aside class="review-sidebar" bind:this={container} aria-label="Editorial feedback">

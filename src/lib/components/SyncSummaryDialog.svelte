@@ -6,6 +6,7 @@
 <script lang="ts">
   import { CheckCheck } from "lucide-svelte";
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus } from "../utils/modalFocus";
   import type { ReimportSummary } from "../types";
 
   interface Props {
@@ -50,6 +51,7 @@
 <div
   data-testid="sync-summary-dialog"
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: onClose }}
   role="dialog"
   aria-modal="true"
   aria-labelledby="sync-summary-title"

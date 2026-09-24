@@ -250,6 +250,26 @@ CREATE TABLE IF NOT EXISTS writing_goals (
             PRIMARY KEY (scene_id, reference_id)
         );
 
+        -- novelWriter text of each synced field at the last import or sync, so
+        -- sync can tell a novelWriter edit from a kindling one.
+        CREATE TABLE IF NOT EXISTS novelwriter_sync_baselines (
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            item_id TEXT NOT NULL,
+            field TEXT NOT NULL,
+            value TEXT NOT NULL,
+            PRIMARY KEY (item_id, field)
+        );
+
+        -- novelWriter Novel documents that kindling has read one chapter or
+        -- scene per heading (1.3 and later), however many headings they have.
+        -- A document without a row was imported whole by kindling 1.2 and
+        -- keeps that shape.
+        CREATE TABLE IF NOT EXISTS novelwriter_split_documents (
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            handle TEXT NOT NULL,
+            PRIMARY KEY (project_id, handle)
+        );
+
         -- Create indexes for common queries
         CREATE INDEX IF NOT EXISTS idx_chapters_project ON chapters(project_id);
         CREATE INDEX IF NOT EXISTS idx_scenes_chapter ON scenes(chapter_id);
@@ -272,6 +292,7 @@ CREATE TABLE IF NOT EXISTS writing_goals (
         CREATE INDEX IF NOT EXISTS idx_field_values_definition ON field_values(field_definition_id);
         CREATE INDEX IF NOT EXISTS idx_field_values_entity ON field_values(entity_id);
         CREATE INDEX IF NOT EXISTS idx_dismissed_suggestions_scene ON dismissed_suggestions(scene_id);
+        CREATE INDEX IF NOT EXISTS idx_novelwriter_sync_baselines_project ON novelwriter_sync_baselines(project_id);
 
         "#,
     )?;
@@ -856,6 +877,45 @@ mod tests {
         assert!(tables.contains(&"field_values".to_string()));
         assert!(tables.contains(&"dismissed_suggestions".to_string()));
         assert!(tables.contains(&"story_templates".to_string()));
+        assert!(tables.contains(&"novelwriter_sync_baselines".to_string()));
+        assert!(tables.contains(&"novelwriter_split_documents".to_string()));
+    }
+
+    #[test]
+    fn sync_baselines_table_is_added_to_existing_databases_idempotently() {
+        let conn = Connection::open_in_memory().unwrap();
+        initialize_schema(&conn).unwrap();
+        // A 1.2 database: no baselines table, existing project data.
+        conn.execute_batch(
+            "DROP TABLE novelwriter_sync_baselines; DROP TABLE novelwriter_split_documents;",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at)
+             VALUES ('p', 'Old', 'novelwriter', 'then', 'then')",
+            [],
+        )
+        .unwrap();
+        initialize_schema(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO novelwriter_sync_baselines VALUES ('p', 'item', 'prose', 'Text')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO novelwriter_split_documents VALUES ('p', 'handle')",
+            [],
+        )
+        .unwrap();
+        initialize_schema(&conn).unwrap();
+        let (projects, baselines, split): (i64, i64, i64) = conn
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM projects), (SELECT COUNT(*) FROM novelwriter_sync_baselines), (SELECT COUNT(*) FROM novelwriter_split_documents)",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!((projects, baselines, split), (1, 1, 1));
     }
 
     #[test]

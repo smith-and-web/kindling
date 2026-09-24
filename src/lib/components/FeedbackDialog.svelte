@@ -2,14 +2,16 @@
   FeedbackDialog.svelte - Send feedback to the kindling team
 
   A small form letting the user submit a bug report, feature request, or star
-  rating. Submission is the ONLY network call the app makes and is strictly
-  user-initiated: it happens exclusively when the user clicks "Send feedback".
+  rating. Apart from the updater's release check, submission is the only network
+  request the app makes, and it is strictly user-initiated: it happens
+  exclusively when the user clicks "Send feedback".
   The POST itself is performed on the Rust side via invoke("submit_feedback");
   nothing is persisted locally and offline use is unaffected.
 -->
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus } from "../utils/modalFocus";
   import { Loader2, Send, Star, CheckCircle2, AlertCircle } from "lucide-svelte";
 
   type FeedbackType = "bug" | "feature" | "rating";
@@ -105,25 +107,24 @@
     }
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      onClose();
-    }
-  }
-
   function handleBackdropClick(event: MouseEvent) {
     if (event.target === event.currentTarget) {
       onClose();
     }
   }
+
+  // Sending replaces the form, and the focused Send button with it; land on Done.
+  function focusOnMount(node: HTMLElement) {
+    node.focus();
+  }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
+<!-- Escape is the keyboard equivalent of the backdrop click; modalFocus handles it. -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: onClose, initialFocus: "[aria-pressed='true']" }}
   onclick={handleBackdropClick}
-  onkeydown={handleKeydown}
   role="dialog"
   aria-modal="true"
   aria-labelledby="feedback-dialog-title"
@@ -144,7 +145,7 @@
         <p>Your message was sent to the kindling team.</p>
       </div>
       <footer class="ka-dialog-footer">
-        <button type="button" onclick={onClose} class="ka-button">Done</button>
+        <button type="button" onclick={onClose} class="ka-button" use:focusOnMount>Done</button>
       </footer>
     {:else}
       <div class="ka-dialog-body feedback-form">
@@ -226,6 +227,11 @@
           </div>
         {/if}
 
+        <p class="ka-help" data-testid="feedback-disclosure">
+          Sending includes what you enter here plus your kindling version, operating system and
+          language. Nothing from your manuscript is attached.
+        </p>
+
         {#if validationError}
           <p class="ka-error" data-testid="feedback-validation" role="alert">
             <AlertCircle class="w-4 h-4 shrink-0" aria-hidden="true" />
@@ -241,7 +247,8 @@
           >
             <AlertCircle class="w-5 h-5 shrink-0" aria-hidden="true" />
             <div class="od-field od-fill">
-              <strong>Couldn’t send your feedback{error ? `: ${error}` : "."}</strong>
+              <strong>Couldn’t send your feedback.</strong>
+              {#if error}<p>{error}</p>{/if}
               <p>Your form is kept as you left it.</p>
               <button
                 type="button"

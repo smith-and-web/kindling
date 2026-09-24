@@ -217,6 +217,8 @@ struct NoteFrontmatter {
 struct SceneBuildContext<'a> {
     index_dir: &'a Path,
     scene_dir: &'a Path,
+    /// Canonical vault root; scene files must resolve inside it.
+    vault: &'a Path,
     scenes: &'a mut Vec<Scene>,
     beats: &'a mut Vec<Beat>,
     characters: &'a mut Vec<Character>,
@@ -249,7 +251,15 @@ struct DataviewContext<'a> {
 // ============================================================================
 
 pub fn parse_longform_index<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, LongformError> {
-    let path = path.as_ref();
+    parse_longform_index_in(path.as_ref(), None)
+}
+
+/// Parse an index, reading only files inside `vault` (by default the vault
+/// that contains the index; see `vault_root`).
+fn parse_longform_index_in(
+    path: &Path,
+    vault: Option<PathBuf>,
+) -> Result<ParsedLongform, LongformError> {
     let content = fs::read_to_string(path)?;
 
     let (frontmatter_str, _) = split_frontmatter(&content)
@@ -295,7 +305,18 @@ pub fn parse_longform_index<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, L
     );
 
     let index_dir = path.parent().unwrap_or_else(|| Path::new("."));
+    let vault = match vault {
+        Some(vault) => vault,
+        None if index_dir.as_os_str().is_empty() => vault_root(Path::new("."))?,
+        None => vault_root(index_dir)?,
+    };
     let scene_dir = resolve_scene_dir(index_dir, &scene_folder);
+    // A missing folder cannot leak anything; its scenes fail to read below.
+    if scene_dir.exists() {
+        resolve_in_vault(&vault, &scene_dir, || {
+            format!("The Longform sceneFolder \u{201c}{scene_folder}\u{201d}")
+        })?;
+    }
 
     let mut parsed = build_longform_structure(
         project,
@@ -303,6 +324,7 @@ pub fn parse_longform_index<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, L
         &ignored_patterns,
         index_dir,
         &scene_dir,
+        &vault,
     )?;
 
     let mut skip_paths = HashSet::new();
@@ -313,7 +335,7 @@ pub fn parse_longform_index<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, L
         }
     }
     let reference_names = ReferenceNameIndex::new(&parsed);
-    let notes = collect_reference_notes(index_dir, &skip_paths, &reference_names)?;
+    let notes = collect_reference_notes(index_dir, &vault, &skip_paths, &reference_names)?;
     merge_reference_notes(&mut parsed, notes);
     update_project_reference_types(&mut parsed.project, &parsed.reference_items);
 
@@ -323,7 +345,8 @@ pub fn parse_longform_index<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, L
 pub fn parse_longform_path<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, LongformError> {
     let path = path.as_ref();
     if path.is_dir() {
-        let indexes = find_longform_indexes(path)?;
+        let vault = vault_root(path)?;
+        let indexes = find_longform_indexes(path, &vault)?;
         if indexes.is_empty() {
             return Err(LongformError::InvalidStructure(
                 "No Longform index files found in vault".to_string(),
@@ -339,18 +362,76 @@ pub fn parse_longform_path<P: AsRef<Path>>(path: P) -> Result<ParsedLongform, Lo
                 "Multiple Longform index files found. Please pick one:\n{list}"
             )));
         }
-        return parse_longform_index(&indexes[0]);
+        return parse_longform_index_in(&indexes[0], Some(vault));
     }
 
     parse_longform_index(path)
 }
 
-fn find_longform_indexes(vault_dir: &Path) -> Result<Vec<PathBuf>, LongformError> {
+/// The folder a Longform import may read from: the nearest ancestor of
+/// `start` that holds Obsidian's `.obsidian` settings folder (the vault), or
+/// `start` itself when there is none. Returned canonicalised.
+fn vault_root(start: &Path) -> Result<PathBuf, LongformError> {
+    let start = fs::canonicalize(start)?;
+    Ok(start
+        .ancestors()
+        .find(|dir| dir.join(".obsidian").is_dir())
+        .unwrap_or(&start)
+        .to_path_buf())
+}
+
+/// Resolve `path`, following `..` and symlinks, and refuse it when it lands
+/// outside `vault`. Scene names and `sceneFolder` come from the index file, so
+/// without this an index could pull any Markdown file on disk into a project.
+fn resolve_in_vault(
+    vault: &Path,
+    path: &Path,
+    describe: impl FnOnce() -> String,
+) -> Result<PathBuf, LongformError> {
+    let resolved = fs::canonicalize(path)?;
+    if resolved.starts_with(vault) {
+        return Ok(resolved);
+    }
+    Err(LongformError::InvalidStructure(format!(
+        "{} is outside the vault ({}), so kindling did not import it.",
+        describe(),
+        vault.display()
+    )))
+}
+
+/// Walk filter: keep entries inside `vault`, and report any that a symlink
+/// takes outside it instead of reading them.
+///
+/// Only symlinks are resolved. A walk can leave the vault only through one:
+/// any other entry sits inside its parent directory, which was either the
+/// walk root (inside the vault) or itself passed this filter on the way down,
+/// so symlinked directories are never followed out of the vault.
+fn stays_in_vault(vault: &Path, entry: &walkdir::DirEntry) -> bool {
+    if !entry.path_is_symlink() {
+        return true;
+    }
+    match fs::canonicalize(entry.path()) {
+        Ok(resolved) if resolved.starts_with(vault) => true,
+        Ok(_) => {
+            eprintln!(
+                "[kindling] Longform import skipped {}: it links outside the vault ({}).",
+                entry.path().display(),
+                vault.display()
+            );
+            false
+        }
+        // Broken links are skipped by the walk as before.
+        Err(_) => true,
+    }
+}
+
+fn find_longform_indexes(vault_dir: &Path, vault: &Path) -> Result<Vec<PathBuf>, LongformError> {
     let mut indexes = Vec::new();
 
     for entry in WalkDir::new(vault_dir)
         .follow_links(true)
         .into_iter()
+        .filter_entry(|entry| stays_in_vault(vault, entry))
         .filter_map(Result::ok)
     {
         if !entry.file_type().is_file() {
@@ -428,6 +509,7 @@ fn collect_scene_entries(
 
 fn collect_reference_notes(
     vault_dir: &Path,
+    vault: &Path,
     skip_paths: &HashSet<String>,
     reference_names: &ReferenceNameIndex,
 ) -> Result<Vec<ReferenceNote>, LongformError> {
@@ -436,6 +518,7 @@ fn collect_reference_notes(
     for entry in WalkDir::new(vault_dir)
         .follow_links(true)
         .into_iter()
+        .filter_entry(|entry| stays_in_vault(vault, entry))
         .filter_map(Result::ok)
     {
         if !entry.file_type().is_file() {
@@ -1346,7 +1429,7 @@ fn parse_scene_body(content: &str) -> SceneContent {
         if in_beats {
             beat_lines.push(line);
         } else {
-            if let Some((key, value)) = parse_dataview_field(trimmed_start) {
+            if let Some(field) = parse_dataview_field(trimmed_start) {
                 let mut context = DataviewContext {
                     scene_status: &mut scene_status,
                     status_locked,
@@ -1360,8 +1443,17 @@ fn parse_scene_body(content: &str) -> SceneContent {
                     timelines: &mut timelines,
                     custom: &mut custom,
                 };
-                apply_dataview_field(&key, &value, &mut context);
-                continue;
+                // Mapped keys are applied; other fields (`mood:: tense`,
+                // `up:: [[Chapter One]]`) are metadata Kindling has no home
+                // for, consumed as 1.2 did and never turned into references.
+                // Unspaced `key::text` is only a field for a mapped key or a
+                // link value, so text like `std::vector` stays prose. A
+                // capitalised key with a plain value is a field only when it
+                // is mapped.
+                let mapped = apply_dataview_field(&field.key, &field.value, &mut context);
+                if mapped || (!field.capitalized && (field.spaced || field.links_only)) {
+                    continue;
+                }
             }
             if !status_locked {
                 if let Some(status) = parse_status_from_tags(trimmed_start) {
@@ -1605,7 +1697,10 @@ fn reference_type_for_kind(kind: ReferenceKind) -> Option<&'static str> {
     }
 }
 
-fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_>) {
+/// Apply a Dataview field Kindling understands. Returns `false` for keys it
+/// does not map, leaving the context untouched. A mapped key returns `true`
+/// even when Kindling metadata locks it, so the line is still metadata.
+fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_>) -> bool {
     let normalized_key = key.trim().to_lowercase();
     match normalized_key.as_str() {
         "pov" => {
@@ -1738,24 +1833,98 @@ fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_
                 *context.scene_status = parse_obsidian_status(value);
             }
         }
-        "synopsis" if !context.synopsis_locked => {
-            if let Some(text) = normalize_block(value) {
-                *context.synopsis = Some(text);
+        "synopsis" => {
+            if !context.synopsis_locked {
+                if let Some(text) = normalize_block(value) {
+                    *context.synopsis = Some(text);
+                }
             }
         }
-        _ => {}
+        _ => return false,
     }
+    true
 }
 
-fn parse_dataview_field(line: &str) -> Option<(String, String)> {
-    let trimmed = line.trim();
-    let (key, value) = trimmed.split_once("::")?;
-    let key = key.trim();
-    let value = value.trim();
-    if key.is_empty() {
+/// A line that is exactly one Dataview inline field, `key:: value`.
+struct DataviewField {
+    key: String,
+    value: String,
+    /// `::` was followed by whitespace or ended the line, as Dataview
+    /// fields are normally written.
+    spaced: bool,
+    /// The value is only wikilinks (`[[A]]` or `[[A]], [[B]]`).
+    links_only: bool,
+    /// A capitalised key with a plain value (`POV:: Zoe`). Only a field when
+    /// Kindling maps the key, as 1.2 read it; `Meanwhile:: the ship sank.`
+    /// stays prose.
+    capitalized: bool,
+}
+
+/// Parse a scene line as a Dataview inline field.
+///
+/// Field lines never reach the prose, so this errs towards keeping text. A
+/// line is a field only when it is exactly `key:: value` and either
+///
+/// - the key follows the Dataview convention of a lowercase-initial name,
+///   `^[a-z][A-Za-z0-9_-]*$` (`mood:: tense`, `characters:: [[John]]`), or
+/// - the value is only wikilinks, whatever the key's case
+///   (`Characters:: [[John]]`, `Next:: [[Scene 4]]`).
+///
+/// Everything else is prose, including sentences that start with a
+/// capitalised word and `::` ("Meanwhile:: the ship sank.", "Crew:: all
+/// hands stood silent."), multi-word keys, list items and quotes.
+fn parse_dataview_field(line: &str) -> Option<DataviewField> {
+    let (key, rest) = line.trim().split_once("::")?;
+    let key = key.trim_end();
+    let value = rest.trim();
+    let links_only = is_wikilink_list(value);
+    let mut key_chars = key.chars();
+    let is_field = if links_only {
+        key_chars.next().is_some_and(char::is_alphabetic)
+            && key_chars.all(|ch| ch.is_alphanumeric() || ch == '_' || ch == '-')
+    } else {
+        key_chars.next().is_some_and(|ch| ch.is_ascii_alphabetic())
+            && key_chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+    };
+    if !is_field {
         return None;
     }
-    Some((key.to_string(), value.to_string()))
+    Some(DataviewField {
+        key: key.to_string(),
+        value: value.to_string(),
+        spaced: rest.is_empty() || rest.starts_with(char::is_whitespace),
+        links_only,
+        capitalized: !links_only && key.starts_with(|ch: char| ch.is_ascii_uppercase()),
+    })
+}
+
+/// Whether `value` is one wikilink (or embed) or a comma list of them, and
+/// nothing else. Commas inside a link's alias don't separate entries.
+fn is_wikilink_list(value: &str) -> bool {
+    let mut rest = value.trim();
+    if rest.is_empty() {
+        return false;
+    }
+    loop {
+        let link = rest.strip_prefix('!').unwrap_or(rest);
+        let Some(inner) = link.strip_prefix("[[") else {
+            return false;
+        };
+        let Some(end) = inner.find("]]") else {
+            return false;
+        };
+        if inner[..end].trim().is_empty() {
+            return false;
+        }
+        rest = inner[end + 2..].trim_start();
+        if rest.is_empty() {
+            return true;
+        }
+        let Some(next) = rest.strip_prefix(',') else {
+            return false;
+        };
+        rest = next.trim_start();
+    }
 }
 
 fn split_inline_list(value: &str) -> Vec<String> {
@@ -1897,6 +2066,7 @@ fn build_longform_structure(
     ignored_patterns: &[String],
     index_dir: &Path,
     scene_dir: &Path,
+    vault: &Path,
 ) -> Result<ParsedLongform, LongformError> {
     let mut chapters = Vec::new();
     let mut scenes = Vec::new();
@@ -1913,6 +2083,7 @@ fn build_longform_structure(
     let mut build_context = SceneBuildContext {
         index_dir,
         scene_dir,
+        vault,
         scenes: &mut scenes,
         beats: &mut beats,
         characters: &mut characters,
@@ -2022,7 +2193,10 @@ fn add_scene_from_entry(
     let scene_path = context.scene_dir.join(&scene_file_name);
     let scene_source_id = build_scene_source_id(context.index_dir, &scene_path);
 
-    let scene_content = parse_scene_file(&scene_path)?;
+    let scene_file = resolve_in_vault(context.vault, &scene_path, || {
+        format!("Scene \u{201c}{}\u{201d}", entry.name.trim())
+    })?;
+    let scene_content = parse_scene_file(&scene_file)?;
 
     let mut scene = Scene::new(
         chapter.id,
@@ -2695,6 +2869,113 @@ Scene prose with [[;Mila]] and [[~Warehouse]]."#;
     }
 
     #[test]
+    fn test_parse_scene_body_keeps_prose_lines_containing_double_colon() {
+        let content = "pov:: [[;Sarah]]\n\
+mood:: tense\n\
+\n\
+The ratio was 3::1 against them.\n\
+She read the label aloud: Warning:: do not open.\n\
+std::vector was the only word on the screen.\n\
+Night falls:: the long wait begins.\n\
+- characters:: [[John]]\n\
+> Aside:: a quoted line.";
+        let scene = parse_scene_body(content);
+        assert!(scene.characters.contains(&"Sarah".to_string()));
+        let prose = scene.prose.expect("prose kept");
+        for line in [
+            "The ratio was 3::1 against them.",
+            "She read the label aloud: Warning:: do not open.",
+            "std::vector was the only word on the screen.",
+            "Night falls:: the long wait begins.",
+            "- characters:: [[John]]",
+            "> Aside:: a quoted line.",
+        ] {
+            assert!(prose.contains(line), "lost {line:?} from {prose:?}");
+        }
+        // Genuine field lines (lowercase keys) are metadata, not prose.
+        assert!(!prose.contains("pov::"), "{prose:?}");
+        assert!(!prose.contains("mood::"), "{prose:?}");
+    }
+
+    #[test]
+    fn test_parse_scene_body_keeps_sentences_that_look_like_fields() {
+        // Capitalised words before `::` that kindling doesn't map are prose.
+        let scene = parse_scene_body(
+            "Meanwhile:: the ship sank.\n\
+Later:: she remembered.\n\
+characters:: [[John]]\n\
+Characters:: [[Mila]]\n\
+pov:: Zoe",
+        );
+        assert_eq!(
+            scene.prose.as_deref(),
+            Some("Meanwhile:: the ship sank.\nLater:: she remembered.")
+        );
+        let mut characters = scene.characters.clone();
+        characters.sort();
+        assert_eq!(characters, ["John", "Mila", "Zoe"]);
+    }
+
+    #[test]
+    fn test_parse_scene_body_reads_capitalised_mapped_keys_with_plain_values() {
+        // `POV:: Zoe` is how many writers type a mapped field; it stays
+        // metadata as in 1.2. A capitalised unmapped key is prose, and a
+        // link-only value is a breadcrumb even with a comma in an alias.
+        let scene = parse_scene_body(
+            "POV:: Zoe\n\
+Crew:: Night watch\n\
+Synopsis:: She arrives at the dock.\n\
+Later:: she remembered\n\
+Next:: [[Scene 5|the next, one]], ![[Chapter One]]",
+        );
+        assert_eq!(scene.prose.as_deref(), Some("Later:: she remembered"));
+        assert_eq!(scene.characters, ["Zoe"]);
+        assert_eq!(scene.organizations, ["Night watch"]);
+        assert_eq!(scene.synopsis.as_deref(), Some("She arrives at the dock."));
+    }
+
+    #[test]
+    fn test_parse_scene_body_consumes_dataview_breadcrumbs() {
+        // Navigation fields link scenes, not characters: consumed, no references.
+        let scene = parse_scene_body(
+            "up:: [[Chapter One]]\n\
+prev::[[Scene 2]]\n\
+Next:: [[Scene 4]], [[Scene 5|the next one]]\n\
+\n\
+Body.",
+        );
+        assert_eq!(scene.prose.as_deref(), Some("Body."));
+        assert!(scene.characters.is_empty(), "{:?}", scene.characters);
+        assert!(scene.locations.is_empty(), "{:?}", scene.locations);
+    }
+
+    #[test]
+    fn test_parse_scene_body_dataview_field_forms() {
+        // Mapped keys work without a space after `::` or with one before it,
+        // and an unmapped field with no value is still metadata.
+        let scene = parse_scene_body("setting::[[~Dock]]\npov :: Zoe\nmood::\n\nBody.");
+        assert_eq!(scene.locations, vec!["Dock".to_string()]);
+        assert_eq!(scene.characters, vec!["Zoe".to_string()]);
+        assert_eq!(scene.prose.as_deref(), Some("Body."));
+    }
+
+    #[test]
+    fn test_parse_scene_body_locked_field_is_still_metadata() {
+        // A recognised key ignored because Kindling metadata locks it is still a
+        // field line, with or without a space after `::`.
+        let scene = parse_scene_body(
+            "<!-- kindling: scene_status=final synopsis=\"Locked\" -->\n\
+synopsis::Unspaced override\n\
+status::draft\n\
+\n\
+Body.",
+        );
+        assert_eq!(scene.synopsis.as_deref(), Some("Locked"));
+        assert_eq!(scene.scene_status, SceneStatus::Final);
+        assert_eq!(scene.prose.as_deref(), Some("Body."));
+    }
+
+    #[test]
     fn test_import_reference_notes_from_vault() {
         let dir = tempdir().unwrap();
         let index_path = dir.path().join("Project.md");
@@ -2866,5 +3147,127 @@ longform:
         let parsed = parse_longform_path(dir.path()).unwrap();
         assert_eq!(parsed.project.name, "Test Project");
         assert_eq!(parsed.scenes.len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod vault_boundary_tests {
+    use super::*;
+
+    /// `root/vault` is an Obsidian vault (it has `.obsidian/`) holding a
+    /// Longform index in `Book/`; `root/outside` is elsewhere on disk and
+    /// `{outside}` in a scene name expands to its absolute path.
+    fn vault_with_index(scenes: &[&str], scene_folder: &str) -> (tempfile::TempDir, PathBuf) {
+        let root = tempfile::tempdir().unwrap();
+        let vault = root.path().join("vault");
+        fs::create_dir_all(vault.join(".obsidian")).unwrap();
+        fs::create_dir_all(vault.join("Book")).unwrap();
+        fs::create_dir_all(root.path().join("outside")).unwrap();
+        fs::write(
+            root.path().join("outside/secret.md"),
+            "Private text from outside the vault.",
+        )
+        .unwrap();
+        let outside = root.path().join("outside");
+        let list: String = scenes
+            .iter()
+            .map(|s| s.replace("{outside}", outside.to_str().unwrap()))
+            .map(|s| format!("    - \"{s}\"\n"))
+            .collect();
+        let index = vault.join("Book/Index.md");
+        fs::write(
+            &index,
+            format!(
+                "---\nlongform:\n  format: scenes\n  title: Book\n  sceneFolder: {scene_folder}\n  scenes:\n{list}---\n"
+            ),
+        )
+        .unwrap();
+        (root, index)
+    }
+
+    fn outside_vault_error(result: Result<ParsedLongform, LongformError>) -> String {
+        match result {
+            Err(LongformError::InvalidStructure(message)) => message,
+            Err(other) => panic!("expected an outside-the-vault error, got {other}"),
+            Ok(parsed) => panic!(
+                "outside file was imported: {:?}",
+                parsed.scenes.iter().map(|s| &s.prose).collect::<Vec<_>>()
+            ),
+        }
+    }
+
+    #[test]
+    fn scene_names_with_parent_segments_cannot_leave_the_vault() {
+        let (_root, index) = vault_with_index(&["../../outside/secret"], "/");
+        let message = outside_vault_error(parse_longform_index(&index));
+        assert!(message.contains("outside the vault"), "{message}");
+        assert!(message.contains("../../outside/secret"), "{message}");
+    }
+
+    #[test]
+    fn parent_segments_that_stay_inside_the_vault_still_import() {
+        let (root, index) = vault_with_index(&["../Shared/Opening"], "/");
+        fs::create_dir_all(root.path().join("vault/Shared")).unwrap();
+        fs::write(root.path().join("vault/Shared/Opening.md"), "Shared prose.").unwrap();
+        let parsed = parse_longform_index(&index).unwrap();
+        assert_eq!(parsed.scenes.len(), 1);
+        assert_eq!(parsed.scenes[0].prose.as_deref(), Some("Shared prose."));
+    }
+
+    #[test]
+    fn absolute_scene_paths_cannot_leave_the_vault() {
+        let (_root, index) = vault_with_index(&["{outside}/secret"], "/");
+        let message = outside_vault_error(parse_longform_index(&index));
+        assert!(message.contains("outside the vault"), "{message}");
+    }
+
+    #[test]
+    fn scene_folder_cannot_leave_the_vault() {
+        let (_root, index) = vault_with_index(&["secret"], "../../outside");
+        let message = outside_vault_error(parse_longform_index(&index));
+        assert!(message.contains("sceneFolder"), "{message}");
+        assert!(message.contains("outside the vault"), "{message}");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn symlinked_scene_cannot_leave_the_vault() {
+        let (root, index) = vault_with_index(&["Opening"], "/");
+        std::os::unix::fs::symlink(
+            root.path().join("outside/secret.md"),
+            root.path().join("vault/Book/Opening.md"),
+        )
+        .unwrap();
+        let message = outside_vault_error(parse_longform_index(&index));
+        assert!(message.contains("Opening"), "{message}");
+        assert!(message.contains("outside the vault"), "{message}");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn symlinked_notes_and_indexes_outside_the_vault_are_skipped() {
+        let (root, index) = vault_with_index(&["Opening"], "/");
+        fs::write(root.path().join("vault/Book/Opening.md"), "Scene prose.").unwrap();
+        let outside = root.path().join("outside");
+        fs::write(
+            outside.join("Mallory.md"),
+            "---\ntype: character\nname: Mallory\n---\nOutside notes.",
+        )
+        .unwrap();
+        fs::write(
+            outside.join("Other.md"),
+            "---\nlongform:\n  format: scenes\n  title: Other\n  scenes: [secret]\n---\n",
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(&outside, root.path().join("vault/Book/characters")).unwrap();
+
+        let parsed = parse_longform_index(&index).unwrap();
+        assert!(
+            parsed.characters.iter().all(|c| c.name != "Mallory"),
+            "outside note imported"
+        );
+        // Picking the vault finds only the index inside it.
+        let parsed = parse_longform_path(root.path().join("vault")).unwrap();
+        assert_eq!(parsed.project.name, "Book");
     }
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/svelte";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { invoke } from "@tauri-apps/api/core";
 import ScrivenerMatchDialog from "./ScrivenerMatchDialog.svelte";
 import type { ScrivenerMatchPreview } from "../types";
@@ -146,6 +146,30 @@ describe("ScrivenerMatchDialog", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(props.onCancel).toHaveBeenCalledTimes(2);
     expect(props.onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("cancels when the backdrop is clicked", async () => {
+    vi.mocked(invoke).mockResolvedValue(matches);
+    const props = setup();
+    await screen.findByRole("list");
+
+    await fireEvent.click(document.querySelector(".dialog-scrim")!);
+    expect(props.onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes focus on open and cancels once on Escape without reaching the dialog behind", async () => {
+    vi.mocked(invoke).mockResolvedValue(matches);
+    const behind = vi.fn();
+    window.addEventListener("keydown", behind);
+    const props = setup();
+    const close = screen.getByRole("button", { name: "Close" });
+    await waitFor(() => expect(document.activeElement).toBe(close));
+
+    await fireEvent.keyDown(close, { key: "Escape" });
+
+    expect(props.onCancel).toHaveBeenCalledTimes(1);
+    expect(behind).not.toHaveBeenCalled();
+    window.removeEventListener("keydown", behind);
   });
 
   it("does not cancel when clicking inside the dialog surface", async () => {

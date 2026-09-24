@@ -1,4 +1,6 @@
 /** Local-only UI prototype. This is deliberately not a public exporter contract. */
+import { escapeHtml, safeProse } from "./safeHtml";
+
 export type PreviewFormat =
   | "docx"
   | "epub"
@@ -104,7 +106,8 @@ export function starterProfiles(title: string, author: string): ExportProfile[] 
     paragraphSpacing: 0,
     indent: 0.5,
     alignment: "left",
-    firstParagraphFlush: false,
+    // Standard Manuscript Format: no first-line indent after a heading or scene break.
+    firstParagraphFlush: true,
     paper: "letter",
     margin: 1,
     titlePage: true,
@@ -136,6 +139,7 @@ export function starterProfiles(title: string, author: string): ExportProfile[] 
       font: "Georgia",
       lineSpacing: 1.5,
       indent: 0,
+      firstParagraphFlush: false,
       paragraphSpacing: 8,
       sceneTitles: true,
       titlePage: false,
@@ -154,6 +158,7 @@ export function starterProfiles(title: string, author: string): ExportProfile[] 
       chapterBreaks: false,
       lineSpacing: 1.6,
       indent: 0,
+      firstParagraphFlush: false,
       paragraphSpacing: 12,
       chapterHeading: "title",
       separator: "⁂",
@@ -270,61 +275,6 @@ export function decodeProfiles(raw: string): { profiles: ExportProfile[]; active
   return { profiles: value.profiles, activeId: value.activeId };
 }
 
-export function escapeHtml(text: string): string {
-  return text.replace(
-    /[&<>"']/g,
-    (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!
-  );
-}
-
-/** Rebuild an inert prose subset. Never put imported attributes or executable markup in a preview. */
-export function safeProse(html: string): string {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  const allowed = new Set([
-    "P",
-    "BR",
-    "STRONG",
-    "B",
-    "EM",
-    "I",
-    "U",
-    "S",
-    "DEL",
-    "BLOCKQUOTE",
-    "UL",
-    "OL",
-    "LI",
-    "H1",
-    "H2",
-    "H3",
-    "H4",
-    "HR",
-  ]);
-  const dropped = new Set([
-    "SCRIPT",
-    "STYLE",
-    "IFRAME",
-    "OBJECT",
-    "EMBED",
-    "SVG",
-    "MATH",
-    "FORM",
-    "IMG",
-    "VIDEO",
-    "AUDIO",
-    "TEMPLATE",
-  ]);
-  function walk(node: Node): string {
-    if (node.nodeType === Node.TEXT_NODE) return escapeHtml(node.textContent ?? "");
-    if (!(node instanceof Element) || dropped.has(node.tagName.toUpperCase())) return "";
-    const content = [...node.childNodes].map(walk).join("");
-    if (!allowed.has(node.tagName)) return content;
-    const tag = node.tagName.toLowerCase();
-    return ["br", "hr"].includes(tag) ? `<${tag}>` : `<${tag}>${content}</${tag}>`;
-  }
-  return [...doc.body.childNodes].map(walk).join("");
-}
-
 export function selectedChapters(
   chapters: PreviewChapter[],
   profile: ExportProfile
@@ -393,11 +343,33 @@ export function chapterLabel(chapter: PreviewChapter, index: number, p: ExportPr
         : `${number}: ${chapter.title}`;
 }
 
+/**
+ * Word output follows Standard Manuscript Format, as the Word exporter writes it:
+ * chapter and Part headings at body size and weight, a third of the way down the
+ * page, and secondary headings bold at body size.
+ */
+const manuscriptHeadingCss =
+  "h1,h2,h3,.part{font-size:1em;line-height:inherit}h1,.part{font-weight:normal}.chapter>h1,.part{margin:6em 0 4em}.title-page .word-count{text-align:right}";
+
+/** The Word running header: "Surname / SHORT TITLE / " before the page number. */
+export function runningHead(p: Pick<ExportProfile, "header" | "title" | "author">): string {
+  const shortTitle = (p.title || "Untitled manuscript")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" ")
+    .toUpperCase();
+  const surname = p.author.split(/\s+/).filter(Boolean).pop();
+  return p.header === "author_title" && surname
+    ? `${surname} / ${shortTitle} / `
+    : `${shortTitle} / `;
+}
+
 export function previewCss(p: ExportProfile): string {
   const paged = p.format === "docx";
   const fonts = ["Times New Roman", "Courier New", "Georgia", "Arial"];
   return `body{margin:0;background:#e9e4da;color:#231d18} .manuscript{box-sizing:border-box;background:#fffdf9;margin:24px auto;max-width:${paged ? (p.paper === "a4" ? "794" : "816") : "740"}px;padding:${paged ? bounded(p.margin, 0.25, 2, 1) * 60 : 36}px;font-family:"${fonts.includes(p.font) ? p.font : "Georgia"}",serif;font-size:${bounded(p.fontSize, 8, 24, 12)}pt;line-height:${bounded(p.lineSpacing, 1, 3, 2)};text-align:${p.alignment === "justify" ? "justify" : "left"}}
-  h1,h2,h3{line-height:1.35;text-align:center;text-indent:0}h1,h2{font-size:1.4em;margin:2em 0}h3{font-size:1.05em}p{margin:0 0 ${bounded(p.paragraphSpacing, 0, 36, 0)}pt;text-indent:${bounded(p.indent, 0, 1, 0.5)}in}blockquote{margin:1em 2em} .scene p.flush{ text-indent:0 } .separator{text-align:center;text-indent:0;margin:1.6em 0} .synopsis{font-style:italic;color:#655e56;text-indent:0;margin-bottom:1em} .running-head{font-size:0.8em;text-align:right;border-bottom:1px solid #ddd5c9;padding-bottom:12px;margin-bottom:24px} .title-page{text-align:center;padding:4em 0 6em}.title-page p{text-indent:0}.title-page h1{margin:1em 0}.part{margin:3em 0;text-align:center;font-size:1.6em}.contents{margin:2em 0}.contents a{color:inherit}.chapter+.chapter{margin-top:3em;${paged && p.chapterBreaks ? "border-top:1px dashed #ccc;padding-top:3em" : ""}} @media(max-width:600px){.manuscript{margin:0;padding:28px;max-width:100%}} @media print{body{background:white}.manuscript{margin:0;max-width:none;padding:0}.chapter+.chapter{border:0;${paged && p.chapterBreaks ? "break-before:page" : ""}}.title-page{break-after:page}@page{size:${p.paper === "a4" ? "A4" : "letter"};margin:${bounded(p.margin, 0.25, 2, 1)}in}}`;
+  h1,h2,h3{line-height:1.35;text-align:center;text-indent:0}h1,h2{font-size:1.4em;margin:2em 0}h3{font-size:1.05em}${paged ? manuscriptHeadingCss : ""}p{margin:0 0 ${bounded(p.paragraphSpacing, 0, 36, 0)}pt;text-indent:${bounded(p.indent, 0, 1, 0.5)}in}blockquote{margin:1em 2em} .scene p.flush{ text-indent:0 } .separator{text-align:center;text-indent:0;margin:1.6em 0} .synopsis{font-style:italic;color:#655e56;text-indent:0;margin-bottom:1em} .running-head{font-size:0.8em;text-align:right;border-bottom:1px solid #ddd5c9;padding-bottom:12px;margin-bottom:24px} .title-page{text-align:center;padding:4em 0 6em}.title-page p{text-indent:0}.title-page h1{margin:1em 0}.part{margin:3em 0;text-align:center;font-size:1.6em}.contents{margin:2em 0}.contents a{color:inherit}.chapter+.chapter{margin-top:3em;${paged && p.chapterBreaks ? "border-top:1px dashed #ccc;padding-top:3em" : ""}} @media(max-width:600px){.manuscript{margin:0;padding:28px;max-width:100%}} @media print{body{background:white}.manuscript{margin:0;max-width:none;padding:0}.chapter+.chapter{border:0;${paged && p.chapterBreaks ? "break-before:page" : ""}}.title-page{break-after:page}@page{size:${p.paper === "a4" ? "A4" : "letter"};margin:${bounded(p.margin, 0.25, 2, 1)}in}}`;
 }
 
 export function renderPreview(
@@ -409,14 +381,18 @@ export function renderPreview(
   const title = escapeHtml(p.title || "Untitled manuscript");
   let body = "";
   if (p.format === "docx" && p.header !== "none")
-    body += `<header class="running-head">${p.header === "author_title" && p.author ? `${escapeHtml(p.author)} / ` : ""}${title}</header>`;
+    body += `<header class="running-head">${escapeHtml(runningHead(p))}1</header>`;
   if (p.titlePage && (!options.chapterId || options.titleOnly)) {
     const words = manuscriptWords(selected);
     const count =
       p.wordCount === "rounded" && words >= 1000
         ? `${(Math.round(words / 1000) * 1000).toLocaleString()} words (approx.)`
         : `${words.toLocaleString()} words`;
-    body += `<section class="title-page"><h1>${title}</h1>${p.subtitle ? `<p>${escapeHtml(p.subtitle)}</p>` : ""}${p.author ? `<p>by ${escapeHtml(p.author)}</p>` : ""}${p.wordCount !== "none" ? `<p>${count}</p>` : ""}</section>`;
+    // A Word title page carries the word count at the top, as the manuscript does.
+    const paged = p.format === "docx";
+    const countLine =
+      p.wordCount !== "none" ? `<p${paged ? ' class="word-count"' : ""}>${count}</p>` : "";
+    body += `<section class="title-page">${paged ? countLine : ""}<h1>${title}</h1>${p.subtitle ? `<p>${escapeHtml(p.subtitle)}</p>` : ""}${p.author ? `<p>by ${escapeHtml(p.author)}</p>` : ""}${paged ? "" : countLine}</section>`;
   }
   if (p.contents && !options.chapterId && !options.titleOnly)
     body += `<nav class="contents" aria-label="Contents"><h2>Contents</h2><ol>${selected.map((c, i) => `<li><a href="#chapter-${i}">${escapeHtml(chapterLabel(c, i, p) || c.title)}</a></li>`).join("")}</ol></nav>`;

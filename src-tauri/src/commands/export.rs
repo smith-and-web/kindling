@@ -2,10 +2,12 @@
 //!
 //! Commands for exporting projects to various formats (Markdown, Longform, DOCX, EPUB).
 
+use super::manuscript::manuscript_fonts;
 use crate::commands::{load_app_settings, AppState};
 use crate::db;
 use crate::db::writing::uses_page_prose;
 use crate::models::{AppSettings, Beat, Chapter, Project, Scene, SnapshotTrigger};
+use crate::parsers::xml_text::{pack_docx, xml_safe_text, LINE_BREAK_CONTROLS};
 use chrono::Utc;
 use docx_rs::*;
 use serde::{Deserialize, Serialize};
@@ -269,34 +271,6 @@ impl SceneBreakStyle {
     }
 }
 
-/// Extract surname from a full name
-///
-/// Assumes the last word in the name is the surname.
-/// Examples:
-/// - "John Smith" -> "Smith"
-/// - "Mary Jane Watson" -> "Watson"
-/// - "Prince" -> "Prince" (single name)
-fn extract_surname(full_name: &str) -> String {
-    full_name
-        .split_whitespace()
-        .last()
-        .unwrap_or(full_name)
-        .to_string()
-}
-
-/// Abbreviate a title for the running header
-///
-/// If the title is longer than max_words, truncate to max_words.
-/// The title is converted to uppercase as per SMF.
-fn abbreviate_title(title: &str, max_words: usize) -> String {
-    let words: Vec<&str> = title.split_whitespace().collect();
-    if words.len() <= max_words {
-        title.to_uppercase()
-    } else {
-        words[..max_words].join(" ").to_uppercase()
-    }
-}
-
 /// Convert a chapter number to its word form (uppercase)
 ///
 /// Standard Manuscript Format typically uses word numbers for chapters.
@@ -483,7 +457,16 @@ struct FormattedParagraph {
 /// Handles:
 /// - Double quotes: " -> " or " depending on context
 /// - Single quotes/apostrophes: ' -> ' or ' depending on context
+#[cfg(test)]
 fn smartify_quotes(text: &str) -> String {
+    smartify_quotes_in_context(None, text, None)
+}
+
+/// [`smartify_quotes`] for one chunk of a paragraph: `before` is the last
+/// character already output in the paragraph and `after` the first character
+/// that follows the chunk, so a quote next to inline markup
+/// (`"I <em>hate</em>"`) is judged by the text around it, not the chunk edge.
+fn smartify_quotes_in_context(before: Option<char>, text: &str, after: Option<char>) -> String {
     let mut result = String::with_capacity(text.len());
     let chars: Vec<char> = text.chars().collect();
     let len = chars.len();
@@ -491,7 +474,7 @@ fn smartify_quotes(text: &str) -> String {
     let mut i = 0;
     while i < len {
         let c = chars[i];
-        let prev = if i > 0 { Some(chars[i - 1]) } else { None };
+        let prev = if i > 0 { Some(chars[i - 1]) } else { before };
 
         match c {
             '"' => {
@@ -509,9 +492,9 @@ fn smartify_quotes(text: &str) -> String {
             '\'' => {
                 // Check for common contractions where ' is an apostrophe
                 // Look at surrounding characters to determine if it's an apostrophe or quote
-                let next = chars.get(i + 1);
+                let next = chars.get(i + 1).copied().or(after);
                 let is_apostrophe = prev.is_some_and(|p| p.is_alphabetic())
-                    && next.is_some_and(|n| n.is_alphabetic() || *n == 's' || *n == 't');
+                    && next.is_some_and(|n| n.is_alphabetic() || n == 's' || n == 't');
 
                 if is_apostrophe {
                     result.push('\u{2019}'); // U+2019 RIGHT SINGLE QUOTATION MARK (apostrophe)
@@ -549,14 +532,10 @@ fn normalize_punctuation(text: &str) -> String {
     result = result.replace("---", "—");
     result = result.replace("--", "—");
 
-    // Remove spaces around em dashes: " — " or "— " or " —" -> "—"
-    result = result.replace(" — ", "—");
-    result = result.replace("— ", "—");
-    result = result.replace(" —", "—");
-
-    // Normalize multiple spaces to single space (including after periods)
+    // Normalize multiple spaces to single space (including after periods).
+    // Done before the dash rule so "word  --then" loses both spaces.
     let mut prev_was_space = false;
-    let normalized: String = result
+    let mut normalized: String = result
         .chars()
         .filter(|&c| {
             if c == ' ' {
@@ -571,13 +550,42 @@ fn normalize_punctuation(text: &str) -> String {
         })
         .collect();
 
+    // Remove spaces around em dashes: " — " or "— " or " —" -> "—"
+    normalized = normalized.replace(" — ", "—");
+    normalized = normalized.replace("— ", "—");
+    normalized = normalized.replace(" —", "—");
+
     normalized
+}
+
+/// [`normalize_punctuation`] for one chunk of a paragraph, applying the space
+/// rules across the chunk's edges too: no second space after a space, no
+/// space after an em dash, and no space before one that starts the next chunk.
+fn normalize_punctuation_in_context(before: Option<char>, text: &str, after: &str) -> String {
+    let mut result = normalize_punctuation(text);
+    if matches!(before, Some(' ' | '—')) {
+        result = result.trim_start_matches(' ').to_string();
+    }
+    // Judge the next chunk in its normalised form: `--` and `---` become an em
+    // dash there and spaces before a dash are dropped, so `word <em>--then`
+    // loses its space just as `word --then` in a single chunk does.
+    let next = after.trim_start_matches(' ');
+    if next.starts_with('—') || next.starts_with("--") {
+        result = result.trim_end_matches(' ').to_string();
+    }
+    result
 }
 
 /// Apply all text transformations: smart quotes and punctuation normalization
 fn transform_text(text: &str) -> String {
-    let smart = smartify_quotes(text);
-    normalize_punctuation(&smart)
+    transform_text_in_context(None, text, "")
+}
+
+/// [`transform_text`] for one chunk of a paragraph (see
+/// `html_paragraphs_in_context`).
+fn transform_text_in_context(before: Option<char>, text: &str, after: &str) -> String {
+    let smart = smartify_quotes_in_context(before, text, after.chars().next());
+    normalize_punctuation_in_context(before, &smart, after)
 }
 
 /// Parse HTML content from TipTap into formatted paragraphs for DOCX export
@@ -589,20 +597,29 @@ fn transform_text(text: &str) -> String {
 ///
 /// Also applies smart quotes and punctuation normalization.
 fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
-    use crate::parsers::html::{html_paragraphs, ParagraphKind};
-    html_paragraphs(html, transform_text)
+    use crate::parsers::html::{html_paragraphs_in_context, ParagraphKind};
+    html_paragraphs_in_context(html, transform_text_in_context)
         .into_iter()
         .map(|paragraph| {
-            let runs = paragraph
-                .runs
-                .into_iter()
-                .map(|run| FormattedRun {
-                    text: run.text,
+            // A pasted manual line break arrives as U+000B/U+000C inside a
+            // text run; render it as the same soft break `<br>` produces.
+            let mut runs = Vec::new();
+            for run in paragraph.runs {
+                let styled = |text: &str| FormattedRun {
+                    text: text.to_string(),
                     bold: run.marks[0],
                     italic: run.marks[1],
                     underline: run.marks[3],
-                })
-                .collect();
+                };
+                for (i, text) in run.text.split(LINE_BREAK_CONTROLS).enumerate() {
+                    if i > 0 {
+                        runs.push(styled("\n"));
+                    }
+                    if !text.is_empty() {
+                        runs.push(styled(text));
+                    }
+                }
+            }
             FormattedParagraph {
                 runs: merge_adjacent_runs(runs),
                 paragraph_type: match paragraph.kind {
@@ -641,9 +658,11 @@ fn merge_adjacent_runs(runs: Vec<FormattedRun>) -> Vec<FormattedRun> {
     merged
 }
 
-/// Escape XML special characters for EPUB output
+/// Escape XML special characters for EPUB output, dropping characters XML 1.0
+/// forbids (see `xml_safe_text`). Every classic EPUB text node and attribute,
+/// prose and metadata alike, goes through here.
 fn escape_xml(input: &str) -> String {
-    input
+    xml_safe_text(input)
         .replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
@@ -948,7 +967,18 @@ fn build_epub_content_opf(
     )
 }
 
-/// Count the same active prose representation shown in the writing sidebar.
+/// The chapter's scenes that belong in a manuscript export, in order (see
+/// `Scene::in_manuscript`). Shared by the classic DOCX and EPUB exporters.
+fn manuscript_scenes(conn: &rusqlite::Connection, chapter_id: &Uuid) -> Result<Vec<Scene>, String> {
+    Ok(db::queries::get_scenes(conn, chapter_id)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter(Scene::in_manuscript)
+        .collect())
+}
+
+/// Count the manuscript's words (the scenes a manuscript export includes), using
+/// the same active prose representation shown in the writing sidebar.
 fn calculate_project_word_count(
     conn: &rusqlite::Connection,
     project_uuid: &Uuid,
@@ -960,7 +990,7 @@ fn calculate_project_word_count(
     for chapter in chapters.iter().filter(|c| !c.archived) {
         let scenes = db::queries::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
 
-        for scene in scenes.iter().filter(|s| !s.archived) {
+        for scene in scenes.iter().filter(|s| s.in_manuscript()) {
             total_words +=
                 db::writing::scene_words(conn, &scene.id).map_err(|e| e.to_string())? as usize;
         }
@@ -1050,7 +1080,7 @@ fn add_title_page(
                     Run::new()
                         .add_text(line)
                         .size(24) // 12pt
-                        .fonts(RunFonts::new().ascii("Courier New")),
+                        .fonts(manuscript_fonts("Courier New")),
                 )
                 .align(AlignmentType::Left)
                 .line_spacing(LineSpacing::new().line(240)), // Single spacing for contact info
@@ -1069,7 +1099,7 @@ fn add_title_page(
                 Run::new()
                     .add_text(&word_count_str)
                     .size(24)
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .align(AlignmentType::Right),
     );
@@ -1087,7 +1117,7 @@ fn add_title_page(
                 Run::new()
                     .add_text(project.name.to_uppercase())
                     .size(24) // 12pt - same as body for SMF
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .align(AlignmentType::Center),
     );
@@ -1102,7 +1132,7 @@ fn add_title_page(
                 Run::new()
                     .add_text("by")
                     .size(24)
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .align(AlignmentType::Center),
     );
@@ -1118,7 +1148,7 @@ fn add_title_page(
                     Run::new()
                         .add_text(&author_name)
                         .size(24)
-                        .fonts(RunFonts::new().ascii("Courier New")),
+                        .fonts(manuscript_fonts("Courier New")),
                 )
                 .align(AlignmentType::Center),
         );
@@ -1135,7 +1165,7 @@ fn add_title_page(
                             .add_text(genre)
                             .size(24)
                             .italic()
-                            .fonts(RunFonts::new().ascii("Courier New")),
+                            .fonts(manuscript_fonts("Courier New")),
                     )
                     .align(AlignmentType::Center),
             );
@@ -1519,6 +1549,186 @@ fn export_folder(output: &std::path::Path, name: &str) -> Result<PathBuf, String
     Ok(folder)
 }
 
+/// Written into every Markdown/Longform export folder kindling creates, with the
+/// list of files kindling wrote there. "Delete existing export folder" only
+/// ever removes a folder carrying it, and only while every file in it is one
+/// kindling listed, so neither a folder of the writer's own (`~` plus a project
+/// called "Documents") nor notes the writer later added to an export (an
+/// Obsidian vault's `Research.md`) can be deleted.
+const EXPORT_MARKER: &str = ".kindling-export";
+const EXPORT_MARKER_TEXT: &str = "This folder was created by a kindling export. When you export \
+again with \"Delete existing export folder\", kindling may replace it, but only while it holds \
+nothing except the files listed below, which kindling wrote. Delete this file to stop kindling \
+from ever replacing the folder.\n";
+const EXPORT_MANIFEST_HEADER: &str = "--- files written by kindling ---";
+
+/// The files kindling has written into an export folder it owns, relative to
+/// the folder with `/` separators, as recorded in its marker.
+fn read_export_manifest(export_root: &Path) -> Option<std::collections::BTreeSet<String>> {
+    let marker = export_root.join(EXPORT_MARKER);
+    if !fs::symlink_metadata(&marker).is_ok_and(|m| m.is_file()) {
+        return None;
+    }
+    let text = fs::read_to_string(marker).ok()?;
+    Some(
+        text.lines()
+            .skip_while(|line| *line != EXPORT_MANIFEST_HEADER)
+            .skip(1)
+            .filter(|line| !line.is_empty())
+            .map(str::to_string)
+            .collect(),
+    )
+}
+
+fn manifest_key(export_root: &Path, path: &Path) -> Option<String> {
+    let relative = path.strip_prefix(export_root).ok()?;
+    let parts: Option<Vec<&str>> = relative
+        .components()
+        .map(|c| match c {
+            std::path::Component::Normal(part) => part.to_str(),
+            _ => None,
+        })
+        .collect();
+    parts.map(|parts| parts.join("/"))
+}
+
+/// Records each file an export writes into a folder kindling owns and keeps
+/// the marker's list up to date. For a folder that isn't kindling's (one that
+/// already existed without a marker) it writes files but records nothing, so
+/// the folder never becomes replaceable.
+struct ExportManifest {
+    root: PathBuf,
+    files: Option<std::collections::BTreeSet<String>>,
+    dirty: bool,
+}
+
+impl ExportManifest {
+    fn write(&mut self, path: &Path, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
+        fs::write(path, contents)?;
+        if let (Some(files), Some(key)) = (self.files.as_mut(), manifest_key(&self.root, path)) {
+            // A name kindling can't list one per line is left unlisted, which
+            // only ever makes the folder harder to replace.
+            if !key.contains(['\n', '\r']) {
+                self.dirty |= files.insert(key);
+            }
+        }
+        Ok(())
+    }
+
+    fn save(&mut self) -> std::io::Result<()> {
+        let Some(files) = &self.files else {
+            return Ok(());
+        };
+        let mut text = format!("{EXPORT_MARKER_TEXT}\n{EXPORT_MANIFEST_HEADER}\n");
+        for file in files {
+            text.push_str(file);
+            text.push('\n');
+        }
+        fs::write(self.root.join(EXPORT_MARKER), text)?;
+        self.dirty = false;
+        Ok(())
+    }
+
+    /// Save the list once the export has finished writing.
+    fn finish(mut self) -> Result<(), String> {
+        self.save()
+            .map_err(|e| format!("Failed to record the exported files: {}", e))
+    }
+}
+
+impl Drop for ExportManifest {
+    /// An export that stops part-way still lists what it wrote.
+    fn drop(&mut self) {
+        if self.dirty {
+            let _ = self.save();
+        }
+    }
+}
+
+/// Create `folder` (inside an already-validated destination) for an export,
+/// replacing it first when asked and when kindling owns it. The ownership
+/// marker is written only when kindling creates the folder itself, never into
+/// a folder that already existed.
+fn prepare_export_folder(folder: &Path, delete_existing: bool) -> Result<ExportManifest, String> {
+    if delete_existing && folder.exists() {
+        remove_owned_export_folder(folder, folder)?;
+    }
+    if let Some(parent) = folder.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create output directory: {}", e))?;
+    }
+    match fs::create_dir(folder) {
+        Ok(()) => {
+            let mut manifest = ExportManifest {
+                root: folder.to_path_buf(),
+                files: Some(Default::default()),
+                dirty: false,
+            };
+            manifest
+                .save()
+                .map_err(|e| format!("Failed to create output directory: {}", e))?;
+            Ok(manifest)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && folder.is_dir() => {
+            Ok(ExportManifest {
+                root: folder.to_path_buf(),
+                files: read_export_manifest(folder),
+                dirty: false,
+            })
+        }
+        Err(e) => Err(format!("Failed to create output directory: {}", e)),
+    }
+}
+
+/// Recursively delete `folder`, which is `export_root` or lies inside it, only
+/// if `export_root` carries kindling's marker and every file in `folder` is
+/// one the marker lists (or OS metadata). Anything else (a legacy export
+/// without a marker, a user's own folder, or a note, image or `.obsidian`
+/// setting the writer added later) is refused and nothing is deleted.
+fn remove_owned_export_folder(folder: &Path, export_root: &Path) -> Result<(), String> {
+    let name = folder
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| folder.display().to_string());
+    let refuse = |why: String| {
+        Err(format!(
+            "kindling didn't replace “{name}”: {why}. It only replaces export folders it \
+             created itself, holding only the files it wrote. Move or delete the folder \
+             yourself, or choose another export name."
+        ))
+    };
+    let Some(written) = read_export_manifest(export_root) else {
+        return refuse(if folder == export_root {
+            "it wasn't created by a kindling export (exports made before kindling 1.3 aren't marked)"
+                .into()
+        } else {
+            "the export folder containing it wasn't created by a kindling export".into()
+        });
+    };
+    for entry in walkdir::WalkDir::new(folder).min_depth(1) {
+        let entry = entry.map_err(|e| format!("Failed to delete existing folder: {}", e))?;
+        let kind = entry.file_type();
+        let file_name = entry.file_name().to_string_lossy();
+        let expected = kind.is_dir()
+            || (kind.is_file()
+                && (entry.path() == export_root.join(EXPORT_MARKER)
+                    || matches!(
+                        file_name.as_ref(),
+                        ".DS_Store" | "Thumbs.db" | "desktop.ini"
+                    )
+                    || manifest_key(export_root, entry.path())
+                        .is_some_and(|key| written.contains(&key))));
+        if !expected {
+            let relative = entry.path().strip_prefix(folder).unwrap_or(entry.path());
+            return refuse(format!(
+                "it contains “{}”, which kindling didn't write",
+                relative.display()
+            ));
+        }
+    }
+    fs::remove_dir_all(folder).map_err(|e| format!("Failed to delete existing folder: {}", e))
+}
+
 /// Export project to markdown files
 ///
 /// Creates a folder structure: `ProjectName/ChapterName/SceneName.md`
@@ -1587,16 +1797,14 @@ fn export_to_markdown_with_connection(
     let mut chapters_exported = 0;
     let mut scenes_exported = 0;
 
+    // Replace the project folder only for a project-level export.
+    let mut manifest = prepare_export_folder(
+        &project_folder,
+        options.delete_existing && matches!(options.scope, ExportScope::Project),
+    )?;
+
     match options.scope {
         ExportScope::Project => {
-            // Delete existing project folder if requested (only for project-level export)
-            if options.delete_existing && project_folder.exists() {
-                fs::remove_dir_all(&project_folder)
-                    .map_err(|e| format!("Failed to delete existing folder: {}", e))?;
-            }
-
-            fs::create_dir_all(&project_folder)
-                .map_err(|e| format!("Failed to create output directory: {}", e))?;
             // Get all chapters
             let chapters =
                 db::queries::get_chapters(conn, &project_uuid).map_err(|e| e.to_string())?;
@@ -1620,7 +1828,7 @@ fn export_to_markdown_with_connection(
 
                 let mut scene_num = 0;
                 for scene in &scenes {
-                    if scene.archived {
+                    if !scene.in_manuscript() {
                         continue;
                     }
                     scene_num += 1;
@@ -1637,7 +1845,8 @@ fn export_to_markdown_with_connection(
                         sanitize_filename(&scene.title)
                     ));
 
-                    fs::write(&scene_file, markdown)
+                    manifest
+                        .write(&scene_file, markdown)
                         .map_err(|e| format!("Failed to write scene file: {}", e))?;
 
                     files_created += 1;
@@ -1648,10 +1857,6 @@ fn export_to_markdown_with_connection(
             }
         }
         ExportScope::Chapter(chapter_id) => {
-            // Create project folder (don't delete it for chapter-level export)
-            fs::create_dir_all(&project_folder)
-                .map_err(|e| format!("Failed to create output directory: {}", e))?;
-
             let chapter_uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
 
             // Get all chapters to find this chapter's position
@@ -1680,8 +1885,7 @@ fn export_to_markdown_with_connection(
 
             // Delete existing chapter folder if requested
             if options.delete_existing && chapter_folder.exists() {
-                fs::remove_dir_all(&chapter_folder)
-                    .map_err(|e| format!("Failed to delete existing chapter folder: {}", e))?;
+                remove_owned_export_folder(&chapter_folder, &project_folder)?;
             }
 
             fs::create_dir_all(&chapter_folder)
@@ -1692,7 +1896,7 @@ fn export_to_markdown_with_connection(
 
             let mut scene_num = 0;
             for scene in &scenes {
-                if scene.archived {
+                if !scene.in_manuscript() {
                     continue;
                 }
                 scene_num += 1;
@@ -1707,7 +1911,8 @@ fn export_to_markdown_with_connection(
                     sanitize_filename(&scene.title)
                 ));
 
-                fs::write(&scene_file, markdown)
+                manifest
+                    .write(&scene_file, markdown)
                     .map_err(|e| format!("Failed to write scene file: {}", e))?;
 
                 files_created += 1;
@@ -1717,10 +1922,6 @@ fn export_to_markdown_with_connection(
             chapters_exported = 1;
         }
         ExportScope::Scene(scene_id) => {
-            // Create project folder (don't delete it for scene-level export)
-            fs::create_dir_all(&project_folder)
-                .map_err(|e| format!("Failed to create output directory: {}", e))?;
-
             let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
 
             // Get scene info
@@ -1753,7 +1954,9 @@ fn export_to_markdown_with_connection(
 
             let mut scene_num = 0;
             for sc in &all_scenes {
-                if !sc.archived {
+                // Number like a project export; an explicitly chosen Notes,
+                // To-do or Unused scene is still exported.
+                if sc.in_manuscript() || sc.id == scene.id {
                     scene_num += 1;
                     if sc.id == scene.id {
                         break;
@@ -1783,13 +1986,16 @@ fn export_to_markdown_with_connection(
                     .map_err(|e| format!("Failed to delete existing scene file: {}", e))?;
             }
 
-            fs::write(&scene_file, markdown)
+            manifest
+                .write(&scene_file, markdown)
                 .map_err(|e| format!("Failed to write scene file: {}", e))?;
 
             files_created = 1;
             scenes_exported = 1;
         }
     }
+
+    manifest.finish()?;
 
     Ok(ExportResult {
         output_path: project_folder.to_string_lossy().to_string(),
@@ -1855,13 +2061,7 @@ fn export_to_longform_with_connection(
     let folder_name = sanitize_filename(&export_name);
     let project_folder = export_folder(&output_base, &folder_name)?;
 
-    if options.delete_existing && project_folder.exists() {
-        fs::remove_dir_all(&project_folder)
-            .map_err(|e| format!("Failed to delete existing folder: {}", e))?;
-    }
-
-    fs::create_dir_all(&project_folder)
-        .map_err(|e| format!("Failed to create output directory: {}", e))?;
+    let mut manifest = prepare_export_folder(&project_folder, options.delete_existing)?;
 
     let mut scenes_to_export: Vec<(Scene, Vec<Beat>)> = Vec::new();
     let mut chapter_ids = std::collections::HashSet::new();
@@ -2026,7 +2226,8 @@ fn export_to_longform_with_connection(
             &reference_names,
         )
         .map_err(|e| format!("Failed to generate scene markdown: {}", e))?;
-        fs::write(&scene_file, markdown)
+        manifest
+            .write(&scene_file, markdown)
             .map_err(|e| format!("Failed to write scene file: {}", e))?;
         files_created += 1;
         scene_names.push(stem);
@@ -2035,7 +2236,8 @@ fn export_to_longform_with_connection(
     let index_file = project_folder.join(&index_file_name);
 
     let frontmatter = generate_longform_frontmatter(&export_name, "/", &scene_names)?;
-    fs::write(&index_file, frontmatter)
+    manifest
+        .write(&index_file, frontmatter)
         .map_err(|e| format!("Failed to write index file: {}", e))?;
     files_created += 1;
 
@@ -2157,7 +2359,8 @@ fn export_to_longform_with_connection(
                         attributes: &character.attributes,
                     })
                     .map_err(|e| format!("Failed to generate character note: {}", e))?;
-                    fs::write(&file_path, markdown)
+                    manifest
+                        .write(&file_path, markdown)
                         .map_err(|e| format!("Failed to write character note: {}", e))?;
                     reference_files_created += 1;
                 }
@@ -2192,7 +2395,8 @@ fn export_to_longform_with_connection(
                         attributes: &location.attributes,
                     })
                     .map_err(|e| format!("Failed to generate location note: {}", e))?;
-                    fs::write(&file_path, markdown)
+                    manifest
+                        .write(&file_path, markdown)
                         .map_err(|e| format!("Failed to write location note: {}", e))?;
                     reference_files_created += 1;
                 }
@@ -2225,7 +2429,8 @@ fn export_to_longform_with_connection(
                         attributes: &item.attributes,
                     })
                     .map_err(|e| format!("Failed to generate item note: {}", e))?;
-                    fs::write(&file_path, markdown)
+                    manifest
+                        .write(&file_path, markdown)
                         .map_err(|e| format!("Failed to write item note: {}", e))?;
                     reference_files_created += 1;
                 }
@@ -2260,7 +2465,8 @@ fn export_to_longform_with_connection(
                         attributes: &objective.attributes,
                     })
                     .map_err(|e| format!("Failed to generate objective note: {}", e))?;
-                    fs::write(&file_path, markdown)
+                    manifest
+                        .write(&file_path, markdown)
                         .map_err(|e| format!("Failed to write objective note: {}", e))?;
                     reference_files_created += 1;
                 }
@@ -2295,7 +2501,8 @@ fn export_to_longform_with_connection(
                         attributes: &organization.attributes,
                     })
                     .map_err(|e| format!("Failed to generate organization note: {}", e))?;
-                    fs::write(&file_path, markdown)
+                    manifest
+                        .write(&file_path, markdown)
                         .map_err(|e| format!("Failed to write organization note: {}", e))?;
                     reference_files_created += 1;
                 }
@@ -2327,13 +2534,16 @@ fn export_to_longform_with_connection(
                     attributes: &item.attributes,
                 })
                 .map_err(|e| e.to_string())?;
-                fs::write(directory.join(format!("{stem}.md")), markdown)
+                manifest
+                    .write(&directory.join(format!("{stem}.md")), markdown)
                     .map_err(|e| e.to_string())?;
                 reference_files_created += 1;
             }
         }
     }
     files_created += reference_files_created;
+
+    manifest.finish()?;
 
     Ok(ExportResult {
         output_path: project_folder.to_string_lossy().to_string(),
@@ -2350,10 +2560,8 @@ fn export_to_longform_with_connection(
 /// - Courier New 12pt font
 /// - Only appears on pages after the title page
 fn create_running_header(author_surname: &str, title: &str) -> Header {
-    // Format: Surname / TITLE / [page number]
-    // Use abbreviated title (max 3 words) in uppercase
-    let abbreviated_title = abbreviate_title(title, 3);
-    let header_text = format!("{} / {} / ", author_surname, abbreviated_title);
+    // Format: Surname / TITLE / [page number], or TITLE / [page number] with no author
+    let header_text = super::manuscript::running_header_text(author_surname, title);
 
     Header::new().add_paragraph(
         Paragraph::new()
@@ -2362,7 +2570,7 @@ fn create_running_header(author_surname: &str, title: &str) -> Header {
                 Run::new()
                     .add_text(&header_text)
                     .size(24) // 12pt
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             // Add the page number field
             // Field structure: BEGIN -> instruction -> SEPARATE -> result -> END
@@ -2370,31 +2578,31 @@ fn create_running_header(author_surname: &str, title: &str) -> Header {
                 Run::new()
                     .add_field_char(FieldCharType::Begin, false)
                     .size(24)
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .add_run(
                 Run::new()
                     .add_instr_text(InstrText::PAGE(InstrPAGE {}))
                     .size(24)
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .add_run(
                 Run::new()
                     .add_field_char(FieldCharType::Separate, false)
                     .size(24)
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .add_run(
                 Run::new()
                     .add_text("1") // Placeholder that Word will replace
                     .size(24)
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .add_run(
                 Run::new()
                     .add_field_char(FieldCharType::End, false)
                     .size(24)
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .align(AlignmentType::Right),
     )
@@ -2427,10 +2635,12 @@ fn create_docx_styles(
         .footer(720); // 0.5 inch footer margin
 
     // Extract surname for running header
-    let surname = author_name.map(extract_surname).unwrap_or_default();
+    let surname = author_name
+        .map(super::manuscript::header_surname)
+        .unwrap_or_default();
 
     // Create the running header (for all pages except first)
-    let running_header = create_running_header(&surname, project_title);
+    let running_header = create_running_header(surname, project_title);
 
     // Create empty header for title page
     let empty_header = create_empty_first_header();
@@ -2450,13 +2660,14 @@ fn create_docx_styles(
         .header(running_header)
         // Empty header for title page (first page)
         .first_header(empty_header)
-        // Heading 1 style (for chapters) - large, bold
+        // Heading 1 style (chapter and Part headings). SMF sets these at body
+        // size and weight; the style still marks them as headings for Word's
+        // navigation pane. A bold style would make every heading run bold.
         .add_style(
             Style::new("Heading1", StyleType::Paragraph)
                 .name("Heading 1")
-                .size(56) // 28pt (size is in half-points)
-                .bold()
-                .fonts(RunFonts::new().ascii(font_name)),
+                .size(24) // 12pt (size is in half-points)
+                .fonts(manuscript_fonts(font_name)),
         )
         // Heading 2 style (for scenes) - medium, bold
         .add_style(
@@ -2464,7 +2675,7 @@ fn create_docx_styles(
                 .name("Heading 2")
                 .size(40) // 20pt
                 .bold()
-                .fonts(RunFonts::new().ascii(font_name)),
+                .fonts(manuscript_fonts(font_name)),
         )
         // Heading 3 style (for beats) - smaller, bold italic
         .add_style(
@@ -2473,7 +2684,7 @@ fn create_docx_styles(
                 .size(26) // 13pt
                 .bold()
                 .italic()
-                .fonts(RunFonts::new().ascii(font_name)),
+                .fonts(manuscript_fonts(font_name)),
         )
         // Synopsis style (italicized)
         .add_style(
@@ -2481,14 +2692,14 @@ fn create_docx_styles(
                 .name("Synopsis")
                 .size(22) // 11pt
                 .italic()
-                .fonts(RunFonts::new().ascii(font_name)),
+                .fonts(manuscript_fonts(font_name)),
         )
         // Normal/body text style - 12pt
         .add_style(
             Style::new("BodyText", StyleType::Paragraph)
                 .name("Body Text")
                 .size(24) // 12pt
-                .fonts(RunFonts::new().ascii(font_name)),
+                .fonts(manuscript_fonts(font_name)),
         )
 }
 
@@ -2528,7 +2739,7 @@ fn add_part_to_docx(
                 Run::new()
                     .add_text(part.title.to_uppercase())
                     .size(24) // 12pt
-                    .fonts(RunFonts::new().ascii(font_name)),
+                    .fonts(manuscript_fonts(font_name)),
             )
             .style("Heading1")
             .align(AlignmentType::Center)
@@ -2587,7 +2798,7 @@ fn add_chapter_to_docx(
                 Run::new()
                     .add_text(&chapter_heading)
                     .size(24) // 12pt for SMF
-                    .fonts(RunFonts::new().ascii(font_name)),
+                    .fonts(manuscript_fonts(font_name)),
             )
             .style("Heading1")
             .align(AlignmentType::Center)
@@ -2603,7 +2814,7 @@ fn add_chapter_to_docx(
     }
 
     // Add scenes with separators between them
-    let active_scenes: Vec<&Scene> = scenes.iter().filter(|s| !s.archived).collect();
+    let active_scenes: Vec<&Scene> = scenes.iter().filter(|s| s.in_manuscript()).collect();
     for (i, scene) in active_scenes.iter().enumerate() {
         let is_first_scene = i == 0;
 
@@ -2617,7 +2828,7 @@ fn add_chapter_to_docx(
                             Run::new()
                                 .add_text(break_marker)
                                 .size(24)
-                                .fonts(RunFonts::new().ascii(font_name)),
+                                .fonts(manuscript_fonts(font_name)),
                         )
                         .align(AlignmentType::Center)
                         .line_spacing(
@@ -2682,7 +2893,7 @@ fn add_scene_to_docx(
                         .add_text(&scene.title)
                         .size(24) // 12pt for SMF
                         .bold()
-                        .fonts(RunFonts::new().ascii(font_name)),
+                        .fonts(manuscript_fonts(font_name)),
                 )
                 .style("Heading2")
                 .line_spacing(
@@ -2707,7 +2918,7 @@ fn add_scene_to_docx(
                                 .add_text(&transformed_synopsis)
                                 .size(24) // 12pt
                                 .italic()
-                                .fonts(RunFonts::new().ascii(font_name)),
+                                .fonts(manuscript_fonts(font_name)),
                         )
                         .style("Synopsis")
                         .indent(Some(720), None, None, None) // 720 twips = 0.5 inch left indent
@@ -2782,7 +2993,7 @@ fn add_beat_marker_to_docx(docx: Docx, beat: &Beat, options: &DocxExportOptions)
                         .size(24) // 12pt
                         .bold()
                         .italic()
-                        .fonts(RunFonts::new().ascii(font_name)),
+                        .fonts(manuscript_fonts(font_name)),
                 )
                 .style("Heading3")
                 .line_spacing(
@@ -2829,7 +3040,7 @@ fn add_prose_to_docx(
                 let mut run = Run::new()
                     .add_text(&run_data.text)
                     .size(24) // 12pt
-                    .fonts(RunFonts::new().ascii(font_name));
+                    .fonts(manuscript_fonts(font_name));
 
                 if run_data.bold {
                     run = run.bold();
@@ -2974,10 +3185,7 @@ pub async fn export_to_docx(
                     // Regular chapters get numbered
                     chapter_number += 1;
 
-                    let scenes =
-                        db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
-                    let active_scenes: Vec<Scene> =
-                        scenes.into_iter().filter(|s| !s.archived).collect();
+                    let active_scenes = manuscript_scenes(&conn, &chapter.id)?;
 
                     // Fetch beats for each scene
                     for scene in &active_scenes {
@@ -3020,8 +3228,7 @@ pub async fn export_to_docx(
                 .map(|pos| pos + 1) // Convert 0-indexed to 1-indexed
                 .unwrap_or(1);
 
-            let scenes = db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
-            let active_scenes: Vec<Scene> = scenes.into_iter().filter(|s| !s.archived).collect();
+            let active_scenes = manuscript_scenes(&conn, &chapter.id)?;
 
             let mut beats_by_scene: std::collections::HashMap<Uuid, Vec<Beat>> =
                 std::collections::HashMap::new();
@@ -3068,12 +3275,9 @@ pub async fn export_to_docx(
             .map_err(|e| format!("Failed to create output directory: {}", e))?;
     }
 
-    let file = fs::File::create(&output_path)
-        .map_err(|e| format!("Failed to create output file: {}", e))?;
-
-    docx.build()
-        .pack(file)
-        .map_err(|e| format!("Failed to write DOCX file: {}", e))?;
+    super::staging::replace_file_atomically(&output_path, |file| {
+        pack_docx(docx, file).map_err(|e| format!("Failed to write DOCX file: {}", e))
+    })?;
 
     Ok(ExportResult {
         output_path: output_path.to_string_lossy().to_string(),
@@ -3176,10 +3380,7 @@ pub async fn export_to_epub(
                 db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
 
             for chapter in chapters.into_iter().filter(|c| !c.archived) {
-                let scenes =
-                    db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
-                let active_scenes: Vec<Scene> =
-                    scenes.into_iter().filter(|s| !s.archived).collect();
+                let active_scenes = manuscript_scenes(&conn, &chapter.id)?;
                 scenes_exported += active_scenes.len();
                 chapters_exported += 1;
                 chapter_exports.push((chapter, active_scenes));
@@ -3191,8 +3392,7 @@ pub async fn export_to_epub(
                 .map_err(|e| e.to_string())?
                 .ok_or_else(|| format!("Chapter not found: {}", chapter_id))?;
 
-            let scenes = db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
-            let active_scenes: Vec<Scene> = scenes.into_iter().filter(|s| !s.archived).collect();
+            let active_scenes = manuscript_scenes(&conn, &chapter.id)?;
 
             scenes_exported = active_scenes.len();
             chapters_exported = 1;
@@ -3437,8 +3637,35 @@ pub async fn export_to_epub(
             .map_err(|e| format!("Failed to create output directory: {}", e))?;
     }
 
-    let file = fs::File::create(&output_path)
-        .map_err(|e| format!("Failed to create output file: {}", e))?;
+    super::staging::replace_file_atomically(&output_path, |file| {
+        write_epub_package(
+            file,
+            &options,
+            &xhtml_items,
+            &nav_xhtml,
+            &toc_ncx,
+            &content_opf,
+        )
+    })?;
+
+    Ok(ExportResult {
+        output_path: output_path.to_string_lossy().to_string(),
+        files_created: 1,
+        chapters_exported,
+        scenes_exported,
+    })
+}
+
+/// Write the EPUB container. Runs against a staged file, so any failure here
+/// (such as an unreadable cover image) leaves a previous export untouched.
+fn write_epub_package(
+    file: &mut fs::File,
+    options: &EpubExportOptions,
+    xhtml_items: &[EpubXhtmlItem],
+    nav_xhtml: &str,
+    toc_ncx: &str,
+    content_opf: &str,
+) -> Result<(), String> {
     let mut zip = zip::ZipWriter::new(file);
 
     let stored = FileOptions::<()>::default()
@@ -3519,7 +3746,7 @@ pub async fn export_to_epub(
             .map_err(|e| format!("Failed to write cover image: {}", e))?;
     }
 
-    for item in &xhtml_items {
+    for item in xhtml_items {
         if item.id == "cover" || item.id == "title" {
             continue;
         }
@@ -3531,13 +3758,7 @@ pub async fn export_to_epub(
 
     zip.finish()
         .map_err(|e| format!("Failed to finalize EPUB: {}", e))?;
-
-    Ok(ExportResult {
-        output_path: output_path.to_string_lossy().to_string(),
-        files_created: 1,
-        chapters_exported,
-        scenes_exported,
-    })
+    Ok(())
 }
 
 // =============================================================================
@@ -3837,14 +4058,14 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                 .name("Heading 1")
                 .size(28)
                 .bold()
-                .fonts(RunFonts::new().ascii(font)),
+                .fonts(manuscript_fonts(font)),
         )
         .add_style(
             Style::new("Heading2", StyleType::Paragraph)
                 .name("Heading 2")
                 .size(24)
                 .bold()
-                .fonts(RunFonts::new().ascii(font)),
+                .fonts(manuscript_fonts(font)),
         );
 
     // Title page
@@ -3858,7 +4079,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                     .add_text(content.title.to_uppercase())
                     .size(28)
                     .bold()
-                    .fonts(RunFonts::new().ascii(font)),
+                    .fonts(manuscript_fonts(font)),
             )
             .align(AlignmentType::Center),
     );
@@ -3869,7 +4090,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                     Run::new()
                         .add_text(format!("by {}", content.author))
                         .size(24)
-                        .fonts(RunFonts::new().ascii(font)),
+                        .fonts(manuscript_fonts(font)),
                 )
                 .align(AlignmentType::Center),
         );
@@ -3881,7 +4102,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                 Run::new()
                     .add_text("A Treatment")
                     .size(24)
-                    .fonts(RunFonts::new().ascii(font)),
+                    .fonts(manuscript_fonts(font)),
             )
             .align(AlignmentType::Center),
     );
@@ -3896,7 +4117,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                         .add_text(&content.logline)
                         .size(24)
                         .italic()
-                        .fonts(RunFonts::new().ascii(font)),
+                        .fonts(manuscript_fonts(font)),
                 )
                 .line_spacing(LineSpacing::new().line(line_sp)),
         );
@@ -3925,7 +4146,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                 Run::new()
                                     .add_text(&text)
                                     .size(24)
-                                    .fonts(RunFonts::new().ascii(font)),
+                                    .fonts(manuscript_fonts(font)),
                             )
                             .line_spacing(LineSpacing::new().line(line_sp)),
                     );
@@ -3943,7 +4164,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     .add_text(part.title.to_uppercase())
                                     .size(28)
                                     .bold()
-                                    .fonts(RunFonts::new().ascii(font)),
+                                    .fonts(manuscript_fonts(font)),
                             )
                             .style("Heading1")
                             .line_spacing(LineSpacing::new().line(line_sp)),
@@ -3955,7 +4176,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     Run::new()
                                         .add_text(&part.synopsis)
                                         .size(24)
-                                        .fonts(RunFonts::new().ascii(font)),
+                                        .fonts(manuscript_fonts(font)),
                                 )
                                 .line_spacing(LineSpacing::new().line(line_sp)),
                         );
@@ -3971,7 +4192,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     .add_text(&chapter.title)
                                     .size(24)
                                     .bold()
-                                    .fonts(RunFonts::new().ascii(font)),
+                                    .fonts(manuscript_fonts(font)),
                             )
                             .style("Heading2")
                             .line_spacing(LineSpacing::new().line(line_sp)),
@@ -3983,7 +4204,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     Run::new()
                                         .add_text(&chapter.synopsis)
                                         .size(24)
-                                        .fonts(RunFonts::new().ascii(font)),
+                                        .fonts(manuscript_fonts(font)),
                                 )
                                 .line_spacing(LineSpacing::new().line(line_sp)),
                         );
@@ -3999,7 +4220,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                                 scene.title, scene.synopsis
                                             ))
                                             .size(24)
-                                            .fonts(RunFonts::new().ascii(font)),
+                                            .fonts(manuscript_fonts(font)),
                                     )
                                     .indent(Some(720), None, None, None)
                                     .line_spacing(LineSpacing::new().line(line_sp)),
@@ -4020,7 +4241,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     .add_text(part.title.to_uppercase())
                                     .size(28)
                                     .bold()
-                                    .fonts(RunFonts::new().ascii(font)),
+                                    .fonts(manuscript_fonts(font)),
                             )
                             .style("Heading1")
                             .line_spacing(LineSpacing::new().line(line_sp)),
@@ -4032,7 +4253,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     Run::new()
                                         .add_text(&part.synopsis)
                                         .size(24)
-                                        .fonts(RunFonts::new().ascii(font)),
+                                        .fonts(manuscript_fonts(font)),
                                 )
                                 .line_spacing(LineSpacing::new().line(line_sp)),
                         );
@@ -4048,7 +4269,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     .add_text(&chapter.title)
                                     .size(24)
                                     .bold()
-                                    .fonts(RunFonts::new().ascii(font)),
+                                    .fonts(manuscript_fonts(font)),
                             )
                             .style("Heading2")
                             .line_spacing(LineSpacing::new().line(line_sp)),
@@ -4060,7 +4281,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     Run::new()
                                         .add_text(&chapter.synopsis)
                                         .size(24)
-                                        .fonts(RunFonts::new().ascii(font)),
+                                        .fonts(manuscript_fonts(font)),
                                 )
                                 .line_spacing(LineSpacing::new().line(line_sp)),
                         );
@@ -4076,7 +4297,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                         .size(24)
                                         .bold()
                                         .italic()
-                                        .fonts(RunFonts::new().ascii(font)),
+                                        .fonts(manuscript_fonts(font)),
                                 )
                                 .indent(Some(720), None, None, None)
                                 .line_spacing(LineSpacing::new().line(line_sp)),
@@ -4088,7 +4309,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                         Run::new()
                                             .add_text(&scene.synopsis)
                                             .size(24)
-                                            .fonts(RunFonts::new().ascii(font)),
+                                            .fonts(manuscript_fonts(font)),
                                     )
                                     .indent(Some(720), None, None, None)
                                     .line_spacing(LineSpacing::new().line(line_sp)),
@@ -4101,7 +4322,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                         Run::new()
                                             .add_text(format!("— {}", beat))
                                             .size(24)
-                                            .fonts(RunFonts::new().ascii(font)),
+                                            .fonts(manuscript_fonts(font)),
                                     )
                                     .indent(Some(1080), None, None, None)
                                     .line_spacing(LineSpacing::new().line(line_sp)),
@@ -4169,18 +4390,16 @@ pub async fn generate_treatment(
     match options.format {
         TreatmentFormat::Txt => {
             let text = treatment_to_text(&content, &options.detail_level);
-            let mut file = fs::File::create(&output_path)
-                .map_err(|e| format!("Failed to create output file: {}", e))?;
-            file.write_all(text.as_bytes())
-                .map_err(|e| format!("Failed to write treatment file: {}", e))?;
+            super::staging::replace_file_atomically(&output_path, |file| {
+                file.write_all(text.as_bytes())
+                    .map_err(|e| format!("Failed to write treatment file: {}", e))
+            })?;
         }
         TreatmentFormat::Docx => {
             let docx = treatment_to_docx(&content, &options.detail_level);
-            let file = fs::File::create(&output_path)
-                .map_err(|e| format!("Failed to create output file: {}", e))?;
-            docx.build()
-                .pack(file)
-                .map_err(|e| format!("Failed to write DOCX file: {}", e))?;
+            super::staging::replace_file_atomically(&output_path, |file| {
+                pack_docx(docx, file).map_err(|e| format!("Failed to write DOCX file: {}", e))
+            })?;
         }
     }
 
@@ -4393,6 +4612,11 @@ pub async fn export_to_scrivener(
 ) -> Result<ExportResult, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
 
+    // Refuse before taking a snapshot so a refused export leaves no trace.
+    if matches!(options.mode, ScrivenerExportMode::CreateNew) {
+        ensure_new_scriv_target(Path::new(&options.output_path))?;
+    }
+
     if options.create_snapshot {
         let snapshot_options = super::CreateSnapshotOptions {
             name: "Pre-Scrivener-export snapshot".to_string(),
@@ -4451,7 +4675,69 @@ fn group_chapters_into_hierarchy(
     result
 }
 
+/// "Create new" must never replace an existing bundle. The default save name is
+/// the project's own name, which is also the name of the `.scriv` it was
+/// imported from, so the OS "Replace?" prompt is one click away from wiping the
+/// writer's binder (Research, Notes, snapshots) with no backup.
+fn ensure_new_scriv_target(scriv_path: &Path) -> Result<(), String> {
+    if scriv_path.symlink_metadata().is_err() {
+        return Ok(());
+    }
+    let name = scriv_path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| scriv_path.display().to_string());
+    Err(format!(
+        "“{name}” already exists, so it was left untouched. Choose a new name to \
+         create a Scrivener project, or choose Update Existing to write your prose \
+         into that one."
+    ))
+}
+
+/// Build a new `.scriv` bundle in a hidden sibling directory and move it into
+/// place only once it is complete: a failed export leaves nothing half-written,
+/// and the final rename cannot replace a bundle that appeared in the meantime
+/// (a directory rename refuses a non-empty directory or a file as its target).
 fn create_new_scriv_bundle(
+    conn: &rusqlite::Connection,
+    project: &Project,
+    chapters: &[&Chapter],
+    scriv_path: &Path,
+) -> Result<ExportResult, String> {
+    ensure_new_scriv_target(scriv_path)?;
+    let parent = match scriv_path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        _ => Path::new("."),
+    };
+    fs::create_dir_all(parent).map_err(|e| format!("Failed to create .scriv directory: {}", e))?;
+    // Unlike its files (0600), tempfile creates directories with the ordinary
+    // umask-derived mode, so the published bundle root matches any other new
+    // folder here. A unix test pins this.
+    let staging = tempfile::Builder::new()
+        .prefix(".kindling-scriv-")
+        .tempdir_in(parent)
+        .map_err(|e| format!("Failed to create .scriv directory: {}", e))?;
+
+    let result = write_scriv_bundle(conn, project, chapters, staging.path())?;
+
+    ensure_new_scriv_target(scriv_path)?;
+    fs::rename(staging.path(), scriv_path).map_err(|e| {
+        format!(
+            "Could not create the Scrivener project; anything already at {} was left untouched. {}",
+            scriv_path.display(),
+            e
+        )
+    })?;
+    // The staging directory is now the bundle; don't let its guard delete it.
+    let _ = staging.keep();
+
+    Ok(ExportResult {
+        output_path: scriv_path.to_string_lossy().to_string(),
+        ..result
+    })
+}
+
+fn write_scriv_bundle(
     conn: &rusqlite::Connection,
     project: &Project,
     chapters: &[&Chapter],
@@ -4928,6 +5214,202 @@ mod tests {
         }
     }
 
+    fn markdown_options(output: &Path, name: &str, delete_existing: bool) -> MarkdownExportOptions {
+        MarkdownExportOptions {
+            scope: ExportScope::Project,
+            output_path: output.to_string_lossy().into(),
+            export_name: Some(name.into()),
+            delete_existing,
+            create_snapshot: false,
+            include_beat_markers: false,
+        }
+    }
+
+    fn longform_options(output: &Path, name: &str, delete_existing: bool) -> LongformExportOptions {
+        LongformExportOptions {
+            scope: ExportScope::Project,
+            output_path: output.to_string_lossy().into(),
+            export_name: Some(name.into()),
+            delete_existing,
+            create_snapshot: false,
+        }
+    }
+
+    /// Destination `~` plus a project named "Documents" must never delete the
+    /// writer's own Documents folder.
+    #[test]
+    fn delete_existing_never_removes_a_folder_kindling_did_not_create() {
+        let (conn, project) = crate::parsers::novelwriter::tests::fixture();
+        let home = tempfile::tempdir().unwrap();
+        let documents = home.path().join("Documents");
+        fs::create_dir_all(documents.join("Taxes")).unwrap();
+        fs::write(documents.join("Taxes").join("2025.pdf"), "return").unwrap();
+        fs::write(documents.join("notes.md"), "my notes").unwrap();
+
+        let err = export_to_markdown_with_connection(
+            &conn,
+            project.id,
+            markdown_options(home.path(), "Documents", true),
+        )
+        .unwrap_err();
+        assert!(err.contains("wasn't created by a kindling export"), "{err}");
+        let err = export_to_longform_with_connection(
+            &conn,
+            project.id,
+            longform_options(home.path(), "Documents", true),
+        )
+        .unwrap_err();
+        assert!(err.contains("wasn't created by a kindling export"), "{err}");
+
+        assert_eq!(
+            fs::read_to_string(documents.join("Taxes").join("2025.pdf")).unwrap(),
+            "return"
+        );
+        assert_eq!(
+            fs::read_to_string(documents.join("notes.md")).unwrap(),
+            "my notes"
+        );
+        assert!(!documents.join(EXPORT_MARKER).exists());
+
+        // Exporting into it without deleting must not claim it for later.
+        export_to_markdown_with_connection(
+            &conn,
+            project.id,
+            markdown_options(home.path(), "Documents", false),
+        )
+        .unwrap();
+        assert!(!documents.join(EXPORT_MARKER).exists());
+        assert!(export_to_markdown_with_connection(
+            &conn,
+            project.id,
+            markdown_options(home.path(), "Documents", true),
+        )
+        .is_err());
+        assert_eq!(
+            fs::read_to_string(documents.join("notes.md")).unwrap(),
+            "my notes"
+        );
+    }
+
+    #[test]
+    fn delete_existing_replaces_kindlings_own_export_folder() {
+        let (conn, project) = crate::parsers::novelwriter::tests::fixture();
+        let out = tempfile::tempdir().unwrap();
+        for (export, folder) in [("markdown", "Book MD"), ("longform", "Book LF")] {
+            let run = |delete: bool| match export {
+                "markdown" => export_to_markdown_with_connection(
+                    &conn,
+                    project.id,
+                    markdown_options(out.path(), folder, delete),
+                ),
+                _ => export_to_longform_with_connection(
+                    &conn,
+                    project.id,
+                    longform_options(out.path(), folder, delete),
+                ),
+            };
+            run(false).unwrap();
+            let root = out.path().join(folder);
+            assert!(
+                root.join(EXPORT_MARKER).is_file(),
+                "{export} export is unmarked"
+            );
+            // A file an earlier kindling export wrote (a since-deleted scene).
+            let mut manifest = prepare_export_folder(&root, false).unwrap();
+            manifest.write(&root.join("stale scene.md"), "old").unwrap();
+            manifest.finish().unwrap();
+
+            run(true).unwrap();
+            assert!(
+                !root.join("stale scene.md").exists(),
+                "{export} kept a stale file"
+            );
+            assert!(root.join(EXPORT_MARKER).is_file());
+
+            // A file kindling never writes makes the folder the writer's again.
+            fs::write(root.join("cover.png"), "art").unwrap();
+            let err = run(true).unwrap_err();
+            assert!(err.contains("cover.png"), "{err}");
+            assert_eq!(fs::read_to_string(root.join("cover.png")).unwrap(), "art");
+        }
+        assert!(out.path().exists());
+    }
+
+    /// A Longform export often lives in an Obsidian vault, where the writer
+    /// adds notes of their own. Those are Markdown too, but kindling didn't
+    /// write them, so the export folder must not be replaced.
+    #[test]
+    fn delete_existing_keeps_markdown_the_writer_added_to_an_export() {
+        let (conn, project) = crate::parsers::novelwriter::tests::fixture();
+        let out = tempfile::tempdir().unwrap();
+        for (export, folder) in [("longform", "Vault"), ("markdown", "Drafts")] {
+            let run = |delete: bool| match export {
+                "markdown" => export_to_markdown_with_connection(
+                    &conn,
+                    project.id,
+                    markdown_options(out.path(), folder, delete),
+                ),
+                _ => export_to_longform_with_connection(
+                    &conn,
+                    project.id,
+                    longform_options(out.path(), folder, delete),
+                ),
+            };
+            run(false).unwrap();
+            let root = out.path().join(folder);
+            let marker = fs::read_to_string(root.join(EXPORT_MARKER)).unwrap();
+            assert!(marker.contains(EXPORT_MANIFEST_HEADER), "{marker}");
+
+            for (added, what) in [("Research.md", "top level"), ("Ideas/plot.md", "subfolder")] {
+                let path = root.join(added);
+                fs::create_dir_all(path.parent().unwrap()).unwrap();
+                fs::write(&path, "the writer's own note").unwrap();
+                let before = tree_snapshot(&root);
+
+                let err = run(true).unwrap_err();
+
+                assert!(
+                    err.contains("which kindling didn't write"),
+                    "{export} {what}: {err}"
+                );
+                assert_eq!(
+                    tree_snapshot(&root),
+                    before,
+                    "{export} {what}: folder changed"
+                );
+                fs::remove_file(&path).unwrap();
+            }
+            // With the writer's notes gone, kindling's own export is replaceable again.
+            run(true).unwrap();
+        }
+    }
+
+    #[test]
+    fn chapter_delete_existing_requires_a_kindling_export_folder() {
+        let (conn, project) = crate::parsers::novelwriter::tests::fixture();
+        let chapter = db::get_chapters(&conn, &project.id)
+            .unwrap()
+            .into_iter()
+            .find(|c| !c.archived)
+            .unwrap();
+        let out = tempfile::tempdir().unwrap();
+        let user_folder = out.path().join("Projects");
+        let chapter_folder =
+            user_folder.join(format!("{:02} - {}", 1, sanitize_filename(&chapter.title)));
+        fs::create_dir_all(&chapter_folder).unwrap();
+        fs::write(chapter_folder.join("draft.md"), "mine").unwrap();
+        let mut options = markdown_options(out.path(), "Projects", true);
+        options.scope = ExportScope::Chapter(chapter.id.to_string());
+
+        let err = export_to_markdown_with_connection(&conn, project.id, options).unwrap_err();
+
+        assert!(err.contains("containing it wasn't created"), "{err}");
+        assert_eq!(
+            fs::read_to_string(chapter_folder.join("draft.md")).unwrap(),
+            "mine"
+        );
+    }
+
     #[test]
     fn unsafe_export_names_leave_parent_and_output_sentinels_intact() {
         let (conn, project) = crate::parsers::novelwriter::tests::fixture();
@@ -5279,6 +5761,103 @@ mod tests {
         assert!(paragraphs[0].runs[0].text.contains('\u{201D}')); // Closing quote
     }
 
+    fn paragraph_text(html: &str) -> String {
+        parse_html_to_paragraphs(html)
+            .iter()
+            .flat_map(|p| p.runs.iter().map(|r| r.text.as_str()))
+            .collect()
+    }
+
+    /// Inline markup and entities split a paragraph into several text chunks;
+    /// quotes must be judged across those boundaries.
+    #[test]
+    fn test_smart_quotes_carry_across_inline_markup_and_entities() {
+        assert_eq!(
+            paragraph_text("<p>\"I <em>hate</em>\" it.</p>"),
+            "\u{201C}I hate\u{201D} it."
+        );
+        assert_eq!(
+            paragraph_text("<p>&quot;Hi,&quot; she said.</p>"),
+            "\u{201C}Hi,\u{201D} she said."
+        );
+        assert_eq!(
+            paragraph_text("<p>The <em>dog</em>'s bone and \"<strong>no</strong>\"</p>"),
+            "The dog\u{2019}s bone and \u{201C}no\u{201D}"
+        );
+        assert_eq!(
+            paragraph_text("<p>End.<br>\"New line\"</p>"),
+            "End.\n\u{201C}New line\u{201D}"
+        );
+        // A break resets nothing across paragraphs.
+        assert_eq!(
+            paragraph_text("<p>Said <em>it</em></p><p>\"Next\"</p>"),
+            "Said it\u{201C}Next\u{201D}"
+        );
+    }
+
+    /// The em-dash space rule must not depend on where inline markup splits
+    /// the text, or whether the dash is typed as `--`, `---` or `—`.
+    #[test]
+    fn test_em_dash_spacing_is_the_same_across_inline_markup() {
+        for dash in ["--", "---", "\u{2014}", " --", " \u{2014}"] {
+            let single = paragraph_text(&format!("<p>word {dash}then</p>"));
+            assert_eq!(single, "word\u{2014}then", "one chunk with {dash:?}");
+            let split = paragraph_text(&format!("<p>word <em>{dash}then</em></p>"));
+            assert_eq!(split, single, "split before {dash:?}");
+        }
+        assert_eq!(
+            paragraph_text("<p>word <em>-</em>then</p>"),
+            "word -then",
+            "a single hyphen is not a dash"
+        );
+    }
+
+    #[test]
+    fn test_html_named_entities_are_decoded_before_typography() {
+        assert_eq!(
+            paragraph_text("<p>Wait&mdash;what&hellip; caf&eacute; &ndash; &ldquo;ok&rdquo;</p>"),
+            "Wait\u{2014}what\u{2026} caf\u{e9} \u{2013} \u{201C}ok\u{201D}"
+        );
+        // Spaces around a decoded em dash follow the manuscript rule.
+        assert_eq!(
+            paragraph_text("<p>Wait &mdash; what</p>"),
+            "Wait\u{2014}what"
+        );
+        // Unknown entities are kept as written.
+        assert_eq!(paragraph_text("<p>a &bogus; b</p>"), "a &bogus; b");
+        // EPUB shares the same walker.
+        let xhtml = render_html_to_xhtml("<p>\"I <em>hate</em>\"&hellip;</p>");
+        assert!(
+            xhtml.contains("\u{201C}I <em>hate</em>\u{201D}\u{2026}"),
+            "{xhtml}"
+        );
+        assert!(!xhtml.contains("&amp;hellip;"), "{xhtml}");
+    }
+
+    #[test]
+    fn test_docx_runs_name_the_font_for_every_script_slot() {
+        let options = default_test_options();
+        let (docx, _) = add_prose_to_docx(
+            Docx::new(),
+            Some("<p>\u{201C}Curly\u{201D}\u{2014}caf\u{e9}</p>"),
+            &options,
+            true,
+        );
+        let mut buffer = Vec::new();
+        pack_docx(docx, std::io::Cursor::new(&mut buffer)).unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(buffer)).unwrap();
+        let mut xml = String::new();
+        std::io::Read::read_to_string(&mut archive.by_name("word/document.xml").unwrap(), &mut xml)
+            .unwrap();
+        let run = xml.split("</w:r>").find(|r| r.contains("Curly")).unwrap();
+        for slot in ["w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"] {
+            assert!(
+                run.contains(&format!("{slot}=\"Courier New\"")),
+                "{slot} missing: {run}"
+            );
+        }
+    }
+
     #[test]
     fn test_transform_text_combined() {
         // Test smart quotes + punctuation normalization together
@@ -5352,6 +5931,78 @@ mod tests {
         assert!(!buffer.is_empty());
     }
 
+    /// Standard Manuscript Format: chapter and Part headings are body size and
+    /// weight. The Heading 1 style must not make them bold.
+    #[test]
+    fn test_docx_chapter_and_part_headings_are_not_bold() {
+        use crate::models::PlanningStatus;
+        let bold = |xml: &str| {
+            (xml.contains("<w:b />") || xml.contains("<w:b/>") || xml.contains("<w:b "))
+                && !xml.contains("<w:b w:val=\"false\"")
+        };
+        let part = |title: &str, is_part: bool| Chapter {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            title: title.to_string(),
+            position: 0,
+            locked: false,
+            archived: false,
+            source_id: None,
+            is_part,
+            synopsis: None,
+            planning_status: PlanningStatus::Fixed,
+        };
+        let options = default_test_options();
+        let docx = create_docx_styles(Some("John Smith"), "My Novel", &options);
+        let docx = add_part_to_docx(docx, &part("Part One", true), &options, true);
+        let docx = add_chapter_to_docx(
+            docx,
+            &part("Arrival", false),
+            1,
+            &[],
+            &HashMap::new(),
+            &options,
+            false,
+        );
+        let mut buffer = Vec::new();
+        pack_docx(docx, std::io::Cursor::new(&mut buffer)).unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(buffer)).unwrap();
+        let mut read = |name: &str| {
+            let mut xml = String::new();
+            std::io::Read::read_to_string(&mut archive.by_name(name).unwrap(), &mut xml).unwrap();
+            xml
+        };
+        let styles = read("word/styles.xml");
+        let document = read("word/document.xml");
+        let style = |id: &str| {
+            let start = styles
+                .find(&format!("w:styleId=\"{id}\""))
+                .unwrap_or_else(|| panic!("no {id} style"));
+            &styles[start..start + styles[start..].find("</w:style>").unwrap()]
+        };
+        assert!(
+            !bold(style("Heading1")),
+            "Heading 1 style is bold: {}",
+            style("Heading1")
+        );
+        assert!(
+            style("Heading1").contains("w:val=\"24\""),
+            "not 12pt: {}",
+            style("Heading1")
+        );
+        // Control: the matcher does see bold where it is set.
+        assert!(bold(style("Heading2")));
+
+        for heading in ["PART ONE", "CHAPTER ONE"] {
+            let paragraph = document
+                .split("</w:p>")
+                .find(|p| p.contains(heading))
+                .unwrap_or_else(|| panic!("no {heading} in {document}"));
+            assert!(paragraph.contains("w:val=\"Heading1\""), "{paragraph}");
+            assert!(!bold(paragraph), "{heading} run is bold: {paragraph}");
+        }
+    }
+
     #[test]
     fn test_create_docx_styles_no_author() {
         // Test with no author name
@@ -5363,30 +6014,32 @@ mod tests {
         assert!(!buffer.is_empty());
     }
 
+    /// The running header reads "Surname / TITLE / page", and drops the author
+    /// part entirely (no leading " / ") when there is no author.
     #[test]
-    fn test_extract_surname() {
-        assert_eq!(extract_surname("John Smith"), "Smith");
-        assert_eq!(extract_surname("Mary Jane Watson"), "Watson");
-        assert_eq!(extract_surname("Prince"), "Prince");
-        assert_eq!(extract_surname("John   Smith"), "Smith"); // Multiple spaces
-        assert_eq!(extract_surname(""), "");
-    }
-
-    #[test]
-    fn test_abbreviate_title() {
-        // Short titles stay the same (but uppercase)
-        assert_eq!(abbreviate_title("My Novel", 3), "MY NOVEL");
-        assert_eq!(abbreviate_title("Title", 3), "TITLE");
-
-        // Long titles get truncated
-        assert_eq!(
-            abbreviate_title("The Very Long Title of My Book", 3),
-            "THE VERY LONG"
-        );
-        assert_eq!(abbreviate_title("A Tale of Two Cities", 3), "A TALE OF");
-
-        // Exactly max_words
-        assert_eq!(abbreviate_title("One Two Three", 3), "ONE TWO THREE");
+    fn test_docx_running_header_with_and_without_author() {
+        let header_text = |author: Option<&str>| {
+            let docx = create_docx_styles(author, "My Novel", &default_test_options());
+            let mut buffer = Vec::new();
+            pack_docx(docx, std::io::Cursor::new(&mut buffer)).unwrap();
+            let mut archive = zip::ZipArchive::new(std::io::Cursor::new(buffer)).unwrap();
+            let mut text = String::new();
+            for i in 0..archive.len() {
+                let mut file = archive.by_index(i).unwrap();
+                if file.name().starts_with("word/header") {
+                    let mut xml = String::new();
+                    std::io::Read::read_to_string(&mut file, &mut xml).unwrap();
+                    if let Some(start) = xml.find("<w:t xml:space=\"preserve\">") {
+                        let rest = &xml[start + 26..];
+                        text = rest[..rest.find("</w:t>").unwrap()].to_string();
+                    }
+                }
+            }
+            text
+        };
+        assert_eq!(header_text(Some("John Smith")), "Smith / MY NOVEL / ");
+        assert_eq!(header_text(None), "MY NOVEL / ");
+        assert_eq!(header_text(Some("  ")), "MY NOVEL / ");
     }
 
     #[test]
@@ -6804,6 +7457,240 @@ mod tests {
         );
     }
 
+    /// One-chapter, one-scene project for Scrivener "Create new" tests.
+    fn scriv_create_fixture(conn: &rusqlite::Connection) -> (Project, Vec<Chapter>) {
+        crate::db::schema::initialize_schema(conn).unwrap();
+        let project_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at, project_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![project_id.to_string(), "Novel", "scrivener", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z", "novel"],
+        ).unwrap();
+        let ch_id = Uuid::new_v4();
+        conn.execute(
+            "INSERT INTO chapters (id, project_id, title, position, is_part, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ch_id.to_string(), project_id.to_string(), "Chapter 1", 0, false, false],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO scenes (id, chapter_id, title, prose, position, archived) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![Uuid::new_v4().to_string(), ch_id.to_string(), "Opening", "<p>Hello.</p>", 0, false],
+        ).unwrap();
+        let project = db::queries::get_project(conn, &project_id)
+            .unwrap()
+            .unwrap();
+        let chapters = db::queries::get_chapters(conn, &project_id).unwrap();
+        (project, chapters)
+    }
+
+    /// The Scrivener fixture's chapter plus a Notes, a To-do and an Unused
+    /// scene, each with prose that must never reach a manuscript.
+    fn manuscript_fixture(conn: &rusqlite::Connection) -> (Project, Chapter) {
+        let (project, chapters) = scriv_create_fixture(conn);
+        let chapter = chapters.into_iter().next().unwrap();
+        for (i, kind) in ["notes", "todo", "unused"].into_iter().enumerate() {
+            conn.execute(
+                "INSERT INTO scenes (id, chapter_id, title, prose, position, archived, scene_type, editor_mode) VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, 'page')",
+                rusqlite::params![
+                    Uuid::new_v4().to_string(),
+                    chapter.id.to_string(),
+                    format!("Planning {kind}"),
+                    format!("<p>Planning words for {kind}.</p>"),
+                    i as i32 + 1,
+                    kind
+                ],
+            )
+            .unwrap();
+        }
+        (project, chapter)
+    }
+
+    #[test]
+    fn test_manuscript_exports_skip_notes_todo_and_unused_scenes() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let (project, chapter) = manuscript_fixture(&conn);
+
+        // The selection DOCX and EPUB share.
+        let titles: Vec<_> = manuscript_scenes(&conn, &chapter.id)
+            .unwrap()
+            .into_iter()
+            .map(|s| s.title)
+            .collect();
+        assert_eq!(titles, ["Opening"]);
+
+        // Title-page / dialog word count: only "Hello."
+        assert_eq!(calculate_project_word_count(&conn, &project.id).unwrap(), 1);
+
+        // DOCX chapter rendering, even when handed every scene.
+        let all_scenes = db::queries::get_scenes(&conn, &chapter.id).unwrap();
+        let docx = add_chapter_to_docx(
+            Docx::new(),
+            &chapter,
+            1,
+            &all_scenes,
+            &HashMap::new(),
+            &default_test_options(),
+            true,
+        );
+        let mut buffer = Vec::new();
+        pack_docx(docx, std::io::Cursor::new(&mut buffer)).unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(buffer)).unwrap();
+        let mut xml = String::new();
+        std::io::Read::read_to_string(&mut archive.by_name("word/document.xml").unwrap(), &mut xml)
+            .unwrap();
+        assert!(xml.contains("Hello."), "{xml}");
+        assert!(!xml.contains("Planning"), "planning scene in DOCX: {xml}");
+
+        // Markdown project export.
+        let out = tempfile::tempdir().unwrap();
+        let mut options = MarkdownExportOptions {
+            scope: ExportScope::Project,
+            output_path: out.path().to_string_lossy().into(),
+            export_name: Some("Book".into()),
+            delete_existing: false,
+            create_snapshot: false,
+            include_beat_markers: false,
+        };
+        let result =
+            export_to_markdown_with_connection(&conn, project.id, options.clone()).unwrap();
+        assert_eq!(result.scenes_exported, 1);
+        let written: Vec<_> = walkdir::WalkDir::new(out.path())
+            .into_iter()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|n| n.ends_with(".md"))
+            .collect();
+        assert_eq!(written, ["01 - Opening.md"]);
+
+        // A planning scene the writer explicitly chooses is still exported.
+        let notes = all_scenes
+            .iter()
+            .find(|s| s.title == "Planning notes")
+            .unwrap();
+        options.scope = ExportScope::Scene(notes.id.to_string());
+        options.export_name = Some("One scene".into());
+        let result = export_to_markdown_with_connection(&conn, project.id, options).unwrap();
+        assert_eq!(result.scenes_exported, 1);
+        let file = PathBuf::from(result.output_path)
+            .join("01 - Chapter 1")
+            .join("02 - Planning notes.md");
+        assert!(fs::read_to_string(file)
+            .unwrap()
+            .contains("Planning words for notes."));
+    }
+
+    /// Every path under `root` with its bytes (directories map to empty).
+    fn tree_snapshot(root: &Path) -> std::collections::BTreeMap<PathBuf, Vec<u8>> {
+        walkdir::WalkDir::new(root)
+            .into_iter()
+            .map(|entry| {
+                let entry = entry.unwrap();
+                let bytes = if entry.file_type().is_file() {
+                    std::fs::read(entry.path()).unwrap()
+                } else {
+                    Vec::new()
+                };
+                (
+                    entry.path().strip_prefix(root).unwrap().to_path_buf(),
+                    bytes,
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_create_new_scriv_refuses_to_replace_existing_bundle() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let (project, chapters) = scriv_create_fixture(&conn);
+        let active: Vec<&Chapter> = chapters.iter().collect();
+
+        // The writer's original bundle, with binder content kindling never imports.
+        let scriv = dir.path().join("Novel.scriv");
+        std::fs::create_dir_all(scriv.join("Files").join("Data").join("RESEARCH-UUID")).unwrap();
+        std::fs::write(
+            scriv.join("Novel.scrivx"),
+            "<ScrivenerProject>original</ScrivenerProject>",
+        )
+        .unwrap();
+        std::fs::write(
+            scriv
+                .join("Files")
+                .join("Data")
+                .join("RESEARCH-UUID")
+                .join("content.rtf"),
+            "{\\rtf1 research notes}",
+        )
+        .unwrap();
+        let before = tree_snapshot(&scriv);
+
+        let err = create_new_scriv_bundle(&conn, &project, &active, &scriv).unwrap_err();
+        assert!(err.contains("already exists"), "{err}");
+        assert!(err.contains("Update Existing"), "{err}");
+        assert_eq!(
+            tree_snapshot(&scriv),
+            before,
+            "existing bundle was modified"
+        );
+
+        // An existing plain file at the target is refused too.
+        let file_target = dir.path().join("Other.scriv");
+        std::fs::write(&file_target, "not a bundle").unwrap();
+        assert!(create_new_scriv_bundle(&conn, &project, &active, &file_target).is_err());
+        assert_eq!(std::fs::read(&file_target).unwrap(), b"not a bundle");
+
+        // Nothing staged is left behind.
+        let mut names: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["Novel.scriv", "Other.scriv"]);
+    }
+
+    #[test]
+    fn test_create_new_scriv_publishes_complete_bundle_without_staging_leftovers() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let (project, chapters) = scriv_create_fixture(&conn);
+        let active: Vec<&Chapter> = chapters.iter().collect();
+        let scriv = dir.path().join("nested").join("Novel.scriv");
+
+        let result = create_new_scriv_bundle(&conn, &project, &active, &scriv).unwrap();
+
+        assert_eq!(result.output_path, scriv.to_string_lossy());
+        assert!(find_scrivx_file(&scriv).is_ok());
+        assert!(scriv.join("Settings").is_dir());
+        let names: Vec<_> = std::fs::read_dir(scriv.parent().unwrap())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(names, ["Novel.scriv"]);
+    }
+
+    /// The published bundle must not be owner-only: it gets the same mode as
+    /// any folder created beside it, like every other Scrivener project there.
+    #[cfg(unix)]
+    #[test]
+    fn test_create_new_scriv_bundle_root_has_default_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o7777;
+        let dir = tempfile::tempdir().unwrap();
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let (project, chapters) = scriv_create_fixture(&conn);
+        let active: Vec<&Chapter> = chapters.iter().collect();
+        let scriv = dir.path().join("Novel.scriv");
+        let sibling = dir.path().join("Sibling.scriv");
+        std::fs::create_dir(&sibling).unwrap();
+
+        create_new_scriv_bundle(&conn, &project, &active, &scriv).unwrap();
+
+        assert_eq!(
+            mode(&scriv),
+            mode(&sibling),
+            "bundle root is {:o}, a new folder here is {:o}",
+            mode(&scriv),
+            mode(&sibling)
+        );
+    }
+
     #[test]
     fn test_find_scrivx_file() {
         let dir = tempfile::tempdir().unwrap();
@@ -7771,6 +8658,206 @@ mod tests {
         assert_eq!(escape_xml("'"), "&apos;");
         assert_eq!(escape_xml("normal text"), "normal text");
         assert_eq!(escape_xml("a & b < c"), "a &amp; b &lt; c");
+    }
+
+    // =========================================================================
+    // XML-invalid control characters (Word's Shift+Enter arrives as U+000B)
+    // =========================================================================
+
+    fn scene_and_beat_with_control_characters() -> (Chapter, Scene, Beat) {
+        use crate::models::{EditorMode, PlanningStatus, SceneStatus, SceneType};
+        let chapter = Chapter {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            title: "The\u{0001} Beginning".to_string(),
+            position: 0,
+            locked: false,
+            archived: false,
+            source_id: None,
+            is_part: false,
+            synopsis: None,
+            planning_status: PlanningStatus::Fixed,
+        };
+        let scene = Scene {
+            id: Uuid::new_v4(),
+            chapter_id: chapter.id,
+            title: "Opening\u{0001}".to_string(),
+            position: 0,
+            synopsis: Some("Dawn\u{000B}breaks\u{0001}".to_string()),
+            prose: None,
+            locked: false,
+            archived: false,
+            source_id: None,
+            scene_type: SceneType::Normal,
+            scene_status: SceneStatus::Draft,
+            planning_status: PlanningStatus::Fixed,
+            editor_mode: EditorMode::Beat,
+        };
+        let beat = Beat {
+            id: Uuid::new_v4(),
+            scene_id: scene.id,
+            content: "Arrival\u{0001}".to_string(),
+            position: 0,
+            prose: Some("<p>Line\u{000B}two\u{0001}.</p>".to_string()),
+            source_id: None,
+        };
+        (chapter, scene, beat)
+    }
+
+    #[test]
+    fn test_docx_with_control_characters_is_well_formed() {
+        let (chapter, scene, beat) = scene_and_beat_with_control_characters();
+        let mut beats_by_scene = HashMap::new();
+        beats_by_scene.insert(scene.id, vec![beat]);
+        let mut options = default_test_options();
+        options.include_beat_markers = true;
+        options.include_synopsis = true;
+        let docx = Docx::new().header(create_running_header("Writer\u{0001}", "Book\u{000B}Title"));
+        let docx =
+            add_chapter_to_docx(docx, &chapter, 1, &[scene], &beats_by_scene, &options, true);
+
+        let mut buffer = Vec::new();
+        pack_docx(docx, std::io::Cursor::new(&mut buffer)).unwrap();
+        crate::parsers::xml_text::assert_archive_well_formed(&buffer);
+
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(buffer)).unwrap();
+        let mut xml = String::new();
+        std::io::Read::read_to_string(&mut archive.by_name("word/document.xml").unwrap(), &mut xml)
+            .unwrap();
+        let paragraph = xml.split("</w:p>").find(|p| p.contains("Line")).unwrap();
+        assert!(
+            paragraph.contains("<w:br w:type=\"textWrapping\" />") && paragraph.contains("two."),
+            "U+000B in prose should become a soft line break: {paragraph}"
+        );
+    }
+
+    #[test]
+    fn test_treatment_docx_with_control_characters_is_well_formed() {
+        let mut content = make_treatment_content();
+        content.title = "Test\u{0001} Screenplay".to_string();
+        content.author = "Jane\u{000B}Doe".to_string();
+        content.logline = "A logline\u{0001}.".to_string();
+        content.parts[0].chapters[0].scenes[0].beat_summaries[0] = "Opens\u{0001}".to_string();
+        let docx = treatment_to_docx(&content, &TreatmentLevel::Full);
+        let mut buffer = Vec::new();
+        pack_docx(docx, std::io::Cursor::new(&mut buffer)).unwrap();
+        crate::parsers::xml_text::assert_archive_well_formed(&buffer);
+    }
+
+    #[test]
+    fn test_epub_parts_with_control_characters_are_well_formed() {
+        use crate::parsers::xml_text::assert_well_formed;
+        let (chapter, scene, beat) = scene_and_beat_with_control_characters();
+        let metadata = EpubMetadata {
+            title: "Book\u{0001}".to_string(),
+            author: "A\u{000B}Writer".to_string(),
+            description: Some("About\u{0001}\u{FFFE}".to_string()),
+            language: "en".to_string(),
+        };
+        let options = EpubExportOptions {
+            scope: ExportScope::Project,
+            include_beat_markers: true,
+            include_synopsis: true,
+            output_path: String::new(),
+            create_snapshot: false,
+            metadata: metadata.clone(),
+            theme: EpubTheme::Classic,
+            include_cover_image: false,
+            cover_image_path: None,
+        };
+        let label = format_epub_chapter_label(1, &chapter.title);
+        let mut body = format!("<h1>{}</h1>", escape_xml(&label));
+        append_scene_to_epub(&mut body, &scene, &[beat], &options);
+        let chapter_xhtml = build_epub_xhtml_document(&chapter.title, &body, "en");
+        assert_well_formed("chapter", &chapter_xhtml);
+        assert!(
+            chapter_xhtml.contains("Line<br/>two."),
+            "U+000B in prose should become <br/>: {chapter_xhtml}"
+        );
+
+        let entries = vec![(label, "chapter-01.xhtml".to_string())];
+        assert_well_formed("nav", &build_epub_nav_xhtml(&entries, "en"));
+        assert_well_formed("ncx", &build_epub_toc_ncx(&entries, &metadata.title, "id"));
+        let opf = build_epub_content_opf(&metadata, "id", "2024-01-01T00:00:00Z", &[], &[], false);
+        assert_well_formed("opf", &opf);
+        assert!(opf.contains("A Writer"), "{opf}");
+    }
+
+    // =========================================================================
+    // Re-exporting over a previous file
+    // =========================================================================
+
+    fn dir_entries(dir: &Path) -> Vec<String> {
+        let mut names: Vec<_> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    fn epub_options_with_cover(cover: &Path) -> EpubExportOptions {
+        EpubExportOptions {
+            scope: ExportScope::Project,
+            include_beat_markers: false,
+            include_synopsis: false,
+            output_path: String::new(),
+            create_snapshot: false,
+            metadata: EpubMetadata {
+                title: "Book".to_string(),
+                author: "A Writer".to_string(),
+                description: None,
+                language: "en".to_string(),
+            },
+            theme: EpubTheme::Classic,
+            include_cover_image: true,
+            cover_image_path: Some(cover.to_string_lossy().into_owned()),
+        }
+    }
+
+    /// The same staged write `export_to_epub` performs.
+    fn write_epub_over(target: &Path, options: &EpubExportOptions) -> Result<(), String> {
+        let items = vec![EpubXhtmlItem {
+            id: "chapter-01".to_string(),
+            href: "chapter-01.xhtml".to_string(),
+            title: "Chapter 1".to_string(),
+            content: build_epub_xhtml_document("Chapter 1", "<p>Prose.</p>", "en"),
+            include_in_toc: true,
+            linear: true,
+        }];
+        super::super::staging::replace_file_atomically(target, |file| {
+            write_epub_package(file, options, &items, "<nav/>", "<ncx/>", "<package/>")
+        })
+    }
+
+    #[test]
+    fn test_failed_epub_export_leaves_previous_file_intact() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("Book.epub");
+        std::fs::write(&target, b"previous good export").unwrap();
+
+        // The cover is read late, after most of the package has been written.
+        let options = epub_options_with_cover(&dir.path().join("missing-cover.jpg"));
+        let err = write_epub_over(&target, &options).unwrap_err();
+
+        assert!(err.contains("cover image"), "{err}");
+        assert_eq!(std::fs::read(&target).unwrap(), b"previous good export");
+        assert_eq!(dir_entries(dir.path()), ["Book.epub"]);
+    }
+
+    #[test]
+    fn test_successful_epub_export_replaces_previous_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("Book.epub");
+        std::fs::write(&target, b"previous export").unwrap();
+        let cover = dir.path().join("cover.jpg");
+        std::fs::write(&cover, b"\xff\xd8\xff jpeg").unwrap();
+
+        write_epub_over(&target, &epub_options_with_cover(&cover)).unwrap();
+
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&target).unwrap()).unwrap();
+        assert!(archive.by_name("OEBPS/images/cover.jpg").is_ok());
+        assert_eq!(dir_entries(dir.path()), ["Book.epub", "cover.jpg"]);
     }
 }
 

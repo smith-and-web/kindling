@@ -41,8 +41,11 @@
     CircleDashed,
     Filter,
     Settings,
+    ArrowUp,
+    ArrowDown,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
+  import { saveProseBefore } from "../utils/proseFlush";
   import { session } from "../stores/session.svelte";
   import { ui } from "../stores/ui.svelte";
   import type {
@@ -68,6 +71,8 @@
   import ExportSuccessDialog from "./ExportSuccessDialog.svelte";
   import SnapshotsPanel from "./SnapshotsPanel.svelte";
   import BrandWordmark from "./BrandWordmark.svelte";
+  import { menuKeyboard } from "../utils/menuKeyboard";
+  import { stepMoveOrder } from "../utils/outlineMove";
 
   import type { ComponentType } from "svelte";
 
@@ -234,6 +239,7 @@
   // Split button dropdown state
   let showNewDropdown = $state(false);
   let newButtonRef: HTMLElement | null = $state(null);
+  let newDropdownTrigger: HTMLElement | null = $state(null);
 
   // Delete confirmation state
   let deleteDialog: {
@@ -257,7 +263,8 @@
   let draggedElement: globalThis.HTMLElement | null = null;
   let currentDragOverElement: globalThis.HTMLElement | null = null;
 
-  // Hover state for showing action buttons
+  // Screen-reader announcement for keyboard moves (polite live region).
+  let moveAnnouncement = $state("");
 
   // Sync state (dialogs are now separate components)
   let loadingSyncPreview = $state(false);
@@ -290,10 +297,12 @@
   // Header "more" menu
   let showMoreMenu = $state(false);
   let moreMenuRef: HTMLElement | null = $state(null);
+  let moreMenuTrigger: HTMLElement | null = $state(null);
 
   // Filter popover
   let showFilterPopover = $state(false);
   let filterPopoverRef: HTMLElement | null = $state(null);
+  let filterPopoverTrigger: HTMLElement | null = $state(null);
 
   const hasActiveFilters = $derived(
     sceneStatusFilter !== "all" || !showNotesScenes || !showTodoScenes || !showUnusedScenes
@@ -337,6 +346,7 @@
       await loadSavedFilters();
     } catch (e) {
       console.error("Failed to save filter:", e);
+      ui.showError(`Failed to save filter: ${String(e)}`);
     }
   }
 
@@ -359,6 +369,7 @@
       await loadSavedFilters();
     } catch (e) {
       console.error("Failed to delete saved filter:", e);
+      ui.showError(`Failed to delete saved filter: ${String(e)}`);
     }
   }
 
@@ -381,11 +392,12 @@
   function handleChapterSynopsisInput(chapterId: string) {
     if (chapterSynopsisSaveTimeout) clearTimeout(chapterSynopsisSaveTimeout);
     chapterSynopsisSaveTimeout = setTimeout(() => {
-      saveChapterSynopsis(chapterId);
+      void saveChapterSynopsis(chapterId);
     }, 600);
   }
 
-  async function saveChapterSynopsis(chapterId: string) {
+  /** Saves the typed synopsis; resolves to the failure, or null once it is saved. */
+  async function saveChapterSynopsis(chapterId: string): Promise<unknown> {
     const text = chapterSynopsisText.trim() || null;
     try {
       await invoke("update_chapter_synopsis", {
@@ -393,18 +405,29 @@
         synopsis: text,
       });
       currentProject.updateChapter(chapterId, { synopsis: text });
+      return null;
     } catch (e) {
       console.error("Failed to save chapter synopsis:", e);
+      return e ?? "Unknown error";
     }
   }
 
-  function finishEditingChapterSynopsis(chapterId: string) {
+  async function finishEditingChapterSynopsis(chapterId: string) {
     if (chapterSynopsisSaveTimeout) {
       clearTimeout(chapterSynopsisSaveTimeout);
       chapterSynopsisSaveTimeout = null;
     }
-    saveChapterSynopsis(chapterId);
-    editingChapterSynopsisId = null;
+    const typed = chapterSynopsisText;
+    const error = await saveChapterSynopsis(chapterId);
+    if (error === null) {
+      // Only close the field this save was for; a newer edit may have started.
+      if (editingChapterSynopsisId === chapterId && chapterSynopsisText === typed) {
+        editingChapterSynopsisId = null;
+      }
+      return;
+    }
+    // Keep the field open with the typed text so the writer can retry.
+    ui.showError(`Failed to save ${chapterLabel.toLowerCase()} synopsis: ${String(error)}`);
   }
 
   // Export dialog state
@@ -556,6 +579,7 @@
       }
     } catch (e) {
       console.error("Failed to load scenes:", e);
+      ui.showError(`Failed to load scenes: ${String(e)}`);
     }
   }
 
@@ -569,6 +593,7 @@
       currentProject.setBeats(beats);
     } catch (e) {
       console.error("Failed to load beats:", e);
+      ui.showError(`Failed to load beats: ${String(e)}`);
     }
   }
 
@@ -659,6 +684,7 @@
       cancelCreate();
     } catch (e) {
       console.error("Failed to create chapter:", e);
+      ui.showError(`Failed to create ${chapterLabel.toLowerCase()}: ${String(e)}`);
     }
   }
 
@@ -676,6 +702,7 @@
       cancelCreate();
     } catch (e) {
       console.error("Failed to create part:", e);
+      ui.showError(`Failed to create ${partLabel.toLowerCase()}: ${String(e)}`);
     }
   }
 
@@ -691,6 +718,7 @@
       cancelCreate();
     } catch (e) {
       console.error("Failed to create scene:", e);
+      ui.showError(`Failed to create scene: ${String(e)}`);
     }
   }
 
@@ -755,6 +783,7 @@
       };
     } catch (e) {
       console.error("Failed to get content counts:", e);
+      ui.showError(`Failed to prepare delete: ${String(e)}`);
     }
   }
 
@@ -783,6 +812,7 @@
       };
     } catch (e) {
       console.error("Failed to get beat count:", e);
+      ui.showError(`Failed to prepare delete: ${String(e)}`);
     }
   }
 
@@ -811,6 +841,7 @@
       }
     } catch (e) {
       console.error("Failed to delete:", e);
+      ui.showError(`Failed to delete: ${String(e)}`);
     } finally {
       deleteDialog = null;
     }
@@ -824,6 +855,7 @@
       currentProject.removeChapter(partDeleteDialog.partId);
     } catch (e) {
       console.error("Failed to delete part:", e);
+      ui.showError(`Failed to delete Part: ${String(e)}`);
     } finally {
       partDeleteDialog = null;
     }
@@ -931,35 +963,15 @@
     }
 
     if (draggedItem && dragOverId && draggedItem.id !== dragOverId) {
-      // Perform the reorder
       const items =
         draggedItem.type === "chapter" ? currentProject.chapters : currentProject.scenes;
       const fromIndex = items.findIndex((item) => item.id === draggedItem!.id);
       const toIndex = items.findIndex((item) => item.id === dragOverId);
-
       if (fromIndex !== -1 && toIndex !== -1) {
-        const newOrder = [...items];
-        const [moved] = newOrder.splice(fromIndex, 1);
-        newOrder.splice(toIndex, 0, moved);
-        const newIds = newOrder.map((item) => item.id);
-
-        try {
-          if (draggedItem.type === "chapter" && currentProject.value) {
-            await invoke("reorder_chapters", {
-              projectId: currentProject.value.id,
-              chapterIds: newIds,
-            });
-            currentProject.reorderChapters(newIds);
-          } else if (draggedItem.type === "scene" && currentProject.currentChapter) {
-            await invoke("reorder_scenes", {
-              chapterId: currentProject.currentChapter.id,
-              sceneIds: newIds,
-            });
-            currentProject.reorderScenes(newIds);
-          }
-        } catch (e) {
-          console.error("Failed to reorder:", e);
-        }
+        const newIds = items.map((item) => item.id);
+        const [moved] = newIds.splice(fromIndex, 1);
+        newIds.splice(toIndex, 0, moved);
+        await saveOutlineOrder(draggedItem.type, newIds);
       }
     }
 
@@ -970,11 +982,80 @@
     currentDragOverElement = null;
   }
 
+  /** Saves a new chapter or scene order; resolves true once saved. */
+  async function saveOutlineOrder(type: "chapter" | "scene", newIds: string[]): Promise<boolean> {
+    try {
+      if (type === "chapter" && currentProject.value) {
+        await invoke("reorder_chapters", {
+          projectId: currentProject.value.id,
+          chapterIds: newIds,
+        });
+        currentProject.reorderChapters(newIds);
+      } else if (type === "scene" && currentProject.currentChapter) {
+        await invoke("reorder_scenes", {
+          chapterId: currentProject.currentChapter.id,
+          sceneIds: newIds,
+        });
+        currentProject.reorderScenes(newIds);
+      } else {
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error("Failed to reorder:", e);
+      ui.showError(`Failed to reorder: ${String(e)}`);
+      return false;
+    }
+  }
+
+  /**
+   * The order a one-step move would save, or null when it isn't possible: at an end
+   * of the visible list, the item is locked, or the move would shift a locked row
+   * (which the backend pins in place). Scenes move within the filtered, visible list.
+   */
+  function oneStepOrder(type: "chapter" | "scene", item: Chapter | Scene, step: -1 | 1) {
+    if (type === "chapter") {
+      const chapters = currentProject.chapters;
+      return stepMoveOrder(
+        chapters,
+        chapters.map((c) => c.id),
+        item.id,
+        step,
+        (c) => c.locked
+      );
+    }
+    const chapterLocked = !!currentProject.chapters.find((c) => c.id === (item as Scene).chapter_id)
+      ?.locked;
+    return stepMoveOrder(
+      currentProject.scenes,
+      filteredScenes.map((s) => s.id),
+      item.id,
+      step,
+      (s) => chapterLocked || s.locked
+    );
+  }
+
+  /** Keyboard alternative to dragging: move one place, announce it, keep focus on the item. */
+  async function moveOneStep(type: "chapter" | "scene", item: Chapter | Scene, step: -1 | 1) {
+    const visible = type === "chapter" ? currentProject.chapters : filteredScenes;
+    const newIds = oneStepOrder(type, item, step);
+    if (!newIds || !(await saveOutlineOrder(type, newIds))) return;
+    const shown = newIds.filter((id) => visible.some((v) => v.id === id));
+    const direction = step < 0 ? "up" : "down";
+    moveAnnouncement = `Moved “${item.title}” ${direction}, to position ${shown.indexOf(item.id) + 1} of ${shown.length}.`;
+    await tick();
+    document
+      .querySelector<HTMLElement>(`[data-outline-row="${item.id}"] [data-testid="menu-button"]`)
+      ?.focus({ preventScroll: true });
+  }
+
   // === Sync ===
   async function handleSyncClick() {
     if (!currentProject.value) return;
     loadingSyncPreview = true;
     try {
+      // Sync compares against saved prose; unsaved edits would read as stale.
+      await saveProseBefore(currentProject.value.id, "syncing");
       const preview = await invoke<SyncPreview>("get_sync_preview", {
         projectId: currentProject.value.id,
       });
@@ -982,6 +1063,9 @@
       showSyncDialog = true;
     } catch (e) {
       console.error("Failed to get sync preview:", e);
+      ui.showError(
+        `Failed to check for sync changes: ${e instanceof Error ? e.message : String(e)}`
+      );
     } finally {
       loadingSyncPreview = false;
     }
@@ -1064,7 +1148,12 @@
   }
 
   function getContextMenuItems(type: "chapter" | "scene", item: Chapter | Scene): MenuItem[] {
-    const isLocked = "locked" in item && item.locked;
+    // A locked chapter locks every scene in it; the backend refuses edits to them too.
+    const ownLock = item.locked;
+    const isLocked =
+      ownLock ||
+      (type === "scene" &&
+        !!currentProject.chapters.find((c) => c.id === (item as Scene).chapter_id)?.locked);
     const isPart = type === "chapter" && "is_part" in item && (item as Chapter).is_part;
 
     return [
@@ -1107,6 +1196,18 @@
         icon: Copy,
         action: () => handleDuplicate(type, item.id),
       },
+      {
+        label: "Move up",
+        icon: ArrowUp,
+        action: () => moveOneStep(type, item, -1),
+        disabled: !oneStepOrder(type, item, -1),
+      },
+      {
+        label: "Move down",
+        icon: ArrowDown,
+        action: () => moveOneStep(type, item, 1),
+        disabled: !oneStepOrder(type, item, 1),
+      },
       // Convert to Part/Chapter option (only for chapters)
       ...(type === "chapter"
         ? [
@@ -1120,9 +1221,9 @@
         : []),
       { divider: true, label: "", action: () => {} },
       {
-        label: isLocked ? "Unlock" : "Lock",
-        icon: isLocked ? Unlock : Lock,
-        action: () => handleToggleLock(type, item.id, isLocked),
+        label: ownLock ? "Unlock" : "Lock",
+        icon: ownLock ? Unlock : Lock,
+        action: () => handleToggleLock(type, item.id, ownLock),
       },
       {
         label: "Archive",
@@ -1185,6 +1286,7 @@
       }
     } catch (e) {
       console.error("Failed to duplicate:", e);
+      ui.showError(`Failed to duplicate: ${String(e)}`);
     }
   }
 
@@ -1194,6 +1296,7 @@
       currentProject.updateChapter(chapterId, { is_part: isPart });
     } catch (e) {
       console.error("Failed to toggle part status:", e);
+      ui.showError(`Failed to convert: ${String(e)}`);
     }
   }
 
@@ -1218,6 +1321,7 @@
       }
     } catch (e) {
       console.error("Failed to update planning status:", e);
+      ui.showError(`Failed to update planning status: ${String(e)}`);
     }
   }
 
@@ -1232,6 +1336,7 @@
       }
     } catch (e) {
       console.error("Failed to archive:", e);
+      ui.showError(`Failed to archive: ${String(e)}`);
     }
   }
 
@@ -1256,6 +1361,7 @@
       }
     } catch (e) {
       console.error("Failed to toggle lock:", e);
+      ui.showError(`Failed to change lock: ${String(e)}`);
     }
   }
 
@@ -1296,6 +1402,7 @@
   class:is-collapsed={ui.sidebarCollapsed}
   aria-label="Project outline sidebar"
 >
+  <p class="ka-sr" role="status" aria-live="polite">{moveAnnouncement}</p>
   {#if ui.sidebarCollapsed}
     <div class="sb-rail">
       <button
@@ -1387,6 +1494,7 @@
           <div class="relative" bind:this={moreMenuRef}>
             <button
               type="button"
+              bind:this={moreMenuTrigger}
               onclick={() => (showMoreMenu = !showMoreMenu)}
               class="ka-button ka-button--ghost ka-icon-button"
               aria-label="More actions"
@@ -1402,6 +1510,10 @@
                 class="ka-menu-list app-popover sb-popover"
                 role="menu"
                 aria-label="Project actions"
+                use:menuKeyboard={{
+                  onClose: () => (showMoreMenu = false),
+                  trigger: moreMenuTrigger,
+                }}
               >
                 <button
                   data-testid="export-button"
@@ -1474,6 +1586,7 @@
             <div
               data-testid="part-item"
               data-drag-chapter={part.id}
+              data-outline-row={part.id}
               class="sb-group sb-part"
               class:is-drop-target={dragOverId === part.id}
             >
@@ -1534,6 +1647,7 @@
                 <div
                   data-testid="chapter-item"
                   data-drag-chapter={chapter.id}
+                  data-outline-row={chapter.id}
                   class="sb-group"
                   class:is-drop-target={dragOverId === chapter.id}
                 >
@@ -1647,25 +1761,44 @@
                         <div class="sb-children">
                           {#each filteredScenes as scene}
                             {@const isSelected = currentProject.currentScene?.id === scene.id}
-                            <button
-                              onclick={() => selectScene(scene)}
-                              oncontextmenu={(e) => openContextMenu(e, "scene", scene)}
-                              class="sb-row-main sb-scene-main"
+                            <!-- svelte-ignore a11y_no_static_element_interactions -->
+                            <div
+                              data-testid="scene-item"
+                              data-outline-row={scene.id}
+                              class="sb-row sb-scene"
                               class:is-selected={isSelected}
-                              aria-current={isSelected ? "page" : undefined}
+                              oncontextmenu={(e) => openContextMenu(e, "scene", scene)}
                             >
-                              {#if (scene.planning_status ?? "fixed") === "flexible"}
-                                <CircleDot class="sb-glyph is-warning" aria-label="Flexible" />
-                              {:else if (scene.planning_status ?? "fixed") === "undefined"}
-                                <CircleDashed class="sb-glyph" aria-label="Undefined" />
-                              {/if}
-                              <span class="sb-row-title" title={scene.title}>{scene.title}</span>
-                              {#if writing.value?.scene_words?.[scene.id] !== undefined}
-                                <small class="sb-row-trail"
-                                  >{writing.value.scene_words[scene.id].toLocaleString()} words</small
-                                >
-                              {/if}
-                            </button>
+                              <button
+                                onclick={() => selectScene(scene)}
+                                class="sb-row-main sb-scene-main"
+                                class:is-selected={isSelected}
+                                aria-current={isSelected ? "page" : undefined}
+                              >
+                                {#if scene.locked || chapter.locked}
+                                  <Lock class="sb-glyph is-warning" aria-label="Locked" />
+                                {:else if (scene.planning_status ?? "fixed") === "flexible"}
+                                  <CircleDot class="sb-glyph is-warning" aria-label="Flexible" />
+                                {:else if (scene.planning_status ?? "fixed") === "undefined"}
+                                  <CircleDashed class="sb-glyph" aria-label="Undefined" />
+                                {/if}
+                                <span class="sb-row-title" title={scene.title}>{scene.title}</span>
+                                {#if writing.value?.scene_words?.[scene.id] !== undefined}
+                                  <small class="sb-row-trail"
+                                    >{writing.value.scene_words[scene.id].toLocaleString()} words</small
+                                  >
+                                {/if}
+                              </button>
+                              <button
+                                data-testid="menu-button"
+                                onclick={(e) => openContextMenu(e, "scene", scene)}
+                                class="ka-button ka-button--ghost ka-icon-button sb-row-menu"
+                                aria-label="Scene menu"
+                                aria-haspopup="menu"
+                              >
+                                <MoreVertical class="w-5 h-5" aria-hidden="true" />
+                              </button>
+                            </div>
                           {/each}
 
                           {#if creatingScene}
@@ -1738,6 +1871,7 @@
                           <div class="relative" bind:this={filterPopoverRef}>
                             <button
                               type="button"
+                              bind:this={filterPopoverTrigger}
                               onclick={() => (showFilterPopover = !showFilterPopover)}
                               class="ka-button ka-button--ghost ka-icon-button sb-filter-button"
                               class:is-active={hasActiveFilters}
@@ -1746,11 +1880,21 @@
                                 : "Filter by type & status"}
                               title="Filter by type & status"
                               aria-expanded={showFilterPopover}
+                              aria-haspopup="dialog"
                             >
                               <Filter class="w-5 h-5" aria-hidden="true" />
                             </button>
                             {#if showFilterPopover}
-                              <div class="app-popover sb-filter-popover">
+                              <div
+                                class="app-popover sb-filter-popover"
+                                role="dialog"
+                                aria-label="Scene filters"
+                                use:menuKeyboard={{
+                                  onClose: () => (showFilterPopover = false),
+                                  trigger: filterPopoverTrigger,
+                                  role: "dialog",
+                                }}
+                              >
                                 <div class="sb-filter-head">
                                   <span class="sb-filter-heading">Filters</span>
                                   {#if hasActiveFilters}
@@ -1877,6 +2021,7 @@
                             <!-- svelte-ignore a11y_no_static_element_interactions -->
                             <div
                               data-drag-scene={scene.id}
+                              data-outline-row={scene.id}
                               data-testid="scene-item"
                               class="sb-row sb-scene"
                               class:is-selected={isSelected}
@@ -2033,6 +2178,7 @@
             <button
               type="button"
               data-testid="new-dropdown-button"
+              bind:this={newDropdownTrigger}
               onclick={() => (showNewDropdown = !showNewDropdown)}
               class="ka-button ka-button--secondary ka-icon-button"
               aria-label="More options"
@@ -2049,6 +2195,10 @@
               class="ka-menu-list app-popover sb-popover sb-popover-up"
               role="menu"
               aria-label="Create"
+              use:menuKeyboard={{
+                onClose: () => (showNewDropdown = false),
+                trigger: newDropdownTrigger,
+              }}
             >
               <button
                 data-testid="dropdown-new-chapter"

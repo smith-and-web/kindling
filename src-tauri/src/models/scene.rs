@@ -134,6 +134,14 @@ pub struct Scene {
 }
 
 impl Scene {
+    /// Whether the scene belongs in a manuscript: not archived, and not a
+    /// Notes, To-do or Unused scene (planning material the writer keeps beside
+    /// the draft). Every manuscript export (classic DOCX, EPUB and Markdown,
+    /// and the export workspace) selects scenes with this.
+    pub fn in_manuscript(&self) -> bool {
+        !self.archived && self.scene_type == SceneType::Normal
+    }
+
     pub fn new(chapter_id: Uuid, title: String, synopsis: Option<String>, position: i32) -> Self {
         Self {
             id: Uuid::new_v4(),

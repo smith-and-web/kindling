@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/sv
 import { tick } from "svelte";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
+import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { mockProject } from "../../dev/mock-data";
 import { currentProject } from "../stores/project.svelte";
 import { decodeProfiles, profileStorageKey } from "../utils/exportPrototype";
@@ -231,3 +232,74 @@ it.each(["markdown", "txt"])(
     );
   }
 );
+
+async function exportEpub() {
+  await fireEvent.change(screen.getByLabelText("Output format"), { target: { value: "epub" } });
+  vi.mocked(save).mockResolvedValueOnce("/tmp/book.epub");
+  await fireEvent.click(screen.getByRole("button", { name: "Export EPUB" }));
+  return screen.findByRole("button", { name: /Show in folder/ });
+}
+
+it("shows a finished export in its folder, because the opener may only reveal paths", async () => {
+  vi.mocked(revealItemInDir).mockReset();
+  await mount();
+  const show = await exportEpub();
+  vi.mocked(revealItemInDir).mockResolvedValueOnce(undefined);
+  await fireEvent.click(show);
+  expect(revealItemInDir).toHaveBeenCalledWith("/tmp/book.epub");
+  expect(openPath).not.toHaveBeenCalled();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("tells the writer when the export can't be shown in its folder", async () => {
+  vi.mocked(revealItemInDir).mockReset();
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+  await mount();
+  const show = await exportEpub();
+  vi.mocked(revealItemInDir).mockRejectedValueOnce(new Error("Path not found"));
+  await fireEvent.click(show);
+  const alert = await screen.findByRole("alert");
+  expect(alert.textContent).toContain("Couldn’t show the export in its folder: Path not found");
+  // Trying again clears the stale error once the reveal succeeds.
+  vi.mocked(revealItemInDir).mockResolvedValueOnce(undefined);
+  await fireEvent.click(screen.getByRole("button", { name: /Show in folder/ }));
+  await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  consoleError.mockRestore();
+});
+
+it("mounts an unstyled HTML preview on manuscript paper and ink, in either theme", async () => {
+  // jsdom doesn't resolve custom properties; stand in for the browser so the
+  // test can see which tokens the frame is given.
+  const tokens: Record<string, string> = {
+    "var(--color-prose-bg)": "rgb(244, 239, 230)",
+    "var(--color-prose-text)": "rgb(35, 29, 24)",
+    "var(--shadow-prose)": "rgb(0, 0, 0) 0px 8px 24px 0px",
+  };
+  const real = window.getComputedStyle.bind(window);
+  const computed = vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+    const style = (element as HTMLElement).style;
+    if (!style?.boxShadow?.startsWith("var(")) return real(element, pseudo);
+    return {
+      backgroundColor: tokens[style.backgroundColor],
+      color: tokens[style.color],
+      boxShadow: tokens[style.boxShadow],
+    } as CSSStyleDeclaration;
+  });
+  try {
+    await mount();
+    await fireEvent.change(screen.getByLabelText("Output format"), { target: { value: "html" } });
+    const srcdoc = () => (screen.getByTitle("Export layout preview") as HTMLIFrameElement).srcdoc;
+    const sheetRule = () => srcdoc().match(/:where\(\.manuscript\)\{([^}]*)\}/)?.[1] ?? "";
+    // Styled: the export's own sheet colours apply; the fallback sits beneath them.
+    expect(srcdoc()).toContain(".manuscript{box-sizing:border-box;background:");
+    await fireEvent.click(screen.getByRole("button", { name: /Files & format/ }));
+    await fireEvent.click(screen.getByLabelText(/Include built-in styling/));
+    // Unstyled: the export sets no sheet colours, so the sheet takes paper and ink.
+    expect(srcdoc()).not.toContain(".manuscript{box-sizing:border-box;background:");
+    expect(sheetRule()).toContain("background:rgb(244, 239, 230);");
+    expect(sheetRule()).toContain("color:rgb(35, 29, 24);");
+    expect(srcdoc()).toContain("box-shadow:rgb(0, 0, 0) 0px 8px 24px 0px");
+  } finally {
+    computed.mockRestore();
+  }
+});

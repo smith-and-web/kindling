@@ -18,6 +18,7 @@ import App from "./App.svelte";
 import { shortcuts } from "./lib/stores/shortcuts.svelte";
 import { defaultBindings } from "./lib/utils/keyboardShortcuts";
 import { EditorialSaves } from "./lib/utils/editorialSaves";
+import { trackNativeDialog } from "./lib/utils/modalFocus";
 
 vi.hoisted(() => {
   const values = new Map([
@@ -1032,6 +1033,78 @@ it("attempts writing saves and offers explicit recovery when an editorial save b
   await fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
   expect(localStorage.getItem("kindling.editorial.recovery.quit-review")).toContain("Rowan");
   localStorage.removeItem("kindling.editorial.recovery.quit-review");
+});
+
+it.each(["an app dialog", "a file picker", "an import"])(
+  "ignores native menu commands while %s is open",
+  async (modal) => {
+    render(App);
+    let finishPicker!: () => void;
+    if (modal === "an app dialog") {
+      await menu("about");
+      expect(screen.getByTestId("about-dialog")).toBeTruthy();
+    } else if (modal === "a file picker") {
+      void trackNativeDialog(() => new Promise<void>((resolve) => (finishPicker = resolve)));
+    } else {
+      ui.startImport();
+      await tick();
+    }
+
+    // Cmd+W and friends arrive as menu events; none may act behind the modal.
+    await menu("close_project");
+    await menu("new_project");
+    await menu("command_palette");
+    expect(currentProject.value?.id).toBe(mockProject.id);
+    expect(screen.queryByText("New project")).toBeNull();
+    expect(screen.queryByPlaceholderText("Type a command or search…")).toBeNull();
+
+    if (modal === "an app dialog")
+      await fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    else if (modal === "a file picker") {
+      finishPicker();
+      await tick();
+    } else {
+      ui.finishImport();
+      await tick();
+    }
+    await menu("close_project");
+    expect(currentProject.value).toBeNull();
+  }
+);
+
+it("ignores shortcuts while a dialog is open even when focus has fallen to the page", async () => {
+  render(App);
+  await menu("about");
+  await waitFor(() =>
+    expect(screen.getByTestId("about-dialog").contains(document.activeElement)).toBe(true)
+  );
+  (document.activeElement as HTMLElement).blur();
+  expect(document.activeElement).toBe(document.body);
+  await fireEvent.keyDown(document.body, { key: "k", metaKey: true });
+  await fireEvent.keyDown(document.body, { key: "k", ctrlKey: true });
+  expect(screen.queryByPlaceholderText("Type a command or search…")).toBeNull();
+  expect(screen.getByTestId("about-dialog")).toBeTruthy();
+});
+
+it("moves focus into Export complete after an export, not back to the page", async () => {
+  currentProject.setChapters(mockChapters);
+  localStorage.setItem("kindling:lastExportPath", "/tmp/kindling-review-export");
+  vi.mocked(invoke).mockImplementation(async (cmd) =>
+    cmd === "export_to_markdown"
+      ? { output_path: "/tmp/out", chapters_exported: 1, scenes_exported: 1, files_created: 1 }
+      : []
+  );
+  try {
+    render(App);
+    await menu("export");
+    await fireEvent.click(screen.getByText("Markdown"));
+    await fireEvent.click(screen.getByTestId("export-confirm"));
+    const heading = await screen.findByText("Export complete");
+    const dialog = heading.closest<HTMLElement>(".dialog-scrim")!;
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+  } finally {
+    localStorage.removeItem("kindling:lastExportPath");
+  }
 });
 
 it("opens one settings window from the menu and reserves native project commands until it closes", async () => {

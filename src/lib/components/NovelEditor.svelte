@@ -84,10 +84,16 @@
       content: content || "",
       editable: !readonly,
       editorProps: {
-        attributes: {
+        // Re-read on every view update, so the name and read-only state follow
+        // the props (a scene locking, a beat editor becoming the page).
+        attributes: () => ({
           class: "novel-editor-content",
           "data-placeholder": placeholder,
-        },
+          role: "textbox",
+          "aria-multiline": "true",
+          "aria-label": beatId ? "Beat prose" : "Scene prose",
+          "aria-readonly": readonly ? "true" : "false",
+        }),
       },
       onUpdate: ({ editor }) => {
         updateToolbarState();

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { IMPORT_FORMATS, type ImportType } from "../importFormats";
   import { invoke } from "@tauri-apps/api/core";
-  import { open } from "@tauri-apps/plugin-dialog";
+  import { open } from "../utils/nativeDialog";
   import {
     ArrowDownAZ,
     ChevronDown,
@@ -16,6 +16,7 @@
   import type { ImportPreview, Project } from "../types";
   import { pickScrivenerProjectPath } from "$lib/utils/import";
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus } from "../utils/modalFocus";
 
   interface Props {
     onImportLongform?: () => void;
@@ -177,11 +178,8 @@
     ui.nextStep();
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape" && !guidedLoading) {
-      event.preventDefault();
-      skipOnboarding();
-    }
+  function handleEscape() {
+    if (!guidedLoading) skipOnboarding();
   }
 
   /** Each step lands keyboard focus on its main action. */
@@ -198,7 +196,7 @@
     aria-modal="true"
     aria-labelledby="onboarding-title"
     tabindex="-1"
-    onkeydown={handleKeydown}
+    use:modalFocus={{ onEscape: handleEscape }}
   >
     <div class="app-dialog-surface ka-dialog-default dialog-shell onboarding">
       <DialogHeader

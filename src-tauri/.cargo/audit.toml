@@ -26,6 +26,15 @@ ignore = [
     "RUSTSEC-2024-0422",  # pango
     "RUSTSEC-2024-0423",  # pango-sys
     "RUSTSEC-2024-0424",  # pangocairo
+
+    # quick-xml < 0.41 (quadratic duplicate-attribute check; NsReader allocation).
+    # kindling's own parsers use quick-xml 0.41, which is fixed. The only older copy
+    # (0.30) is a Linux build-dependency of xcb, pulled in by the debug-only
+    # tauri-plugin-mcp QA plugin; it reads xcb's bundled protocol XML at build time,
+    # never user files, and release builds exclude the plugin (--no-default-features).
+    # Remove these once tauri-plugin-mcp's xcap/xcb drop quick-xml 0.30.
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
 ]
 
 # Don't treat unmaintained crate warnings as errors

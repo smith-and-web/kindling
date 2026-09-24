@@ -243,4 +243,24 @@ describe("ReferenceClassificationDialog", () => {
     expect(screen.getByRole("table")).toBeTruthy();
     vi.restoreAllMocks();
   });
+
+  it("renders an imported description as inert formatted prose", async () => {
+    setupInvokeMocks();
+    const description =
+      '<p><strong>Bio:</strong> Kind<meta http-equiv="refresh" content="0;url=https://example.com"><form action="https://example.com"><input name="password"><button>Sign in</button></form><a href="https://example.com" style="position:fixed;inset:0">Continue</a> and <em>brave</em></p>';
+    const fallback = invokeMock.getMockImplementation()!;
+    invokeMock.mockImplementation((command: string, args?: InvokeArgs) =>
+      command === "get_characters"
+        ? Promise.resolve([{ ...mockCharacters[0], description }])
+        : fallback(command, args)
+    );
+    const { container } = render(ReferenceClassificationDialog, {
+      props: { projectId: "project-1", onClose: vi.fn(), onComplete: vi.fn() },
+    });
+    await screen.findByText("Alice");
+    const prose = container.querySelector(".classify-desc")!;
+    expect(prose.querySelector("meta, form, input, button, a, [style], [href]")).toBeNull();
+    expect(prose.querySelector("strong")?.textContent).toBe("Bio:");
+    expect(prose.querySelector("em")?.textContent).toBe("brave");
+  });
 });

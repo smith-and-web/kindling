@@ -873,6 +873,7 @@ fn decide(
             created_at: chrono::Utc::now().to_rfc3339(),
             mode: review.mode,
             documents: review.documents.clone(),
+            automatic: true,
         });
         history.status = "revised".into();
         let mut next = history.drafts.last().unwrap().clone();
@@ -1394,6 +1395,8 @@ mod tests {
         let scene = Uuid::parse_str(&result.sources[0].scene_id).unwrap();
         let saved = db::revisions::load(&conn, &scene).unwrap();
         assert_eq!(saved.data.drafts.len(), 1);
+        // The app made this copy, so it counts toward the pruned automatic drafts.
+        assert!(saved.data.drafts[0].automatic);
         assert!(saved.data.drafts[0]
             .documents
             .iter()

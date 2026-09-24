@@ -112,6 +112,12 @@
       onClose();
       return;
     }
+    if (event.key === "Tab") {
+      // Tab leaves the menu: close it, and focus returns to whatever opened it.
+      event.preventDefault();
+      onClose();
+      return;
+    }
     const inSubmenu = !!submenuRef?.contains(document.activeElement);
     const list = menuItems(inSubmenu ? submenuRef : menuRef);
     if (!list.length) return;

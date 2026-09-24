@@ -307,29 +307,87 @@ pub fn get_scene_project_id(conn: &Connection, scene_id: &Uuid) -> Result<Option
 
 pub fn reorder_scenes(conn: &Connection, chapter_id: &Uuid, scene_ids: &[Uuid]) -> Result<()> {
     let tx = conn.unchecked_transaction()?;
-    for (idx, id) in scene_ids.iter().enumerate() {
-        tx.execute(
-            "UPDATE scenes SET position = ?1 WHERE id = ?2 AND chapter_id = ?3",
-            params![idx as i32, id.to_string(), chapter_id.to_string()],
-        )?;
-    }
+    reorder_scenes_in_transaction(&tx, chapter_id, scene_ids)?;
     tx.commit()
 }
 
-pub fn move_scene_to_chapter(
+/// A planned move of one scene to `position` in a (possibly different) chapter.
+///
+/// Both chapters' active scenes are renumbered 0..n: the source chapter closes the
+/// gap and the target chapter shifts later scenes down to make room, so positions
+/// never collide.
+pub struct SceneMove {
+    pub scene_id: Uuid,
+    pub source_chapter_id: Uuid,
+    pub target_chapter_id: Uuid,
+    /// The source chapter's remaining scenes, in order (unused when moving within it).
+    pub source_after: Vec<Uuid>,
+    /// The target chapter's active scenes before the move (including the moved scene
+    /// when it stays in the same chapter), for checking which rows would shift.
+    pub target_before: Vec<Scene>,
+    /// The target chapter's scenes after the move, in order.
+    pub target_after: Vec<Uuid>,
+}
+
+/// Plans a scene move. `position` is clamped to the target chapter's bounds.
+pub fn plan_scene_move(
     conn: &Connection,
     scene_id: &Uuid,
     target_chapter_id: &Uuid,
     position: i32,
-) -> Result<()> {
+) -> Result<SceneMove> {
+    let scene = get_scene_by_id(conn, scene_id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+    let source_after: Vec<Uuid> = get_scenes(conn, &scene.chapter_id)?
+        .into_iter()
+        .map(|s| s.id)
+        .filter(|id| id != scene_id)
+        .collect();
+    let target_before = get_scenes(conn, target_chapter_id)?;
+    let mut target_after: Vec<Uuid> = target_before
+        .iter()
+        .map(|s| s.id)
+        .filter(|id| id != scene_id)
+        .collect();
+    let at = usize::try_from(position.max(0))
+        .unwrap_or(0)
+        .min(target_after.len());
+    target_after.insert(at, *scene_id);
+    Ok(SceneMove {
+        scene_id: *scene_id,
+        source_chapter_id: scene.chapter_id,
+        target_chapter_id: *target_chapter_id,
+        source_after,
+        target_before,
+        target_after,
+    })
+}
+
+/// Writes a planned move; the caller owns the transaction.
+pub fn apply_scene_move(conn: &Connection, plan: &SceneMove) -> Result<()> {
     conn.execute(
-        "UPDATE scenes SET chapter_id = ?1, position = ?2 WHERE id = ?3",
+        "UPDATE scenes SET chapter_id = ?1 WHERE id = ?2",
         params![
-            target_chapter_id.to_string(),
-            position,
-            scene_id.to_string()
+            plan.target_chapter_id.to_string(),
+            plan.scene_id.to_string()
         ],
     )?;
+    if plan.source_chapter_id != plan.target_chapter_id {
+        reorder_scenes_in_transaction(conn, &plan.source_chapter_id, &plan.source_after)?;
+    }
+    reorder_scenes_in_transaction(conn, &plan.target_chapter_id, &plan.target_after)
+}
+
+fn reorder_scenes_in_transaction(
+    conn: &Connection,
+    chapter_id: &Uuid,
+    scene_ids: &[Uuid],
+) -> Result<()> {
+    for (idx, id) in scene_ids.iter().enumerate() {
+        conn.execute(
+            "UPDATE scenes SET position = ?1 WHERE id = ?2 AND chapter_id = ?3",
+            params![idx as i32, id.to_string(), chapter_id.to_string()],
+        )?;
+    }
     Ok(())
 }
 
@@ -355,6 +413,21 @@ pub fn update_scene_prose(conn: &Connection, scene_id: &Uuid, prose: &str) -> Re
 }
 
 pub fn switch_scene_editor_mode(conn: &Connection, scene_id: &Uuid, mode: &str) -> Result<Scene> {
+    let mode = match mode {
+        "page" | "beat" => mode,
+        other => {
+            return Err(rusqlite::Error::InvalidParameterName(format!(
+                "unknown editor mode: {other}"
+            )))
+        }
+    };
+    let current =
+        get_scene_by_id(conn, scene_id)?.ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)?;
+    // Re-selecting the active mode must not rebuild prose from the other side's stale copy.
+    if current.editor_mode.as_str() == mode {
+        return Ok(current);
+    }
+
     let tx = conn.unchecked_transaction()?;
 
     if mode == "page" {
@@ -374,9 +447,7 @@ pub fn switch_scene_editor_mode(conn: &Connection, scene_id: &Uuid, mode: &str) 
             )?;
         }
     } else if mode == "beat" {
-        let scene =
-            get_scene_by_id(&tx, scene_id)?.ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)?;
-        if let Some(page_prose) = scene.prose.as_deref() {
+        if let Some(page_prose) = current.prose.as_deref() {
             let beats = get_beats(&tx, scene_id)?;
             if !beats.is_empty() {
                 let segments: Vec<&str> = page_prose.split("<hr>").collect();
@@ -2089,6 +2160,16 @@ pub fn is_chapter_locked(conn: &Connection, chapter_id: &Uuid) -> Result<bool> {
     Ok(locked != 0)
 }
 
+/// Whether any scene in the chapter is locked, archived scenes included:
+/// deleting or archiving the chapter would take every one of them with it.
+pub fn chapter_has_locked_scene(conn: &Connection, chapter_id: &Uuid) -> Result<bool> {
+    conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM scenes WHERE chapter_id = ?1 AND locked = 1)",
+        params![chapter_id.to_string()],
+        |row| row.get(0),
+    )
+}
+
 // ============================================================================
 // Rename Operations
 // ============================================================================
@@ -2625,6 +2706,42 @@ mod tests {
         );
     }
 
+    #[test]
+    fn reselecting_the_active_editor_mode_keeps_prose() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let scene = Scene::new(chapter.id, "Scene".into(), None, 0);
+        insert_scene(&conn, &scene).unwrap();
+        let mut beat = Beat::new(scene.id, "Beat".into(), 0);
+        beat.prose = Some("<p>Beat draft</p>".into());
+        insert_beat(&conn, &beat).unwrap();
+
+        switch_scene_editor_mode(&conn, &scene.id, "page").unwrap();
+        let page_work = "<p>Beat draft</p><p>Two new pages of work</p>";
+        save_scene_page_prose(&conn, &scene.id, page_work).unwrap();
+        let page = switch_scene_editor_mode(&conn, &scene.id, "page").unwrap();
+        assert_eq!(page.prose.as_deref(), Some(page_work));
+        assert_eq!(page.editor_mode, EditorMode::Page);
+
+        switch_scene_editor_mode(&conn, &scene.id, "beat").unwrap();
+        update_beat_prose(&conn, &beat.id, "<p>Edited in beat view</p>").unwrap();
+        let beat_scene = switch_scene_editor_mode(&conn, &scene.id, "beat").unwrap();
+        assert_eq!(beat_scene.editor_mode, EditorMode::Beat);
+        assert_eq!(
+            get_beats(&conn, &scene.id).unwrap()[0].prose.as_deref(),
+            Some("<p>Edited in beat view</p>")
+        );
+        assert!(switch_scene_editor_mode(&conn, &scene.id, "Page").is_err());
+        assert_eq!(
+            get_scene_by_id(&conn, &scene.id)
+                .unwrap()
+                .unwrap()
+                .editor_mode,
+            EditorMode::Beat
+        );
+    }
+
     fn setup_test_db() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
         initialize_schema(&conn).unwrap();
@@ -2926,7 +3043,7 @@ mod tests {
     }
 
     #[test]
-    fn test_move_scene_to_chapter() {
+    fn test_plan_and_apply_scene_move() {
         let conn = setup_test_db();
         let project = create_test_project(&conn);
         let chapter1 = create_test_chapter(&conn, project.id);
@@ -2945,7 +3062,8 @@ mod tests {
         insert_chapter(&conn, &chapter2).unwrap();
 
         let scene = create_test_scene(&conn, chapter1.id);
-        move_scene_to_chapter(&conn, &scene.id, &chapter2.id, 0).unwrap();
+        let plan = plan_scene_move(&conn, &scene.id, &chapter2.id, 0).unwrap();
+        apply_scene_move(&conn, &plan).unwrap();
 
         let updated = get_scene_by_id(&conn, &scene.id).unwrap().unwrap();
         assert_eq!(updated.chapter_id, chapter2.id);

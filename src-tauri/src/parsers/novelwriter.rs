@@ -1,6 +1,7 @@
 //! Local novelWriter project interchange. Handles anchor record identity; beats
-//! use positions within their scene. Notes and links are intentionally import-only
-//! in sync, matching the other source types.
+//! are numbered by position within their scene, but sync matches them by title.
+//! Notes and links are intentionally import-only in sync, matching the other
+//! source types.
 mod format;
 mod markup;
 mod writer;
@@ -38,12 +39,36 @@ pub struct ParsedNovelWriter {
     pub scene_location_refs: Vec<(Uuid, Uuid)>,
     pub scene_reference_item_refs: Vec<(Uuid, Uuid)>,
     pub scenes_with_beat_comments: HashSet<String>,
+    /// Documents with more than one heading, which kindling 1.2 and earlier
+    /// imported as a single chapter or scene.
+    pub split_documents: Vec<SplitDocument>,
+    /// Every Novel document read one chapter or scene per heading, however
+    /// many headings it has now, so it keeps reading that way if one is added.
+    pub per_heading_documents: Vec<String>,
+}
+/// The chapter and scene identities one multi-heading document produced.
+#[derive(Debug)]
+pub struct SplitDocument {
+    pub handle: String,
+    /// From the first heading: these are what a 1.2 import created too.
+    pub first: Vec<String>,
+    /// From later headings: new in 1.3, so absent from an older import.
+    pub later: Vec<String>,
 }
 pub fn novelwriter_beat_source_id(handle: &str, position: i32) -> String {
     format!("novelwriter:beat:{handle}:{position}")
 }
 
 pub fn parse_novelwriter_project(path: &Path) -> Result<ParsedNovelWriter, NovelWriterError> {
+    parse_novelwriter_project_with(path, &HashSet::new())
+}
+
+/// Parses the project, reading the documents in `unsplit` as one section each,
+/// the way kindling 1.2 did, so a project imported then keeps its shape.
+pub fn parse_novelwriter_project_with(
+    path: &Path,
+    unsplit: &HashSet<String>,
+) -> Result<ParsedNovelWriter, NovelWriterError> {
     let index = path.join("nwProject.nwx");
     let xml = std::fs::read_to_string(&index)
         .map_err(|e| NovelWriterError::Invalid(format!("Cannot read {}: {e}", index.display())))?;
@@ -66,6 +91,8 @@ pub fn parse_novelwriter_project(path: &Path) -> Result<ParsedNovelWriter, Novel
         scene_location_refs: vec![],
         scene_reference_item_refs: vec![],
         scenes_with_beat_comments: HashSet::new(),
+        split_documents: vec![],
+        per_heading_documents: vec![],
     };
     let mut ordered = Vec::new();
     fn walk<'a>(parent: &str, doc: &'a Nwx, out: &mut Vec<&'a NwItem>) {
@@ -77,22 +104,38 @@ pub fn parse_novelwriter_project(path: &Path) -> Result<ParsedNovelWriter, Novel
         }
     }
     walk("None", &doc, &mut ordered);
-    let novel_root = ordered
+    // Several Novel roots (e.g. one per book) are all imported, in project order.
+    // kindling has one manuscript, so each root becomes a part named after it and
+    // chapters never run across a root boundary.
+    let novel_roots = ordered
         .iter()
-        .find(|i| i.item_type == "ROOT" && i.class == "NOVEL")
-        .map(|i| i.handle.as_str());
+        .filter(|i| i.item_type == "ROOT" && i.class == "NOVEL")
+        .count();
     let mut chapter_id = None;
     let mut part_handle: Option<String> = None;
     let mut tags: HashMap<String, (String, Uuid)> = HashMap::new();
     let mut links = Vec::new();
     for item in ordered {
+        if item.item_type == "ROOT" && item.class == "NOVEL" {
+            chapter_id = None;
+            part_handle = None;
+            if novel_roots > 1 {
+                parsed.chapters.push(
+                    Chapter::new(
+                        parsed.project.id,
+                        item.name.clone(),
+                        parsed.chapters.len() as i32,
+                    )
+                    .with_source_id(Some(stable_handle(&format!("{}:part", item.handle))))
+                    .with_is_part(true),
+                );
+            }
+            continue;
+        }
         let root = doc.items.iter().find(|r| r.handle == item.root).unwrap();
         if item.item_type != "FILE"
             || ["ARCHIVE", "TRASH", "TEMPLATE"].contains(&root.class.as_str())
         {
-            continue;
-        }
-        if root.class == "NOVEL" && Some(root.handle.as_str()) != novel_root {
             continue;
         }
         let modern = path.join("content").join(format!("{}.md", item.handle));
@@ -106,69 +149,72 @@ pub fn parse_novelwriter_project(path: &Path) -> Result<ParsedNovelWriter, Novel
         })?;
         let body = read_document(&text)?.body;
         if root.class == "NOVEL" && item.layout != "NOTE" {
-            let heading = body.lines().find_map(heading);
-            let (level, title) = heading.unwrap_or_else(|| {
-                (
-                    item.heading
-                        .strip_prefix('H')
-                        .and_then(|n| n.parse().ok())
-                        .unwrap_or(3),
-                    item.name.clone(),
-                )
-            });
-            if (1..=2).contains(&level) {
-                let ch = Chapter::new(parsed.project.id, title, parsed.chapters.len() as i32)
-                    .with_source_id(Some(item.handle.clone()))
-                    .with_is_part(level == 1);
-                chapter_id = (level == 2).then_some(ch.id);
-                if level == 1 {
-                    part_handle = Some(item.handle.clone());
-                }
-                parsed.chapters.push(ch);
-                // Heading documents may carry prose (common in native projects).
-                // Preserve it in a child scene instead of silently dropping it.
-                let content = scene_content(&body);
-                if content.1.iter().all(|(_, p)| p.trim().is_empty()) {
-                    continue;
-                }
-                if level == 1 {
-                    let ch = Chapter::new(
-                        parsed.project.id,
-                        item.name.clone(),
-                        parsed.chapters.len() as i32,
-                    )
-                    .with_source_id(Some(stable_handle(&format!("{}:chapter", item.handle))));
-                    chapter_id = Some(ch.id);
-                    parsed.chapters.push(ch);
-                }
-                add_scene(
-                    &mut parsed,
-                    item,
-                    chapter_id.unwrap(),
-                    item.name.clone(),
-                    &body,
-                    &mut links,
-                    true,
-                );
+            let sections = if unsplit.contains(&item.handle) {
+                vec![body.clone()]
             } else {
-                let id = if let Some(id) = chapter_id {
-                    id
+                parsed.per_heading_documents.push(item.handle.clone());
+                sections(&body)
+            };
+            let mut split = SplitDocument {
+                handle: item.handle.clone(),
+                first: vec![],
+                later: vec![],
+            };
+            for (n, body) in sections.into_iter().enumerate() {
+                // The first section keeps the document handle, so existing sync
+                // identities survive; later headings get stable derived handles.
+                let handle = if n == 0 {
+                    item.handle.clone()
                 } else {
-                    let ch = Chapter::new(
-                        parsed.project.id,
-                        "Manuscript".into(),
-                        parsed.chapters.len() as i32,
-                    )
-                    .with_source_id(Some(stable_handle(&format!(
-                        "{}:chapter",
-                        part_handle.as_deref().unwrap_or(&item.root)
-                    ))));
-                    let id = ch.id;
-                    parsed.chapters.push(ch);
-                    chapter_id = Some(id);
-                    id
+                    stable_handle(&format!("{}:section:{n}", item.handle))
                 };
-                add_scene(&mut parsed, item, id, title, &body, &mut links, false);
+                let (level, title) = body.lines().find_map(heading).unwrap_or_else(|| {
+                    (
+                        item.heading
+                            .strip_prefix('H')
+                            .and_then(|n| n.parse().ok())
+                            .unwrap_or(3),
+                        item.name.clone(),
+                    )
+                });
+                // Derived part-chapters and prose scenes are named after the
+                // document; later sections are named after their own heading.
+                let name = if n == 0 {
+                    item.name.clone()
+                } else {
+                    title.clone()
+                };
+                // The shared "Manuscript" chapter is not this document's.
+                let shared = stable_handle(&format!(
+                    "{}:chapter",
+                    part_handle.as_deref().unwrap_or(&item.root)
+                ));
+                let (chapters, scenes) = (parsed.chapters.len(), parsed.scenes.len());
+                novel_section(
+                    &mut parsed,
+                    (&handle, item),
+                    (level, title, name),
+                    &body,
+                    (&mut chapter_id, &mut part_handle),
+                    &mut links,
+                );
+                let made = parsed.chapters[chapters..]
+                    .iter()
+                    .filter_map(|c| c.source_id.clone())
+                    .chain(
+                        parsed.scenes[scenes..]
+                            .iter()
+                            .filter_map(|s| s.source_id.clone()),
+                    )
+                    .filter(|id| *id != shared);
+                if n == 0 {
+                    split.first.extend(made);
+                } else {
+                    split.later.extend(made);
+                }
+            }
+            if !split.later.is_empty() {
+                parsed.split_documents.push(split);
             }
         } else {
             let mut description = Vec::new();
@@ -282,6 +328,88 @@ fn heading(line: &str) -> Option<(usize, String)> {
     let rest = line[n..].trim_start_matches('!');
     rest.starts_with(' ').then(|| (n, rest.trim().into()))
 }
+/// novelWriter lets one document hold several headings (a chapter and its
+/// scenes, or several scenes). Each heading after the first starts its own
+/// section; text before the first heading stays with it, as it always has.
+fn sections(body: &str) -> Vec<String> {
+    let mut out: Vec<String> = vec![];
+    let mut current: Vec<&str> = vec![];
+    let mut seen_heading = false;
+    for line in body.lines() {
+        if heading(line).is_some() {
+            if seen_heading {
+                out.push(current.join("\n"));
+                current.clear();
+            }
+            seen_heading = true;
+        }
+        current.push(line);
+    }
+    out.push(current.join("\n"));
+    out
+}
+/// One heading's worth of a Novel document: a part, a chapter or a scene.
+fn novel_section(
+    parsed: &mut ParsedNovelWriter,
+    (handle, item): (&str, &NwItem),
+    (level, title, name): (usize, String, String),
+    body: &str,
+    (chapter_id, part_handle): (&mut Option<Uuid>, &mut Option<String>),
+    links: &mut Vec<(Uuid, String, String)>,
+) {
+    if (1..=2).contains(&level) {
+        let ch = Chapter::new(
+            parsed.project.id,
+            title.clone(),
+            parsed.chapters.len() as i32,
+        )
+        .with_source_id(Some(handle.into()))
+        .with_is_part(level == 1);
+        *chapter_id = (level == 2).then_some(ch.id);
+        if level == 1 {
+            *part_handle = Some(handle.into());
+        }
+        parsed.chapters.push(ch);
+        // Heading documents may carry prose (common in native projects).
+        // Preserve it in a child scene instead of silently dropping it.
+        let content = scene_content(body);
+        if content.1.iter().all(|(_, p)| p.trim().is_empty()) {
+            return;
+        }
+        if level == 1 {
+            let ch = Chapter::new(
+                parsed.project.id,
+                name.clone(),
+                parsed.chapters.len() as i32,
+            )
+            .with_source_id(Some(stable_handle(&format!("{handle}:chapter"))));
+            *chapter_id = Some(ch.id);
+            parsed.chapters.push(ch);
+        }
+        let derived = stable_handle(&format!("{handle}:prose"));
+        let chapter = chapter_id.unwrap();
+        add_scene(parsed, (&derived, item), chapter, name, body, links);
+    } else {
+        let id = if let Some(id) = *chapter_id {
+            id
+        } else {
+            let ch = Chapter::new(
+                parsed.project.id,
+                "Manuscript".into(),
+                parsed.chapters.len() as i32,
+            )
+            .with_source_id(Some(stable_handle(&format!(
+                "{}:chapter",
+                part_handle.as_deref().unwrap_or(&item.root)
+            ))));
+            let id = ch.id;
+            parsed.chapters.push(ch);
+            *chapter_id = Some(id);
+            id
+        };
+        add_scene(parsed, (handle, item), id, title, body, links);
+    }
+}
 fn scene_content(body: &str) -> (bool, Vec<(String, String)>, Option<String>) {
     let mut marked = false;
     let mut segments: Vec<(String, String)> = vec![];
@@ -315,19 +443,14 @@ fn scene_content(body: &str) -> (bool, Vec<(String, String)>, Option<String>) {
 }
 fn add_scene(
     parsed: &mut ParsedNovelWriter,
-    item: &NwItem,
+    (handle, item): (&str, &NwItem),
     chapter: Uuid,
     title: String,
     body: &str,
     links: &mut Vec<(Uuid, String, String)>,
-    derived: bool,
 ) {
     let (marked, segments, synopsis) = scene_content(body);
-    let handle = if derived {
-        stable_handle(&format!("{}:prose", item.handle))
-    } else {
-        item.handle.clone()
-    };
+    let handle = handle.to_string();
     let position = parsed
         .scenes
         .iter()
