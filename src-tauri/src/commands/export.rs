@@ -960,7 +960,18 @@ fn build_epub_content_opf(
     )
 }
 
-/// Count the same active prose representation shown in the writing sidebar.
+/// The chapter's scenes that belong in a manuscript export, in order (see
+/// `Scene::in_manuscript`). Shared by the classic DOCX and EPUB exporters.
+fn manuscript_scenes(conn: &rusqlite::Connection, chapter_id: &Uuid) -> Result<Vec<Scene>, String> {
+    Ok(db::queries::get_scenes(conn, chapter_id)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter(Scene::in_manuscript)
+        .collect())
+}
+
+/// Count the manuscript's words (the scenes a manuscript export includes), using
+/// the same active prose representation shown in the writing sidebar.
 fn calculate_project_word_count(
     conn: &rusqlite::Connection,
     project_uuid: &Uuid,
@@ -972,7 +983,7 @@ fn calculate_project_word_count(
     for chapter in chapters.iter().filter(|c| !c.archived) {
         let scenes = db::queries::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
 
-        for scene in scenes.iter().filter(|s| !s.archived) {
+        for scene in scenes.iter().filter(|s| s.in_manuscript()) {
             total_words +=
                 db::writing::scene_words(conn, &scene.id).map_err(|e| e.to_string())? as usize;
         }
@@ -1706,7 +1717,7 @@ fn export_to_markdown_with_connection(
 
                 let mut scene_num = 0;
                 for scene in &scenes {
-                    if scene.archived {
+                    if !scene.in_manuscript() {
                         continue;
                     }
                     scene_num += 1;
@@ -1776,7 +1787,7 @@ fn export_to_markdown_with_connection(
 
             let mut scene_num = 0;
             for scene in &scenes {
-                if scene.archived {
+                if !scene.in_manuscript() {
                     continue;
                 }
                 scene_num += 1;
@@ -1836,7 +1847,9 @@ fn export_to_markdown_with_connection(
 
             let mut scene_num = 0;
             for sc in &all_scenes {
-                if !sc.archived {
+                // Number like a project export; an explicitly chosen Notes,
+                // To-do or Unused scene is still exported.
+                if sc.in_manuscript() || sc.id == scene.id {
                     scene_num += 1;
                     if sc.id == scene.id {
                         break;
@@ -2680,7 +2693,7 @@ fn add_chapter_to_docx(
     }
 
     // Add scenes with separators between them
-    let active_scenes: Vec<&Scene> = scenes.iter().filter(|s| !s.archived).collect();
+    let active_scenes: Vec<&Scene> = scenes.iter().filter(|s| s.in_manuscript()).collect();
     for (i, scene) in active_scenes.iter().enumerate() {
         let is_first_scene = i == 0;
 
@@ -3051,10 +3064,7 @@ pub async fn export_to_docx(
                     // Regular chapters get numbered
                     chapter_number += 1;
 
-                    let scenes =
-                        db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
-                    let active_scenes: Vec<Scene> =
-                        scenes.into_iter().filter(|s| !s.archived).collect();
+                    let active_scenes = manuscript_scenes(&conn, &chapter.id)?;
 
                     // Fetch beats for each scene
                     for scene in &active_scenes {
@@ -3097,8 +3107,7 @@ pub async fn export_to_docx(
                 .map(|pos| pos + 1) // Convert 0-indexed to 1-indexed
                 .unwrap_or(1);
 
-            let scenes = db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
-            let active_scenes: Vec<Scene> = scenes.into_iter().filter(|s| !s.archived).collect();
+            let active_scenes = manuscript_scenes(&conn, &chapter.id)?;
 
             let mut beats_by_scene: std::collections::HashMap<Uuid, Vec<Beat>> =
                 std::collections::HashMap::new();
@@ -3250,10 +3259,7 @@ pub async fn export_to_epub(
                 db::queries::get_chapters(&conn, &project_uuid).map_err(|e| e.to_string())?;
 
             for chapter in chapters.into_iter().filter(|c| !c.archived) {
-                let scenes =
-                    db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
-                let active_scenes: Vec<Scene> =
-                    scenes.into_iter().filter(|s| !s.archived).collect();
+                let active_scenes = manuscript_scenes(&conn, &chapter.id)?;
                 scenes_exported += active_scenes.len();
                 chapters_exported += 1;
                 chapter_exports.push((chapter, active_scenes));
@@ -3265,8 +3271,7 @@ pub async fn export_to_epub(
                 .map_err(|e| e.to_string())?
                 .ok_or_else(|| format!("Chapter not found: {}", chapter_id))?;
 
-            let scenes = db::queries::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
-            let active_scenes: Vec<Scene> = scenes.into_iter().filter(|s| !s.archived).collect();
+            let active_scenes = manuscript_scenes(&conn, &chapter.id)?;
 
             scenes_exported = active_scenes.len();
             chapters_exported = 1;
@@ -7130,6 +7135,101 @@ mod tests {
             .unwrap();
         let chapters = db::queries::get_chapters(conn, &project_id).unwrap();
         (project, chapters)
+    }
+
+    /// The Scrivener fixture's chapter plus a Notes, a To-do and an Unused
+    /// scene, each with prose that must never reach a manuscript.
+    fn manuscript_fixture(conn: &rusqlite::Connection) -> (Project, Chapter) {
+        let (project, chapters) = scriv_create_fixture(conn);
+        let chapter = chapters.into_iter().next().unwrap();
+        for (i, kind) in ["notes", "todo", "unused"].into_iter().enumerate() {
+            conn.execute(
+                "INSERT INTO scenes (id, chapter_id, title, prose, position, archived, scene_type, editor_mode) VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, 'page')",
+                rusqlite::params![
+                    Uuid::new_v4().to_string(),
+                    chapter.id.to_string(),
+                    format!("Planning {kind}"),
+                    format!("<p>Planning words for {kind}.</p>"),
+                    i as i32 + 1,
+                    kind
+                ],
+            )
+            .unwrap();
+        }
+        (project, chapter)
+    }
+
+    #[test]
+    fn test_manuscript_exports_skip_notes_todo_and_unused_scenes() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let (project, chapter) = manuscript_fixture(&conn);
+
+        // The selection DOCX and EPUB share.
+        let titles: Vec<_> = manuscript_scenes(&conn, &chapter.id)
+            .unwrap()
+            .into_iter()
+            .map(|s| s.title)
+            .collect();
+        assert_eq!(titles, ["Opening"]);
+
+        // Title-page / dialog word count: only "Hello."
+        assert_eq!(calculate_project_word_count(&conn, &project.id).unwrap(), 1);
+
+        // DOCX chapter rendering, even when handed every scene.
+        let all_scenes = db::queries::get_scenes(&conn, &chapter.id).unwrap();
+        let docx = add_chapter_to_docx(
+            Docx::new(),
+            &chapter,
+            1,
+            &all_scenes,
+            &HashMap::new(),
+            &default_test_options(),
+            true,
+        );
+        let mut buffer = Vec::new();
+        pack_docx(docx, std::io::Cursor::new(&mut buffer)).unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(buffer)).unwrap();
+        let mut xml = String::new();
+        std::io::Read::read_to_string(&mut archive.by_name("word/document.xml").unwrap(), &mut xml)
+            .unwrap();
+        assert!(xml.contains("Hello."), "{xml}");
+        assert!(!xml.contains("Planning"), "planning scene in DOCX: {xml}");
+
+        // Markdown project export.
+        let out = tempfile::tempdir().unwrap();
+        let mut options = MarkdownExportOptions {
+            scope: ExportScope::Project,
+            output_path: out.path().to_string_lossy().into(),
+            export_name: Some("Book".into()),
+            delete_existing: false,
+            create_snapshot: false,
+            include_beat_markers: false,
+        };
+        let result =
+            export_to_markdown_with_connection(&conn, project.id, options.clone()).unwrap();
+        assert_eq!(result.scenes_exported, 1);
+        let written: Vec<_> = walkdir::WalkDir::new(out.path())
+            .into_iter()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|n| n.ends_with(".md"))
+            .collect();
+        assert_eq!(written, ["01 - Opening.md"]);
+
+        // A planning scene the writer explicitly chooses is still exported.
+        let notes = all_scenes
+            .iter()
+            .find(|s| s.title == "Planning notes")
+            .unwrap();
+        options.scope = ExportScope::Scene(notes.id.to_string());
+        options.export_name = Some("One scene".into());
+        let result = export_to_markdown_with_connection(&conn, project.id, options).unwrap();
+        assert_eq!(result.scenes_exported, 1);
+        let file = PathBuf::from(result.output_path)
+            .join("01 - Chapter 1")
+            .join("02 - Planning notes.md");
+        assert!(fs::read_to_string(file)
+            .unwrap()
+            .contains("Planning words for notes."));
     }
 
     /// Every path under `root` with its bytes (directories map to empty).
