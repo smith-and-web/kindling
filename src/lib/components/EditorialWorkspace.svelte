@@ -757,8 +757,15 @@
       });
     } else await close();
   }
-  async function action(work: () => Promise<void>) {
-    if (busy) return false;
+  /** Settles when the action under way (if any) has finished. */
+  let idle: Promise<unknown> = Promise.resolve();
+  function action(work: () => Promise<void>) {
+    if (busy) return Promise.resolve(false);
+    const run = perform(work);
+    idle = run.catch(() => false);
+    return run;
+  }
+  async function perform(work: () => Promise<void>) {
     busy = true;
     error = "";
     notice = "";
@@ -773,6 +780,16 @@
     } finally {
       busy = false;
     }
+  }
+
+  /** Draft history always closes at once, busy or not. Saved drafts and status
+      changes are then reloaded, after any work already under way so the two
+      can't interleave; a failed reload shows in the workspace's error notice
+      rather than trapping the writer in the dialog. */
+  async function closeHistory() {
+    showHistory = false;
+    while (busy) await idle;
+    await action(loadLocalScenes);
   }
 
   export async function openFile(path?: string) {
@@ -1822,12 +1839,7 @@
           await onManuscriptChanged();
         });
       }}
-      onClose={() => {
-        void action(async () => {
-          await loadLocalScenes();
-          showHistory = false;
-        });
-      }}
+      onClose={() => void closeHistory()}
     />{/if}
 </section>
 

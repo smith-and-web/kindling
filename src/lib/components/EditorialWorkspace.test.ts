@@ -680,6 +680,73 @@ describe("editorial workspace", () => {
     await fireEvent.click(view.getByRole("button", { name: "Close review" }));
     await waitFor(() => expect(view.component.isOpen()).toBe(false));
   });
+  it("closes draft history while a restore is still reloading, then reloads once that finishes", async () => {
+    localReview.data.drafts = [
+      {
+        name: "First pass",
+        created_at: "2026-01-01",
+        mode: "page",
+        documents: [{ id: "s", label: "Page", html: "<p>An earlier letter.</p>" }],
+      },
+    ];
+    const original = vi.mocked(invoke).getMockImplementation()!;
+    let hold = false;
+    let release!: () => void;
+    const sources = () =>
+      vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === "editorial_sources").length;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === "editorial_sources" && hold) {
+        hold = false;
+        await new Promise<void>((resolve) => (release = resolve));
+      }
+      return original(cmd, args);
+    });
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openLocal("project", "s");
+    await fireEvent.click(view.getByLabelText("Manuscript actions"));
+    await fireEvent.click(view.getByRole("menuitem", { name: "Draft history" }));
+    await fireEvent.click(await view.findByRole("button", { name: /Restore selected draft/ }));
+    hold = true;
+    await fireEvent.click(view.getByRole("button", { name: /Restore and preserve current prose/ }));
+    // The restore's own reload is now in flight, so the workspace is busy.
+    await waitFor(() => expect(release).toBeTypeOf("function"));
+    const during = sources();
+    await fireEvent.click(view.getByRole("button", { name: "Close Draft history" }));
+    await waitFor(() => expect(view.queryByRole("dialog")).toBeNull());
+    // Closing waits for the reload under way rather than racing it…
+    expect(sources()).toBe(during);
+    release();
+    // …then reloads the saved drafts once more.
+    await waitFor(() => expect(sources()).toBe(during + 1));
+    expect(view.queryByRole("alert")).toBeNull();
+  });
+  it("closes draft history with Escape even when reloading the manuscript fails", async () => {
+    const original = vi.mocked(invoke).getMockImplementation()!;
+    let fail = false;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === "editorial_sources" && fail) throw new Error("database is locked");
+      return original(cmd, args);
+    });
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openLocal("project", "s");
+    await fireEvent.click(view.getByLabelText("Manuscript actions"));
+    await fireEvent.click(view.getByRole("menuitem", { name: "Draft history" }));
+    const dialog = await view.findByRole("dialog");
+    await view.findByLabelText("Draft name");
+    fail = true;
+    await fireEvent(dialog, new Event("cancel", { cancelable: true }));
+    await waitFor(() => expect(view.queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(view.getByRole("alert").textContent).toContain("database is locked")
+    );
+    // The workspace stays usable: history opens again once the reload recovers.
+    fail = false;
+    await fireEvent.click(view.getByLabelText("Manuscript actions"));
+    await fireEvent.click(view.getByRole("menuitem", { name: "Draft history" }));
+    await fireEvent.click(await view.findByRole("button", { name: "Close Draft history" }));
+    await waitFor(() => expect(view.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(view.queryByRole("alert")).toBeNull());
+  });
   it("resumes separate saved suggestions in a substantial scene without changing their identities", async () => {
     const bookSource = {
       ...source,
