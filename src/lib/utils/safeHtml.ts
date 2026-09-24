@@ -7,6 +7,22 @@ export function escapeHtml(text: string): string {
   );
 }
 
+/** Parse untrusted HTML without activating it. Markup parsed into an element of the live
+ * document, even a detached one, is live: an `<img onerror>` fetches and runs its handler.
+ * The template contents document has no browsing context, so nothing loads or runs, and
+ * `innerHTML` reads back exactly as it would from a div. Never mount the result. */
+export function inertElement(html: string): HTMLDivElement {
+  const root = document.createElement("template").content.ownerDocument.createElement("div");
+  root.innerHTML = html;
+  return root;
+}
+
+/** Links in imported or reviewed prose are data. One without a target (or targeting
+ * `_top`) would navigate the app's own window away, so a click on one is never followed. */
+export function holdLinkClick(event: MouseEvent): void {
+  if (event.target instanceof Element && event.target.closest("a[href]")) event.preventDefault();
+}
+
 /** Rebuild an inert prose subset. Never put imported attributes or executable markup in a preview. */
 export function safeProse(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");

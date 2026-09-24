@@ -1,4 +1,6 @@
 /** Search visible text, never HTML tags/attributes; retain the original DOM when replacing. */
+import { inertElement } from "./safeHtml";
+
 export interface SearchOptions {
   caseSensitive: boolean;
   wholeWord: boolean;
@@ -24,8 +26,7 @@ export interface ProseReplacement {
 }
 
 function parseProse(html: string) {
-  const root = document.createElement("div");
-  root.innerHTML = html;
+  const root = inertElement(html);
   let text = "";
   const nodes: { node: Text; start: number }[] = [];
   function walk(node: Node) {

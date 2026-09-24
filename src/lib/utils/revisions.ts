@@ -4,9 +4,13 @@ import TextAlign from "@tiptap/extension-text-align";
 import { DOMParser as ProseParser, DOMSerializer } from "@tiptap/pm/model";
 import { Transform } from "@tiptap/pm/transform";
 import type { EditorMode } from "../types";
+import { inertElement } from "./safeHtml";
 
 export const reviewExtensions = [
   StarterKit.configure({
+    // A review package sets each link's target, and window.open(href, "_top") would
+    // navigate the app's window. The editor holds link clicks instead (holdLinkClick).
+    link: { openOnClick: false },
     heading: false,
     bulletList: false,
     orderedList: false,
@@ -71,9 +75,7 @@ export const revisionStatuses = {
 };
 
 export function parseReviewHtml(html: string) {
-  const root = document.createElement("div");
-  root.innerHTML = html;
-  return ProseParser.fromSchema(schema).parse(root);
+  return ProseParser.fromSchema(schema).parse(inertElement(html));
 }
 
 export function draftOf(review: SceneReview, name: string): ReviewDraft {

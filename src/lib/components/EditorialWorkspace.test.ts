@@ -238,6 +238,38 @@ describe("editorial workspace", () => {
     expect(restored).toBeGreaterThan(1000);
     expect(pane.scrollTop).toBe(restored);
   });
+  it.each([false, true])(
+    "never follows a reviewed link out of the app (read-only: %s)",
+    async (readonly) => {
+      const linked = {
+        ...source,
+        html: '<p><a href="https://example.com/elsewhere" target="_top">Eleanor</a> opened it.</p>',
+      };
+      const open = vi.spyOn(window, "open").mockReturnValue(null);
+      render(EditorialManuscript, {
+        sources: [linked],
+        initial: manuscript([linked]).toJSON(),
+        readonly,
+        onChange: vi.fn(),
+        onSelection: vi.fn(),
+        onComment: vi.fn(),
+        onError: vi.fn(),
+        onAnnotation: vi.fn(),
+        onReadingPosition: vi.fn(),
+      });
+      const link = document.querySelector(".editorial-prose a")!;
+      expect(link.getAttribute("target")).toBe("_top");
+      const event = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+      link.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      // ProseMirror delivers the same click to every handleClick prop, including TipTap's
+      // link plugin, which would call window.open(href, "_top") and replace the app.
+      const view = editor().view;
+      view.someProp("handleClick", (handle) => handle(view, 2, event));
+      expect(open).not.toHaveBeenCalled();
+      open.mockRestore();
+    }
+  );
   it("scrolls the read-only manuscript to feedback selected in the sidebar", async () => {
     const original = vi.mocked(invoke).getMockImplementation()!;
     vi.mocked(invoke).mockImplementation((cmd, args) =>

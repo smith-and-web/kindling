@@ -3,6 +3,7 @@ import { ChangeSet, type Change as TrackedChange } from "@tiptap/pm/changeset";
 import { DOMParser, DOMSerializer, Fragment, Node, Slice } from "@tiptap/pm/model";
 import { Mapping, StepMap, Transform } from "@tiptap/pm/transform";
 import { reviewExtensions } from "./revisions";
+import { inertElement } from "./safeHtml";
 import type { EditorMode } from "../types";
 
 export interface EditorialSource {
@@ -163,9 +164,8 @@ export function manuscript(sources: EditorialSource[]): Node {
   if (cached) return cached;
   const blocks: Node[] = [];
   for (const source of sources) {
-    const root = document.createElement("div");
-    root.innerHTML = source.html;
-    const parsed = DOMParser.fromSchema(editorialSchema).parse(root);
+    // Runs before package validation, so the HTML must not be activated while parsing.
+    const parsed = DOMParser.fromSchema(editorialSchema).parse(inertElement(source.html));
     parsed.forEach((node) => blocks.push(own(node, source.id)));
   }
   const result = editorialSchema.node(
