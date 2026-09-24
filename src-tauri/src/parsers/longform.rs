@@ -1610,7 +1610,8 @@ fn reference_type_for_kind(kind: ReferenceKind) -> Option<&'static str> {
 }
 
 /// Apply a Dataview field Kindling understands. Returns `false` for keys it
-/// does not map, leaving the context untouched.
+/// does not map, leaving the context untouched. A mapped key returns `true`
+/// even when Kindling metadata locks it, so the line is still metadata.
 fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_>) -> bool {
     let normalized_key = key.trim().to_lowercase();
     match normalized_key.as_str() {
@@ -1744,9 +1745,11 @@ fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_
                 *context.scene_status = parse_obsidian_status(value);
             }
         }
-        "synopsis" if !context.synopsis_locked => {
-            if let Some(text) = normalize_block(value) {
-                *context.synopsis = Some(text);
+        "synopsis" => {
+            if !context.synopsis_locked {
+                if let Some(text) = normalize_block(value) {
+                    *context.synopsis = Some(text);
+                }
             }
         }
         _ => return false,
@@ -2759,6 +2762,22 @@ Night falls:: the long wait begins.\n\
         let scene = parse_scene_body("setting::[[~Dock]]\nPOV :: Zoe\nmood::\n\nBody.");
         assert_eq!(scene.locations, vec!["Dock".to_string()]);
         assert_eq!(scene.characters, vec!["Zoe".to_string()]);
+        assert_eq!(scene.prose.as_deref(), Some("Body."));
+    }
+
+    #[test]
+    fn test_parse_scene_body_locked_field_is_still_metadata() {
+        // A recognised key ignored because Kindling metadata locks it is still a
+        // field line, with or without a space after `::`.
+        let scene = parse_scene_body(
+            "<!-- kindling: scene_status=final synopsis=\"Locked\" -->\n\
+synopsis::Unspaced override\n\
+status::draft\n\
+\n\
+Body.",
+        );
+        assert_eq!(scene.synopsis.as_deref(), Some("Locked"));
+        assert_eq!(scene.scene_status, SceneStatus::Final);
         assert_eq!(scene.prose.as_deref(), Some("Body."));
     }
 
