@@ -458,7 +458,9 @@ fn blocks(html: &str) -> Vec<&str> {
 /// Builds the accepted prose from novelWriter's text while keeping kindling's
 /// HTML for every block whose text novelWriter left unchanged. novelWriter
 /// cannot express underline, alignment or lists, so rebuilding the whole field
-/// from its text would silently strip them from untouched paragraphs.
+/// from its text would silently strip them from untouched paragraphs. Blocks
+/// with no text (an `<hr>` left between former beats, an empty paragraph) are
+/// structure novelWriter never saw, so they stay where they are.
 fn merge_prose(local_html: &str, incoming: &str) -> String {
     let incoming: Vec<&str> = incoming
         .split("\n\n")
@@ -471,42 +473,67 @@ fn merge_prose(local_html: &str, incoming: &str) -> String {
             let paragraphs = nw.split("\n\n").filter(|p| !p.is_empty());
             (b, paragraphs.map(str::to_string).collect::<Vec<_>>())
         })
-        .filter(|(_, p)| !p.is_empty())
         .collect();
-    // best[i][j]: most incoming paragraphs covered by keeping whole local blocks
-    // i.. in order against incoming paragraphs j..
-    let (n, m) = (local.len(), incoming.len());
-    let fits = |i: usize, j: usize| {
-        let p = &local[i].1;
+    let text: Vec<usize> = (0..local.len())
+        .filter(|&i| !local[i].1.is_empty())
+        .collect();
+    // best[t][j]: most incoming paragraphs covered by keeping whole text blocks
+    // t.. in order against incoming paragraphs j..
+    let (n, m) = (text.len(), incoming.len());
+    let size = |t: usize| local[text[t]].1.len();
+    let fits = |t: usize, j: usize| {
+        let p = &local[text[t]].1;
         j + p.len() <= m && p.iter().zip(&incoming[j..]).all(|(a, b)| a == b)
     };
     let mut best = vec![vec![0usize; m + 1]; n + 1];
-    for i in (0..n).rev() {
+    for t in (0..n).rev() {
         for j in (0..=m).rev() {
-            let mut score = best[i + 1][j];
+            let mut score = best[t + 1][j];
             if j < m {
-                score = score.max(best[i][j + 1]);
+                score = score.max(best[t][j + 1]);
             }
-            if fits(i, j) {
-                score = score.max(local[i].1.len() + best[i + 1][j + local[i].1.len()]);
+            if fits(t, j) {
+                score = score.max(size(t) + best[t + 1][j + size(t)]);
             }
-            best[i][j] = score;
+            best[t][j] = score;
         }
     }
-    let mut out = String::new();
-    let (mut i, mut j) = (0, 0);
-    while j < m {
-        if i < n && fits(i, j) && best[i][j] == local[i].1.len() + best[i + 1][j + local[i].1.len()]
-        {
-            out.push_str(local[i].0);
-            j += local[i].1.len();
-            i += 1;
-        } else if i < n && best[i][j] == best[i + 1][j] {
-            i += 1;
+    // Kept blocks, as (block index, first incoming paragraph it covers).
+    let mut kept = vec![];
+    let (mut t, mut j) = (0, 0);
+    while t < n && j < m {
+        if fits(t, j) && best[t][j] == size(t) + best[t + 1][j + size(t)] {
+            kept.push((text[t], j));
+            j += size(t);
+            t += 1;
+        } else if best[t][j] == best[t + 1][j] {
+            t += 1;
         } else {
-            out.push_str(&nw_to_html(incoming[j]));
             j += 1;
         }
+    }
+    kept.push((local.len(), m));
+    // Between kept blocks, each dropped text block gives its place to the next
+    // incoming paragraph; paragraphs left over follow the segment.
+    let mut out = String::new();
+    let (mut block, mut next) = (0, 0);
+    for (keep, from) in kept {
+        for (html, paragraphs) in &local[block..keep] {
+            if paragraphs.is_empty() {
+                out.push_str(html);
+            } else if next < from {
+                out.push_str(&nw_to_html(incoming[next]));
+                next += 1;
+            }
+        }
+        for paragraph in &incoming[next..from] {
+            out.push_str(&nw_to_html(paragraph));
+        }
+        if keep < local.len() {
+            out.push_str(local[keep].0);
+            next = from + local[keep].1.len();
+        }
+        block = keep + 1;
     }
     out
 }
@@ -1262,6 +1289,42 @@ mod tests {
             "<p><u>A</u></p><p>B2</p><ul><li><p>C</p></li></ul><p>D</p>"
         );
         assert_eq!(merge_prose("<p><u>A</u></p><p>B</p>", "B"), "<p>B</p>");
+    }
+
+    #[test]
+    fn accepted_page_prose_keeps_the_separators_between_former_beats() {
+        let (conn, project, _temp) = imported();
+        let scene = db::get_all_project_scenes(&conn, &project.id)
+            .unwrap()
+            .remove(0);
+        // A Page View scene built from Beat View keeps an <hr> at each old beat.
+        let page = "<p>One.</p><hr><p>Two with a tpyo.</p><hr><p>Three.</p>";
+        conn.execute(
+            "UPDATE scenes SET editor_mode = 'page', prose = ?1 WHERE id = ?2",
+            [page, &scene.id.to_string()],
+        )
+        .unwrap();
+        let mut parsed = load(&conn, &project).unwrap();
+        parsed.scenes[0].prose = Some(nw_to_html("One.\n\nTwo with a typo.\n\nThree."));
+        let changes = preview(&conn, &project, &parsed).unwrap().changes;
+        assert_eq!(changes.len(), 1, "{changes:?}");
+        apply(&conn, &project, &parsed, &[changes[0].id.clone()], &[], &[]).unwrap();
+        let stored = db::get_all_project_scenes(&conn, &project.id).unwrap()[0]
+            .prose
+            .clone();
+        assert_eq!(
+            stored.as_deref(),
+            Some("<p>One.</p><hr><p>Two with a typo.</p><hr><p>Three.</p>")
+        );
+        assert!(preview(&conn, &project, &parsed)
+            .unwrap()
+            .changes
+            .is_empty());
+        // Empty paragraphs are structure too; a trailing one survives a removal.
+        assert_eq!(
+            merge_prose("<p>A</p><p></p><p>B</p><hr>", "A"),
+            "<p>A</p><p></p><hr>"
+        );
     }
 
     #[test]
