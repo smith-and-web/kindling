@@ -41,6 +41,8 @@
     CircleDashed,
     Filter,
     Settings,
+    ArrowUp,
+    ArrowDown,
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { session } from "../stores/session.svelte";
@@ -259,7 +261,8 @@
   let draggedElement: globalThis.HTMLElement | null = null;
   let currentDragOverElement: globalThis.HTMLElement | null = null;
 
-  // Hover state for showing action buttons
+  // Screen-reader announcement for keyboard moves (polite live region).
+  let moveAnnouncement = $state("");
 
   // Sync state (dialogs are now separate components)
   let loadingSyncPreview = $state(false);
@@ -958,37 +961,10 @@
     }
 
     if (draggedItem && dragOverId && draggedItem.id !== dragOverId) {
-      // Perform the reorder
       const items =
         draggedItem.type === "chapter" ? currentProject.chapters : currentProject.scenes;
-      const fromIndex = items.findIndex((item) => item.id === draggedItem!.id);
       const toIndex = items.findIndex((item) => item.id === dragOverId);
-
-      if (fromIndex !== -1 && toIndex !== -1) {
-        const newOrder = [...items];
-        const [moved] = newOrder.splice(fromIndex, 1);
-        newOrder.splice(toIndex, 0, moved);
-        const newIds = newOrder.map((item) => item.id);
-
-        try {
-          if (draggedItem.type === "chapter" && currentProject.value) {
-            await invoke("reorder_chapters", {
-              projectId: currentProject.value.id,
-              chapterIds: newIds,
-            });
-            currentProject.reorderChapters(newIds);
-          } else if (draggedItem.type === "scene" && currentProject.currentChapter) {
-            await invoke("reorder_scenes", {
-              chapterId: currentProject.currentChapter.id,
-              sceneIds: newIds,
-            });
-            currentProject.reorderScenes(newIds);
-          }
-        } catch (e) {
-          console.error("Failed to reorder:", e);
-          ui.showError(`Failed to reorder: ${String(e)}`);
-        }
-      }
+      if (toIndex !== -1) await moveOutlineItem(draggedItem.type, draggedItem.id, toIndex);
     }
 
     isDragging = false;
@@ -996,6 +972,56 @@
     dragOverId = null;
     draggedElement = null;
     currentDragOverElement = null;
+  }
+
+  /** Moves a chapter or scene to `toIndex` among its siblings; resolves true once saved. */
+  async function moveOutlineItem(
+    type: "chapter" | "scene",
+    id: string,
+    toIndex: number
+  ): Promise<boolean> {
+    const items = type === "chapter" ? currentProject.chapters : currentProject.scenes;
+    const fromIndex = items.findIndex((item) => item.id === id);
+    if (fromIndex === -1 || toIndex < 0 || toIndex >= items.length || fromIndex === toIndex)
+      return false;
+    const newOrder = [...items];
+    const [moved] = newOrder.splice(fromIndex, 1);
+    newOrder.splice(toIndex, 0, moved);
+    const newIds = newOrder.map((item) => item.id);
+    try {
+      if (type === "chapter" && currentProject.value) {
+        await invoke("reorder_chapters", {
+          projectId: currentProject.value.id,
+          chapterIds: newIds,
+        });
+        currentProject.reorderChapters(newIds);
+      } else if (type === "scene" && currentProject.currentChapter) {
+        await invoke("reorder_scenes", {
+          chapterId: currentProject.currentChapter.id,
+          sceneIds: newIds,
+        });
+        currentProject.reorderScenes(newIds);
+      } else {
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error("Failed to reorder:", e);
+      ui.showError(`Failed to reorder: ${String(e)}`);
+      return false;
+    }
+  }
+
+  /** Keyboard alternative to dragging: move one place, announce it, keep focus on the item. */
+  async function moveOneStep(type: "chapter" | "scene", item: Chapter | Scene, step: -1 | 1) {
+    const items = type === "chapter" ? currentProject.chapters : currentProject.scenes;
+    const toIndex = items.findIndex((i) => i.id === item.id) + step;
+    if (!(await moveOutlineItem(type, item.id, toIndex))) return;
+    moveAnnouncement = `Moved “${item.title}” ${step < 0 ? "up" : "down"}, to position ${toIndex + 1} of ${items.length}.`;
+    await tick();
+    document
+      .querySelector<HTMLElement>(`[data-outline-row="${item.id}"] [data-testid="menu-button"]`)
+      ?.focus({ preventScroll: true });
   }
 
   // === Sync ===
@@ -1100,6 +1126,9 @@
       (type === "scene" &&
         !!currentProject.chapters.find((c) => c.id === (item as Scene).chapter_id)?.locked);
     const isPart = type === "chapter" && "is_part" in item && (item as Chapter).is_part;
+    const siblings: (Chapter | Scene)[] =
+      type === "chapter" ? currentProject.chapters : currentProject.scenes;
+    const siblingIndex = siblings.findIndex((sibling) => sibling.id === item.id);
 
     return [
       {
@@ -1140,6 +1169,18 @@
         label: "Duplicate",
         icon: Copy,
         action: () => handleDuplicate(type, item.id),
+      },
+      {
+        label: "Move up",
+        icon: ArrowUp,
+        action: () => moveOneStep(type, item, -1),
+        disabled: isLocked || siblingIndex <= 0,
+      },
+      {
+        label: "Move down",
+        icon: ArrowDown,
+        action: () => moveOneStep(type, item, 1),
+        disabled: isLocked || siblingIndex === -1 || siblingIndex >= siblings.length - 1,
       },
       // Convert to Part/Chapter option (only for chapters)
       ...(type === "chapter"
@@ -1335,6 +1376,7 @@
   class:is-collapsed={ui.sidebarCollapsed}
   aria-label="Project outline sidebar"
 >
+  <p class="ka-sr" role="status" aria-live="polite">{moveAnnouncement}</p>
   {#if ui.sidebarCollapsed}
     <div class="sb-rail">
       <button
@@ -1518,6 +1560,7 @@
             <div
               data-testid="part-item"
               data-drag-chapter={part.id}
+              data-outline-row={part.id}
               class="sb-group sb-part"
               class:is-drop-target={dragOverId === part.id}
             >
@@ -1578,6 +1621,7 @@
                 <div
                   data-testid="chapter-item"
                   data-drag-chapter={chapter.id}
+                  data-outline-row={chapter.id}
                   class="sb-group"
                   class:is-drop-target={dragOverId === chapter.id}
                 >
@@ -1694,6 +1738,7 @@
                             <!-- svelte-ignore a11y_no_static_element_interactions -->
                             <div
                               data-testid="scene-item"
+                              data-outline-row={scene.id}
                               class="sb-row sb-scene"
                               class:is-selected={isSelected}
                               oncontextmenu={(e) => openContextMenu(e, "scene", scene)}
@@ -1950,6 +1995,7 @@
                             <!-- svelte-ignore a11y_no_static_element_interactions -->
                             <div
                               data-drag-scene={scene.id}
+                              data-outline-row={scene.id}
                               data-testid="scene-item"
                               class="sb-row sb-scene"
                               class:is-selected={isSelected}

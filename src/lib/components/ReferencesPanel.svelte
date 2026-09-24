@@ -4,7 +4,9 @@
   import { onMount, untrack } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import {
+    ArrowDown,
     ArrowDownAZ,
+    ArrowUp,
     Copy,
     ChevronDown,
     ChevronRight,
@@ -88,6 +90,8 @@
   let draggedId = $state<string | null>(null);
   let dragOverId = $state<string | null>(null);
   let isDragging = $state(false);
+  // Screen-reader announcement for keyboard moves (polite live region).
+  let moveAnnouncement = $state("");
   let editDialog = $state<{
     mode: "create" | "edit";
     referenceType: ReferenceTypeOption;
@@ -694,37 +698,9 @@
       currentDragOverElement.style.outline = "";
     }
 
-    if (draggedId && dragOverId && draggedId !== dragOverId && activeTab) {
-      if (referenceScene) {
-        const states = getSceneStatesForType(activeTab);
-        const fromIndex = states.findIndex((state) => state.reference_id === draggedId);
-        const toIndex = states.findIndex((state) => state.reference_id === dragOverId);
-        if (fromIndex !== -1 && toIndex !== -1) {
-          const nextStates = [...states];
-          const [moved] = nextStates.splice(fromIndex, 1);
-          nextStates.splice(toIndex, 0, moved);
-          const updates = nextStates.map((state, index) => ({
-            reference_id: state.reference_id,
-            position: index,
-            expanded: state.expanded,
-          }));
-          saveSceneReferenceState(activeTab, updates);
-        }
-      } else {
-        const items = [...(referencesByType[activeTab] ?? [])];
-        const fromIndex = items.findIndex((item) => item.id === draggedId);
-        const toIndex = items.findIndex((item) => item.id === dragOverId);
-        if (fromIndex !== -1 && toIndex !== -1) {
-          const [moved] = items.splice(fromIndex, 1);
-          items.splice(toIndex, 0, moved);
-          referencesByType = { ...referencesByType, [activeTab]: items };
-          if (activeTab === "characters") {
-            currentProject.setCharacters(items);
-          } else if (activeTab === "locations") {
-            currentProject.setLocations(items);
-          }
-        }
-      }
+    if (draggedId && dragOverId && draggedId !== dragOverId) {
+      const target = referenceOrder(dragOverId);
+      if (target) void moveReference(draggedId, target.index);
     }
 
     isDragging = false;
@@ -732,6 +708,54 @@
     dragOverId = null;
     draggedElement = null;
     currentDragOverElement = null;
+  }
+
+  /** The reorderable list a reference belongs to: the scene's links, or every reference. */
+  function referenceOrder(id: string): { index: number; count: number } | null {
+    if (!activeTab) return null;
+    const ids = referenceScene
+      ? getSceneStatesForType(activeTab).map((state) => state.reference_id)
+      : (referencesByType[activeTab] ?? []).map((item) => item.id);
+    const index = ids.indexOf(id);
+    return index === -1 ? null : { index, count: ids.length };
+  }
+
+  /** Moves a reference to `toIndex` in its list; resolves true once applied. */
+  async function moveReference(id: string, toIndex: number): Promise<boolean> {
+    const tab = activeTab;
+    const from = referenceOrder(id);
+    if (!tab || !from || toIndex < 0 || toIndex >= from.count || toIndex === from.index)
+      return false;
+    if (referenceScene) {
+      const nextStates = [...getSceneStatesForType(tab)];
+      const [moved] = nextStates.splice(from.index, 1);
+      nextStates.splice(toIndex, 0, moved);
+      const updates = nextStates.map((state, index) => ({
+        reference_id: state.reference_id,
+        position: index,
+        expanded: state.expanded,
+      }));
+      await saveSceneReferenceState(tab, updates);
+      return referenceOrder(id)?.index === toIndex;
+    }
+    const items = [...(referencesByType[tab] ?? [])];
+    const [moved] = items.splice(from.index, 1);
+    items.splice(toIndex, 0, moved);
+    referencesByType = { ...referencesByType, [tab]: items };
+    if (tab === "characters") {
+      currentProject.setCharacters(items);
+    } else if (tab === "locations") {
+      currentProject.setLocations(items);
+    }
+    return true;
+  }
+
+  /** Keyboard alternative to dragging: move one place and announce it. */
+  async function moveReferenceOneStep(reference: ReferenceItem, step: -1 | 1) {
+    const from = referenceOrder(reference.id);
+    if (!from || !(await moveReference(reference.id, from.index + step))) return;
+    const direction = step < 0 ? "up" : "down";
+    moveAnnouncement = `Moved “${reference.name}” ${direction}, to position ${from.index + step + 1} of ${from.count}.`;
   }
 
   // Resize handlers
@@ -829,6 +853,7 @@
   aria-label="References"
   style={embedded || collapsed ? undefined : `width: ${ui.referencesPanelWidth}px`}
 >
+  <p class="ka-sr" role="status" aria-live="polite">{moveAnnouncement}</p>
   {#if collapsed}
     <div class="refs-rail">
       <button
@@ -1205,6 +1230,29 @@
                     {/if}
 
                     <div class="refs-detail-actions">
+                      {#if canDrag}
+                        {@const order = referenceOrder(reference.id)}
+                        <button
+                          type="button"
+                          onclick={() => moveReferenceOneStep(reference, -1)}
+                          disabled={!order || order.index === 0}
+                          class="ka-button ka-button--ghost"
+                          aria-label="Move {reference.name} up"
+                        >
+                          <ArrowUp class="w-5 h-5" aria-hidden="true" />
+                          Move up
+                        </button>
+                        <button
+                          type="button"
+                          onclick={() => moveReferenceOneStep(reference, 1)}
+                          disabled={!order || order.index === order.count - 1}
+                          class="ka-button ka-button--ghost"
+                          aria-label="Move {reference.name} down"
+                        >
+                          <ArrowDown class="w-5 h-5" aria-hidden="true" />
+                          Move down
+                        </button>
+                      {/if}
                       <button
                         type="button"
                         onclick={() => openEditDialog(reference)}

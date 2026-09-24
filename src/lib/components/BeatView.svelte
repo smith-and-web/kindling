@@ -9,6 +9,8 @@
     MoreVertical,
     Trash2,
     Pencil,
+    ArrowUp,
+    ArrowDown,
   } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { proseSaves, type ProseSave } from "../utils/proseSaves";
@@ -58,6 +60,8 @@
   let changingBeats = $state(false);
   let editingBeatId: string | null = $state(null);
   let editingBeatContent = $state("");
+  // Screen-reader announcement for keyboard moves (polite live region).
+  let moveAnnouncement = $state("");
 
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   let pendingSaveBeatId: string | null = null;
@@ -378,6 +382,18 @@
         },
         disabled: !nextBeat,
       },
+      {
+        label: "Move up",
+        icon: ArrowUp,
+        action: () => moveBeatOneStep(beat, -1),
+        disabled: beatIndex <= 0,
+      },
+      {
+        label: "Move down",
+        icon: ArrowDown,
+        action: () => moveBeatOneStep(beat, 1),
+        disabled: !nextBeat,
+      },
       { label: "", divider: true, action: () => {} },
       {
         label: "Delete",
@@ -544,36 +560,61 @@
     if (currentDragOverBeatElement) {
       currentDragOverBeatElement.style.outline = "";
     }
-    if (
-      draggedBeatId &&
-      dragOverBeatId &&
-      draggedBeatId !== dragOverBeatId &&
-      currentProject.currentScene
-    ) {
-      const fromIndex = beats.findIndex((b) => b.id === draggedBeatId);
+    if (draggedBeatId && dragOverBeatId && draggedBeatId !== dragOverBeatId) {
       const toIndex = beats.findIndex((b) => b.id === dragOverBeatId);
-      if (fromIndex !== -1 && toIndex !== -1) {
-        const newOrder = [...beats];
-        const [moved] = newOrder.splice(fromIndex, 1);
-        newOrder.splice(toIndex, 0, moved);
-        const newIds = newOrder.map((b) => b.id);
-        try {
-          await invoke("reorder_beats", {
-            sceneId: currentProject.currentScene.id,
-            beatIds: newIds,
-          });
-          currentProject.reorderBeats(newIds);
-        } catch (e) {
-          console.error("Failed to reorder beats:", e);
-          ui.showError(`Failed to reorder beats: ${String(e)}`);
-        }
-      }
+      if (toIndex !== -1) await moveBeat(draggedBeatId, toIndex);
     }
     isDraggingBeat = false;
     draggedBeatId = null;
     dragOverBeatId = null;
     draggedBeatElement = null;
     currentDragOverBeatElement = null;
+  }
+
+  /** Moves a beat to `toIndex` within the scene; resolves true once saved. */
+  async function moveBeat(beatId: string, toIndex: number): Promise<boolean> {
+    const sceneId = currentProject.currentScene?.id;
+    const fromIndex = beats.findIndex((b) => b.id === beatId);
+    if (!sceneId || isLocked || fromIndex === -1 || toIndex < 0 || toIndex >= beats.length)
+      return false;
+    if (fromIndex === toIndex) return false;
+    const newOrder = [...beats];
+    const [moved] = newOrder.splice(fromIndex, 1);
+    newOrder.splice(toIndex, 0, moved);
+    const newIds = newOrder.map((b) => b.id);
+    try {
+      await invoke("reorder_beats", { sceneId, beatIds: newIds });
+      currentProject.reorderBeats(newIds);
+      return true;
+    } catch (e) {
+      console.error("Failed to reorder beats:", e);
+      ui.showError(`Failed to reorder beats: ${String(e)}`);
+      return false;
+    }
+  }
+
+  /** Keyboard alternative to dragging: move one place, announce it, keep focus on the beat. */
+  async function moveBeatOneStep(beat: Beat, step: -1 | 1) {
+    const toIndex = beats.findIndex((b) => b.id === beat.id) + step;
+    const total = beats.length;
+    if (!(await moveBeat(beat.id, toIndex))) return;
+    moveAnnouncement = `Moved beat “${beat.content}” ${step < 0 ? "up" : "down"}, to position ${toIndex + 1} of ${total}.`;
+    await tick();
+    document
+      .querySelector<HTMLElement>(`[data-drag-beat="${beat.id}"] [data-testid="beat-menu-button"]`)
+      ?.focus({ preventScroll: true });
+  }
+
+  /** Opens the beat menu at the pointer, or under the button when opened from the keyboard. */
+  function openBeatMenu(e: MouseEvent, beat: Beat) {
+    let x = e.clientX;
+    let y = e.clientY;
+    if (x === 0 && y === 0 && e.currentTarget instanceof HTMLElement) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      x = rect.left;
+      y = rect.bottom;
+    }
+    beatContextMenu = { beat, x, y };
   }
 
   function stripHtml(html: string): string {
@@ -592,6 +633,7 @@
 </script>
 
 <section class="beats" aria-labelledby="beats-title">
+  <p class="ka-sr" role="status" aria-live="polite">{moveAnnouncement}</p>
   <div class="beats-head">
     <h3 id="beats-title">Beats</h3>
     {#if beats.length > 0 && !addingBeat && !isLocked}
@@ -674,7 +716,7 @@
                 data-testid="beat-menu-button"
                 onclick={(e) => {
                   e.stopPropagation();
-                  beatContextMenu = { beat, x: e.clientX, y: e.clientY };
+                  openBeatMenu(e, beat);
                 }}
                 class="ka-button ka-button--ghost ka-icon-button beat-menu"
                 aria-label="Beat menu"
