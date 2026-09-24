@@ -11,6 +11,7 @@ import {
   previewFilename,
   profileValidation,
   renderPreview,
+  runningHead,
   selectedChapters,
   starterProfiles,
   type PreviewChapter,
@@ -306,6 +307,61 @@ describe("export edge cases", () => {
       expect(renderPreview(input, p).body).not.toContain('class="flush"');
     }
   );
+});
+
+describe("Agent submission follows Standard Manuscript Format", () => {
+  it("starts from the manuscript defaults and leaves the other starters unchanged", () => {
+    const [submission, readers, website] = starterProfiles("The Long Way Home", "Jane Q. Writer");
+    expect(submission).toMatchObject({
+      name: "Agent submission",
+      format: "docx",
+      font: "Times New Roman",
+      fontSize: 12,
+      lineSpacing: 2,
+      paragraphSpacing: 0,
+      indent: 0.5,
+      firstParagraphFlush: true,
+      alignment: "left",
+      paper: "letter",
+      margin: 1,
+      chapterBreaks: true,
+      separator: "#",
+      header: "author_title",
+    });
+    expect(readers.firstParagraphFlush).toBe(false);
+    expect(website.firstParagraphFlush).toBe(false);
+    expect(compileWorkspaceDocument(chapters, submission).layout.firstParagraphFlush).toBe(true);
+  });
+  it("uses the surname and a short uppercase title in the running header", () => {
+    const p = starterProfiles("The Long Way Home", "Jane Q. Writer")[0];
+    expect(runningHead(p)).toBe("Writer / THE LONG WAY / ");
+    expect(runningHead({ ...p, header: "title" })).toBe("THE LONG WAY / ");
+    expect(runningHead({ ...p, author: "  " })).toBe("THE LONG WAY / ");
+    expect(runningHead({ ...p, title: "" })).toBe("Writer / UNTITLED MANUSCRIPT / ");
+    const body = renderPreview(chapters, p).body;
+    expect(body).toContain('<header class="running-head">Writer / THE LONG WAY / 1</header>');
+    expect(body).not.toContain("Jane Q. Writer /");
+  });
+  it("previews Word headings at body size and weight with the word count at the top", () => {
+    const p = starterProfiles("Book", "Author")[0];
+    const docx = renderPreview(chapters, p);
+    expect(docx.document).toContain("h1,.part{font-weight:normal}");
+    expect(docx.document).toContain("h1,h2,h3,.part{font-size:1em");
+    const page = new DOMParser()
+      .parseFromString(docx.body, "text/html")
+      .querySelector(".title-page")!;
+    expect(page.firstElementChild!.className).toBe("word-count");
+    expect(page.querySelector("h1")!.previousElementSibling!.className).toBe("word-count");
+    // Reading copies keep their display headings and title-page order.
+    const epub = renderPreview(chapters, { ...p, format: "epub" });
+    expect(epub.document).not.toContain("font-weight:normal");
+    expect(epub.body).not.toContain("running-head");
+    const epubPage = new DOMParser()
+      .parseFromString(epub.body, "text/html")
+      .querySelector(".title-page")!;
+    expect(epubPage.firstElementChild!.tagName).toBe("H1");
+    expect(epubPage.querySelector(".word-count")).toBeNull();
+  });
 });
 
 it.each(["epub", "html"] as const)(

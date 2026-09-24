@@ -89,15 +89,33 @@ output instead of a manuscript preview.
 
 ## Prepare a submission manuscript
 
-Start with **Agent submission** and choose **Word manuscript** as the output
-format. In **Text & page**, set the requested font, size, line spacing, paper
-size, and margins. Set paragraph indentation and, if needed, select **No indent
-after a heading or scene break**.
+Start with **Agent submission**, which uses **Word manuscript** as its output
+format. It begins with Standard Manuscript Format settings: Times New
+Roman 12 pt, double spacing, a half-inch first-line indent with no indent after a
+heading or scene break, `#` scene separators, each chapter on a new page, and
+1-inch margins on Letter paper. In **Text & page**, change the font, size, line
+spacing, paper size, margins, and indentation if a recipient asks for something
+else.
+
+Word manuscripts follow Standard Manuscript Format whichever profile you use:
+
+- **Title page:** your contact details at the top left, followed by the word
+  count on the right. The title, subtitle, and “by” line with your pen name
+  appear below them, a third of the way down the page. The contact details come
+  from **Settings → Author & Contact**.
+- **Running header:** **Author / Title** produces `Surname / SHORT TITLE / page`,
+  using the last word of the author name, the first three words of the title in
+  capitals, and a page number that Word updates. **Title only** omits the
+  surname. Word omits the running header from the title page.
+- **Chapter headings:** the same size and weight as the body text, centred and
+  set about a third of the way down a new page. When chapters start on a new
+  page, a Part title has a page to itself. Scene titles and beat headings are
+  bold, at body size.
 
 Use **Headings & breaks** for chapter numbering, scene separators, and page
 breaks. In **Book details**, set your title and pen name, choose whether to
-include a title page and word count, and configure the running header. Word
-omits the running header from the title page.
+include a title page and word count, and configure the running header. The
+preview doesn't show your contact details.
 
 Save a separate profile for each recipient whose requirements differ.
 
