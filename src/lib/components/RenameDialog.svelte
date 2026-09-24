@@ -42,7 +42,7 @@
       await onSave(trimmedName);
       onClose();
     } catch (e) {
-      error = e instanceof Error ? e.message : "Failed to rename";
+      error = e instanceof Error ? e.message : String(e || "Failed to rename");
     } finally {
       saving = false;
     }
