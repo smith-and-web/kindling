@@ -105,8 +105,14 @@ fn inline(text: &str) -> String {
         }
         let mut matched = false;
         for (delimiter, tag) in [("**", "strong"), ("_", "em"), ("~~", "s")] {
+            // As in novelWriter, `_` only marks emphasis at word boundaries, so
+            // `file_name_here` stays literal.
+            let bounded = delimiter == "_";
+            if bounded && text[..pos].chars().next_back().is_some_and(word) {
+                continue;
+            }
             if let Some(after) = rest.strip_prefix(delimiter) {
-                if let Some(end) = closing(after, delimiter) {
+                if let Some(end) = closing(after, delimiter, bounded) {
                     let inner = &after[..end];
                     if !inner.is_empty() && inner.trim() == inner {
                         out.push_str(&format!("<{tag}>{}</{tag}>", inline(inner)));
@@ -130,10 +136,15 @@ fn inline(text: &str) -> String {
     out
 }
 
-fn closing(text: &str, delimiter: &str) -> Option<usize> {
+fn word(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+fn closing(text: &str, delimiter: &str, bounded: bool) -> Option<usize> {
     text.match_indices(delimiter).find_map(|(i, _)| {
         let slashes = text[..i].chars().rev().take_while(|&c| c == '\\').count();
-        (slashes % 2 == 0).then_some(i)
+        let after = text[i + delimiter.len()..].chars().next();
+        (slashes % 2 == 0 && !(bounded && after.is_some_and(word))).then_some(i)
     })
 }
 
@@ -175,6 +186,17 @@ mod tests {
             nw_to_html("First line.\nSecond line.\n\nNext paragraph."),
             "<p>First line.<br />Second line.</p><p>Next paragraph.</p>"
         );
+    }
+
+    #[test]
+    fn underscores_inside_words_are_literal() {
+        assert_eq!(nw_to_html("file_name_here"), "<p>file_name_here</p>");
+        assert_eq!(
+            nw_to_html("snake_case and _real_."),
+            "<p>snake_case and <em>real</em>.</p>"
+        );
+        assert_eq!(nw_to_html("_a_b_ c"), "<p><em>a_b</em> c</p>");
+        assert_eq!(nw_to_html("(_aside_)"), "<p>(<em>aside</em>)</p>");
     }
 
     #[test]

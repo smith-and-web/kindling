@@ -524,3 +524,103 @@ fn heading_free_h0_prose_is_a_reachable_scene() {
     db::initialize_schema(&target).unwrap();
     insert_novelwriter(&target, &parsed).unwrap();
 }
+
+#[test]
+fn every_novel_root_and_every_heading_in_a_document_is_imported() {
+    let (conn, project) = fixture();
+    let temp = tempfile::tempdir().unwrap();
+    export_novelwriter_project(&conn, &project.id, temp.path(), &Default::default()).unwrap();
+    let index = temp.path().join("nwProject.nwx");
+    let mut doc = read_nwx(&std::fs::read_to_string(&index).unwrap()).unwrap();
+    let root = doc
+        .items
+        .iter()
+        .find(|i| i.item_type == "ROOT" && i.class == "NOVEL")
+        .unwrap()
+        .clone();
+    let book = new_handle();
+    doc.items.push(NwItem {
+        handle: book.clone(),
+        root: book.clone(),
+        order: doc.items.iter().map(|i| i.order).max().unwrap() + 1,
+        name: "Book Two".into(),
+        ..root.clone()
+    });
+    // One document holding a chapter heading and two scene headings.
+    let file = NwItem {
+        handle: new_handle(),
+        parent: book.clone(),
+        root: book.clone(),
+        order: 0,
+        item_type: "FILE".into(),
+        class: "NOVEL".into(),
+        layout: "DOCUMENT".into(),
+        heading: "H2".into(),
+        name: "Chapter Two".into(),
+        status: "s000000".into(),
+    };
+    doc.items.push(file.clone());
+    std::fs::write(&index, write_nwx(&doc)).unwrap();
+    let body = "## Chapter Two\n\nOpening.\n\n### First\n\nOne.\n\n### Second\n@char: Jane\n\n% Beat: Only\nTwo.\n";
+    std::fs::write(
+        temp.path()
+            .join("content")
+            .join(format!("{}.md", file.handle)),
+        write_document(&file, body),
+    )
+    .unwrap();
+
+    let parsed = parse_novelwriter_project(temp.path()).unwrap();
+    let parts: Vec<_> = parsed
+        .chapters
+        .iter()
+        .filter(|c| c.is_part)
+        .map(|c| c.title.as_str())
+        .collect();
+    assert_eq!(parts, [root.name.as_str(), "Part I", "Book Two"]);
+    let titles: Vec<_> = parsed.chapters.iter().map(|c| c.title.as_str()).collect();
+    let book_at = titles.iter().position(|t| *t == "Book Two").unwrap();
+    assert_eq!(titles[book_at + 1], "Chapter Two");
+    let chapter = parsed.chapters[book_at + 1].id;
+    let scene = |title: &str| {
+        parsed
+            .scenes
+            .iter()
+            .find(|s| s.title == title && s.chapter_id == chapter)
+            .unwrap_or_else(|| panic!("{title} in {:?}", parsed.scenes))
+    };
+    assert_eq!(
+        scene("Chapter Two").prose.as_deref(),
+        Some("<p>Opening.</p>")
+    );
+    assert_eq!(scene("First").prose.as_deref(), Some("<p>One.</p>"));
+    let second = scene("Second");
+    assert_eq!(second.prose.as_deref(), Some("<p>Two.</p>"));
+    assert!(parsed
+        .beats
+        .iter()
+        .any(|b| b.scene_id == second.id && b.content == "Only"));
+    assert!(parsed
+        .scene_character_refs
+        .iter()
+        .any(|(s, _)| *s == second.id));
+    // Identities are unique and stable, so sync can match them next time.
+    let ids: HashSet<_> = parsed.scenes.iter().map(|s| s.source_id.clone()).collect();
+    assert_eq!(ids.len(), parsed.scenes.len());
+    let again = parse_novelwriter_project(temp.path()).unwrap();
+    assert_eq!(
+        again
+            .scenes
+            .iter()
+            .map(|s| &s.source_id)
+            .collect::<Vec<_>>(),
+        parsed
+            .scenes
+            .iter()
+            .map(|s| &s.source_id)
+            .collect::<Vec<_>>()
+    );
+    let target = Connection::open_in_memory().unwrap();
+    db::initialize_schema(&target).unwrap();
+    insert_novelwriter(&target, &parsed).unwrap();
+}
