@@ -383,11 +383,12 @@
   function handleChapterSynopsisInput(chapterId: string) {
     if (chapterSynopsisSaveTimeout) clearTimeout(chapterSynopsisSaveTimeout);
     chapterSynopsisSaveTimeout = setTimeout(() => {
-      saveChapterSynopsis(chapterId);
+      void saveChapterSynopsis(chapterId);
     }, 600);
   }
 
-  async function saveChapterSynopsis(chapterId: string) {
+  /** Saves the typed synopsis; resolves to the failure, or null once it is saved. */
+  async function saveChapterSynopsis(chapterId: string): Promise<unknown> {
     const text = chapterSynopsisText.trim() || null;
     try {
       await invoke("update_chapter_synopsis", {
@@ -395,18 +396,29 @@
         synopsis: text,
       });
       currentProject.updateChapter(chapterId, { synopsis: text });
+      return null;
     } catch (e) {
       console.error("Failed to save chapter synopsis:", e);
+      return e ?? "Unknown error";
     }
   }
 
-  function finishEditingChapterSynopsis(chapterId: string) {
+  async function finishEditingChapterSynopsis(chapterId: string) {
     if (chapterSynopsisSaveTimeout) {
       clearTimeout(chapterSynopsisSaveTimeout);
       chapterSynopsisSaveTimeout = null;
     }
-    saveChapterSynopsis(chapterId);
-    editingChapterSynopsisId = null;
+    const typed = chapterSynopsisText;
+    const error = await saveChapterSynopsis(chapterId);
+    if (error === null) {
+      // Only close the field this save was for; a newer edit may have started.
+      if (editingChapterSynopsisId === chapterId && chapterSynopsisText === typed) {
+        editingChapterSynopsisId = null;
+      }
+      return;
+    }
+    // Keep the field open with the typed text so the writer can retry.
+    ui.showError(`Failed to save ${chapterLabel.toLowerCase()} synopsis: ${String(error)}`);
   }
 
   // Export dialog state

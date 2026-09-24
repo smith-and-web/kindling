@@ -320,17 +320,22 @@
       editingBeatContent = "";
       return;
     }
+    const beatId = editingBeatId;
     try {
-      await invoke("rename_beat", { beatId: editingBeatId, content });
-      const freshBeats = await invoke<Beat[]>("get_beats", {
-        sceneId: currentProject.currentScene!.id,
-      });
-      currentProject.setBeats(freshBeats);
+      await invoke("rename_beat", { beatId, content });
     } catch (e) {
+      // Keep the field open with the typed title so the writer can retry.
       console.error("Failed to rename beat:", e);
+      ui.showError(`Failed to rename beat: ${String(e)}`);
+      return;
     }
-    editingBeatId = null;
-    editingBeatContent = "";
+    currentProject.setBeats(
+      currentProject.beats.map((b) => (b.id === beatId ? { ...b, content } : b))
+    );
+    if (editingBeatId === beatId) {
+      editingBeatId = null;
+      editingBeatContent = "";
+    }
   }
 
   function handleRenameKeydown(e: KeyboardEvent) {
