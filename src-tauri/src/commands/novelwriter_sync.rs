@@ -141,12 +141,19 @@ fn align<'a>(incoming: &[&'a Beat], local: &[&'a Beat]) -> Vec<(&'a Beat, Option
         .collect()
 }
 
+/// Beats whose identity must change so identities follow novelWriter's current
+/// order: each paired kindling beat takes its partner's identity, and a
+/// kindling beat novelWriter no longer has gives up an identity that is now
+/// another beat's. Additions are placed after the beat holding the identity
+/// before them, so this keeps them next to the right beat and unique.
+type Rekey = Vec<(Uuid, String)>;
+
 /// Walks the source and the project the same way for preview and baselines.
 fn compare(
     conn: &Connection,
     project: &Project,
     parsed: &ParsedNovelWriter,
-) -> Result<(Vec<Field>, SyncPreview), String> {
+) -> Result<(Vec<Field>, SyncPreview, Rekey), String> {
     let chapters = db::get_chapters(conn, &project.id).map_err(|e| e.to_string())?;
     let scenes = db::get_all_project_scenes(conn, &project.id).map_err(|e| e.to_string())?;
     let beats = db::get_all_project_beats(conn, &project.id).map_err(|e| e.to_string())?;
@@ -164,6 +171,7 @@ fn compare(
         changes: vec![],
     };
     let mut fields = vec![];
+    let mut rekey = vec![];
     for chapter in &parsed.chapters {
         let source = chapter.source_id.as_deref().unwrap();
         let local_chapter = chapters_by_source.get(source).copied();
@@ -243,7 +251,30 @@ fn compare(
                 .filter(|b| local.is_some_and(|s| s.id == b.scene_id) && b.source_id.is_some())
                 .collect();
             synced.sort_by_key(|b| b.position);
-            for (beat, existing) in align(&incoming, &synced) {
+            let pairs = align(&incoming, &synced);
+            let current: HashSet<_> = incoming
+                .iter()
+                .filter_map(|b| b.source_id.as_deref())
+                .collect();
+            for (beat, existing) in &pairs {
+                if let Some(existing) = existing.filter(|e| e.source_id != beat.source_id) {
+                    rekey.push((existing.id, beat.source_id.clone().unwrap()));
+                }
+            }
+            for orphan in &synced {
+                let paired = pairs
+                    .iter()
+                    .any(|(_, e)| e.is_some_and(|e| e.id == orphan.id));
+                if !paired
+                    && orphan
+                        .source_id
+                        .as_deref()
+                        .is_some_and(|s| current.contains(s))
+                {
+                    rekey.push((orphan.id, format!("novelwriter:beat:kept:{}", orphan.id)));
+                }
+            }
+            for (beat, existing) in pairs {
                 let source = beat.source_id.as_deref().unwrap();
                 if let Some(existing) = existing {
                     change(
@@ -270,7 +301,7 @@ fn compare(
             }
         }
     }
-    Ok((fields, out))
+    Ok((fields, out, rekey))
 }
 
 type Baselines = HashMap<(String, String), String>;
@@ -325,7 +356,7 @@ pub(crate) fn record_baselines(
     project: &Project,
     parsed: &ParsedNovelWriter,
 ) -> Result<(), String> {
-    let (fields, _) = compare(conn, project, parsed)?;
+    let (fields, _, _) = compare(conn, project, parsed)?;
     let mut known = baselines(conn, project)?;
     for f in fields.iter().filter(|f| f.local == f.incoming) {
         settle(conn, project, &mut known, f)?;
@@ -359,7 +390,7 @@ pub(super) fn preview(
     project: &Project,
     parsed: &ParsedNovelWriter,
 ) -> Result<SyncPreview, String> {
-    let (fields, mut out) = compare(conn, project, parsed)?;
+    let (fields, mut out, _) = compare(conn, project, parsed)?;
     let baselines = baselines(conn, project)?;
     for (f, conflict) in offered(&fields, &baselines) {
         out.changes.push(SyncChange {
@@ -499,7 +530,7 @@ pub(super) fn apply(
     kept: &[String],
 ) -> Result<ReimportSummary, String> {
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
-    let (fields, preview) = compare(&tx, project, parsed)?;
+    let (fields, preview, rekey) = compare(&tx, project, parsed)?;
     let mut known = baselines(&tx, project)?;
     let offered_now: HashMap<_, _> = offered(&fields, &known)
         .into_iter()
@@ -603,6 +634,10 @@ pub(super) fn apply(
     // unless the baseline is missing or stale.
     for f in fields.iter().filter(|f| f.local == f.incoming) {
         settle(&tx, project, &mut known, f)?;
+    }
+    // Before any addition is placed by the identity that precedes it.
+    for (id, source) in &rekey {
+        db::update_beat_source_id(&tx, id, source).map_err(|e| e.to_string())?;
     }
     let mut chapter_ids = HashMap::new();
     for c in &parsed.chapters {
@@ -1103,6 +1138,61 @@ mod tests {
             original[answer..].trim_end(),
             original[knock..answer].trim_end()
         )
+    }
+
+    #[test]
+    fn added_beats_follow_their_paired_neighbour_with_unique_identities() {
+        let (conn, project, temp) = imported();
+        let scene = db::get_all_project_scenes(&conn, &project.id)
+            .unwrap()
+            .remove(0);
+        let file = temp
+            .path()
+            .join("content")
+            .join(format!("{}.md", scene.source_id.as_deref().unwrap()));
+        let original = std::fs::read_to_string(&file).unwrap();
+        // novelWriter deletes "The knock" and adds "New" after "Answer".
+        let (knock, answer) = (
+            original.find("% Beat: The knock").unwrap(),
+            original.find("% Beat: Answer").unwrap(),
+        );
+        std::fs::write(
+            &file,
+            format!(
+                "{}{}\n\n% Beat: New\nNew closing text.\n",
+                &original[..knock],
+                original[answer..].trim_end()
+            ),
+        )
+        .unwrap();
+        let parsed = load(&conn, &project).unwrap();
+        let diff = preview(&conn, &project, &parsed).unwrap();
+        assert!(diff.changes.is_empty(), "{:?}", diff.changes);
+        let additions: Vec<_> = diff.additions.iter().map(|a| a.id.clone()).collect();
+        assert_eq!(additions.len(), 1);
+        apply(&conn, &project, &parsed, &[], &additions, &[]).unwrap();
+        let beats = db::get_beats(&conn, &scene.id).unwrap();
+        let titles: Vec<_> = beats.iter().map(|b| b.content.as_str()).collect();
+        assert_eq!(titles, ["The knock", "Answer", "New"]);
+        let ids: HashSet<_> = beats.iter().map(|b| b.source_id.clone()).collect();
+        assert_eq!(ids.len(), beats.len(), "{beats:?}");
+        // Nothing is offered again, and the paired beats keep syncing.
+        assert!(preview(&conn, &project, &parsed)
+            .unwrap()
+            .additions
+            .is_empty());
+        std::fs::write(
+            &file,
+            std::fs::read_to_string(&file)
+                .unwrap()
+                .replace("New closing text.", "New closing text, revised."),
+        )
+        .unwrap();
+        let changes = preview(&conn, &project, &load(&conn, &project).unwrap())
+            .unwrap()
+            .changes;
+        assert_eq!(changes.len(), 1, "{changes:?}");
+        assert_eq!(changes[0].db_id, beats[2].id.to_string());
     }
 
     #[test]
