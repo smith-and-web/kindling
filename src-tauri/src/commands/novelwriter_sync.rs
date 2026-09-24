@@ -566,6 +566,40 @@ fn merge_prose(local_html: &str, incoming: &str) -> String {
     out
 }
 
+/// Refuses ids that no longer match what is offered now (either side changed
+/// since the preview), and says whether the accepted ones replace any prose.
+fn validate(
+    fields: &[Field],
+    known: &Baselines,
+    accepted: &[String],
+    kept: &[String],
+) -> Result<bool, String> {
+    let now: HashMap<_, _> = offered(fields, known)
+        .into_iter()
+        .map(|(f, conflict)| (change_id(f), (conflict, f.field)))
+        .collect();
+    if accepted.iter().any(|id| !now.contains_key(id))
+        || kept.iter().any(|id| now.get(id).map(|n| n.0) != Some(true))
+    {
+        return Err("The novelWriter project or these items changed after you reviewed them. Nothing was changed; open Sync again to review the current text.".into());
+    }
+    Ok(accepted.iter().any(|id| now[id].1 == "prose"))
+}
+
+/// Checks reviewed ids against the source as it is now, without writing, so a
+/// stale apply is refused before anything (even a snapshot) is written.
+/// Returns whether applying them would replace prose.
+pub(super) fn check_reviewed(
+    conn: &Connection,
+    project: &Project,
+    parsed: &ParsedNovelWriter,
+    accepted: &[String],
+    kept: &[String],
+) -> Result<bool, String> {
+    let (fields, _, _) = compare(conn, project, parsed)?;
+    validate(&fields, &baselines(conn, project)?, accepted, kept)
+}
+
 /// Applies the accepted changes and additions. Each conflict in `kept` (shown to
 /// the writer and left unticked) is settled as "keep kindling": its baseline
 /// moves to novelWriter's current text so it is not offered again until
@@ -587,15 +621,7 @@ pub(super) fn apply(
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let (fields, preview, rekey) = compare(&tx, project, parsed)?;
     let mut known = baselines(&tx, project)?;
-    let offered_now: HashMap<_, _> = offered(&fields, &known)
-        .into_iter()
-        .map(|(f, conflict)| (change_id(f), conflict))
-        .collect();
-    if accepted.iter().any(|id| !offered_now.contains_key(id))
-        || kept.iter().any(|id| offered_now.get(id) != Some(&true))
-    {
-        return Err("The novelWriter project or these items changed after you reviewed them. Nothing was changed; open Sync again to review the current text.".into());
-    }
+    validate(&fields, &known, accepted, kept)?;
     let kept: HashSet<_> = kept.iter().collect();
     let accepted: HashSet<_> = accepted.iter().collect();
     let additions: HashSet<_> = additions.iter().collect();
