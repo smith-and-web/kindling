@@ -224,8 +224,6 @@
           !chapters.some((c) => c.scenes.some((s) => s.id === draft.sceneId))))
   );
 
-  /** The preview sits on the app's desk: drop the export's own page backdrop
-      (the exported file keeps it) so the sheet reads as paper in both themes. */
   /** Keep the selected section in view when the nav scrolls (compact windows). */
   function keepVisible(node: HTMLElement, selected: boolean) {
     const reveal = (on: boolean) => {
@@ -235,14 +233,26 @@
     return { update: reveal };
   }
 
+  /** The preview sits on the app's desk: drop the export's own page backdrop
+      (the exported file keeps it) so the sheet reads as paper in both themes.
+      An unstyled HTML export has no sheet colours of its own, so it falls back
+      to manuscript paper and ink; `:where()` keeps that fallback below any
+      styling the export does carry. */
   function deskDocument(html: string): string {
-    // The sandboxed frame can't read app tokens, so pass the prose shadow in.
+    // The sandboxed frame can't read app tokens, so resolve them here.
     const probe = document.createElement("span");
     probe.style.boxShadow = "var(--shadow-prose)";
+    probe.style.backgroundColor = "var(--color-prose-bg)";
+    probe.style.color = "var(--color-prose-text)";
     document.body.appendChild(probe);
-    const shadow = getComputedStyle(probe).boxShadow || "none";
+    const computed = getComputedStyle(probe);
+    const resolved = (value: string, fallback: string) =>
+      value && !value.includes("var(") ? value : fallback;
+    const shadow = resolved(computed.boxShadow, "none");
+    const paper = resolved(computed.backgroundColor, "Canvas");
+    const ink = resolved(computed.color, "CanvasText");
     probe.remove();
-    const mount = `body{background:transparent;padding:16px 24px 32px}.manuscript{margin:0 auto;box-shadow:${shadow}}`;
+    const mount = `body{background:transparent;padding:16px 24px 32px}:where(.manuscript){background:${paper};color:${ink};padding:32px}.manuscript{margin:0 auto;box-shadow:${shadow}}`;
     return html.replace("</head>", `<style>${mount}</style></head>`);
   }
 

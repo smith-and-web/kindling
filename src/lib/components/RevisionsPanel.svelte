@@ -303,9 +303,11 @@
                   <h3>{oldDraft.name}</h3>
                   <time datetime={oldDraft.created_at}>{dateLabel(oldDraft.created_at)}</time>
                 </header>
-                <div class="diff-prose">
-                  {#each comparison as part}{#if part.kind === "delete"}<del>{part.text}</del
-                      >{:else if part.kind !== "insert"}{part.text}{/if}{/each}
+                <div class="app-prose-sheet diff-sheet">
+                  <div class="diff-prose">
+                    {#each comparison as part}{#if part.kind === "delete"}<del>{part.text}</del
+                        >{:else if part.kind !== "insert"}{part.text}{/if}{/each}
+                  </div>
                 </div>
               </section>
               <section class="comparison-version" aria-label="Comparison version">
@@ -320,9 +322,11 @@
                       >{dateLabel(review.data.drafts[after].created_at)}</time
                     >{/if}
                 </header>
-                <div class="diff-prose">
-                  {#each comparison as part}{#if part.kind === "insert"}<ins>{part.text}</ins
-                      >{:else if part.kind !== "delete"}{part.text}{/if}{/each}
+                <div class="app-prose-sheet diff-sheet">
+                  <div class="diff-prose">
+                    {#each comparison as part}{#if part.kind === "insert"}<ins>{part.text}</ins
+                        >{:else if part.kind !== "delete"}{part.text}{/if}{/each}
+                  </div>
                 </div>
               </section>
             </div>
@@ -551,22 +555,32 @@
     color: var(--color-text);
     overflow-wrap: anywhere;
   }
+  /* Prose is compared on manuscript paper, which stays light in both themes. */
+  .diff-sheet {
+    padding: var(--space-m) var(--space-l);
+  }
   .diff-prose {
     font: var(--text-body) / var(--leading-relaxed) var(--font-body);
-    color: var(--color-text);
+    color: var(--color-prose-text);
     max-width: var(--measure);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
+  /* Changed words keep manuscript ink: the chrome's status text colours are
+     tuned for the chrome and fall below 4.5:1 on paper in the dark theme
+     (success measured 4.33:1). The wash and the strike or underline carry the
+     change, as the success badge and notice adapters in app.css do. */
+  del,
+  ins {
+    color: var(--color-prose-text);
+  }
   del {
-    color: var(--color-error);
     background: var(--color-error-wash);
-    text-decoration: line-through;
+    text-decoration-line: line-through;
   }
   ins {
-    color: var(--color-success);
     background: var(--color-success-wash);
-    text-decoration: underline;
+    text-decoration-line: underline;
   }
 
   .history-empty {

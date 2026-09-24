@@ -266,3 +266,40 @@ it("tells the writer when the export can't be shown in its folder", async () => 
   await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   consoleError.mockRestore();
 });
+
+it("mounts an unstyled HTML preview on manuscript paper and ink, in either theme", async () => {
+  // jsdom doesn't resolve custom properties; stand in for the browser so the
+  // test can see which tokens the frame is given.
+  const tokens: Record<string, string> = {
+    "var(--color-prose-bg)": "rgb(244, 239, 230)",
+    "var(--color-prose-text)": "rgb(35, 29, 24)",
+    "var(--shadow-prose)": "rgb(0, 0, 0) 0px 8px 24px 0px",
+  };
+  const real = window.getComputedStyle.bind(window);
+  const computed = vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+    const style = (element as HTMLElement).style;
+    if (!style?.boxShadow?.startsWith("var(")) return real(element, pseudo);
+    return {
+      backgroundColor: tokens[style.backgroundColor],
+      color: tokens[style.color],
+      boxShadow: tokens[style.boxShadow],
+    } as CSSStyleDeclaration;
+  });
+  try {
+    await mount();
+    await fireEvent.change(screen.getByLabelText("Output format"), { target: { value: "html" } });
+    const srcdoc = () => (screen.getByTitle("Export layout preview") as HTMLIFrameElement).srcdoc;
+    const sheetRule = () => srcdoc().match(/:where\(\.manuscript\)\{([^}]*)\}/)?.[1] ?? "";
+    // Styled: the export's own sheet colours apply; the fallback sits beneath them.
+    expect(srcdoc()).toContain(".manuscript{box-sizing:border-box;background:");
+    await fireEvent.click(screen.getByRole("button", { name: /Files & format/ }));
+    await fireEvent.click(screen.getByLabelText(/Include built-in styling/));
+    // Unstyled: the export sets no sheet colours, so the sheet takes paper and ink.
+    expect(srcdoc()).not.toContain(".manuscript{box-sizing:border-box;background:");
+    expect(sheetRule()).toContain("background:rgb(244, 239, 230);");
+    expect(sheetRule()).toContain("color:rgb(35, 29, 24);");
+    expect(srcdoc()).toContain("box-shadow:rgb(0, 0, 0) 0px 8px 24px 0px");
+  } finally {
+    computed.mockRestore();
+  }
+});

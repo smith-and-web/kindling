@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { invoke } from "@tauri-apps/api/core";
 import RevisionsPanel from "./RevisionsPanel.svelte";
+import revisionsSource from "./RevisionsPanel.svelte?raw";
 import type { SceneReview } from "../utils/revisions";
 let persisted: SceneReview;
 let failSave = false;
@@ -131,4 +132,43 @@ it("compares active prose in separate versions and selects the newest saved draf
   expect(screen.getByText(/No prose text changes/)).toBeTruthy();
   await fireEvent.click(screen.getByRole("button", { name: /Draft 1.*First pass/ }));
   expect(within(left).getByRole("heading", { name: "First pass" })).toBeTruthy();
+});
+
+it("compares prose on manuscript paper with changed words in manuscript ink", async () => {
+  persisted.data.drafts = [
+    {
+      name: "First pass",
+      created_at: "2026-01-01",
+      mode: "page",
+      documents: [{ id: "scene", label: "Page", html: "<p>The blue fox.</p>" }],
+    },
+  ];
+  render(RevisionsPanel, {
+    sceneId: "scene",
+    projectId: "project",
+    title: "Arrival",
+    locked: false,
+    onApplied: vi.fn(),
+    onClose: vi.fn(),
+  });
+  const left = await screen.findByRole("region", { name: "Saved draft" });
+  const right = screen.getByRole("region", { name: "Comparison version" });
+  // Both versions sit on the always-light paper sheet, not the dark chrome.
+  for (const version of [left, right]) {
+    const prose = version.querySelector(".diff-prose")!;
+    expect(prose.parentElement?.classList.contains("app-prose-sheet")).toBe(true);
+  }
+  expect(left.querySelector(".app-prose-sheet del")?.textContent).toContain("blue");
+  expect(right.querySelector(".app-prose-sheet ins")?.textContent).toContain("red");
+  // jsdom doesn't apply component CSS, so check the rules themselves: prose and
+  // changed words read in manuscript ink, never the chrome's text or status colours.
+  const css = revisionsSource.slice(revisionsSource.indexOf("<style>"));
+  const rule = (selector: string) =>
+    css.match(new RegExp(`(?:\\}|\\*/)\\n  ${selector} \\{([^}]*)\\}`))?.[1] ?? "";
+  expect(rule("\\.diff-prose")).toContain("color: var(--color-prose-text)");
+  expect(rule("del,\\n  ins")).toContain("color: var(--color-prose-text)");
+  for (const selector of ["del", "ins"]) {
+    expect(rule(selector)).not.toMatch(/(^|[^-])color:/);
+    expect(rule(selector)).toContain("-wash)");
+  }
 });
