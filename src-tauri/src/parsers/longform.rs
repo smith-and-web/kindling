@@ -1443,10 +1443,11 @@ fn parse_scene_body(content: &str) -> SceneContent {
                     timelines: &mut timelines,
                     custom: &mut custom,
                 };
-                let mapped = apply_dataview_field(&field.key, &field.value, &mut context);
-                // Without a space after `::` only keys Kindling maps count as
-                // fields, so text like `std::vector` stays prose.
-                if mapped || field.spaced {
+                // Only keys Kindling maps are consumed. Kindling has nowhere to
+                // store any other field on a scene, so those lines (and
+                // sentences like "Meanwhile:: the ship sank.") stay in the
+                // prose rather than being silently discarded.
+                if apply_dataview_field(&field.key, &field.value, &mut context) {
                     continue;
                 }
             }
@@ -1844,14 +1845,12 @@ fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_
 struct DataviewField {
     key: String,
     value: String,
-    /// `::` was followed by whitespace or ended the line, as Dataview
-    /// fields are normally written.
-    spaced: bool,
 }
 
 /// Parse a scene line as a Dataview inline field.
 ///
-/// Field lines are removed from the prose, so this errs towards keeping text:
+/// Mapped field lines are removed from the prose, so this errs towards
+/// keeping text:
 /// the key must be a single field-name token (a letter, then letters, digits,
 /// `_` or `-`). Prose that merely contains `::` ("the odds were 3::1",
 /// "Night falls:: ...", list items, quotes) is not a field. Dataview's
@@ -1869,7 +1868,6 @@ fn parse_dataview_field(line: &str) -> Option<DataviewField> {
     Some(DataviewField {
         key: key.to_string(),
         value: rest.trim().to_string(),
-        spaced: rest.is_empty() || rest.starts_with(char::is_whitespace),
     })
 }
 
@@ -2838,19 +2836,34 @@ Night falls:: the long wait begins.\n\
         ] {
             assert!(prose.contains(line), "lost {line:?} from {prose:?}");
         }
-        // Genuine field lines are still metadata, not prose.
+        // A key Kindling maps is metadata, not prose; an unmapped field has
+        // nowhere else to go, so it stays where the writer can see it.
         assert!(!prose.contains("pov::"), "{prose:?}");
-        assert!(!prose.contains("mood::"), "{prose:?}");
+        assert!(prose.contains("mood:: tense"), "{prose:?}");
+    }
+
+    #[test]
+    fn test_parse_scene_body_keeps_sentences_that_look_like_fields() {
+        let scene = parse_scene_body(
+            "Meanwhile:: the ship sank.\n\
+Later:: she remembered.\n\
+characters:: [[John]]",
+        );
+        assert_eq!(
+            scene.prose.as_deref(),
+            Some("Meanwhile:: the ship sank.\nLater:: she remembered.")
+        );
+        assert_eq!(scene.characters, vec!["John".to_string()]);
     }
 
     #[test]
     fn test_parse_scene_body_dataview_field_forms() {
-        // Mapped keys work without a space after `::` or with one before it,
-        // and an unmapped field with no value is still metadata.
+        // Mapped keys work without a space after `::` or with one before it;
+        // an unmapped field, even with no value, is kept in the prose.
         let scene = parse_scene_body("setting::[[~Dock]]\nPOV :: Zoe\nmood::\n\nBody.");
         assert_eq!(scene.locations, vec!["Dock".to_string()]);
         assert_eq!(scene.characters, vec!["Zoe".to_string()]);
-        assert_eq!(scene.prose.as_deref(), Some("Body."));
+        assert_eq!(scene.prose.as_deref(), Some("mood::\n\nBody."));
     }
 
     #[test]
