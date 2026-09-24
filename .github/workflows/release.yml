@@ -64,15 +64,15 @@ jobs:
           # macOS Universal (Apple Silicon + Intel in one binary)
           - platform: macos-latest
             target: universal-apple-darwin
-            args: "--target universal-apple-darwin"
+            args: "--target universal-apple-darwin -- --no-default-features"
           # Linux x64
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            args: ""
+            args: "-- --no-default-features"
           # Windows x64
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
-            args: ""
+            args: "-- --no-default-features"
 
     runs-on: ${{ matrix.platform }}
 
