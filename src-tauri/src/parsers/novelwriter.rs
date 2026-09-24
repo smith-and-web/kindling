@@ -42,6 +42,9 @@ pub struct ParsedNovelWriter {
     /// Documents with more than one heading, which kindling 1.2 and earlier
     /// imported as a single chapter or scene.
     pub split_documents: Vec<SplitDocument>,
+    /// Every Novel document read one chapter or scene per heading, however
+    /// many headings it has now, so it keeps reading that way if one is added.
+    pub per_heading_documents: Vec<String>,
 }
 /// The chapter and scene identities one multi-heading document produced.
 #[derive(Debug)]
@@ -89,6 +92,7 @@ pub fn parse_novelwriter_project_with(
         scene_reference_item_refs: vec![],
         scenes_with_beat_comments: HashSet::new(),
         split_documents: vec![],
+        per_heading_documents: vec![],
     };
     let mut ordered = Vec::new();
     fn walk<'a>(parent: &str, doc: &'a Nwx, out: &mut Vec<&'a NwItem>) {
@@ -148,6 +152,7 @@ pub fn parse_novelwriter_project_with(
             let sections = if unsplit.contains(&item.handle) {
                 vec![body.clone()]
             } else {
+                parsed.per_heading_documents.push(item.handle.clone());
                 sections(&body)
             };
             let mut split = SplitDocument {

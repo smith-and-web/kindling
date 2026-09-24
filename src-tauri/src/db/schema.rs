@@ -260,9 +260,10 @@ CREATE TABLE IF NOT EXISTS writing_goals (
             PRIMARY KEY (item_id, field)
         );
 
-        -- novelWriter documents with several headings that kindling has read
-        -- one chapter or scene per heading (1.3 and later). A document without
-        -- a row was imported whole by kindling 1.2 and keeps that shape.
+        -- novelWriter Novel documents that kindling has read one chapter or
+        -- scene per heading (1.3 and later), however many headings they have.
+        -- A document without a row was imported whole by kindling 1.2 and
+        -- keeps that shape.
         CREATE TABLE IF NOT EXISTS novelwriter_split_documents (
             project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
             handle TEXT NOT NULL,

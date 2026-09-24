@@ -16,8 +16,9 @@ use uuid::Uuid;
 /// 1.2 imported as one chapter or scene is read that same way, so upgrading
 /// never offers its later headings as new scenes over text the project already
 /// has. Such a document has its first heading's items here, none of its later
-/// headings', and no split record: 1.3 records every document it reads split,
-/// so one whose later scenes the writer deleted still reads split.
+/// headings', and no record: 1.3 records every Novel document it reads, so one
+/// whose later scenes the writer deleted, or that gained a heading after a 1.3
+/// import, still reads per heading.
 pub(super) fn load(conn: &Connection, project: &Project) -> Result<ParsedNovelWriter, String> {
     let path = project
         .source_path
@@ -52,7 +53,7 @@ pub(super) fn load(conn: &Connection, project: &Project) -> Result<ParsedNovelWr
     }
     parse_novelwriter_project_with(Path::new(path), &unsplit).map_err(|e| e.to_string())
 }
-/// Documents this project has read one chapter or scene per heading.
+/// Novel documents this project has read one chapter or scene per heading.
 fn split_documents(conn: &Connection, project: &Project) -> Result<HashSet<String>, String> {
     let mut stmt = conn
         .prepare("SELECT handle FROM novelwriter_split_documents WHERE project_id = ?1")
@@ -63,17 +64,18 @@ fn split_documents(conn: &Connection, project: &Project) -> Result<HashSet<Strin
     rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
 }
 
-/// Records the documents this read split, at import and after each sync, so
-/// they keep reading split whatever the writer later deletes.
+/// Records the documents this read per heading, at import and after each
+/// sync, so they keep reading that way whatever the writer later adds or
+/// deletes. Documents read whole (a 1.2 import) are left unrecorded.
 pub(crate) fn record_split_documents(
     conn: &Connection,
     project: &Project,
     parsed: &ParsedNovelWriter,
 ) -> Result<(), String> {
-    for document in &parsed.split_documents {
+    for handle in &parsed.per_heading_documents {
         conn.execute(
             "INSERT OR IGNORE INTO novelwriter_split_documents (project_id, handle) VALUES (?1, ?2)",
-            rusqlite::params![project.id.to_string(), document.handle],
+            rusqlite::params![project.id.to_string(), handle],
         )
         .map_err(|e| e.to_string())?;
     }
@@ -1588,5 +1590,30 @@ mod tests {
         .unwrap();
         let diff = preview(&conn, &project, &load(&conn, &project).unwrap()).unwrap();
         assert!(diff.changes.is_empty(), "{:?}", diff.changes);
+    }
+
+    #[test]
+    fn a_heading_added_after_a_1_3_import_becomes_a_new_scene() {
+        // Imported by 1.3 while the document still had one heading.
+        let (conn, project, temp) = imported();
+        let scene = db::get_all_project_scenes(&conn, &project.id)
+            .unwrap()
+            .remove(0);
+        let file = temp
+            .path()
+            .join("content")
+            .join(format!("{}.md", scene.source_id.as_deref().unwrap()));
+        let text = std::fs::read_to_string(&file).unwrap();
+        std::fs::write(&file, format!("{text}\n### Second half\n\nMore text.\n")).unwrap();
+        // The new heading is a new scene, not more text for the first one.
+        let diff = preview(&conn, &project, &load(&conn, &project).unwrap()).unwrap();
+        assert!(diff.changes.is_empty(), "{:?}", diff.changes);
+        let scenes: Vec<_> = diff
+            .additions
+            .iter()
+            .filter(|a| a.item_type == "scene")
+            .map(|a| a.title.as_str())
+            .collect();
+        assert_eq!(scenes, ["Second half"]);
     }
 }
