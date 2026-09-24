@@ -2122,8 +2122,9 @@ fn move_unlocked_scene(
     let plan = db::plan_scene_move(&tx, scene_uuid, target_chapter_uuid, position)
         .map_err(|e| e.to_string())?;
     // Same rule as reorder_scenes_around_locks: a locked scene keeps its slot in the
-    // target chapter, so the moved scene can't be placed at or before one. Refuse
-    // rather than silently clamping to a position the writer didn't ask for.
+    // target chapter, so a move that would shift one (placing the scene at or before
+    // it, or, within one chapter, taking the scene from before it to after it) is
+    // refused rather than silently clamped to a position the writer didn't ask for.
     let current: Vec<_> = plan
         .target_before
         .iter()
@@ -2131,7 +2132,7 @@ fn move_unlocked_scene(
         .collect();
     if let Some(title) = first_moved_locked_row(&current, &plan.target_after) {
         return Err(format!(
-            "Cannot place the scene before the locked scene “{title}”. Choose a later position, or unlock it first."
+            "Moving this scene would shift the locked scene “{title}”. Unlock it first, or choose a position that doesn't move it."
         ));
     }
     db::apply_scene_move(&tx, &plan).map_err(|e| e.to_string())?;
@@ -2629,7 +2630,7 @@ mod lock_enforcement_tests {
     }
 
     #[test]
-    fn a_scene_cannot_be_moved_in_front_of_a_locked_scene() {
+    fn a_scene_move_cannot_shift_a_locked_scene() {
         let book = book();
         let target = add_scenes(&book, &book.two, &["X", "Y"]);
         db::lock_scene(&book.conn, &target[0].id).unwrap();
@@ -2637,7 +2638,7 @@ mod lock_enforcement_tests {
 
         for position in [0, -1] {
             let err = move_unlocked_scene(&book.conn, &a.id, &book.two.id, position).unwrap_err();
-            assert!(err.contains("before the locked scene “X”"), "{err}");
+            assert!(err.contains("would shift the locked scene “X”"), "{err}");
         }
         assert_eq!(
             positions(&book, &book.one),
@@ -2669,6 +2670,20 @@ mod lock_enforcement_tests {
             .unwrap_err()
             .contains("locked scene “B”"));
         assert_eq!(positions(&book, &book.one), at(&[("B", 0), ("C", 1)]));
+
+        // Taking a scene from before a locked one to after it shifts it too, and the
+        // message must not claim the scene was placed before it.
+        let book = self::book();
+        db::lock_scene(&book.conn, &book.scenes[1].id).unwrap();
+        let err = move_unlocked_scene(&book.conn, &book.scenes[0].id, &book.one.id, 2).unwrap_err();
+        assert_eq!(
+            err,
+            "Moving this scene would shift the locked scene “B”. Unlock it first, or choose a position that doesn't move it."
+        );
+        assert_eq!(
+            positions(&book, &book.one),
+            at(&[("A", 0), ("B", 1), ("C", 2)])
+        );
     }
 
     #[test]
