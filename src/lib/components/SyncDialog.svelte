@@ -10,6 +10,7 @@
   import { SvelteSet } from "svelte/reactivity";
   import type { SyncPreview, ReimportSummary, SyncChange } from "../types";
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus } from "../utils/modalFocus";
 
   interface Props {
     projectId: string;
@@ -116,6 +117,7 @@
 <div
   data-testid="sync-preview-dialog"
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: () => !syncing && onClose() }}
   role="dialog"
   aria-modal="true"
   aria-labelledby="sync-dialog-title"

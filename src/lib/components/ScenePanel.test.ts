@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/svelte";
+import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import { invoke } from "@tauri-apps/api/core";
 import ScenePanel from "./ScenePanel.svelte";
 import { currentProject } from "../stores/project.svelte";
@@ -140,5 +140,35 @@ it.each(["page", "beat"] as const)(
       expect(fill).not.toBe(track);
       expect(contrast(ink, fill)).toBeGreaterThanOrEqual(4.5);
     }
+  }
+);
+
+it.each(["a dialog is open", "the Escape was already handled"])(
+  "keeps a discovery-note draft when Escape reaches the window while %s",
+  async (situation) => {
+    currentProject.setCurrentScene({
+      ...mockScenes[0],
+      chapter_id: mockChapters[0].id,
+      planning_status: "fixed",
+    });
+    render(ScenePanel);
+    await fireEvent.click(await screen.findByRole("button", { name: /Discovery notes/ }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Add note" }));
+    const draft = screen.getByLabelText("New discovery note") as HTMLTextAreaElement;
+    await fireEvent.input(draft, { target: { value: "The well is dry" } });
+
+    const modal = document.createElement("div");
+    modal.setAttribute("aria-modal", "true");
+    if (situation === "a dialog is open") document.body.append(modal);
+    const escape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    if (situation !== "a dialog is open") escape.preventDefault();
+    await fireEvent(window, escape);
+
+    expect((screen.getByLabelText("New discovery note") as HTMLTextAreaElement).value).toBe(
+      "The well is dry"
+    );
+    modal.remove();
+    await fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByLabelText("New discovery note")).toBeNull();
   }
 );

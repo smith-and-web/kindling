@@ -1,6 +1,7 @@
 <script lang="ts">
   import { shortcuts } from "../stores/shortcuts.svelte";
   import { countWordsInHtml } from "../utils/wordCount";
+  import { isModalOpen } from "../utils/modalFocus";
   import { writing } from "../stores/writing.svelte";
   import type { SceneReview } from "../utils/revisions";
   import WritingStatusBar from "./WritingStatusBar.svelte";
@@ -345,6 +346,8 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
+    // An Escape meant for a dialog (or already handled) must not discard drafts here.
+    if (e.defaultPrevented || isModalOpen()) return;
     if (e.key === "Escape") {
       if (ui.expandedBeatId) {
         beatViewRef?.flushOnSceneChange();

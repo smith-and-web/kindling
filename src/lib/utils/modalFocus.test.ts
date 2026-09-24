@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { modalFocus, ownsEnterKey, tabbableElements } from "./modalFocus";
+import {
+  isModalOpen,
+  modalFocus,
+  ownsEnterKey,
+  tabbableElements,
+  trackNativeDialog,
+} from "./modalFocus";
 
 const flush = () => new Promise<void>((resolve) => queueMicrotask(resolve));
 
@@ -381,5 +387,57 @@ describe("modalFocus", () => {
     node.remove();
     await flush();
     expect(document.activeElement).toBe(document.body);
+  });
+});
+
+describe("isModalOpen", () => {
+  it("is false with nothing open", () => {
+    outsideButton();
+    expect(isModalOpen()).toBe(false);
+  });
+
+  it("sees modalFocus dialogs, open <dialog>s and aria-modal elements", () => {
+    const node = document.createElement("div");
+    document.body.append(node);
+    const action = modalFocus(node);
+    expect(isModalOpen()).toBe(true);
+    action.destroy?.();
+    expect(isModalOpen()).toBe(false);
+
+    const native = document.createElement("dialog");
+    document.body.append(native);
+    expect(isModalOpen()).toBe(false);
+    native.setAttribute("open", "");
+    expect(isModalOpen()).toBe(true);
+    native.remove();
+
+    dialog(`<p>aria-modal</p>`);
+    expect(isModalOpen()).toBe(true);
+  });
+
+  it("can ignore particular modals", () => {
+    const find = document.createElement("dialog");
+    find.setAttribute("open", "");
+    find.id = "find";
+    document.body.append(find);
+    expect(isModalOpen((modal) => modal.id === "find")).toBe(false);
+    dialog(`<p>other</p>`);
+    expect(isModalOpen((modal) => modal.id === "find")).toBe(true);
+  });
+
+  it("counts a native dialog while it is showing, including when it fails", async () => {
+    let finish!: (path: string) => void;
+    const picked = trackNativeDialog(() => new Promise<string>((resolve) => (finish = resolve)));
+    expect(isModalOpen()).toBe(true);
+    // A native dialog is not in the DOM, so it cannot be ignored.
+    expect(isModalOpen(() => true)).toBe(true);
+    finish("/tmp/outline.pltr");
+    await expect(picked).resolves.toBe("/tmp/outline.pltr");
+    expect(isModalOpen()).toBe(false);
+
+    await expect(trackNativeDialog(() => Promise.reject(new Error("denied")))).rejects.toThrow(
+      "denied"
+    );
+    expect(isModalOpen()).toBe(false);
   });
 });

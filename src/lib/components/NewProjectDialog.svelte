@@ -6,6 +6,7 @@
   import type { Project, ProjectType, StoryTemplate } from "../types";
   import TemplateBrowser from "./TemplateBrowser.svelte";
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus } from "../utils/modalFocus";
 
   let {
     onClose,
@@ -84,9 +85,8 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      onClose();
-    } else if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && !saving) {
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && !saving) {
+      event.preventDefault();
       handleCreate();
     }
   }
@@ -98,12 +98,12 @@
   }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
+<!-- Escape is the keyboard equivalent of the backdrop click; modalFocus handles it. -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: onClose, onKeydown: handleKeydown }}
   onclick={handleBackdropClick}
-  onkeydown={handleKeydown}
   role="dialog"
   aria-modal="true"
   aria-labelledby="new-project-dialog-title"

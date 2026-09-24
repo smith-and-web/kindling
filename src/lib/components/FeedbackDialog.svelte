@@ -112,6 +112,11 @@
       onClose();
     }
   }
+
+  // Sending replaces the form, and the focused Send button with it; land on Done.
+  function focusOnMount(node: HTMLElement) {
+    node.focus();
+  }
 </script>
 
 <!-- Escape is the keyboard equivalent of the backdrop click; modalFocus handles it. -->
@@ -140,7 +145,7 @@
         <p>Your message was sent to the kindling team.</p>
       </div>
       <footer class="ka-dialog-footer">
-        <button type="button" onclick={onClose} class="ka-button">Done</button>
+        <button type="button" onclick={onClose} class="ka-button" use:focusOnMount>Done</button>
       </footer>
     {:else}
       <div class="ka-dialog-body feedback-form">

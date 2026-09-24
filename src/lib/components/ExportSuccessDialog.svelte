@@ -10,6 +10,7 @@
   import { CircleCheck, FolderOpen } from "lucide-svelte";
   import type { ExportResult } from "../types";
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus, ownsEnterKey } from "../utils/modalFocus";
 
   let {
     result,
@@ -32,11 +33,8 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    // The scrim and the window both listen; handle each key press once.
-    if (event.defaultPrevented) return;
     // Enter on a focused control activates that control (e.g. Open folder).
-    const onControl = event.target instanceof Element && event.target.closest("button, a");
-    if (event.key === "Escape" || (event.key === "Enter" && !onControl)) {
+    if (event.key === "Enter" && !event.isComposing && !ownsEnterKey(event.target)) {
       event.preventDefault();
       onClose();
     }
@@ -49,12 +47,12 @@
   }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
+<!-- Escape is the keyboard equivalent of the backdrop click; modalFocus handles it. -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: onClose, onKeydown: handleKeydown }}
   onclick={handleBackdropClick}
-  onkeydown={handleKeydown}
   role="dialog"
   aria-modal="true"
   aria-labelledby="export-success-dialog-title"

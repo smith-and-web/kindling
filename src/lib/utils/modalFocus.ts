@@ -73,6 +73,31 @@ const OWNS_ENTER = [
 ].join(",");
 
 const stack: Trap[] = [];
+let nativeDialogs = 0;
+
+/**
+ * Count an OS-level dialog (file picker, save panel) as a modal while `show` is pending,
+ * so isModalOpen() is true for it. Use the wrappers in nativeDialog.ts.
+ */
+export async function trackNativeDialog<T>(show: () => Promise<T>): Promise<T> {
+  nativeDialogs++;
+  try {
+    return await show();
+  } finally {
+    nativeDialogs--;
+  }
+}
+
+/**
+ * True while any modal is open: a native file dialog, a modalFocus dialog, an open
+ * `<dialog>` or an `aria-modal` element. `ignore` excludes particular modal elements
+ * (e.g. the Find dialog when a Find command should reach it).
+ */
+export function isModalOpen(ignore: (modal: Element) => boolean = () => false): boolean {
+  if (nativeDialogs > 0) return true;
+  const modals = [...stack.map(({ node }) => node), ...document.querySelectorAll(MODAL)];
+  return modals.some((modal) => !ignore(modal));
+}
 
 function isRadioTabStop(root: HTMLElement, radio: HTMLInputElement): boolean {
   if (!radio.name || radio.checked) return true;

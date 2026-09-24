@@ -1,6 +1,7 @@
 <script lang="ts">
   import { CircleAlert, Loader2 } from "lucide-svelte";
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus } from "../utils/modalFocus";
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
@@ -115,18 +116,11 @@
       saving = false;
     }
   }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      onClose();
-    }
-  }
 </script>
-
-<svelte:window onkeydown={handleKeydown} />
 
 <div
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: onClose }}
   role="dialog"
   aria-modal="true"
   aria-labelledby="reference-classification-title"

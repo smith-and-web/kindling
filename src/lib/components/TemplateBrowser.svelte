@@ -4,6 +4,7 @@
   import { BookOpen, Check, ChevronRight, Layout } from "lucide-svelte";
   import type { ProjectType, StoryTemplate } from "../types";
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus } from "../utils/modalFocus";
 
   let {
     projectType = "novel",
@@ -55,10 +56,6 @@
     }
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") onClose();
-  }
-
   function handleBackdropClick(event: MouseEvent) {
     if (event.target === event.currentTarget) onClose();
   }
@@ -68,12 +65,12 @@
   }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
+<!-- Escape is the keyboard equivalent of the backdrop click; modalFocus handles it. -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: onClose }}
   onclick={handleBackdropClick}
-  onkeydown={handleKeydown}
   role="dialog"
   aria-modal="true"
   aria-labelledby="template-browser-title"

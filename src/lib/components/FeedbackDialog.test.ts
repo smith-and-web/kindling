@@ -137,6 +137,8 @@ describe("FeedbackDialog", () => {
     const success = await screen.findByTestId("feedback-success");
     expect(success.textContent).toContain("Thanks for your feedback");
     expect(screen.queryByTestId("feedback-error")).toBeNull();
+    // The focused Send button is gone; focus lands on Done rather than the page.
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Done" }));
   });
 
   it("renders a retryable error state when submission fails", async () => {
