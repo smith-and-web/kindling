@@ -305,7 +305,10 @@ pub fn generate_scrivx(
     writer.write_event(Event::End(BytesEnd::new("ScrivenerProject")))?;
 
     let result = writer.into_inner().into_inner();
-    String::from_utf8(result).map_err(|e| ScrivenerError::InvalidStructure(e.to_string()))
+    let xml =
+        String::from_utf8(result).map_err(|e| ScrivenerError::InvalidStructure(e.to_string()))?;
+    // Titles can carry XML-invalid control characters in from prose or imports.
+    Ok(super::xml_text::xml_safe_text(&xml).into_owned())
 }
 
 fn write_title(writer: &mut Writer<Cursor<Vec<u8>>>, title: &str) -> Result<(), ScrivenerError> {
@@ -1666,6 +1669,30 @@ mod tests {
         assert_eq!(docs.len(), 2);
         assert_eq!(docs[0].title, "Scene 1");
         assert_eq!(docs[1].title, "Scene 2");
+    }
+
+    #[test]
+    fn test_generate_scrivx_drops_xml_invalid_title_characters() {
+        let chapters = vec![ExportChapter {
+            uuid: "CH-UUID-1".to_string(),
+            title: "Chapter\u{0001} One".to_string(),
+            is_part: false,
+            created: "2024-01-01 00:00:00 +0000".to_string(),
+            modified: "2024-01-01 00:00:00 +0000".to_string(),
+            scenes: vec![ExportScene {
+                uuid: "SC-UUID-1".to_string(),
+                title: "Line\u{000B}break".to_string(),
+                created: "2024-01-01 00:00:00 +0000".to_string(),
+                modified: "2024-01-01 00:00:00 +0000".to_string(),
+            }],
+            children: Vec::new(),
+        }];
+
+        let xml = generate_scrivx("Novel\u{FFFF}", &chapters, "novel").unwrap();
+        assert!(!xml.contains(['\u{0001}', '\u{000B}', '\u{FFFF}']));
+        let doc = parse_scrivx(&xml).unwrap();
+        assert_eq!(doc.binder[0].children[0].title, "Chapter One");
+        assert_eq!(doc.binder[0].children[0].children[0].title, "Line break");
     }
 
     #[test]
