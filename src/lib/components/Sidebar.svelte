@@ -811,6 +811,7 @@
       }
     } catch (e) {
       console.error("Failed to delete:", e);
+      ui.showError(`Failed to delete: ${String(e)}`);
     } finally {
       deleteDialog = null;
     }
@@ -824,6 +825,7 @@
       currentProject.removeChapter(partDeleteDialog.partId);
     } catch (e) {
       console.error("Failed to delete part:", e);
+      ui.showError(`Failed to delete Part: ${String(e)}`);
     } finally {
       partDeleteDialog = null;
     }
@@ -959,6 +961,7 @@
           }
         } catch (e) {
           console.error("Failed to reorder:", e);
+          ui.showError(`Failed to reorder: ${String(e)}`);
         }
       }
     }
@@ -1194,6 +1197,7 @@
       currentProject.updateChapter(chapterId, { is_part: isPart });
     } catch (e) {
       console.error("Failed to toggle part status:", e);
+      ui.showError(`Failed to convert: ${String(e)}`);
     }
   }
 
@@ -1218,6 +1222,7 @@
       }
     } catch (e) {
       console.error("Failed to update planning status:", e);
+      ui.showError(`Failed to update planning status: ${String(e)}`);
     }
   }
 
@@ -1232,6 +1237,7 @@
       }
     } catch (e) {
       console.error("Failed to archive:", e);
+      ui.showError(`Failed to archive: ${String(e)}`);
     }
   }
 

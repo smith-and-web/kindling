@@ -2102,6 +2102,16 @@ pub fn is_chapter_locked(conn: &Connection, chapter_id: &Uuid) -> Result<bool> {
     Ok(locked != 0)
 }
 
+/// Whether any scene in the chapter is locked, archived scenes included:
+/// deleting or archiving the chapter would take every one of them with it.
+pub fn chapter_has_locked_scene(conn: &Connection, chapter_id: &Uuid) -> Result<bool> {
+    conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM scenes WHERE chapter_id = ?1 AND locked = 1)",
+        params![chapter_id.to_string()],
+        |row| row.get(0),
+    )
+}
+
 // ============================================================================
 // Rename Operations
 // ============================================================================

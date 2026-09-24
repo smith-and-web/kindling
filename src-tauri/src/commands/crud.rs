@@ -327,20 +327,30 @@ pub async fn get_chapter_content_counts(
 pub async fn delete_chapter(chapter_id: String, state: State<'_, AppState>) -> Result<(), String> {
     let uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    delete_unlocked_chapter(&conn, &uuid)
+}
 
-    // Check if chapter is locked
-    if db::is_chapter_locked(&conn, &uuid).map_err(|e| e.to_string())? {
+fn delete_unlocked_chapter(conn: &rusqlite::Connection, chapter_id: &Uuid) -> Result<(), String> {
+    if db::is_chapter_locked(conn, chapter_id).map_err(|e| e.to_string())? {
         return Err("Cannot delete a locked chapter".to_string());
+    }
+    // Deleting the chapter deletes every scene in it, so a locked scene inside
+    // protects the whole chapter (the same rule Part deletion applies).
+    if db::chapter_has_locked_scene(conn, chapter_id).map_err(|e| e.to_string())? {
+        return Err(
+            "Cannot delete a chapter containing a locked scene. Unlock the scene first."
+                .to_string(),
+        );
     }
 
     // Get project ID before deleting for updating modified time
-    let project_id = db::get_chapter_project_id(&conn, &uuid).map_err(|e| e.to_string())?;
+    let project_id = db::get_chapter_project_id(conn, chapter_id).map_err(|e| e.to_string())?;
 
-    db::delete_chapter(&conn, &uuid).map_err(|e| e.to_string())?;
+    db::delete_chapter(conn, chapter_id).map_err(|e| e.to_string())?;
 
     // Update project modified time
     if let Some(pid) = project_id {
-        db::update_project_modified(&conn, &pid).map_err(|e| e.to_string())?;
+        db::update_project_modified(conn, &pid).map_err(|e| e.to_string())?;
     }
 
     Ok(())
@@ -387,13 +397,8 @@ fn delete_part_group(
         return Err("The Part's chapters changed since the confirmation. The outline has been refreshed; review it before trying again.".into());
     }
     for chapter in &group {
-        let has_locked_scene: bool = tx
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM scenes WHERE chapter_id = ?1 AND locked = 1)",
-                [chapter.id.to_string()],
-                |row| row.get(0),
-            )
-            .map_err(|e| e.to_string())?;
+        let has_locked_scene =
+            db::chapter_has_locked_scene(&tx, &chapter.id).map_err(|e| e.to_string())?;
         if chapter.locked || has_locked_scene {
             return Err(
                 "Cannot delete a Part containing a locked chapter or scene. Unlock it first."
@@ -517,7 +522,29 @@ pub async fn switch_scene_editor_mode(
 ) -> Result<Scene, String> {
     let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    db::switch_scene_editor_mode(&conn, &uuid, &mode).map_err(|e| e.to_string())
+    switch_unlocked_scene_editor_mode(&conn, &uuid, &mode)
+}
+
+/// Switching modes rewrites prose (beats are joined into the page, or the page
+/// is split back across beats), so a locked scene keeps its current mode.
+/// Asking a locked scene for the mode it is already in is a harmless no-op.
+fn switch_unlocked_scene_editor_mode(
+    conn: &rusqlite::Connection,
+    scene_id: &Uuid,
+    mode: &str,
+) -> Result<Scene, String> {
+    if db::is_scene_locked(conn, scene_id).map_err(|e| e.to_string())? {
+        let scene = db::get_scene_by_id(conn, scene_id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "Scene not found".to_string())?;
+        if scene.editor_mode.as_str() == mode {
+            return Ok(scene);
+        }
+        return Err(
+            "Cannot switch the editor mode of a locked scene. Unlock it first.".to_string(),
+        );
+    }
+    db::switch_scene_editor_mode(conn, scene_id, mode).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -614,12 +641,23 @@ pub async fn update_scene_planning_status(
 ) -> Result<(), String> {
     let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let status = PlanningStatus::parse(&planning_status);
+    set_unlocked_scene_planning_status(&conn, &uuid, &planning_status)
+}
 
-    db::update_scene_planning_status(&conn, &uuid, &status).map_err(|e| e.to_string())?;
+fn set_unlocked_scene_planning_status(
+    conn: &rusqlite::Connection,
+    uuid: &Uuid,
+    planning_status: &str,
+) -> Result<(), String> {
+    if db::is_scene_locked(conn, uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot change the planning status of a locked scene".to_string());
+    }
+    let status = PlanningStatus::parse(planning_status);
 
-    if let Some(project_id) = db::get_scene_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
-        let _ = db::update_project_modified(&conn, &project_id);
+    db::update_scene_planning_status(conn, uuid, &status).map_err(|e| e.to_string())?;
+
+    if let Some(project_id) = db::get_scene_project_id(conn, uuid).map_err(|e| e.to_string())? {
+        let _ = db::update_project_modified(conn, &project_id);
     }
 
     Ok(())
@@ -633,12 +671,23 @@ pub async fn update_chapter_planning_status(
 ) -> Result<(), String> {
     let uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let status = PlanningStatus::parse(&planning_status);
+    set_unlocked_chapter_planning_status(&conn, &uuid, &planning_status)
+}
 
-    db::update_chapter_planning_status(&conn, &uuid, &status).map_err(|e| e.to_string())?;
+fn set_unlocked_chapter_planning_status(
+    conn: &rusqlite::Connection,
+    uuid: &Uuid,
+    planning_status: &str,
+) -> Result<(), String> {
+    if db::is_chapter_locked(conn, uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot change the planning status of a locked chapter".to_string());
+    }
+    let status = PlanningStatus::parse(planning_status);
 
-    if let Some(project_id) = db::get_chapter_project_id(&conn, &uuid).map_err(|e| e.to_string())? {
-        let _ = db::update_project_modified(&conn, &project_id);
+    db::update_chapter_planning_status(conn, uuid, &status).map_err(|e| e.to_string())?;
+
+    if let Some(project_id) = db::get_chapter_project_id(conn, uuid).map_err(|e| e.to_string())? {
+        let _ = db::update_project_modified(conn, &project_id);
     }
 
     Ok(())
@@ -1074,17 +1123,28 @@ pub async fn rename_beat(
 ) -> Result<(), String> {
     let beat_uuid = Uuid::parse_str(&beat_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    rename_unlocked_beat(&conn, &beat_uuid, &content)
+}
 
-    let beat = db::get_beat(&conn, &beat_uuid)
+fn rename_unlocked_beat(
+    conn: &rusqlite::Connection,
+    beat_uuid: &Uuid,
+    content: &str,
+) -> Result<(), String> {
+    let beat = db::get_beat(conn, beat_uuid)
         .map_err(|e| e.to_string())?
         .ok_or("Beat not found")?;
 
-    db::update_beat(&conn, &beat_uuid, &content, beat.position).map_err(|e| e.to_string())?;
+    if db::is_scene_locked(conn, &beat.scene_id).map_err(|e| e.to_string())? {
+        return Err("Cannot rename beats in a locked scene".to_string());
+    }
+
+    db::update_beat(conn, beat_uuid, content, beat.position).map_err(|e| e.to_string())?;
 
     if let Some(project_id) =
-        db::get_scene_project_id(&conn, &beat.scene_id).map_err(|e| e.to_string())?
+        db::get_scene_project_id(conn, &beat.scene_id).map_err(|e| e.to_string())?
     {
-        let _ = db::update_project_modified(&conn, &project_id);
+        let _ = db::update_project_modified(conn, &project_id);
     }
 
     Ok(())
@@ -1945,8 +2005,42 @@ pub async fn reorder_chapters(
         .collect::<Result<Vec<_>, _>>()?;
 
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    db::reorder_chapters(&conn, &project_uuid, &chapter_uuids).map_err(|e| e.to_string())?;
-    db::update_project_modified(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    reorder_chapters_around_locks(&conn, &project_uuid, &chapter_uuids)
+}
+
+/// Locked rows are pinned. A reorder may rearrange the unlocked rows around
+/// them, but every locked row must keep the slot it holds now; returns the
+/// first locked row that the new order would move (or leave out).
+fn first_moved_locked_row<'a>(
+    current: &'a [(Uuid, bool, String)],
+    new_order: &[Uuid],
+) -> Option<&'a str> {
+    current
+        .iter()
+        .enumerate()
+        .filter(|(_, (_, locked, _))| *locked)
+        .find(|(index, (id, _, _))| new_order.get(*index) != Some(id))
+        .map(|(_, (_, _, title))| title.as_str())
+}
+
+fn reorder_chapters_around_locks(
+    conn: &rusqlite::Connection,
+    project_uuid: &Uuid,
+    chapter_uuids: &[Uuid],
+) -> Result<(), String> {
+    let current: Vec<_> = db::get_chapters(conn, project_uuid)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|c| (c.id, c.locked, c.title))
+        .collect();
+    if let Some(title) = first_moved_locked_row(&current, chapter_uuids) {
+        return Err(format!(
+            "Cannot move the locked chapter “{title}”. Unlock it first, or reorder around it."
+        ));
+    }
+
+    db::reorder_chapters(conn, project_uuid, chapter_uuids).map_err(|e| e.to_string())?;
+    db::update_project_modified(conn, project_uuid).map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -1964,13 +2058,34 @@ pub async fn reorder_scenes(
         .collect::<Result<Vec<_>, _>>()?;
 
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    db::reorder_scenes(&conn, &chapter_uuid, &scene_uuids).map_err(|e| e.to_string())?;
+    reorder_scenes_around_locks(&conn, &chapter_uuid, &scene_uuids)
+}
+
+fn reorder_scenes_around_locks(
+    conn: &rusqlite::Connection,
+    chapter_uuid: &Uuid,
+    scene_uuids: &[Uuid],
+) -> Result<(), String> {
+    // A locked chapter locks every scene in it, so its order is fixed too.
+    let chapter_locked = db::is_chapter_locked(conn, chapter_uuid).map_err(|e| e.to_string())?;
+    let current: Vec<_> = db::get_scenes(conn, chapter_uuid)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|s| (s.id, chapter_locked || s.locked, s.title))
+        .collect();
+    if let Some(title) = first_moved_locked_row(&current, scene_uuids) {
+        return Err(format!(
+            "Cannot move the locked scene “{title}”. Unlock it first, or reorder around it."
+        ));
+    }
+
+    db::reorder_scenes(conn, chapter_uuid, scene_uuids).map_err(|e| e.to_string())?;
 
     // Update project modified time
     if let Some(project_id) =
-        db::get_chapter_project_id(&conn, &chapter_uuid).map_err(|e| e.to_string())?
+        db::get_chapter_project_id(conn, chapter_uuid).map_err(|e| e.to_string())?
     {
-        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+        db::update_project_modified(conn, &project_id).map_err(|e| e.to_string())?;
     }
 
     Ok(())
@@ -1987,14 +2102,30 @@ pub async fn move_scene_to_chapter(
     let target_chapter_uuid = Uuid::parse_str(&target_chapter_id).map_err(|e| e.to_string())?;
 
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    db::move_scene_to_chapter(&conn, &scene_uuid, &target_chapter_uuid, position)
+    move_unlocked_scene(&conn, &scene_uuid, &target_chapter_uuid, position)
+}
+
+fn move_unlocked_scene(
+    conn: &rusqlite::Connection,
+    scene_uuid: &Uuid,
+    target_chapter_uuid: &Uuid,
+    position: i32,
+) -> Result<(), String> {
+    if db::is_scene_locked(conn, scene_uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot move a locked scene. Unlock it first.".to_string());
+    }
+    if db::is_chapter_locked(conn, target_chapter_uuid).map_err(|e| e.to_string())? {
+        return Err("Cannot move a scene into a locked chapter. Unlock it first.".to_string());
+    }
+
+    db::move_scene_to_chapter(conn, scene_uuid, target_chapter_uuid, position)
         .map_err(|e| e.to_string())?;
 
     // Update project modified time
     if let Some(project_id) =
-        db::get_chapter_project_id(&conn, &target_chapter_uuid).map_err(|e| e.to_string())?
+        db::get_chapter_project_id(conn, target_chapter_uuid).map_err(|e| e.to_string())?
     {
-        db::update_project_modified(&conn, &project_id).map_err(|e| e.to_string())?;
+        db::update_project_modified(conn, &project_id).map_err(|e| e.to_string())?;
     }
 
     Ok(())
@@ -2234,5 +2365,298 @@ mod part_deletion_tests {
         );
         assert_eq!(db::get_chapters(&conn, &project.id).unwrap()[0].id, next.id);
         assert!(db::get_scene_by_id(&conn, &scene.id).unwrap().is_none());
+    }
+}
+
+#[cfg(test)]
+mod lock_enforcement_tests {
+    use super::*;
+    use crate::models::{Project, SourceType};
+    use rusqlite::Connection;
+
+    struct Book {
+        conn: Connection,
+        project: Project,
+        one: Chapter,
+        two: Chapter,
+        /// Scenes A, B, C in chapter One; B has two beats with prose.
+        scenes: Vec<Scene>,
+        beats: Vec<Beat>,
+    }
+
+    fn book() -> Book {
+        let conn = Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        let project = Project::new("Locks".into(), SourceType::Blank, None);
+        db::insert_project(&conn, &project).unwrap();
+        let one = Chapter::new(project.id, "One".into(), 0);
+        let two = Chapter::new(project.id, "Two".into(), 1);
+        db::insert_chapter(&conn, &one).unwrap();
+        db::insert_chapter(&conn, &two).unwrap();
+        let scenes: Vec<_> = ["A", "B", "C"]
+            .iter()
+            .enumerate()
+            .map(|(i, title)| {
+                let scene = Scene::new(one.id, (*title).into(), None, i as i32);
+                db::insert_scene(&conn, &scene).unwrap();
+                scene
+            })
+            .collect();
+        let beats: Vec<_> = ["First beat", "Second beat"]
+            .iter()
+            .enumerate()
+            .map(|(i, content)| {
+                let beat = Beat::new(scenes[1].id, (*content).into(), i as i32);
+                db::insert_beat(&conn, &beat).unwrap();
+                db::update_beat_prose(&conn, &beat.id, &format!("<p>Prose {i}</p>")).unwrap();
+                beat
+            })
+            .collect();
+        Book {
+            conn,
+            project,
+            one,
+            two,
+            scenes,
+            beats,
+        }
+    }
+
+    fn scene_order(book: &Book, chapter: &Chapter) -> Vec<String> {
+        db::get_scenes(&book.conn, &chapter.id)
+            .unwrap()
+            .into_iter()
+            .map(|s| s.title)
+            .collect()
+    }
+
+    fn chapter_order(book: &Book) -> Vec<String> {
+        db::get_chapters(&book.conn, &book.project.id)
+            .unwrap()
+            .into_iter()
+            .map(|c| c.title)
+            .collect()
+    }
+
+    fn ids(scenes: &[&Scene]) -> Vec<Uuid> {
+        scenes.iter().map(|s| s.id).collect()
+    }
+
+    #[test]
+    fn deleting_a_chapter_with_a_locked_scene_is_refused_and_keeps_everything() {
+        let book = book();
+        let b = &book.scenes[1];
+        db::lock_scene(&book.conn, &b.id).unwrap();
+
+        let err = delete_unlocked_chapter(&book.conn, &book.one.id).unwrap_err();
+        assert!(err.contains("locked scene"), "{err}");
+        assert_eq!(scene_order(&book, &book.one), ["A", "B", "C"]);
+        assert_eq!(db::get_beats(&book.conn, &b.id).unwrap().len(), 2);
+
+        // An archived locked scene is still deleted with the chapter, so it still protects it.
+        db::archive_scene(&book.conn, &b.id).unwrap();
+        assert!(delete_unlocked_chapter(&book.conn, &book.one.id)
+            .unwrap_err()
+            .contains("locked scene"));
+        assert!(db::get_scene_by_id(&book.conn, &b.id).unwrap().is_some());
+
+        db::unlock_scene(&book.conn, &b.id).unwrap();
+        delete_unlocked_chapter(&book.conn, &book.one.id).unwrap();
+        assert_eq!(chapter_order(&book), ["Two"]);
+        assert!(db::get_scene_by_id(&book.conn, &b.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn deleting_a_locked_chapter_is_still_refused() {
+        let book = book();
+        db::lock_chapter(&book.conn, &book.two.id).unwrap();
+        assert!(delete_unlocked_chapter(&book.conn, &book.two.id)
+            .unwrap_err()
+            .contains("locked chapter"));
+        assert_eq!(chapter_order(&book), ["One", "Two"]);
+    }
+
+    #[test]
+    fn a_locked_scene_cannot_be_reordered_but_others_can_move_around_it() {
+        let book = book();
+        let [a, b, c] = [&book.scenes[0], &book.scenes[1], &book.scenes[2]];
+        db::lock_scene(&book.conn, &b.id).unwrap();
+
+        for order in [ids(&[b, a, c]), ids(&[a, c, b]), ids(&[a, c])] {
+            let err = reorder_scenes_around_locks(&book.conn, &book.one.id, &order).unwrap_err();
+            assert!(err.contains("locked scene “B”"), "{err}");
+            assert_eq!(scene_order(&book, &book.one), ["A", "B", "C"]);
+        }
+
+        // Swapping the scenes on either side leaves B in its slot.
+        reorder_scenes_around_locks(&book.conn, &book.one.id, &ids(&[c, b, a])).unwrap();
+        assert_eq!(scene_order(&book, &book.one), ["C", "B", "A"]);
+    }
+
+    #[test]
+    fn scenes_in_a_locked_chapter_keep_their_order() {
+        let book = book();
+        let [a, b, c] = [&book.scenes[0], &book.scenes[1], &book.scenes[2]];
+        db::lock_chapter(&book.conn, &book.one.id).unwrap();
+
+        assert!(
+            reorder_scenes_around_locks(&book.conn, &book.one.id, &ids(&[c, b, a]))
+                .unwrap_err()
+                .contains("locked scene “A”")
+        );
+        assert_eq!(scene_order(&book, &book.one), ["A", "B", "C"]);
+        // Re-sending the current order is a harmless no-op.
+        reorder_scenes_around_locks(&book.conn, &book.one.id, &ids(&[a, b, c])).unwrap();
+
+        db::unlock_chapter(&book.conn, &book.one.id).unwrap();
+        reorder_scenes_around_locks(&book.conn, &book.one.id, &ids(&[c, b, a])).unwrap();
+        assert_eq!(scene_order(&book, &book.one), ["C", "B", "A"]);
+    }
+
+    #[test]
+    fn a_locked_chapter_cannot_be_reordered_but_others_can_move_around_it() {
+        let book = book();
+        let three = Chapter::new(book.project.id, "Three".into(), 2);
+        db::insert_chapter(&book.conn, &three).unwrap();
+        let (one, two) = (book.one.id, book.two.id);
+        db::lock_chapter(&book.conn, &two).unwrap();
+
+        let err =
+            reorder_chapters_around_locks(&book.conn, &book.project.id, &[two, one, three.id])
+                .unwrap_err();
+        assert!(err.contains("locked chapter “Two”"), "{err}");
+        assert_eq!(chapter_order(&book), ["One", "Two", "Three"]);
+
+        reorder_chapters_around_locks(&book.conn, &book.project.id, &[three.id, two, one]).unwrap();
+        assert_eq!(chapter_order(&book), ["Three", "Two", "One"]);
+    }
+
+    #[test]
+    fn a_locked_scene_cannot_move_chapters_and_a_locked_chapter_cannot_receive_one() {
+        let book = book();
+        let a = &book.scenes[0];
+        db::lock_scene(&book.conn, &a.id).unwrap();
+        assert!(move_unlocked_scene(&book.conn, &a.id, &book.two.id, 0)
+            .unwrap_err()
+            .contains("locked scene"));
+
+        db::unlock_scene(&book.conn, &a.id).unwrap();
+        db::lock_chapter(&book.conn, &book.one.id).unwrap();
+        assert!(move_unlocked_scene(&book.conn, &a.id, &book.two.id, 0)
+            .unwrap_err()
+            .contains("locked scene"));
+
+        db::unlock_chapter(&book.conn, &book.one.id).unwrap();
+        db::lock_chapter(&book.conn, &book.two.id).unwrap();
+        assert!(move_unlocked_scene(&book.conn, &a.id, &book.two.id, 0)
+            .unwrap_err()
+            .contains("into a locked chapter"));
+        assert_eq!(scene_order(&book, &book.one), ["A", "B", "C"]);
+
+        db::unlock_chapter(&book.conn, &book.two.id).unwrap();
+        move_unlocked_scene(&book.conn, &a.id, &book.two.id, 0).unwrap();
+        assert_eq!(scene_order(&book, &book.two), ["A"]);
+    }
+
+    #[test]
+    fn beats_of_a_locked_scene_cannot_be_renamed() {
+        let book = book();
+        let (b, beat) = (&book.scenes[1], &book.beats[0]);
+        let content = |book: &Book| db::get_beat(&book.conn, &beat.id).unwrap().unwrap().content;
+
+        db::lock_scene(&book.conn, &b.id).unwrap();
+        assert!(rename_unlocked_beat(&book.conn, &beat.id, "Renamed")
+            .unwrap_err()
+            .contains("locked scene"));
+        db::unlock_scene(&book.conn, &b.id).unwrap();
+        db::lock_chapter(&book.conn, &book.one.id).unwrap();
+        assert!(rename_unlocked_beat(&book.conn, &beat.id, "Renamed").is_err());
+        assert_eq!(content(&book), "First beat");
+
+        db::unlock_chapter(&book.conn, &book.one.id).unwrap();
+        rename_unlocked_beat(&book.conn, &beat.id, "Renamed").unwrap();
+        assert_eq!(content(&book), "Renamed");
+    }
+
+    #[test]
+    fn a_locked_scene_keeps_its_editor_mode_and_prose() {
+        let book = book();
+        let b = &book.scenes[1];
+        let snapshot = |book: &Book| {
+            let scene = db::get_scene_by_id(&book.conn, &b.id).unwrap().unwrap();
+            let beats: Vec<_> = db::get_beats(&book.conn, &b.id)
+                .unwrap()
+                .into_iter()
+                .map(|beat| beat.prose)
+                .collect();
+            (scene.editor_mode, scene.prose, beats)
+        };
+        let before = snapshot(&book);
+
+        for lock in ["scene", "chapter"] {
+            if lock == "scene" {
+                db::lock_scene(&book.conn, &b.id).unwrap();
+            } else {
+                db::unlock_scene(&book.conn, &b.id).unwrap();
+                db::lock_chapter(&book.conn, &book.one.id).unwrap();
+            }
+            let err = switch_unlocked_scene_editor_mode(&book.conn, &b.id, "page").unwrap_err();
+            assert!(err.contains("locked scene"), "{err}");
+            assert_eq!(snapshot(&book), before);
+            // Asking for the mode the scene is already in changes nothing and succeeds.
+            let same = switch_unlocked_scene_editor_mode(&book.conn, &b.id, "beat").unwrap();
+            assert_eq!(same.editor_mode, EditorMode::Beat);
+            assert_eq!(snapshot(&book), before);
+        }
+
+        db::unlock_chapter(&book.conn, &book.one.id).unwrap();
+        let page = switch_unlocked_scene_editor_mode(&book.conn, &b.id, "page").unwrap();
+        assert_eq!(page.editor_mode, EditorMode::Page);
+        assert_eq!(
+            page.prose.as_deref(),
+            Some("<p>Prose 0</p><hr><p>Prose 1</p>")
+        );
+    }
+
+    #[test]
+    fn planning_status_of_locked_scenes_and_chapters_is_refused() {
+        let book = book();
+        let a = &book.scenes[0];
+        let scene_status = |book: &Book| {
+            db::get_scene_by_id(&book.conn, &a.id)
+                .unwrap()
+                .unwrap()
+                .planning_status
+        };
+        let chapter_status = |book: &Book| {
+            db::get_chapter_by_id(&book.conn, &book.one.id)
+                .unwrap()
+                .unwrap()
+                .planning_status
+        };
+        let (scene_before, chapter_before) = (scene_status(&book), chapter_status(&book));
+
+        db::lock_scene(&book.conn, &a.id).unwrap();
+        assert!(
+            set_unlocked_scene_planning_status(&book.conn, &a.id, "undefined")
+                .unwrap_err()
+                .contains("locked scene")
+        );
+        db::unlock_scene(&book.conn, &a.id).unwrap();
+        db::lock_chapter(&book.conn, &book.one.id).unwrap();
+        assert!(set_unlocked_scene_planning_status(&book.conn, &a.id, "undefined").is_err());
+        assert!(
+            set_unlocked_chapter_planning_status(&book.conn, &book.one.id, "undefined")
+                .unwrap_err()
+                .contains("locked chapter")
+        );
+        assert_eq!(scene_status(&book), scene_before);
+        assert_eq!(chapter_status(&book), chapter_before);
+
+        db::unlock_chapter(&book.conn, &book.one.id).unwrap();
+        set_unlocked_scene_planning_status(&book.conn, &a.id, "undefined").unwrap();
+        set_unlocked_chapter_planning_status(&book.conn, &book.one.id, "undefined").unwrap();
+        assert_eq!(scene_status(&book), PlanningStatus::Undefined);
+        assert_eq!(chapter_status(&book), PlanningStatus::Undefined);
     }
 }
