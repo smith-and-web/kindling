@@ -94,48 +94,51 @@ fn scene_prose_html(scene: &Scene, beats: &[Beat]) -> (String, String) {
     (nw, html)
 }
 
-/// Pairs novelWriter's beats with kindling's by title, keeping order. The
-/// longest run of matching titles anchors the pairing and beats between two
-/// anchors pair up by position (a rename). Unpaired incoming beats are
-/// additions; unpaired kindling beats are left alone, so deleting a beat in
-/// novelWriter never shifts its neighbours' text onto the wrong beat.
+/// Pairs novelWriter's beats with kindling's. Titles pair first, whatever their
+/// order: the k-th incoming beat with a title pairs with kindling's k-th beat
+/// with that title, so a reordered scene pairs every beat and changes nothing.
+/// An incoming beat left over then pairs, in order, with a leftover kindling
+/// beat that follows the same paired neighbour (a rename). Anything still
+/// unpaired on the incoming side is an addition; kindling beats novelWriter no
+/// longer has are left alone, so a deletion never moves text onto a neighbour.
 fn align<'a>(incoming: &[&'a Beat], local: &[&'a Beat]) -> Vec<(&'a Beat, Option<&'a Beat>)> {
-    let (n, m) = (incoming.len(), local.len());
-    let mut lcs = vec![vec![0usize; m + 1]; n + 1];
-    for i in (0..n).rev() {
-        for j in (0..m).rev() {
-            lcs[i][j] = if incoming[i].content == local[j].content {
-                lcs[i + 1][j + 1] + 1
-            } else {
-                lcs[i + 1][j].max(lcs[i][j + 1])
-            };
+    let mut partner: Vec<Option<usize>> = vec![None; incoming.len()];
+    let mut taken = vec![false; local.len()];
+    let mut by_title: HashMap<&str, std::collections::VecDeque<usize>> = HashMap::new();
+    for (j, beat) in local.iter().enumerate() {
+        by_title.entry(&beat.content).or_default().push_back(j);
+    }
+    for (i, beat) in incoming.iter().enumerate() {
+        if let Some(j) = by_title
+            .get_mut(beat.content.as_str())
+            .and_then(|q| q.pop_front())
+        {
+            partner[i] = Some(j);
+            taken[j] = true;
         }
     }
-    let mut anchors = vec![];
-    let (mut i, mut j) = (0, 0);
-    while i < n && j < m {
-        if incoming[i].content == local[j].content && lcs[i][j] == lcs[i + 1][j + 1] + 1 {
-            anchors.push((i, j));
-            (i, j) = (i + 1, j + 1);
-        } else if lcs[i + 1][j] >= lcs[i][j + 1] {
-            i += 1;
+    // Renames: group leftovers by the kindling beat they follow.
+    let mut gaps: HashMap<Option<usize>, std::collections::VecDeque<usize>> = HashMap::new();
+    let mut after = None;
+    for (j, t) in taken.iter().enumerate() {
+        if *t {
+            after = Some(j);
         } else {
-            j += 1;
+            gaps.entry(after).or_default().push_back(j);
         }
     }
-    anchors.push((n, m));
-    let mut out = vec![];
-    let (mut i, mut j) = (0, 0);
-    for (ai, aj) in anchors {
-        for k in 0..ai - i {
-            out.push((incoming[i + k], (j + k < aj).then(|| local[j + k])));
+    let mut after = None;
+    for slot in partner.iter_mut() {
+        match *slot {
+            Some(j) => after = Some(j),
+            None => *slot = gaps.get_mut(&after).and_then(|q| q.pop_front()),
         }
-        if ai < n {
-            out.push((incoming[ai], Some(local[aj])));
-        }
-        (i, j) = (ai + 1, aj + 1);
     }
-    out
+    incoming
+        .iter()
+        .zip(partner)
+        .map(|(b, j)| (*b, j.map(|j| local[j])))
+        .collect()
 }
 
 /// Walks the source and the project the same way for preview and baselines.
@@ -1086,6 +1089,54 @@ mod tests {
         assert!(inserted.changes.is_empty(), "{:?}", inserted.changes);
         assert_eq!(inserted.additions.len(), 1);
         assert_eq!(inserted.additions[0].title, "Middle");
+    }
+
+    /// The scene document with its two beats swapped.
+    fn swapped(original: &str) -> String {
+        let (knock, answer) = (
+            original.find("% Beat: The knock").unwrap(),
+            original.find("% Beat: Answer").unwrap(),
+        );
+        format!(
+            "{}{}\n\n{}\n",
+            &original[..knock],
+            original[answer..].trim_end(),
+            original[knock..answer].trim_end()
+        )
+    }
+
+    #[test]
+    fn reordered_beats_pair_every_beat_and_add_nothing() {
+        let (conn, project, temp) = imported();
+        let beats = db::get_all_project_beats(&conn, &project.id).unwrap();
+        let handle = db::get_all_project_scenes(&conn, &project.id).unwrap()[0]
+            .source_id
+            .clone()
+            .unwrap();
+        let file = temp.path().join("content").join(format!("{handle}.md"));
+        let original = std::fs::read_to_string(&file).unwrap();
+        std::fs::write(&file, swapped(&original)).unwrap();
+        let parsed = load(&conn, &project).unwrap();
+        let diff = preview(&conn, &project, &parsed).unwrap();
+        assert!(diff.changes.is_empty(), "{:?}", diff.changes);
+        assert!(diff.additions.is_empty(), "{:?}", diff.additions);
+        // Reimport accepts every addition, so it must not duplicate a beat either.
+        apply(&conn, &project, &parsed, &[], &[], &[]).unwrap();
+        assert_eq!(
+            db::get_all_project_beats(&conn, &project.id).unwrap().len(),
+            2
+        );
+        // An edit made while reordering lands on the beat it belongs to.
+        std::fs::write(
+            &file,
+            swapped(&original).replace("listened", "listened closely"),
+        )
+        .unwrap();
+        let changes = preview(&conn, &project, &load(&conn, &project).unwrap())
+            .unwrap()
+            .changes;
+        assert_eq!(changes.len(), 1, "{changes:?}");
+        assert_eq!(changes[0].db_id, beats[1].id.to_string());
     }
 
     #[test]
