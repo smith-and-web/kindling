@@ -94,30 +94,45 @@
       const previous = review.data.drafts;
       review = await invoke<SceneReview>("save_scene_review", { expected: review, data, next });
       // Saving can prune old automatic drafts, so keep the comparison on the same drafts.
-      // If one was pruned, move to its nearest surviving neighbour (older first) and say so.
+      // If one was pruned, move that side to its nearest survivor (older for the saved draft,
+      // newer for the comparison) without collapsing both sides onto one draft, and say so.
       const drafts = review.data.drafts;
-      const find = (draft: ReviewDraft | undefined) =>
-        draft
-          ? drafts.findIndex((d) => d.created_at === draft.created_at && d.name === draft.name)
-          : -1;
-      const removed: string[] = [];
-      const same = (index: number) => {
-        if (index < 0 || !previous[index]) return index;
-        const kept = find(previous[index]);
-        if (kept >= 0) return kept;
-        const neighbours = [
-          ...previous.slice(0, index).reverse(),
-          ...previous.slice(index + 1),
-        ].map(find);
-        const nearest = Math.max(0, neighbours.find((i) => i >= 0) ?? 0);
-        removed.push(
-          `“${previous[index].name}” was removed because only the newest automatic drafts are kept. Comparing “${drafts[nearest]?.name}” instead.`
-        );
-        return nearest;
+      const find = (draft: ReviewDraft) =>
+        drafts.findIndex((d) => d.created_at === draft.created_at && d.name === draft.name);
+      const keep = (index: number) =>
+        index < 0 || !previous[index]
+          ? index
+          : find(previous[index]) >= 0
+            ? find(previous[index])
+            : null;
+      const nearest = (index: number, newerFirst: boolean, avoid: number | null) => {
+        const older = previous.slice(0, index).reverse();
+        const newer = previous.slice(index + 1);
+        return (newerFirst ? [...newer, ...older] : [...older, ...newer])
+          .map(find)
+          .find((i) => i >= 0 && i !== avoid);
       };
-      before = same(before);
-      after = same(after);
-      prunedNotice = [...new Set(removed)].join(" ");
+      let nextBefore = keep(before);
+      let nextAfter = keep(after);
+      const removed = [
+        ...new Set(
+          [nextBefore === null && before, nextAfter === null && after]
+            .filter((index): index is number => index !== false)
+            .map((index) => `“${previous[index].name}”`)
+        ),
+      ];
+      nextBefore ??= nearest(before, false, nextAfter) ?? nearest(before, false, null) ?? 0;
+      nextAfter ??= nearest(after, true, nextBefore) ?? -1;
+      // Current prose is never a saved draft, so it keeps two different drafts apart.
+      if (nextAfter === nextBefore && before !== after) nextAfter = -1;
+      before = nextBefore;
+      after = nextAfter;
+      const label = (index: number) =>
+        index < 0 ? "the current prose" : `“${drafts[index].name}”`;
+      prunedNotice = removed.length
+        ? `${removed.join(" and ")} ${removed.length > 1 ? "were" : "was"} removed because only the newest automatic drafts are kept.` +
+          (drafts[before] ? ` Now comparing ${label(before)} with ${label(after)}.` : "")
+        : "";
       if (next) {
         onApplied(review);
       }

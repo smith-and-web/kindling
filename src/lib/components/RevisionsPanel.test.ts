@@ -282,6 +282,90 @@ it("moves to the nearest older draft and says so when the compared draft is prun
   // Not the first draft: the nearest surviving draft older than the one that went.
   await waitFor(() => expect(within(left).getByRole("heading", { name: "Middle" })).toBeTruthy());
   expect(screen.getByRole("status").textContent).toContain(
-    "“Before accepting A” was removed because only the newest automatic drafts are kept. Comparing “Middle” instead."
+    "“Before accepting A” was removed because only the newest automatic drafts are kept. Now comparing “Middle” with the current prose."
   );
+});
+
+/** Stand in for the backend's automatic-draft limit (here `limit`) on every save. */
+function pruneOnSave(limit: number) {
+  const original = vi.mocked(invoke).getMockImplementation()!;
+  vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+    if (cmd !== "save_scene_review") return original(cmd, args);
+    const { data } = args as { data: SceneReview["data"] };
+    const automatic = data.drafts.filter((d) => d.automatic);
+    const pruned = new Set(automatic.slice(0, Math.max(0, automatic.length - limit)));
+    return original(cmd, {
+      ...args,
+      data: { ...data, drafts: data.drafts.filter((d) => !pruned.has(d)) },
+    });
+  });
+}
+const pruneDraft = (name: string, day: number, automatic = false) => ({
+  name,
+  created_at: `2026-01-0${day}`,
+  mode: "page" as const,
+  documents: [{ id: "scene", label: "Page", html: `<p>${name} fox.</p>` }],
+  ...(automatic && { automatic }),
+});
+function renderPanel() {
+  render(RevisionsPanel, {
+    sceneId: "scene",
+    projectId: "project",
+    title: "Arrival",
+    locked: false,
+    onApplied: vi.fn(),
+    onClose: vi.fn(),
+  });
+}
+
+it("never collapses both sides of a comparison onto one draft when one is pruned", async () => {
+  persisted.data.drafts = [
+    pruneDraft("Opening", 1),
+    pruneDraft("Middle", 2),
+    pruneDraft("Before accepting A", 3, true),
+    pruneDraft("Before accepting B", 4, true),
+  ];
+  pruneOnSave(1);
+  renderPanel();
+  const left = await screen.findByRole("region", { name: "Saved draft" });
+  const right = screen.getByRole("region", { name: "Comparison version" });
+  await fireEvent.click(screen.getByRole("button", { name: /Draft 2.*Middle/ }));
+  await fireEvent.change(screen.getByLabelText("Compare with"), { target: { value: "2" } });
+  expect(within(right).getByRole("heading", { name: "Before accepting A" })).toBeTruthy();
+
+  await fireEvent.change(screen.getByLabelText("Revision status"), {
+    target: { value: "editor_review" },
+  });
+  await waitFor(() => expect(persisted.data.drafts).toHaveLength(3));
+  // The comparison side moves to the nearest newer draft, never onto the saved side's draft.
+  await waitFor(() =>
+    expect(within(right).getByRole("heading", { name: "Before accepting B" })).toBeTruthy()
+  );
+  expect(within(left).getByRole("heading", { name: "Middle" })).toBeTruthy();
+  // Two different drafts, so there is a real difference to show.
+  expect(right.textContent).toContain("Before accepting B fox.");
+  expect(right.querySelector("ins")).not.toBeNull();
+  expect(screen.getByRole("status").textContent).toContain(
+    "“Before accepting A” was removed because only the newest automatic drafts are kept. Now comparing “Middle” with “Before accepting B”."
+  );
+});
+
+it("never names a missing draft when nothing is left to compare", async () => {
+  persisted.data.drafts = [
+    pruneDraft("Before accepting A", 1, true),
+    pruneDraft("Before accepting B", 2, true),
+  ];
+  pruneOnSave(0);
+  renderPanel();
+  await screen.findByRole("region", { name: "Saved draft" });
+  await fireEvent.change(screen.getByLabelText("Revision status"), {
+    target: { value: "editor_review" },
+  });
+  await waitFor(() => expect(persisted.data.drafts).toHaveLength(0));
+  // The newest draft is selected, so it is the one the writer was comparing.
+  const notice = await screen.findByText(/was removed/);
+  expect(notice.textContent).toBe(
+    "“Before accepting B” was removed because only the newest automatic drafts are kept."
+  );
+  expect(document.body.textContent).not.toContain("undefined");
 });
