@@ -484,7 +484,16 @@ struct FormattedParagraph {
 /// Handles:
 /// - Double quotes: " -> " or " depending on context
 /// - Single quotes/apostrophes: ' -> ' or ' depending on context
+#[cfg(test)]
 fn smartify_quotes(text: &str) -> String {
+    smartify_quotes_in_context(None, text, None)
+}
+
+/// [`smartify_quotes`] for one chunk of a paragraph: `before` is the last
+/// character already output in the paragraph and `after` the first character
+/// that follows the chunk, so a quote next to inline markup
+/// (`"I <em>hate</em>"`) is judged by the text around it, not the chunk edge.
+fn smartify_quotes_in_context(before: Option<char>, text: &str, after: Option<char>) -> String {
     let mut result = String::with_capacity(text.len());
     let chars: Vec<char> = text.chars().collect();
     let len = chars.len();
@@ -492,7 +501,7 @@ fn smartify_quotes(text: &str) -> String {
     let mut i = 0;
     while i < len {
         let c = chars[i];
-        let prev = if i > 0 { Some(chars[i - 1]) } else { None };
+        let prev = if i > 0 { Some(chars[i - 1]) } else { before };
 
         match c {
             '"' => {
@@ -510,9 +519,9 @@ fn smartify_quotes(text: &str) -> String {
             '\'' => {
                 // Check for common contractions where ' is an apostrophe
                 // Look at surrounding characters to determine if it's an apostrophe or quote
-                let next = chars.get(i + 1);
+                let next = chars.get(i + 1).copied().or(after);
                 let is_apostrophe = prev.is_some_and(|p| p.is_alphabetic())
-                    && next.is_some_and(|n| n.is_alphabetic() || *n == 's' || *n == 't');
+                    && next.is_some_and(|n| n.is_alphabetic() || n == 's' || n == 't');
 
                 if is_apostrophe {
                     result.push('\u{2019}'); // U+2019 RIGHT SINGLE QUOTATION MARK (apostrophe)
@@ -575,10 +584,34 @@ fn normalize_punctuation(text: &str) -> String {
     normalized
 }
 
+/// [`normalize_punctuation`] for one chunk of a paragraph, applying the space
+/// rules across the chunk's edges too: no second space after a space, no
+/// space after an em dash, and no space before one that starts the next chunk.
+fn normalize_punctuation_in_context(
+    before: Option<char>,
+    text: &str,
+    after: Option<char>,
+) -> String {
+    let mut result = normalize_punctuation(text);
+    if matches!(before, Some(' ' | '—')) {
+        result = result.trim_start_matches(' ').to_string();
+    }
+    if after == Some('—') {
+        result = result.trim_end_matches(' ').to_string();
+    }
+    result
+}
+
 /// Apply all text transformations: smart quotes and punctuation normalization
 fn transform_text(text: &str) -> String {
-    let smart = smartify_quotes(text);
-    normalize_punctuation(&smart)
+    transform_text_in_context(None, text, None)
+}
+
+/// [`transform_text`] for one chunk of a paragraph (see
+/// `html_paragraphs_in_context`).
+fn transform_text_in_context(before: Option<char>, text: &str, after: Option<char>) -> String {
+    let smart = smartify_quotes_in_context(before, text, after);
+    normalize_punctuation_in_context(before, &smart, after)
 }
 
 /// Parse HTML content from TipTap into formatted paragraphs for DOCX export
@@ -590,8 +623,8 @@ fn transform_text(text: &str) -> String {
 ///
 /// Also applies smart quotes and punctuation normalization.
 fn parse_html_to_paragraphs(html: &str) -> Vec<FormattedParagraph> {
-    use crate::parsers::html::{html_paragraphs, ParagraphKind};
-    html_paragraphs(html, transform_text)
+    use crate::parsers::html::{html_paragraphs_in_context, ParagraphKind};
+    html_paragraphs_in_context(html, transform_text_in_context)
         .into_iter()
         .map(|paragraph| {
             // A pasted manual line break arrives as U+000B/U+000C inside a
@@ -1073,7 +1106,7 @@ fn add_title_page(
                     Run::new()
                         .add_text(line)
                         .size(24) // 12pt
-                        .fonts(RunFonts::new().ascii("Courier New")),
+                        .fonts(manuscript_fonts("Courier New")),
                 )
                 .align(AlignmentType::Left)
                 .line_spacing(LineSpacing::new().line(240)), // Single spacing for contact info
@@ -1092,7 +1125,7 @@ fn add_title_page(
                 Run::new()
                     .add_text(&word_count_str)
                     .size(24)
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .align(AlignmentType::Right),
     );
@@ -1110,7 +1143,7 @@ fn add_title_page(
                 Run::new()
                     .add_text(project.name.to_uppercase())
                     .size(24) // 12pt - same as body for SMF
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .align(AlignmentType::Center),
     );
@@ -1125,7 +1158,7 @@ fn add_title_page(
                 Run::new()
                     .add_text("by")
                     .size(24)
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .align(AlignmentType::Center),
     );
@@ -1141,7 +1174,7 @@ fn add_title_page(
                     Run::new()
                         .add_text(&author_name)
                         .size(24)
-                        .fonts(RunFonts::new().ascii("Courier New")),
+                        .fonts(manuscript_fonts("Courier New")),
                 )
                 .align(AlignmentType::Center),
         );
@@ -1158,7 +1191,7 @@ fn add_title_page(
                             .add_text(genre)
                             .size(24)
                             .italic()
-                            .fonts(RunFonts::new().ascii("Courier New")),
+                            .fonts(manuscript_fonts("Courier New")),
                     )
                     .align(AlignmentType::Center),
             );
@@ -2433,6 +2466,17 @@ fn export_to_longform_with_connection(
     })
 }
 
+/// Every DOCX run names its font for all four script slots. Setting only the
+/// ASCII slot left curly quotes, dashes and accented letters to Word's
+/// fallback font, so they printed in a different face from the prose.
+fn manuscript_fonts(font: &str) -> RunFonts {
+    RunFonts::new()
+        .ascii(font)
+        .hi_ansi(font)
+        .east_asia(font)
+        .cs(font)
+}
+
 /// Create the running header for the document
 ///
 /// Standard Manuscript Format running header:
@@ -2452,7 +2496,7 @@ fn create_running_header(author_surname: &str, title: &str) -> Header {
                 Run::new()
                     .add_text(&header_text)
                     .size(24) // 12pt
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             // Add the page number field
             // Field structure: BEGIN -> instruction -> SEPARATE -> result -> END
@@ -2460,31 +2504,31 @@ fn create_running_header(author_surname: &str, title: &str) -> Header {
                 Run::new()
                     .add_field_char(FieldCharType::Begin, false)
                     .size(24)
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .add_run(
                 Run::new()
                     .add_instr_text(InstrText::PAGE(InstrPAGE {}))
                     .size(24)
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .add_run(
                 Run::new()
                     .add_field_char(FieldCharType::Separate, false)
                     .size(24)
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .add_run(
                 Run::new()
                     .add_text("1") // Placeholder that Word will replace
                     .size(24)
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .add_run(
                 Run::new()
                     .add_field_char(FieldCharType::End, false)
                     .size(24)
-                    .fonts(RunFonts::new().ascii("Courier New")),
+                    .fonts(manuscript_fonts("Courier New")),
             )
             .align(AlignmentType::Right),
     )
@@ -2546,7 +2590,7 @@ fn create_docx_styles(
                 .name("Heading 1")
                 .size(56) // 28pt (size is in half-points)
                 .bold()
-                .fonts(RunFonts::new().ascii(font_name)),
+                .fonts(manuscript_fonts(font_name)),
         )
         // Heading 2 style (for scenes) - medium, bold
         .add_style(
@@ -2554,7 +2598,7 @@ fn create_docx_styles(
                 .name("Heading 2")
                 .size(40) // 20pt
                 .bold()
-                .fonts(RunFonts::new().ascii(font_name)),
+                .fonts(manuscript_fonts(font_name)),
         )
         // Heading 3 style (for beats) - smaller, bold italic
         .add_style(
@@ -2563,7 +2607,7 @@ fn create_docx_styles(
                 .size(26) // 13pt
                 .bold()
                 .italic()
-                .fonts(RunFonts::new().ascii(font_name)),
+                .fonts(manuscript_fonts(font_name)),
         )
         // Synopsis style (italicized)
         .add_style(
@@ -2571,14 +2615,14 @@ fn create_docx_styles(
                 .name("Synopsis")
                 .size(22) // 11pt
                 .italic()
-                .fonts(RunFonts::new().ascii(font_name)),
+                .fonts(manuscript_fonts(font_name)),
         )
         // Normal/body text style - 12pt
         .add_style(
             Style::new("BodyText", StyleType::Paragraph)
                 .name("Body Text")
                 .size(24) // 12pt
-                .fonts(RunFonts::new().ascii(font_name)),
+                .fonts(manuscript_fonts(font_name)),
         )
 }
 
@@ -2618,7 +2662,7 @@ fn add_part_to_docx(
                 Run::new()
                     .add_text(part.title.to_uppercase())
                     .size(24) // 12pt
-                    .fonts(RunFonts::new().ascii(font_name)),
+                    .fonts(manuscript_fonts(font_name)),
             )
             .style("Heading1")
             .align(AlignmentType::Center)
@@ -2677,7 +2721,7 @@ fn add_chapter_to_docx(
                 Run::new()
                     .add_text(&chapter_heading)
                     .size(24) // 12pt for SMF
-                    .fonts(RunFonts::new().ascii(font_name)),
+                    .fonts(manuscript_fonts(font_name)),
             )
             .style("Heading1")
             .align(AlignmentType::Center)
@@ -2707,7 +2751,7 @@ fn add_chapter_to_docx(
                             Run::new()
                                 .add_text(break_marker)
                                 .size(24)
-                                .fonts(RunFonts::new().ascii(font_name)),
+                                .fonts(manuscript_fonts(font_name)),
                         )
                         .align(AlignmentType::Center)
                         .line_spacing(
@@ -2772,7 +2816,7 @@ fn add_scene_to_docx(
                         .add_text(&scene.title)
                         .size(24) // 12pt for SMF
                         .bold()
-                        .fonts(RunFonts::new().ascii(font_name)),
+                        .fonts(manuscript_fonts(font_name)),
                 )
                 .style("Heading2")
                 .line_spacing(
@@ -2797,7 +2841,7 @@ fn add_scene_to_docx(
                                 .add_text(&transformed_synopsis)
                                 .size(24) // 12pt
                                 .italic()
-                                .fonts(RunFonts::new().ascii(font_name)),
+                                .fonts(manuscript_fonts(font_name)),
                         )
                         .style("Synopsis")
                         .indent(Some(720), None, None, None) // 720 twips = 0.5 inch left indent
@@ -2872,7 +2916,7 @@ fn add_beat_marker_to_docx(docx: Docx, beat: &Beat, options: &DocxExportOptions)
                         .size(24) // 12pt
                         .bold()
                         .italic()
-                        .fonts(RunFonts::new().ascii(font_name)),
+                        .fonts(manuscript_fonts(font_name)),
                 )
                 .style("Heading3")
                 .line_spacing(
@@ -2919,7 +2963,7 @@ fn add_prose_to_docx(
                 let mut run = Run::new()
                     .add_text(&run_data.text)
                     .size(24) // 12pt
-                    .fonts(RunFonts::new().ascii(font_name));
+                    .fonts(manuscript_fonts(font_name));
 
                 if run_data.bold {
                     run = run.bold();
@@ -3937,14 +3981,14 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                 .name("Heading 1")
                 .size(28)
                 .bold()
-                .fonts(RunFonts::new().ascii(font)),
+                .fonts(manuscript_fonts(font)),
         )
         .add_style(
             Style::new("Heading2", StyleType::Paragraph)
                 .name("Heading 2")
                 .size(24)
                 .bold()
-                .fonts(RunFonts::new().ascii(font)),
+                .fonts(manuscript_fonts(font)),
         );
 
     // Title page
@@ -3958,7 +4002,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                     .add_text(content.title.to_uppercase())
                     .size(28)
                     .bold()
-                    .fonts(RunFonts::new().ascii(font)),
+                    .fonts(manuscript_fonts(font)),
             )
             .align(AlignmentType::Center),
     );
@@ -3969,7 +4013,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                     Run::new()
                         .add_text(format!("by {}", content.author))
                         .size(24)
-                        .fonts(RunFonts::new().ascii(font)),
+                        .fonts(manuscript_fonts(font)),
                 )
                 .align(AlignmentType::Center),
         );
@@ -3981,7 +4025,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                 Run::new()
                     .add_text("A Treatment")
                     .size(24)
-                    .fonts(RunFonts::new().ascii(font)),
+                    .fonts(manuscript_fonts(font)),
             )
             .align(AlignmentType::Center),
     );
@@ -3996,7 +4040,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                         .add_text(&content.logline)
                         .size(24)
                         .italic()
-                        .fonts(RunFonts::new().ascii(font)),
+                        .fonts(manuscript_fonts(font)),
                 )
                 .line_spacing(LineSpacing::new().line(line_sp)),
         );
@@ -4025,7 +4069,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                 Run::new()
                                     .add_text(&text)
                                     .size(24)
-                                    .fonts(RunFonts::new().ascii(font)),
+                                    .fonts(manuscript_fonts(font)),
                             )
                             .line_spacing(LineSpacing::new().line(line_sp)),
                     );
@@ -4043,7 +4087,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     .add_text(part.title.to_uppercase())
                                     .size(28)
                                     .bold()
-                                    .fonts(RunFonts::new().ascii(font)),
+                                    .fonts(manuscript_fonts(font)),
                             )
                             .style("Heading1")
                             .line_spacing(LineSpacing::new().line(line_sp)),
@@ -4055,7 +4099,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     Run::new()
                                         .add_text(&part.synopsis)
                                         .size(24)
-                                        .fonts(RunFonts::new().ascii(font)),
+                                        .fonts(manuscript_fonts(font)),
                                 )
                                 .line_spacing(LineSpacing::new().line(line_sp)),
                         );
@@ -4071,7 +4115,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     .add_text(&chapter.title)
                                     .size(24)
                                     .bold()
-                                    .fonts(RunFonts::new().ascii(font)),
+                                    .fonts(manuscript_fonts(font)),
                             )
                             .style("Heading2")
                             .line_spacing(LineSpacing::new().line(line_sp)),
@@ -4083,7 +4127,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     Run::new()
                                         .add_text(&chapter.synopsis)
                                         .size(24)
-                                        .fonts(RunFonts::new().ascii(font)),
+                                        .fonts(manuscript_fonts(font)),
                                 )
                                 .line_spacing(LineSpacing::new().line(line_sp)),
                         );
@@ -4099,7 +4143,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                                 scene.title, scene.synopsis
                                             ))
                                             .size(24)
-                                            .fonts(RunFonts::new().ascii(font)),
+                                            .fonts(manuscript_fonts(font)),
                                     )
                                     .indent(Some(720), None, None, None)
                                     .line_spacing(LineSpacing::new().line(line_sp)),
@@ -4120,7 +4164,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     .add_text(part.title.to_uppercase())
                                     .size(28)
                                     .bold()
-                                    .fonts(RunFonts::new().ascii(font)),
+                                    .fonts(manuscript_fonts(font)),
                             )
                             .style("Heading1")
                             .line_spacing(LineSpacing::new().line(line_sp)),
@@ -4132,7 +4176,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     Run::new()
                                         .add_text(&part.synopsis)
                                         .size(24)
-                                        .fonts(RunFonts::new().ascii(font)),
+                                        .fonts(manuscript_fonts(font)),
                                 )
                                 .line_spacing(LineSpacing::new().line(line_sp)),
                         );
@@ -4148,7 +4192,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     .add_text(&chapter.title)
                                     .size(24)
                                     .bold()
-                                    .fonts(RunFonts::new().ascii(font)),
+                                    .fonts(manuscript_fonts(font)),
                             )
                             .style("Heading2")
                             .line_spacing(LineSpacing::new().line(line_sp)),
@@ -4160,7 +4204,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                     Run::new()
                                         .add_text(&chapter.synopsis)
                                         .size(24)
-                                        .fonts(RunFonts::new().ascii(font)),
+                                        .fonts(manuscript_fonts(font)),
                                 )
                                 .line_spacing(LineSpacing::new().line(line_sp)),
                         );
@@ -4176,7 +4220,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                         .size(24)
                                         .bold()
                                         .italic()
-                                        .fonts(RunFonts::new().ascii(font)),
+                                        .fonts(manuscript_fonts(font)),
                                 )
                                 .indent(Some(720), None, None, None)
                                 .line_spacing(LineSpacing::new().line(line_sp)),
@@ -4188,7 +4232,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                         Run::new()
                                             .add_text(&scene.synopsis)
                                             .size(24)
-                                            .fonts(RunFonts::new().ascii(font)),
+                                            .fonts(manuscript_fonts(font)),
                                     )
                                     .indent(Some(720), None, None, None)
                                     .line_spacing(LineSpacing::new().line(line_sp)),
@@ -4201,7 +4245,7 @@ fn treatment_to_docx(content: &TreatmentContent, level: &TreatmentLevel) -> Docx
                                         Run::new()
                                             .add_text(format!("— {}", beat))
                                             .size(24)
-                                            .fonts(RunFonts::new().ascii(font)),
+                                            .fonts(manuscript_fonts(font)),
                                     )
                                     .indent(Some(1080), None, None, None)
                                     .line_spacing(LineSpacing::new().line(line_sp)),
@@ -5586,6 +5630,86 @@ mod tests {
         // Smart quotes should be applied
         assert!(paragraphs[0].runs[0].text.contains('\u{201C}')); // Opening quote
         assert!(paragraphs[0].runs[0].text.contains('\u{201D}')); // Closing quote
+    }
+
+    fn paragraph_text(html: &str) -> String {
+        parse_html_to_paragraphs(html)
+            .iter()
+            .flat_map(|p| p.runs.iter().map(|r| r.text.as_str()))
+            .collect()
+    }
+
+    /// Inline markup and entities split a paragraph into several text chunks;
+    /// quotes must be judged across those boundaries.
+    #[test]
+    fn test_smart_quotes_carry_across_inline_markup_and_entities() {
+        assert_eq!(
+            paragraph_text("<p>\"I <em>hate</em>\" it.</p>"),
+            "\u{201C}I hate\u{201D} it."
+        );
+        assert_eq!(
+            paragraph_text("<p>&quot;Hi,&quot; she said.</p>"),
+            "\u{201C}Hi,\u{201D} she said."
+        );
+        assert_eq!(
+            paragraph_text("<p>The <em>dog</em>'s bone and \"<strong>no</strong>\"</p>"),
+            "The dog\u{2019}s bone and \u{201C}no\u{201D}"
+        );
+        assert_eq!(
+            paragraph_text("<p>End.<br>\"New line\"</p>"),
+            "End.\n\u{201C}New line\u{201D}"
+        );
+        // A break resets nothing across paragraphs.
+        assert_eq!(
+            paragraph_text("<p>Said <em>it</em></p><p>\"Next\"</p>"),
+            "Said it\u{201C}Next\u{201D}"
+        );
+    }
+
+    #[test]
+    fn test_html_named_entities_are_decoded_before_typography() {
+        assert_eq!(
+            paragraph_text("<p>Wait&mdash;what&hellip; caf&eacute; &ndash; &ldquo;ok&rdquo;</p>"),
+            "Wait\u{2014}what\u{2026} caf\u{e9} \u{2013} \u{201C}ok\u{201D}"
+        );
+        // Spaces around a decoded em dash follow the manuscript rule.
+        assert_eq!(
+            paragraph_text("<p>Wait &mdash; what</p>"),
+            "Wait\u{2014}what"
+        );
+        // Unknown entities are kept as written.
+        assert_eq!(paragraph_text("<p>a &bogus; b</p>"), "a &bogus; b");
+        // EPUB shares the same walker.
+        let xhtml = render_html_to_xhtml("<p>\"I <em>hate</em>\"&hellip;</p>");
+        assert!(
+            xhtml.contains("\u{201C}I <em>hate</em>\u{201D}\u{2026}"),
+            "{xhtml}"
+        );
+        assert!(!xhtml.contains("&amp;hellip;"), "{xhtml}");
+    }
+
+    #[test]
+    fn test_docx_runs_name_the_font_for_every_script_slot() {
+        let options = default_test_options();
+        let (docx, _) = add_prose_to_docx(
+            Docx::new(),
+            Some("<p>\u{201C}Curly\u{201D}\u{2014}caf\u{e9}</p>"),
+            &options,
+            true,
+        );
+        let mut buffer = Vec::new();
+        pack_docx(docx, std::io::Cursor::new(&mut buffer)).unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(buffer)).unwrap();
+        let mut xml = String::new();
+        std::io::Read::read_to_string(&mut archive.by_name("word/document.xml").unwrap(), &mut xml)
+            .unwrap();
+        let run = xml.split("</w:r>").find(|r| r.contains("Curly")).unwrap();
+        for slot in ["w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"] {
+            assert!(
+                run.contains(&format!("{slot}=\"Courier New\"")),
+                "{slot} missing: {run}"
+            );
+        }
     }
 
     #[test]
