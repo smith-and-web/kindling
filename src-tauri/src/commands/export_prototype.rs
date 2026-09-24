@@ -95,7 +95,7 @@ pub fn save_export_prototype_html(path: String, html: String) -> Result<(), Stri
         return Err("Preview exceeds the 32 MB prototype limit.".into());
     }
     let parent = target.parent().ok_or("Choose a destination folder.")?;
-    let mut staged = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
+    let mut staged = super::staging::staged_file_in(parent).map_err(|e| e.to_string())?;
     staged
         .write_all(html.as_bytes())
         .map_err(|e| e.to_string())?;

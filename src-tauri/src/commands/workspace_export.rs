@@ -111,7 +111,8 @@ fn new_file(path: &Path, extension: &str) -> Result<tempfile::NamedTempFile> {
                 .into(),
         );
     }
-    tempfile::NamedTempFile::new_in(path.parent().ok_or("Choose a destination folder.")?)
+    // Not NamedTempFile::new_in: its 0600 file would publish as owner-only.
+    super::staging::staged_file_in(path.parent().ok_or("Choose a destination folder.")?)
         .map_err(|e| e.to_string())
 }
 fn publish(file: tempfile::NamedTempFile, target: &Path) -> Result<()> {
@@ -702,6 +703,33 @@ mod tests {
             "U+000B should become a soft line break: {paragraph}"
         );
         assert!(member(&path, "word/header1.xml").contains("A Writer / The Book"));
+    }
+    /// Published exports must not be owner-only (tempfile's 0600): they get
+    /// the same mode as any file created beside them.
+    #[cfg(unix)]
+    #[test]
+    fn published_exports_get_default_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |p: &Path| fs::metadata(p).unwrap().permissions().mode() & 0o7777;
+        let dir = tempfile::tempdir().unwrap();
+        let reference = dir.path().join("reference.txt");
+        fs::File::create(&reference).unwrap();
+        for (name, format) in [
+            ("book.docx", "docx"),
+            ("book.epub", "epub"),
+            ("book.md", "markdown"),
+        ] {
+            let path = dir.path().join(name);
+            export_workspace_document(path.to_string_lossy().into(), format.into(), document())
+                .unwrap();
+            assert_eq!(
+                mode(&path),
+                mode(&reference),
+                "{name} is {:o}, a new file here is {:o}",
+                mode(&path),
+                mode(&reference)
+            );
+        }
     }
     #[test]
     fn epub_with_control_characters_is_well_formed() {

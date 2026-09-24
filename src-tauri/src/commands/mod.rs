@@ -35,6 +35,7 @@ mod search;
 mod session;
 mod settings;
 mod snapshot;
+mod staging;
 mod state;
 mod sync;
 mod tags;

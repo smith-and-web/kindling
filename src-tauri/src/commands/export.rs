@@ -3080,10 +3080,9 @@ pub async fn export_to_docx(
             .map_err(|e| format!("Failed to create output directory: {}", e))?;
     }
 
-    let file = fs::File::create(&output_path)
-        .map_err(|e| format!("Failed to create output file: {}", e))?;
-
-    pack_docx(docx, file).map_err(|e| format!("Failed to write DOCX file: {}", e))?;
+    super::staging::replace_file_atomically(&output_path, |file| {
+        pack_docx(docx, file).map_err(|e| format!("Failed to write DOCX file: {}", e))
+    })?;
 
     Ok(ExportResult {
         output_path: output_path.to_string_lossy().to_string(),
@@ -3447,8 +3446,35 @@ pub async fn export_to_epub(
             .map_err(|e| format!("Failed to create output directory: {}", e))?;
     }
 
-    let file = fs::File::create(&output_path)
-        .map_err(|e| format!("Failed to create output file: {}", e))?;
+    super::staging::replace_file_atomically(&output_path, |file| {
+        write_epub_package(
+            file,
+            &options,
+            &xhtml_items,
+            &nav_xhtml,
+            &toc_ncx,
+            &content_opf,
+        )
+    })?;
+
+    Ok(ExportResult {
+        output_path: output_path.to_string_lossy().to_string(),
+        files_created: 1,
+        chapters_exported,
+        scenes_exported,
+    })
+}
+
+/// Write the EPUB container. Runs against a staged file, so any failure here
+/// (such as an unreadable cover image) leaves a previous export untouched.
+fn write_epub_package(
+    file: &mut fs::File,
+    options: &EpubExportOptions,
+    xhtml_items: &[EpubXhtmlItem],
+    nav_xhtml: &str,
+    toc_ncx: &str,
+    content_opf: &str,
+) -> Result<(), String> {
     let mut zip = zip::ZipWriter::new(file);
 
     let stored = FileOptions::<()>::default()
@@ -3529,7 +3555,7 @@ pub async fn export_to_epub(
             .map_err(|e| format!("Failed to write cover image: {}", e))?;
     }
 
-    for item in &xhtml_items {
+    for item in xhtml_items {
         if item.id == "cover" || item.id == "title" {
             continue;
         }
@@ -3541,13 +3567,7 @@ pub async fn export_to_epub(
 
     zip.finish()
         .map_err(|e| format!("Failed to finalize EPUB: {}", e))?;
-
-    Ok(ExportResult {
-        output_path: output_path.to_string_lossy().to_string(),
-        files_created: 1,
-        chapters_exported,
-        scenes_exported,
-    })
+    Ok(())
 }
 
 // =============================================================================
@@ -4179,16 +4199,16 @@ pub async fn generate_treatment(
     match options.format {
         TreatmentFormat::Txt => {
             let text = treatment_to_text(&content, &options.detail_level);
-            let mut file = fs::File::create(&output_path)
-                .map_err(|e| format!("Failed to create output file: {}", e))?;
-            file.write_all(text.as_bytes())
-                .map_err(|e| format!("Failed to write treatment file: {}", e))?;
+            super::staging::replace_file_atomically(&output_path, |file| {
+                file.write_all(text.as_bytes())
+                    .map_err(|e| format!("Failed to write treatment file: {}", e))
+            })?;
         }
         TreatmentFormat::Docx => {
             let docx = treatment_to_docx(&content, &options.detail_level);
-            let file = fs::File::create(&output_path)
-                .map_err(|e| format!("Failed to create output file: {}", e))?;
-            pack_docx(docx, file).map_err(|e| format!("Failed to write DOCX file: {}", e))?;
+            super::staging::replace_file_atomically(&output_path, |file| {
+                pack_docx(docx, file).map_err(|e| format!("Failed to write DOCX file: {}", e))
+            })?;
         }
     }
 
@@ -8108,6 +8128,83 @@ mod tests {
         let opf = build_epub_content_opf(&metadata, "id", "2024-01-01T00:00:00Z", &[], &[], false);
         assert_well_formed("opf", &opf);
         assert!(opf.contains("A Writer"), "{opf}");
+    }
+
+    // =========================================================================
+    // Re-exporting over a previous file
+    // =========================================================================
+
+    fn dir_entries(dir: &Path) -> Vec<String> {
+        let mut names: Vec<_> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    fn epub_options_with_cover(cover: &Path) -> EpubExportOptions {
+        EpubExportOptions {
+            scope: ExportScope::Project,
+            include_beat_markers: false,
+            include_synopsis: false,
+            output_path: String::new(),
+            create_snapshot: false,
+            metadata: EpubMetadata {
+                title: "Book".to_string(),
+                author: "A Writer".to_string(),
+                description: None,
+                language: "en".to_string(),
+            },
+            theme: EpubTheme::Classic,
+            include_cover_image: true,
+            cover_image_path: Some(cover.to_string_lossy().into_owned()),
+        }
+    }
+
+    /// The same staged write `export_to_epub` performs.
+    fn write_epub_over(target: &Path, options: &EpubExportOptions) -> Result<(), String> {
+        let items = vec![EpubXhtmlItem {
+            id: "chapter-01".to_string(),
+            href: "chapter-01.xhtml".to_string(),
+            title: "Chapter 1".to_string(),
+            content: build_epub_xhtml_document("Chapter 1", "<p>Prose.</p>", "en"),
+            include_in_toc: true,
+            linear: true,
+        }];
+        super::super::staging::replace_file_atomically(target, |file| {
+            write_epub_package(file, options, &items, "<nav/>", "<ncx/>", "<package/>")
+        })
+    }
+
+    #[test]
+    fn test_failed_epub_export_leaves_previous_file_intact() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("Book.epub");
+        std::fs::write(&target, b"previous good export").unwrap();
+
+        // The cover is read late, after most of the package has been written.
+        let options = epub_options_with_cover(&dir.path().join("missing-cover.jpg"));
+        let err = write_epub_over(&target, &options).unwrap_err();
+
+        assert!(err.contains("cover image"), "{err}");
+        assert_eq!(std::fs::read(&target).unwrap(), b"previous good export");
+        assert_eq!(dir_entries(dir.path()), ["Book.epub"]);
+    }
+
+    #[test]
+    fn test_successful_epub_export_replaces_previous_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("Book.epub");
+        std::fs::write(&target, b"previous export").unwrap();
+        let cover = dir.path().join("cover.jpg");
+        std::fs::write(&cover, b"\xff\xd8\xff jpeg").unwrap();
+
+        write_epub_over(&target, &epub_options_with_cover(&cover)).unwrap();
+
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&target).unwrap()).unwrap();
+        assert!(archive.by_name("OEBPS/images/cover.jpg").is_ok());
+        assert_eq!(dir_entries(dir.path()), ["Book.epub", "cover.jpg"]);
     }
 }
 
