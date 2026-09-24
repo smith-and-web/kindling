@@ -1443,11 +1443,13 @@ fn parse_scene_body(content: &str) -> SceneContent {
                     timelines: &mut timelines,
                     custom: &mut custom,
                 };
-                // Only keys Kindling maps are consumed. Kindling has nowhere to
-                // store any other field on a scene, so those lines (and
-                // sentences like "Meanwhile:: the ship sank.") stay in the
-                // prose rather than being silently discarded.
-                if apply_dataview_field(&field.key, &field.value, &mut context) {
+                // Mapped keys are applied; other fields (`mood:: tense`,
+                // `up:: [[Chapter One]]`) are metadata Kindling has no home
+                // for, consumed as 1.2 did and never turned into references.
+                // Unspaced `key::text` is only a field for a mapped key or a
+                // link value, so text like `std::vector` stays prose.
+                let mapped = apply_dataview_field(&field.key, &field.value, &mut context);
+                if mapped || field.spaced || field.links_only {
                     continue;
                 }
             }
@@ -1845,30 +1847,60 @@ fn apply_dataview_field(key: &str, value: &str, context: &mut DataviewContext<'_
 struct DataviewField {
     key: String,
     value: String,
+    /// `::` was followed by whitespace or ended the line, as Dataview
+    /// fields are normally written.
+    spaced: bool,
+    /// The value is only wikilinks (`[[A]]` or `[[A]], [[B]]`).
+    links_only: bool,
 }
 
 /// Parse a scene line as a Dataview inline field.
 ///
-/// Mapped field lines are removed from the prose, so this errs towards
-/// keeping text:
-/// the key must be a single field-name token (a letter, then letters, digits,
-/// `_` or `-`). Prose that merely contains `::` ("the odds were 3::1",
-/// "Night falls:: ...", list items, quotes) is not a field. Dataview's
-/// multi-word keys are therefore left in the prose rather than risk dropping
-/// a sentence.
+/// Field lines never reach the prose, so this errs towards keeping text. A
+/// line is a field only when it is exactly `key:: value` and either
+///
+/// - the key follows the Dataview convention of a lowercase-initial name,
+///   `^[a-z][A-Za-z0-9_-]*$` (`mood:: tense`, `characters:: [[John]]`), or
+/// - the value is only wikilinks, whatever the key's case
+///   (`Characters:: [[John]]`, `Next:: [[Scene 4]]`).
+///
+/// Everything else is prose, including sentences that start with a
+/// capitalised word and `::` ("Meanwhile:: the ship sank.", "Crew:: all
+/// hands stood silent."), multi-word keys, list items and quotes.
 fn parse_dataview_field(line: &str) -> Option<DataviewField> {
     let (key, rest) = line.trim().split_once("::")?;
     let key = key.trim_end();
+    let value = rest.trim();
+    let links_only = is_wikilink_list(value);
     let mut key_chars = key.chars();
-    if !key_chars.next().is_some_and(char::is_alphabetic)
-        || !key_chars.all(|ch| ch.is_alphanumeric() || ch == '_' || ch == '-')
-    {
+    let is_field = if links_only {
+        key_chars.next().is_some_and(char::is_alphabetic)
+            && key_chars.all(|ch| ch.is_alphanumeric() || ch == '_' || ch == '-')
+    } else {
+        key_chars.next().is_some_and(|ch| ch.is_ascii_lowercase())
+            && key_chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+    };
+    if !is_field {
         return None;
     }
     Some(DataviewField {
         key: key.to_string(),
-        value: rest.trim().to_string(),
+        value: value.to_string(),
+        spaced: rest.is_empty() || rest.starts_with(char::is_whitespace),
+        links_only,
     })
+}
+
+/// Whether `value` is one wikilink or a comma list of them, and nothing else.
+fn is_wikilink_list(value: &str) -> bool {
+    !value.is_empty()
+        && value.split(',').all(|entry| {
+            entry
+                .trim()
+                .strip_prefix("[[")
+                .and_then(|inner| inner.strip_suffix("]]"))
+                .is_some_and(|inner| !inner.trim().is_empty() && !inner.contains("]]"))
+        })
 }
 
 fn split_inline_list(value: &str) -> Vec<String> {
@@ -2836,34 +2868,56 @@ Night falls:: the long wait begins.\n\
         ] {
             assert!(prose.contains(line), "lost {line:?} from {prose:?}");
         }
-        // A key Kindling maps is metadata, not prose; an unmapped field has
-        // nowhere else to go, so it stays where the writer can see it.
+        // Genuine field lines (lowercase keys) are metadata, not prose.
         assert!(!prose.contains("pov::"), "{prose:?}");
-        assert!(prose.contains("mood:: tense"), "{prose:?}");
+        assert!(!prose.contains("mood::"), "{prose:?}");
     }
 
     #[test]
     fn test_parse_scene_body_keeps_sentences_that_look_like_fields() {
+        // Capitalised words before `::` followed by ordinary text are prose,
+        // even when the word is a key Kindling maps ("Crew").
         let scene = parse_scene_body(
             "Meanwhile:: the ship sank.\n\
 Later:: she remembered.\n\
-characters:: [[John]]",
+Crew:: all hands stood silent.\n\
+characters:: [[John]]\n\
+Characters:: [[Mila]]\n\
+pov:: Zoe",
         );
         assert_eq!(
             scene.prose.as_deref(),
-            Some("Meanwhile:: the ship sank.\nLater:: she remembered.")
+            Some("Meanwhile:: the ship sank.\nLater:: she remembered.\nCrew:: all hands stood silent.")
         );
-        assert_eq!(scene.characters, vec!["John".to_string()]);
+        let mut characters = scene.characters.clone();
+        characters.sort();
+        assert_eq!(characters, ["John", "Mila", "Zoe"]);
+        assert!(scene.organizations.is_empty(), "{:?}", scene.organizations);
+    }
+
+    #[test]
+    fn test_parse_scene_body_consumes_dataview_breadcrumbs() {
+        // Navigation fields link scenes, not characters: consumed, no references.
+        let scene = parse_scene_body(
+            "up:: [[Chapter One]]\n\
+prev::[[Scene 2]]\n\
+Next:: [[Scene 4]], [[Scene 5|the next one]]\n\
+\n\
+Body.",
+        );
+        assert_eq!(scene.prose.as_deref(), Some("Body."));
+        assert!(scene.characters.is_empty(), "{:?}", scene.characters);
+        assert!(scene.locations.is_empty(), "{:?}", scene.locations);
     }
 
     #[test]
     fn test_parse_scene_body_dataview_field_forms() {
-        // Mapped keys work without a space after `::` or with one before it;
-        // an unmapped field, even with no value, is kept in the prose.
-        let scene = parse_scene_body("setting::[[~Dock]]\nPOV :: Zoe\nmood::\n\nBody.");
+        // Mapped keys work without a space after `::` or with one before it,
+        // and an unmapped field with no value is still metadata.
+        let scene = parse_scene_body("setting::[[~Dock]]\npov :: Zoe\nmood::\n\nBody.");
         assert_eq!(scene.locations, vec!["Dock".to_string()]);
         assert_eq!(scene.characters, vec!["Zoe".to_string()]);
-        assert_eq!(scene.prose.as_deref(), Some("mood::\n\nBody."));
+        assert_eq!(scene.prose.as_deref(), Some("Body."));
     }
 
     #[test]
