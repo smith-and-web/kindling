@@ -1575,21 +1575,107 @@ fn export_folder(output: &std::path::Path, name: &str) -> Result<PathBuf, String
     Ok(folder)
 }
 
-/// Written into every Markdown/Longform export folder kindling creates. "Delete
-/// existing export folder" only ever removes a folder carrying it, so a
-/// destination and export name that happen to match one of the writer's own
-/// folders (`~` plus a project called "Documents") can never delete it.
+/// Written into every Markdown/Longform export folder kindling creates, with the
+/// list of files kindling wrote there. "Delete existing export folder" only
+/// ever removes a folder carrying it, and only while every file in it is one
+/// kindling listed, so neither a folder of the writer's own (`~` plus a project
+/// called "Documents") nor notes the writer later added to an export (an
+/// Obsidian vault's `Research.md`) can be deleted.
 const EXPORT_MARKER: &str = ".kindling-export";
 const EXPORT_MARKER_TEXT: &str = "This folder was created by a kindling export. When you export \
 again with \"Delete existing export folder\", kindling may replace it, but only while it holds \
-nothing except the Markdown files kindling writes. Delete this file to stop kindling from ever \
-replacing the folder.\n";
+nothing except the files listed below, which kindling wrote. Delete this file to stop kindling \
+from ever replacing the folder.\n";
+const EXPORT_MANIFEST_HEADER: &str = "--- files written by kindling ---";
+
+/// The files kindling has written into an export folder it owns, relative to
+/// the folder with `/` separators, as recorded in its marker.
+fn read_export_manifest(export_root: &Path) -> Option<std::collections::BTreeSet<String>> {
+    let marker = export_root.join(EXPORT_MARKER);
+    if !fs::symlink_metadata(&marker).is_ok_and(|m| m.is_file()) {
+        return None;
+    }
+    let text = fs::read_to_string(marker).ok()?;
+    Some(
+        text.lines()
+            .skip_while(|line| *line != EXPORT_MANIFEST_HEADER)
+            .skip(1)
+            .filter(|line| !line.is_empty())
+            .map(str::to_string)
+            .collect(),
+    )
+}
+
+fn manifest_key(export_root: &Path, path: &Path) -> Option<String> {
+    let relative = path.strip_prefix(export_root).ok()?;
+    let parts: Option<Vec<&str>> = relative
+        .components()
+        .map(|c| match c {
+            std::path::Component::Normal(part) => part.to_str(),
+            _ => None,
+        })
+        .collect();
+    parts.map(|parts| parts.join("/"))
+}
+
+/// Records each file an export writes into a folder kindling owns and keeps
+/// the marker's list up to date. For a folder that isn't kindling's (one that
+/// already existed without a marker) it writes files but records nothing, so
+/// the folder never becomes replaceable.
+struct ExportManifest {
+    root: PathBuf,
+    files: Option<std::collections::BTreeSet<String>>,
+    dirty: bool,
+}
+
+impl ExportManifest {
+    fn write(&mut self, path: &Path, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
+        fs::write(path, contents)?;
+        if let (Some(files), Some(key)) = (self.files.as_mut(), manifest_key(&self.root, path)) {
+            // A name kindling can't list one per line is left unlisted, which
+            // only ever makes the folder harder to replace.
+            if !key.contains(['\n', '\r']) {
+                self.dirty |= files.insert(key);
+            }
+        }
+        Ok(())
+    }
+
+    fn save(&mut self) -> std::io::Result<()> {
+        let Some(files) = &self.files else {
+            return Ok(());
+        };
+        let mut text = format!("{EXPORT_MARKER_TEXT}\n{EXPORT_MANIFEST_HEADER}\n");
+        for file in files {
+            text.push_str(file);
+            text.push('\n');
+        }
+        fs::write(self.root.join(EXPORT_MARKER), text)?;
+        self.dirty = false;
+        Ok(())
+    }
+
+    /// Save the list once the export has finished writing.
+    fn finish(mut self) -> Result<(), String> {
+        self.save()
+            .map_err(|e| format!("Failed to record the exported files: {}", e))
+    }
+}
+
+impl Drop for ExportManifest {
+    /// An export that stops part-way still lists what it wrote.
+    fn drop(&mut self) {
+        if self.dirty {
+            let _ = self.save();
+        }
+    }
+}
 
 /// Create `folder` (inside an already-validated destination) for an export,
 /// replacing it first when asked and when kindling owns it. The ownership
 /// marker is written only when kindling creates the folder itself, never into
 /// a folder that already existed.
-fn prepare_export_folder(folder: &Path, delete_existing: bool) -> Result<(), String> {
+fn prepare_export_folder(folder: &Path, delete_existing: bool) -> Result<ExportManifest, String> {
     if delete_existing && folder.exists() {
         remove_owned_export_folder(folder, folder)?;
     }
@@ -1598,19 +1684,33 @@ fn prepare_export_folder(folder: &Path, delete_existing: bool) -> Result<(), Str
             .map_err(|e| format!("Failed to create output directory: {}", e))?;
     }
     match fs::create_dir(folder) {
-        Ok(()) => fs::write(folder.join(EXPORT_MARKER), EXPORT_MARKER_TEXT)
-            .map_err(|e| format!("Failed to create output directory: {}", e)),
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && folder.is_dir() => Ok(()),
+        Ok(()) => {
+            let mut manifest = ExportManifest {
+                root: folder.to_path_buf(),
+                files: Some(Default::default()),
+                dirty: false,
+            };
+            manifest
+                .save()
+                .map_err(|e| format!("Failed to create output directory: {}", e))?;
+            Ok(manifest)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && folder.is_dir() => {
+            Ok(ExportManifest {
+                root: folder.to_path_buf(),
+                files: read_export_manifest(folder),
+                dirty: false,
+            })
+        }
         Err(e) => Err(format!("Failed to create output directory: {}", e)),
     }
 }
 
 /// Recursively delete `folder`, which is `export_root` or lies inside it, only
-/// if `export_root` carries kindling's marker and `folder` holds nothing but
-/// what a Markdown/Longform export writes: folders, `.md` files, the marker and
-/// OS metadata. Anything else (a legacy export without a marker, a user's own
-/// folder, an image or an `.obsidian` settings file added later) is refused
-/// and left untouched.
+/// if `export_root` carries kindling's marker and every file in `folder` is
+/// one the marker lists (or OS metadata). Anything else (a legacy export
+/// without a marker, a user's own folder, or a note, image or `.obsidian`
+/// setting the writer added later) is refused and nothing is deleted.
 fn remove_owned_export_folder(folder: &Path, export_root: &Path) -> Result<(), String> {
     let name = folder
         .file_name()
@@ -1619,31 +1719,31 @@ fn remove_owned_export_folder(folder: &Path, export_root: &Path) -> Result<(), S
     let refuse = |why: String| {
         Err(format!(
             "kindling didn't replace “{name}”: {why}. It only replaces export folders it \
-             created itself. Move or delete the folder yourself, or choose another export name."
+             created itself, holding only the files it wrote. Move or delete the folder \
+             yourself, or choose another export name."
         ))
     };
-    if !fs::symlink_metadata(export_root.join(EXPORT_MARKER)).is_ok_and(|m| m.is_file()) {
+    let Some(written) = read_export_manifest(export_root) else {
         return refuse(if folder == export_root {
             "it wasn't created by a kindling export (exports made before kindling 1.3 aren't marked)"
                 .into()
         } else {
             "the export folder containing it wasn't created by a kindling export".into()
         });
-    }
+    };
     for entry in walkdir::WalkDir::new(folder).min_depth(1) {
         let entry = entry.map_err(|e| format!("Failed to delete existing folder: {}", e))?;
-        let file_name = entry.file_name().to_string_lossy();
         let kind = entry.file_type();
+        let file_name = entry.file_name().to_string_lossy();
         let expected = kind.is_dir()
             || (kind.is_file()
-                && (file_name == EXPORT_MARKER
+                && (entry.path() == export_root.join(EXPORT_MARKER)
                     || matches!(
                         file_name.as_ref(),
                         ".DS_Store" | "Thumbs.db" | "desktop.ini"
                     )
-                    || Path::new(file_name.as_ref())
-                        .extension()
-                        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))));
+                    || manifest_key(export_root, entry.path())
+                        .is_some_and(|key| written.contains(&key))));
         if !expected {
             let relative = entry.path().strip_prefix(folder).unwrap_or(entry.path());
             return refuse(format!(
@@ -1723,10 +1823,14 @@ fn export_to_markdown_with_connection(
     let mut chapters_exported = 0;
     let mut scenes_exported = 0;
 
+    // Replace the project folder only for a project-level export.
+    let mut manifest = prepare_export_folder(
+        &project_folder,
+        options.delete_existing && matches!(options.scope, ExportScope::Project),
+    )?;
+
     match options.scope {
         ExportScope::Project => {
-            // Replace the project folder if requested (only for project-level export)
-            prepare_export_folder(&project_folder, options.delete_existing)?;
             // Get all chapters
             let chapters =
                 db::queries::get_chapters(conn, &project_uuid).map_err(|e| e.to_string())?;
@@ -1767,7 +1871,8 @@ fn export_to_markdown_with_connection(
                         sanitize_filename(&scene.title)
                     ));
 
-                    fs::write(&scene_file, markdown)
+                    manifest
+                        .write(&scene_file, markdown)
                         .map_err(|e| format!("Failed to write scene file: {}", e))?;
 
                     files_created += 1;
@@ -1778,9 +1883,6 @@ fn export_to_markdown_with_connection(
             }
         }
         ExportScope::Chapter(chapter_id) => {
-            // Create project folder (don't delete it for chapter-level export)
-            prepare_export_folder(&project_folder, false)?;
-
             let chapter_uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
 
             // Get all chapters to find this chapter's position
@@ -1835,7 +1937,8 @@ fn export_to_markdown_with_connection(
                     sanitize_filename(&scene.title)
                 ));
 
-                fs::write(&scene_file, markdown)
+                manifest
+                    .write(&scene_file, markdown)
                     .map_err(|e| format!("Failed to write scene file: {}", e))?;
 
                 files_created += 1;
@@ -1845,9 +1948,6 @@ fn export_to_markdown_with_connection(
             chapters_exported = 1;
         }
         ExportScope::Scene(scene_id) => {
-            // Create project folder (don't delete it for scene-level export)
-            prepare_export_folder(&project_folder, false)?;
-
             let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
 
             // Get scene info
@@ -1912,13 +2012,16 @@ fn export_to_markdown_with_connection(
                     .map_err(|e| format!("Failed to delete existing scene file: {}", e))?;
             }
 
-            fs::write(&scene_file, markdown)
+            manifest
+                .write(&scene_file, markdown)
                 .map_err(|e| format!("Failed to write scene file: {}", e))?;
 
             files_created = 1;
             scenes_exported = 1;
         }
     }
+
+    manifest.finish()?;
 
     Ok(ExportResult {
         output_path: project_folder.to_string_lossy().to_string(),
@@ -1984,7 +2087,7 @@ fn export_to_longform_with_connection(
     let folder_name = sanitize_filename(&export_name);
     let project_folder = export_folder(&output_base, &folder_name)?;
 
-    prepare_export_folder(&project_folder, options.delete_existing)?;
+    let mut manifest = prepare_export_folder(&project_folder, options.delete_existing)?;
 
     let mut scenes_to_export: Vec<(Scene, Vec<Beat>)> = Vec::new();
     let mut chapter_ids = std::collections::HashSet::new();
@@ -2149,7 +2252,8 @@ fn export_to_longform_with_connection(
             &reference_names,
         )
         .map_err(|e| format!("Failed to generate scene markdown: {}", e))?;
-        fs::write(&scene_file, markdown)
+        manifest
+            .write(&scene_file, markdown)
             .map_err(|e| format!("Failed to write scene file: {}", e))?;
         files_created += 1;
         scene_names.push(stem);
@@ -2158,7 +2262,8 @@ fn export_to_longform_with_connection(
     let index_file = project_folder.join(&index_file_name);
 
     let frontmatter = generate_longform_frontmatter(&export_name, "/", &scene_names)?;
-    fs::write(&index_file, frontmatter)
+    manifest
+        .write(&index_file, frontmatter)
         .map_err(|e| format!("Failed to write index file: {}", e))?;
     files_created += 1;
 
@@ -2280,7 +2385,8 @@ fn export_to_longform_with_connection(
                         attributes: &character.attributes,
                     })
                     .map_err(|e| format!("Failed to generate character note: {}", e))?;
-                    fs::write(&file_path, markdown)
+                    manifest
+                        .write(&file_path, markdown)
                         .map_err(|e| format!("Failed to write character note: {}", e))?;
                     reference_files_created += 1;
                 }
@@ -2315,7 +2421,8 @@ fn export_to_longform_with_connection(
                         attributes: &location.attributes,
                     })
                     .map_err(|e| format!("Failed to generate location note: {}", e))?;
-                    fs::write(&file_path, markdown)
+                    manifest
+                        .write(&file_path, markdown)
                         .map_err(|e| format!("Failed to write location note: {}", e))?;
                     reference_files_created += 1;
                 }
@@ -2348,7 +2455,8 @@ fn export_to_longform_with_connection(
                         attributes: &item.attributes,
                     })
                     .map_err(|e| format!("Failed to generate item note: {}", e))?;
-                    fs::write(&file_path, markdown)
+                    manifest
+                        .write(&file_path, markdown)
                         .map_err(|e| format!("Failed to write item note: {}", e))?;
                     reference_files_created += 1;
                 }
@@ -2383,7 +2491,8 @@ fn export_to_longform_with_connection(
                         attributes: &objective.attributes,
                     })
                     .map_err(|e| format!("Failed to generate objective note: {}", e))?;
-                    fs::write(&file_path, markdown)
+                    manifest
+                        .write(&file_path, markdown)
                         .map_err(|e| format!("Failed to write objective note: {}", e))?;
                     reference_files_created += 1;
                 }
@@ -2418,7 +2527,8 @@ fn export_to_longform_with_connection(
                         attributes: &organization.attributes,
                     })
                     .map_err(|e| format!("Failed to generate organization note: {}", e))?;
-                    fs::write(&file_path, markdown)
+                    manifest
+                        .write(&file_path, markdown)
                         .map_err(|e| format!("Failed to write organization note: {}", e))?;
                     reference_files_created += 1;
                 }
@@ -2450,13 +2560,16 @@ fn export_to_longform_with_connection(
                     attributes: &item.attributes,
                 })
                 .map_err(|e| e.to_string())?;
-                fs::write(directory.join(format!("{stem}.md")), markdown)
+                manifest
+                    .write(&directory.join(format!("{stem}.md")), markdown)
                     .map_err(|e| e.to_string())?;
                 reference_files_created += 1;
             }
         }
     }
     files_created += reference_files_created;
+
+    manifest.finish()?;
 
     Ok(ExportResult {
         output_path: project_folder.to_string_lossy().to_string(),
@@ -5238,7 +5351,10 @@ mod tests {
                 root.join(EXPORT_MARKER).is_file(),
                 "{export} export is unmarked"
             );
-            fs::write(root.join("stale scene.md"), "old").unwrap();
+            // A file an earlier kindling export wrote (a since-deleted scene).
+            let mut manifest = prepare_export_folder(&root, false).unwrap();
+            manifest.write(&root.join("stale scene.md"), "old").unwrap();
+            manifest.finish().unwrap();
 
             run(true).unwrap();
             assert!(
@@ -5254,6 +5370,55 @@ mod tests {
             assert_eq!(fs::read_to_string(root.join("cover.png")).unwrap(), "art");
         }
         assert!(out.path().exists());
+    }
+
+    /// A Longform export often lives in an Obsidian vault, where the writer
+    /// adds notes of their own. Those are Markdown too, but kindling didn't
+    /// write them, so the export folder must not be replaced.
+    #[test]
+    fn delete_existing_keeps_markdown_the_writer_added_to_an_export() {
+        let (conn, project) = crate::parsers::novelwriter::tests::fixture();
+        let out = tempfile::tempdir().unwrap();
+        for (export, folder) in [("longform", "Vault"), ("markdown", "Drafts")] {
+            let run = |delete: bool| match export {
+                "markdown" => export_to_markdown_with_connection(
+                    &conn,
+                    project.id,
+                    markdown_options(out.path(), folder, delete),
+                ),
+                _ => export_to_longform_with_connection(
+                    &conn,
+                    project.id,
+                    longform_options(out.path(), folder, delete),
+                ),
+            };
+            run(false).unwrap();
+            let root = out.path().join(folder);
+            let marker = fs::read_to_string(root.join(EXPORT_MARKER)).unwrap();
+            assert!(marker.contains(EXPORT_MANIFEST_HEADER), "{marker}");
+
+            for (added, what) in [("Research.md", "top level"), ("Ideas/plot.md", "subfolder")] {
+                let path = root.join(added);
+                fs::create_dir_all(path.parent().unwrap()).unwrap();
+                fs::write(&path, "the writer's own note").unwrap();
+                let before = tree_snapshot(&root);
+
+                let err = run(true).unwrap_err();
+
+                assert!(
+                    err.contains("which kindling didn't write"),
+                    "{export} {what}: {err}"
+                );
+                assert_eq!(
+                    tree_snapshot(&root),
+                    before,
+                    "{export} {what}: folder changed"
+                );
+                fs::remove_file(&path).unwrap();
+            }
+            // With the writer's notes gone, kindling's own export is replaceable again.
+            run(true).unwrap();
+        }
     }
 
     #[test]
