@@ -2,6 +2,7 @@
 //!
 //! Commands for exporting projects to various formats (Markdown, Longform, DOCX, EPUB).
 
+use super::manuscript::manuscript_fonts;
 use crate::commands::{load_app_settings, AppState};
 use crate::db;
 use crate::db::writing::uses_page_prose;
@@ -2549,17 +2550,6 @@ fn export_to_longform_with_connection(
         chapters_exported: chapter_ids.len(),
         scenes_exported: scene_names.len(),
     })
-}
-
-/// Every DOCX run names its font for all four script slots. Setting only the
-/// ASCII slot left curly quotes, dashes and accented letters to Word's
-/// fallback font, so they printed in a different face from the prose.
-fn manuscript_fonts(font: &str) -> RunFonts {
-    RunFonts::new()
-        .ascii(font)
-        .hi_ansi(font)
-        .east_asia(font)
-        .cs(font)
 }
 
 /// Create the running header for the document

@@ -123,7 +123,7 @@ fn publish(file: tempfile::NamedTempFile, target: &Path) -> Result<()> {
     Ok(())
 }
 fn styled(r: Run, l: &Layout) -> Run {
-    r.fonts(RunFonts::new().ascii(&l.font).hi_ansi(&l.font))
+    r.fonts(super::manuscript::manuscript_fonts(&l.font))
         .size((l.font_size * 2.).round() as usize)
 }
 fn run(text: &str, l: &Layout) -> Run {
@@ -286,7 +286,7 @@ fn docx_document(d: &WorkspaceDocument, contact: &[String]) -> Docx {
         (12240, 15840)
     };
     let body_size = (l.font_size * 2.).round() as usize;
-    let fonts = RunFonts::new().ascii(&l.font).hi_ansi(&l.font);
+    let fonts = super::manuscript::manuscript_fonts(&l.font);
     // docx-rs always writes a `Normal` style, so the body typography goes in the
     // document defaults rather than in a second `Normal` definition.
     let mut doc = Docx::new()
@@ -981,6 +981,33 @@ mod tests {
         assert!(header.contains(">THE LONG WAY / <"), "{header}");
         assert!(!header.contains("Writer"), "{header}");
         assert!(header.contains("PAGE"), "{header}");
+    }
+    /// Every run and style names the layout font for all four script ranges,
+    /// or Word sets curly quotes, dashes and accented letters in a fallback.
+    #[test]
+    fn docx_runs_and_styles_name_the_font_for_every_script_slot() {
+        let mut d = submission();
+        d.chapters[0].scenes[0].blocks[0].html =
+            "<p>\u{201C}Curly\u{201D}\u{2014}caf\u{e9}</p>".into();
+        let dir = export_submission(d, &[]);
+        let path = dir.path().join("book.docx");
+        for part in ["word/document.xml", "word/styles.xml", "word/header1.xml"] {
+            let xml = member(&path, part);
+            let fonts: Vec<&str> = xml
+                .split("<w:rFonts")
+                .skip(1)
+                .map(|f| &f[..f.find("/>").unwrap()])
+                .collect();
+            assert!(!fonts.is_empty(), "{part} names no fonts");
+            for f in fonts {
+                for slot in ["w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"] {
+                    assert!(
+                        f.contains(&format!("{slot}=\"Times New Roman\"")),
+                        "{part}: {slot} missing in <w:rFonts{f}/>"
+                    );
+                }
+            }
+        }
     }
     #[test]
     fn docx_defines_the_normal_style_exactly_once() {

@@ -18,6 +18,17 @@ pub(crate) fn header_short_title(title: &str) -> String {
         .to_uppercase()
 }
 
+/// Every DOCX run names its font for all four script slots. Setting only the
+/// ASCII slot left curly quotes, dashes and accented letters to Word's
+/// fallback font, so they printed in a different face from the prose.
+pub(crate) fn manuscript_fonts(font: &str) -> docx_rs::RunFonts {
+    docx_rs::RunFonts::new()
+        .ascii(font)
+        .hi_ansi(font)
+        .east_asia(font)
+        .cs(font)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
