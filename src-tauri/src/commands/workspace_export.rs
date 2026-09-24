@@ -862,8 +862,13 @@ mod tests {
             ("book.md", "markdown"),
         ] {
             let path = dir.path().join(name);
-            export_workspace_document(path.to_string_lossy().into(), format.into(), document())
-                .unwrap();
+            write_workspace_document(
+                path.to_string_lossy().into(),
+                format.into(),
+                document(),
+                &[],
+            )
+            .unwrap();
             assert_eq!(
                 mode(&path),
                 mode(&reference),
