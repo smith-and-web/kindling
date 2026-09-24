@@ -2002,7 +2002,8 @@ mod source_regression_tests {
             .unwrap()
             .remove(0);
         db::update_scene_prose(&conn, &original.id, "Moved scene sentinel").unwrap();
-        db::move_scene_to_chapter(&conn, &original.id, &parsed.chapters[1].id, 1).unwrap();
+        let plan = db::plan_scene_move(&conn, &original.id, &parsed.chapters[1].id, 1).unwrap();
+        db::apply_scene_move(&conn, &plan).unwrap();
         std::fs::write(
             &path,
             "# C1\n## Existing\n- Old\n# C2\n## B\n- B\n## A\n- A\n",

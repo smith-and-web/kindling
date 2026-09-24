@@ -307,12 +307,7 @@ pub fn get_scene_project_id(conn: &Connection, scene_id: &Uuid) -> Result<Option
 
 pub fn reorder_scenes(conn: &Connection, chapter_id: &Uuid, scene_ids: &[Uuid]) -> Result<()> {
     let tx = conn.unchecked_transaction()?;
-    for (idx, id) in scene_ids.iter().enumerate() {
-        tx.execute(
-            "UPDATE scenes SET position = ?1 WHERE id = ?2 AND chapter_id = ?3",
-            params![idx as i32, id.to_string(), chapter_id.to_string()],
-        )?;
-    }
+    reorder_scenes_in_transaction(&tx, chapter_id, scene_ids)?;
     tx.commit()
 }
 
@@ -394,20 +389,6 @@ fn reorder_scenes_in_transaction(
         )?;
     }
     Ok(())
-}
-
-/// Moves a scene to `position` in `target_chapter_id` without colliding positions
-/// (see [`SceneMove`]). Lock rules are the caller's responsibility.
-pub fn move_scene_to_chapter(
-    conn: &Connection,
-    scene_id: &Uuid,
-    target_chapter_id: &Uuid,
-    position: i32,
-) -> Result<()> {
-    let tx = conn.unchecked_transaction()?;
-    let plan = plan_scene_move(&tx, scene_id, target_chapter_id, position)?;
-    apply_scene_move(&tx, &plan)?;
-    tx.commit()
 }
 
 pub fn get_scenes(conn: &Connection, chapter_id: &Uuid) -> Result<Vec<Scene>> {
@@ -3062,7 +3043,7 @@ mod tests {
     }
 
     #[test]
-    fn test_move_scene_to_chapter() {
+    fn test_plan_and_apply_scene_move() {
         let conn = setup_test_db();
         let project = create_test_project(&conn);
         let chapter1 = create_test_chapter(&conn, project.id);
@@ -3081,7 +3062,8 @@ mod tests {
         insert_chapter(&conn, &chapter2).unwrap();
 
         let scene = create_test_scene(&conn, chapter1.id);
-        move_scene_to_chapter(&conn, &scene.id, &chapter2.id, 0).unwrap();
+        let plan = plan_scene_move(&conn, &scene.id, &chapter2.id, 0).unwrap();
+        apply_scene_move(&conn, &plan).unwrap();
 
         let updated = get_scene_by_id(&conn, &scene.id).unwrap().unwrap();
         assert_eq!(updated.chapter_id, chapter2.id);
