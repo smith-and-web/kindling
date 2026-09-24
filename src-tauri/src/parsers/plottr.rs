@@ -517,21 +517,39 @@ pub fn parse_plottr_file<P: AsRef<Path>>(path: P) -> Result<ParsedPlottr, Plottr
         cards_by_beat.entry(beat_id).or_default().push(card);
     }
 
+    // Storyline order breaks ties between cards on different lines (e.g. a
+    // Summary-line card and the first Scenes-line card in the same beat).
+    let line_positions: HashMap<String, i32> = plottr
+        .lines
+        .iter()
+        .map(|line| (value_to_string(&line.id), line.position))
+        .collect();
+
     // Create scenes from cards
     for (beat_id_str, cards) in cards_by_beat {
         if let Some(chapter) = beat_to_chapter.get(&beat_id_str) {
             let mut sorted_cards = cards;
-            sorted_cards.sort_by_key(|c| (c.position_within_line, c.position));
+            sorted_cards.sort_by_key(|c| {
+                let line_position = line_positions
+                    .get(&value_to_string(&c.line_id))
+                    .copied()
+                    .unwrap_or(i32::MAX);
+                (c.position_within_line, c.position, line_position)
+            });
 
-            // Filter out cards with no description content (these are typically summary placeholders)
-            // that appear on Plottr's "Summary" storyline with no actual scene content
+            // Skip only blank cards (no title and no description text). A card
+            // with a title is part of the outline even when its description is
+            // empty, as Plottr's Summary-line cards usually are; it imports as a
+            // scene with no synopsis or beats.
             let content_cards: Vec<_> = sorted_cards
                 .into_iter()
                 .filter(|card| {
-                    card.description
-                        .as_ref()
-                        .and_then(extract_text_from_rich_text)
-                        .is_some_and(|s| !s.trim().is_empty())
+                    !card.title.trim().is_empty()
+                        || card
+                            .description
+                            .as_ref()
+                            .and_then(extract_text_from_rich_text)
+                            .is_some_and(|s| !s.trim().is_empty())
                 })
                 .collect();
 
@@ -705,8 +723,9 @@ mod tests {
         assert!(act_titles.contains(&"Act 1"), "Should have Act 1");
         assert!(act_titles.contains(&"Act 5"), "Should have Act 5");
 
-        // Scenes (20 cards - 25 total minus 5 empty summary cards)
-        assert_eq!(parsed.scenes.len(), 20);
+        // Scenes: all 25 cards, including the 5 titled Summary-line cards
+        // that have no description.
+        assert_eq!(parsed.scenes.len(), 25);
 
         // Beats - each paragraph in card descriptions becomes a beat
         // Most scenes have multiple paragraphs, so we should have more beats than scenes
@@ -732,6 +751,71 @@ mod tests {
             !parsed.scene_location_refs.is_empty(),
             "Should have location refs"
         );
+    }
+
+    #[test]
+    fn test_parse_hamlet_titled_card_without_description_imports() {
+        let parsed = parse_plottr_file(fixture_path("hamlet.pltr")).unwrap();
+        let scene = parsed
+            .scenes
+            .iter()
+            .find(|s| s.title == "Hamlet meets an untimely end")
+            .expect("titled card with an empty description should import");
+        assert_eq!(scene.synopsis, None);
+        assert_eq!(scene.source_id.as_deref(), Some("24"));
+        assert!(!parsed.beats.iter().any(|b| b.scene_id == scene.id));
+
+        // Act 5's Summary-line card leads the act, then its Scenes-line cards.
+        let act5 = parsed.chapters.iter().find(|c| c.title == "Act 5").unwrap();
+        let mut act5_scenes: Vec<_> = parsed
+            .scenes
+            .iter()
+            .filter(|s| s.chapter_id == act5.id)
+            .collect();
+        act5_scenes.sort_by_key(|s| s.position);
+        let titles: Vec<_> = act5_scenes.iter().map(|s| s.title.as_str()).collect();
+        assert_eq!(
+            titles,
+            [
+                "Hamlet meets an untimely end",
+                "Hamlet and Horatio witness Ophelia's funeral",
+                "The duel between Laertes and Hamlet",
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_plottr_keeps_titled_cards_skips_blank_cards() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cards.pltr");
+        let json = serde_json::json!({
+            "series": { "name": "Cards" },
+            "beats": [{ "id": 1, "title": "Act 1", "position": 0 }],
+            "lines": [{ "id": 1, "title": "Scenes", "position": 0 }],
+            "cards": [
+                { "id": 1, "lineId": 1, "beatId": 1, "title": "Written",
+                  "description": [{ "type": "paragraph", "children": [{ "text": "Prose." }] }],
+                  "positionWithinLine": 0 },
+                { "id": 2, "lineId": 1, "beatId": 1, "title": "Empty description",
+                  "description": [{ "type": "paragraph", "children": [{ "text": "" }] }],
+                  "positionWithinLine": 1 },
+                { "id": 3, "lineId": 1, "beatId": 1, "title": "No description",
+                  "positionWithinLine": 2 },
+                { "id": 4, "lineId": 1, "beatId": 1, "title": "  ",
+                  "description": [{ "type": "paragraph", "children": [{ "text": " " }] }],
+                  "positionWithinLine": 3 }
+            ]
+        });
+        std::fs::write(&path, json.to_string()).unwrap();
+
+        let parsed = parse_plottr_file(&path).unwrap();
+        let mut scenes: Vec<_> = parsed.scenes.iter().collect();
+        scenes.sort_by_key(|s| s.position);
+        let titles: Vec<_> = scenes.iter().map(|s| s.title.as_str()).collect();
+        assert_eq!(titles, ["Written", "Empty description", "No description"]);
+        let positions: Vec<_> = scenes.iter().map(|s| s.position).collect();
+        assert_eq!(positions, [0, 1, 2]);
+        assert_eq!(parsed.beats.len(), 1);
     }
 
     #[test]
@@ -828,7 +912,7 @@ mod tests {
             Some("Hamlet".to_string())
         );
 
-        // Should have cards (25 total, but 5 are empty summary cards filtered during parsing)
+        // Should have 25 cards (5 are titled Summary-line cards with no description)
         assert_eq!(
             plottr.cards.len(),
             25,
