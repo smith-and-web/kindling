@@ -290,13 +290,33 @@ function alignedSourceMaps(before: Node, after: Node): StepMap[] | null {
   const old = groups(before),
     next = groups(after);
   if (old.length !== next.length || old.some((g, i) => !g.id || g.id !== next[i].id)) return null;
-  return old
-    .flatMap((g, i) =>
-      g.content.eq(next[i].content)
-        ? []
-        : [new StepMap([g.from, g.content.size, next[i].content.size])]
-    )
-    .reverse();
+  return old.flatMap((g, i) => narrowedSteps(g.from, g.content, next[i].content)).reverse();
+}
+
+/** Step maps (in document order) covering only where `a` and `b` differ, `from` being the
+ * position of `a`. prosemirror-changeset returns any range over 2500 tokens as one change
+ * without trimming it, so replacing a whole source or document in one step would coalesce
+ * every edit inside it. Blocks are compared pairwise when the counts line up, then each
+ * pair is trimmed to its differing middle. */
+function narrowedSteps(from: number, a: Fragment, b: Fragment): StepMap[] {
+  if (a.childCount > 1 && a.childCount === b.childCount) {
+    const steps: StepMap[] = [];
+    a.forEach((child, offset, i) =>
+      steps.push(...narrowedSteps(from + offset, Fragment.from(child), Fragment.from(b.child(i))))
+    );
+    return steps;
+  }
+  const start = a.findDiffStart(b);
+  if (start === null) return [];
+  const end = a.findDiffEnd(b)!;
+  const overlap = start - Math.min(end.a, end.b);
+  return [
+    new StepMap([
+      from + start,
+      end.a + Math.max(0, overlap) - start,
+      end.b + Math.max(0, overlap) - start,
+    ]),
+  ];
 }
 
 /** The document ranges of a tracked change. */
@@ -385,22 +405,9 @@ export function changesBetween(base: Node, next: Node): readonly ChangeRange[] {
     const maps = alignedSourceMaps(base, next);
     if (maps) return remember(base, next, previous.set.addSteps(next, maps, "change"));
   }
-  const start = previous.doc.content.findDiffStart(next.content);
-  if (start === null) return remember(base, next, previous.set);
-  const end = previous.doc.content.findDiffEnd(next.content)!;
-  const overlap = start - Math.min(end.a, end.b);
-  const result = previous.set.addSteps(
-    next,
-    [
-      new StepMap([
-        start,
-        end.a + Math.max(0, overlap) - start,
-        end.b + Math.max(0, overlap) - start,
-      ]),
-    ],
-    "change"
-  );
-  return remember(base, next, result);
+  const steps = narrowedSteps(0, previous.doc.content, next.content);
+  if (!steps.length) return remember(base, next, previous.set);
+  return remember(base, next, previous.set.addSteps(next, steps.reverse(), "change"));
 }
 
 export function changeMap(changes: readonly ChangeRange[]): Mapping {

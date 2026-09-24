@@ -65,6 +65,24 @@ function feedback(next: ReturnType<typeof manuscript>): EditorialFeedback {
 }
 
 describe("continuous editorial manuscript", () => {
+  it("keeps edits made in one step separate across long scenes and paragraphs", () => {
+    const long = `${"The tide reaches the lighthouse. ".repeat(400)}`;
+    const scene = source("long", `<p>${long}</p><p>${long}</p><p>${long}</p>`);
+    const base = manuscript([scene]);
+    // One transform edits all three paragraphs, as replace-all does; each range is far
+    // beyond the 2500-token size at which the diff library stops trimming a change.
+    let tr = new Transform(base);
+    for (const index of [2, 1, 0]) {
+      let pos = 1;
+      for (let j = 0; j < index; j++) pos += base.child(j).nodeSize;
+      tr = tr.insert(pos + 200 + index * 50, editorialSchema.text("Quietly. "));
+    }
+    const changes = changesBetween(base, tr.doc);
+    expect(changes).toHaveLength(3);
+    expect(changes.every((c) => c.toA === c.fromA && c.toB - c.fromB === "Quietly. ".length)).toBe(
+      true
+    );
+  });
   it("keeps edits separate across a substantial manuscript and across reopening", () => {
     const book = Array.from({ length: 60 }, (_, i) =>
       source(`book-${i}`, `<p>${`Passage ${i} beside the lighthouse. `.repeat(200)}</p>`)
