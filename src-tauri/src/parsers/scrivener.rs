@@ -9,6 +9,13 @@
 //! - `<project>.scrivx` — XML index file with the document tree
 //! - `Files/Data/<UUID>/content.rtf` — RTF content per document
 
+use encoding_rs::{
+    Encoding, BIG5, EUC_JP, EUC_KR, GB18030, GBK, IBM866, ISO_8859_10, ISO_8859_13, ISO_8859_14,
+    ISO_8859_15, ISO_8859_16, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5, ISO_8859_6,
+    ISO_8859_7, ISO_8859_8, KOI8_R, KOI8_U, MACINTOSH, SHIFT_JIS, UTF_8, WINDOWS_1250,
+    WINDOWS_1251, WINDOWS_1252, WINDOWS_1253, WINDOWS_1254, WINDOWS_1255, WINDOWS_1256,
+    WINDOWS_1257, WINDOWS_1258, WINDOWS_874, X_MAC_CYRILLIC,
+};
 use quick_xml::escape::unescape;
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
@@ -685,80 +692,122 @@ fn decode_entity(entity: &str) -> String {
 /// indented paragraphs (\li360, etc.) are not misclassified.
 const BLOCKQUOTE_LI_THRESHOLD: i32 = 720;
 
-/// Windows-1252 code points for bytes 0x80–0x9F, the only range where cp1252
-/// differs from Latin-1. `None` marks the five bytes cp1252 leaves undefined.
-const CP1252_80_9F: [Option<char>; 32] = [
-    Some('\u{20AC}'), // 0x80 euro sign
-    None,             // 0x81
-    Some('\u{201A}'), // 0x82 single low-9 quote
-    Some('\u{0192}'), // 0x83 f with hook
-    Some('\u{201E}'), // 0x84 double low-9 quote
-    Some('\u{2026}'), // 0x85 ellipsis
-    Some('\u{2020}'), // 0x86 dagger
-    Some('\u{2021}'), // 0x87 double dagger
-    Some('\u{02C6}'), // 0x88 circumflex
-    Some('\u{2030}'), // 0x89 per mille
-    Some('\u{0160}'), // 0x8A S caron
-    Some('\u{2039}'), // 0x8B single left angle quote
-    Some('\u{0152}'), // 0x8C OE ligature
-    None,             // 0x8D
-    Some('\u{017D}'), // 0x8E Z caron
-    None,             // 0x8F
-    None,             // 0x90
-    Some('\u{2018}'), // 0x91 left single quote
-    Some('\u{2019}'), // 0x92 right single quote / apostrophe
-    Some('\u{201C}'), // 0x93 left double quote
-    Some('\u{201D}'), // 0x94 right double quote
-    Some('\u{2022}'), // 0x95 bullet
-    Some('\u{2013}'), // 0x96 en dash
-    Some('\u{2014}'), // 0x97 em dash
-    Some('\u{02DC}'), // 0x98 small tilde
-    Some('\u{2122}'), // 0x99 trade mark
-    Some('\u{0161}'), // 0x9A s caron
-    Some('\u{203A}'), // 0x9B single right angle quote
-    Some('\u{0153}'), // 0x9C oe ligature
-    None,             // 0x9D
-    Some('\u{017E}'), // 0x9E z caron
-    Some('\u{0178}'), // 0x9F Y diaeresis
-];
+/// A document's declared ANSI code page (`\ansicpg`, or the `\mac` charset).
+/// Raw 8-bit bytes and `\'hh` escapes are both decoded with it.
+#[derive(Clone, Copy)]
+enum RtfCodepage {
+    /// ISO-8859-1, decoded byte-for-byte: encoding_rs follows WHATWG, which
+    /// treats the Latin-1 label as windows-1252.
+    Latin1,
+    Encoding(&'static Encoding),
+}
 
-/// The RTF default ANSI code page, and what Scrivener writes (`\ansicpg1252`).
-const CODEPAGE_CP1252: u32 = 1252;
+impl RtfCodepage {
+    /// The RTF default, and what Scrivener writes (`\ansicpg1252`).
+    const DEFAULT: Self = Self::Encoding(WINDOWS_1252);
 
-/// `\ansicpg` value for ISO-8859-1, whose 0x80–0x9F bytes are C1 controls.
-const CODEPAGE_LATIN1: u32 = 28591;
-
-/// Decode one byte of 8-bit RTF text (a `\'hh` escape or a raw byte).
-///
-/// Only Windows-1252 and Latin-1 are decoded exactly. Other single-byte code
-/// pages fall back to cp1252, which is right for ASCII and wrong for their
-/// upper half. Control bytes carry no text and are dropped, except tab.
-fn decode_ansi_byte(byte: u8, codepage: u32) -> Option<char> {
-    match byte {
-        b'\t' => Some('\t'),
-        0x00..=0x1F | 0x7F => None,
-        0x80..=0x9F if codepage == CODEPAGE_LATIN1 => None,
-        0x80..=0x9F => CP1252_80_9F[usize::from(byte - 0x80)],
-        _ => Some(char::from(byte)),
+    /// Map an `\ansicpg` value to a decoder. Code pages encoding_rs cannot
+    /// decode (437, 850, ...) fall back to cp1252.
+    fn from_ansicpg(codepage: i32) -> Self {
+        let encoding = match codepage {
+            28591 => return Self::Latin1,
+            866 => IBM866,
+            874 => WINDOWS_874,
+            932 => SHIFT_JIS,
+            936 => GBK,
+            949 => EUC_KR,
+            950 => BIG5,
+            1250 => WINDOWS_1250,
+            1251 => WINDOWS_1251,
+            1253 => WINDOWS_1253,
+            1254 => WINDOWS_1254,
+            1255 => WINDOWS_1255,
+            1256 => WINDOWS_1256,
+            1257 => WINDOWS_1257,
+            1258 => WINDOWS_1258,
+            10000 => MACINTOSH,
+            10007 => X_MAC_CYRILLIC,
+            20866 => KOI8_R,
+            20932 | 51932 => EUC_JP,
+            21866 => KOI8_U,
+            28592 => ISO_8859_2,
+            28593 => ISO_8859_3,
+            28594 => ISO_8859_4,
+            28595 => ISO_8859_5,
+            28596 => ISO_8859_6,
+            28597 => ISO_8859_7,
+            28598 => ISO_8859_8,
+            28600 => ISO_8859_10,
+            28603 => ISO_8859_13,
+            28604 => ISO_8859_14,
+            28605 => ISO_8859_15,
+            28606 => ISO_8859_16,
+            54936 => GB18030,
+            65001 => UTF_8,
+            _ => WINDOWS_1252,
+        };
+        Self::Encoding(encoding)
     }
+
+    /// The code page an RTF file declares in its header, read from raw bytes.
+    fn declared_in(bytes: &[u8]) -> Self {
+        let header = &bytes[..bytes.len().min(512)];
+        if let Some(at) = find_bytes(header, b"\\ansicpg") {
+            let digits: Vec<u8> = header[at + 8..]
+                .iter()
+                .copied()
+                .take_while(u8::is_ascii_digit)
+                .collect();
+            if let Some(cp) = std::str::from_utf8(&digits)
+                .ok()
+                .and_then(|d| d.parse().ok())
+            {
+                return Self::from_ansicpg(cp);
+            }
+        }
+        if let Some(at) = find_bytes(header, b"\\mac") {
+            if !header.get(at + 4).is_some_and(|b| b.is_ascii_alphabetic()) {
+                return Self::Encoding(MACINTOSH);
+            }
+        }
+        Self::DEFAULT
+    }
+
+    fn decode(self, bytes: &[u8]) -> String {
+        match self {
+            Self::Latin1 => bytes.iter().copied().map(char::from).collect(),
+            Self::Encoding(encoding) => encoding.decode_without_bom_handling(bytes).0.into_owned(),
+        }
+    }
+}
+
+fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack.windows(needle.len()).position(|w| w == needle)
+}
+
+/// Whether a decoded character is document text. Control characters (C0
+/// except tab, DEL, C1) and U+FFFD from undecodable bytes carry no text.
+fn is_rtf_text_char(ch: char) -> bool {
+    ch == '\t' || !(ch.is_control() || ch == '\u{FFFD}')
 }
 
 /// Decode an RTF file's bytes to text.
 ///
 /// RTF is nominally 7-bit, but some writers emit raw 8-bit bytes in the
-/// document code page. Those files are not valid UTF-8, so decode them as
-/// cp1252 instead of discarding the whole document.
+/// document code page. Those files are not valid UTF-8, so decode them with
+/// the code page the file declares, as `\'hh` escapes are, instead of
+/// discarding the whole document.
 fn decode_rtf_bytes(bytes: Vec<u8>) -> String {
     match String::from_utf8(bytes) {
         Ok(text) => text,
-        Err(err) => err
-            .into_bytes()
-            .into_iter()
-            .filter_map(|b| match b {
-                b'\r' | b'\n' => Some(char::from(b)),
-                _ => decode_ansi_byte(b, CODEPAGE_CP1252),
-            })
-            .collect(),
+        Err(err) => {
+            let bytes = err.into_bytes();
+            RtfCodepage::declared_in(&bytes)
+                .decode(&bytes)
+                .chars()
+                .filter(|&ch| ch == '\r' || ch == '\n' || is_rtf_text_char(ch))
+                .collect()
+        }
     }
 }
 
@@ -878,19 +927,33 @@ fn skip_rtf_binary(chars: &mut RtfChars<'_>, param: Option<i32>) {
     }
 }
 
+/// A destination group whose content is skipped.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RtfSkippedGroup {
+    /// Cocoa's `\NeXTGraphic` image/file attachment. The outer group then
+    /// holds a U+00AC placeholder character that is not prose either.
+    Attachment,
+    Other,
+}
+
 /// Whether the group opened just before `chars` is a destination whose
 /// content should be skipped (see `RTF_SKIPPED_DESTINATIONS`).
-fn is_skipped_rtf_destination(chars: &RtfChars<'_>) -> bool {
+fn skipped_rtf_destination(chars: &RtfChars<'_>) -> Option<RtfSkippedGroup> {
     let mut peek = chars.clone();
     if peek.next() != Some('\\') {
-        return false;
+        return None;
     }
     if peek.peek() == Some(&'*') {
-        return true;
+        return Some(RtfSkippedGroup::Other);
     }
     match read_rtf_control(&mut peek) {
-        Some(RtfControl::Word(word, _)) => RTF_SKIPPED_DESTINATIONS.contains(&word.as_str()),
-        _ => false,
+        Some(RtfControl::Word(word, _)) if word == "NeXTGraphic" => {
+            Some(RtfSkippedGroup::Attachment)
+        }
+        Some(RtfControl::Word(word, _)) if RTF_SKIPPED_DESTINATIONS.contains(&word.as_str()) => {
+            Some(RtfSkippedGroup::Other)
+        }
+        _ => None,
     }
 }
 
@@ -925,6 +988,8 @@ struct RtfHtmlWriter {
     li_twips: i32,
     /// Formatting of the text currently in `text_buf`.
     fmt: RtfCharFormat,
+    /// A Cocoa attachment group just ended; its U+00AC placeholder follows.
+    after_attachment: bool,
 }
 
 impl RtfHtmlWriter {
@@ -1004,11 +1069,18 @@ impl RtfHtmlWriter {
     }
 
     fn push_char(&mut self, ch: char) {
+        if std::mem::take(&mut self.after_attachment) && ch == '\u{AC}' {
+            return;
+        }
         match ch {
+            // U+FFFC OBJECT REPLACEMENT CHARACTER stands in for an embedded
+            // object and is never prose.
+            '\u{FFFC}' => {}
             // Cocoa writes Shift-Return as U+2028 LINE SEPARATOR.
             '\u{2028}' => self.line_break(),
             '\u{2029}' => self.end_paragraph(),
-            _ => self.text_buf.push(ch),
+            _ if is_rtf_text_char(ch) => self.text_buf.push(ch),
+            _ => {}
         }
     }
 
@@ -1046,7 +1118,11 @@ pub fn rtf_to_html(rtf: &str) -> String {
     let mut fmt = RtfCharFormat::default();
     let mut group_stack: Vec<RtfCharFormat> = Vec::new();
     let mut skip_depth: u32 = 0;
-    let mut codepage = CODEPAGE_CP1252;
+    let mut skipped_group = RtfSkippedGroup::Other;
+    let mut codepage = RtfCodepage::DEFAULT;
+    // Consecutive `\'hh` bytes, decoded together so double-byte code pages
+    // (932, 936, ...) see whole characters.
+    let mut ansi_bytes: Vec<u8> = Vec::new();
     // ANSI fallback characters still to discard after a `\uN` (per `\ucN`).
     let mut unicode_fallback: usize = 0;
     let mut high_surrogate: Option<u32> = None;
@@ -1056,7 +1132,12 @@ pub fn rtf_to_html(rtf: &str) -> String {
         if skip_depth > 0 {
             match c {
                 '{' => skip_depth += 1,
-                '}' => skip_depth -= 1,
+                '}' => {
+                    skip_depth -= 1;
+                    if skip_depth == 0 && skipped_group == RtfSkippedGroup::Attachment {
+                        out.after_attachment = true;
+                    }
+                }
                 // Consume escapes whole so `\{`, `\}` and `\bin` data cannot
                 // unbalance the brace count.
                 '\\' => {
@@ -1071,11 +1152,15 @@ pub fn rtf_to_html(rtf: &str) -> String {
             continue;
         }
 
+        if !matches!(c, '\\' | '\r' | '\n') {
+            flush_ansi_bytes(&mut ansi_bytes, codepage, &mut out);
+        }
         match c {
             '{' => {
                 unicode_fallback = 0;
-                if is_skipped_rtf_destination(&chars) {
+                if let Some(group) = skipped_rtf_destination(&chars) {
                     skip_depth = 1;
+                    skipped_group = group;
                 } else {
                     group_stack.push(fmt);
                 }
@@ -1083,6 +1168,7 @@ pub fn rtf_to_html(rtf: &str) -> String {
             }
             '}' => {
                 unicode_fallback = 0;
+                out.after_attachment = false;
                 if let Some(outer) = group_stack.pop() {
                     fmt = outer;
                     out.set_format(fmt);
@@ -1105,6 +1191,9 @@ pub fn rtf_to_html(rtf: &str) -> String {
         let Some(control) = read_rtf_control(&mut chars) else {
             continue;
         };
+        if !matches!(control, RtfControl::Hex(_)) {
+            flush_ansi_bytes(&mut ansi_bytes, codepage, &mut out);
+        }
         if unicode_fallback > 0 {
             // Part of the ANSI fallback for the preceding `\uN`; each control
             // sequence counts as one character.
@@ -1118,11 +1207,7 @@ pub fn rtf_to_html(rtf: &str) -> String {
         }
 
         match control {
-            RtfControl::Hex(byte) => {
-                if let Some(ch) = byte.and_then(|b| decode_ansi_byte(b, codepage)) {
-                    out.push_char(ch);
-                }
-            }
+            RtfControl::Hex(byte) => ansi_bytes.extend(byte),
             RtfControl::Symbol(sym) => match sym {
                 '\\' | '{' | '}' => out.push_char(sym),
                 // Cocoa (macOS, so Mac Scrivener) writes each paragraph break
@@ -1188,10 +1273,11 @@ pub fn rtf_to_html(rtf: &str) -> String {
                         out.set_left_indent(0);
                     }
                     "ansicpg" => {
-                        if let Some(cp) = param.and_then(|p| u32::try_from(p).ok()) {
-                            codepage = cp;
+                        if let Some(cp) = param {
+                            codepage = RtfCodepage::from_ansicpg(cp);
                         }
                     }
+                    "mac" => codepage = RtfCodepage::Encoding(MACINTOSH),
                     "bin" => skip_rtf_binary(&mut chars, param),
                     _ => {}
                 }
@@ -1199,7 +1285,19 @@ pub fn rtf_to_html(rtf: &str) -> String {
         }
     }
 
+    flush_ansi_bytes(&mut ansi_bytes, codepage, &mut out);
     out.finish()
+}
+
+/// Decode buffered `\'hh` bytes with the document code page.
+fn flush_ansi_bytes(bytes: &mut Vec<u8>, codepage: RtfCodepage, out: &mut RtfHtmlWriter) {
+    if bytes.is_empty() {
+        return;
+    }
+    for ch in codepage.decode(bytes).chars() {
+        out.push_char(ch);
+    }
+    bytes.clear();
 }
 
 fn html_escape(text: &str) -> String {
@@ -2094,6 +2192,54 @@ Third, after a blank line.}";
         );
     }
 
+    #[test]
+    fn test_rtf_to_html_drops_cocoa_image_attachment_placeholder() {
+        // Scrivener 3 / TextEdit (Cocoa) output for a pasted image: the
+        // NeXTGraphic group is followed by a U+00AC placeholder in the outer group.
+        let rtf = "{\\rtf1\\ansi\\ansicpg1252\\cocoartf2761\n\
+\\cocoatextscaling0\\cocoaplatform0{\\fonttbl\\f0\\fnil\\fcharset0 Palatino-Roman;}\n\
+{\\colortbl;\\red255\\green255\\blue255;}\n\
+{\\*\\expandedcolortbl;;}\n\
+\\pard\\tx360\\sl264\\slmult1\\pardirnatural\\partightenfactor0\n\
+\n\
+\\f0\\fs26 \\cf0 Before the picture.\\\n\
+{{\\NeXTGraphic Pasted Graphic.png \\width2400 \\height1600 \\appleattachmentpadding0 \\appleembedtype0 \\appleaqc\n\
+}\\'ac}\\\n\
+Inline {{\\NeXTGraphic icon.tiff \\width240 \\height240 \\appleattachmentpadding0 \\appleembedtype0 \\appleaqc\n\
+}\\'ac} image, and 5 \\'ac 3 stays.}";
+        let html = rtf_to_html(rtf);
+        assert_eq!(
+            html,
+            "<p>Before the picture.</p><p>Inline  image, and 5 \u{ac} 3 stays.</p>"
+        );
+    }
+
+    #[test]
+    fn test_rtf_to_html_drops_object_replacement_character() {
+        let rtf = concat!(r"{\rtf1\ansi\uc0 A\u", "65532 B}");
+        assert_eq!(rtf_to_html(rtf), "<p>AB</p>");
+    }
+
+    #[test]
+    fn test_rtf_to_html_honours_declared_codepages() {
+        // Cyrillic (1251), Central European (1250), Greek (1253).
+        let html = rtf_to_html(r"{\rtf1\ansi\ansicpg1251 \'cf\'f0\'e8\'e2\'e5\'f2}");
+        assert_eq!(html, "<p>\u{41f}\u{440}\u{438}\u{432}\u{435}\u{442}</p>");
+        let html = rtf_to_html(r"{\rtf1\ansi\ansicpg1250 \'b9 \'9a}");
+        assert_eq!(html, "<p>\u{105} \u{161}</p>");
+        let html = rtf_to_html(r"{\rtf1\ansi\ansicpg1253 \'e1\'e2}");
+        assert_eq!(html, "<p>\u{3b1}\u{3b2}</p>");
+        // Double-byte code page: consecutive escapes form one character.
+        let html = rtf_to_html(r"{\rtf1\ansi\ansicpg932 \'82\'a0}");
+        assert_eq!(html, "<p>\u{3042}</p>");
+        // Mac Roman via the \mac charset.
+        let html = rtf_to_html(r"{\rtf1\mac caf\'8e}");
+        assert_eq!(html, "<p>caf\u{e9}</p>");
+        // Unknown code page falls back to cp1252.
+        let html = rtf_to_html(r"{\rtf1\ansi\ansicpg99999 It\'92s}");
+        assert_eq!(html, "<p>It\u{2019}s</p>");
+    }
+
     // =========================================================================
     // Bundle parser tests (filesystem)
     // =========================================================================
@@ -2349,6 +2495,23 @@ mod content_path_tests {
         // An absent UUID must not resolve to Data/content.rtf.
         std::fs::write(data.join("content.rtf"), "{\\rtf1 Not this document}").unwrap();
         assert!(read_rtf_content(&data, "").unwrap().is_none());
+    }
+
+    #[test]
+    fn raw_8bit_content_uses_the_declared_codepage_like_escapes() {
+        // Raw bytes and \'hh escapes in one file must decode the same way.
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("Data");
+        std::fs::create_dir_all(data.join("CYR")).unwrap();
+        let mut rtf = br"{\rtf1\ansi\ansicpg1251 ".to_vec();
+        rtf.extend_from_slice(&[0xCF, 0xF0, 0xE8, 0xE2, 0xE5, 0xF2]);
+        rtf.extend_from_slice(br" \'cf\'f0\'e8\'e2\'e5\'f2}");
+        std::fs::write(data.join("CYR/content.rtf"), rtf).unwrap();
+        let privet = "\u{41f}\u{440}\u{438}\u{432}\u{435}\u{442}";
+        assert_eq!(
+            read_rtf_content(&data, "CYR").unwrap(),
+            Some(format!("<p>{privet} {privet}</p>"))
+        );
     }
 
     #[test]
