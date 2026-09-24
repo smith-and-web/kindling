@@ -60,7 +60,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   cleanup();
-  registerProseFlush(null);
+  registerProseFlush(async () => {})();
   vi.mocked(invoke).mockResolvedValue(undefined);
   await proseSaves.discard(proseSaves.draftsForRecovery());
   currentProject.setProject(null);
@@ -87,6 +87,17 @@ it("flushes the editors, then refuses while a draft is unsaved", async () => {
   await expect(saveProseBefore(mockProject.id, "exporting")).rejects.toThrow(
     "Save or recover unsaved prose before exporting"
   );
+});
+
+it("an old writing surface unregistering does not remove its replacement's flush", async () => {
+  const old = vi.fn(async () => {});
+  const replacement = vi.fn(async () => {});
+  const unregisterOld = registerProseFlush(old);
+  registerProseFlush(replacement);
+  unregisterOld();
+  await saveProseBefore(mockProject.id, "exporting");
+  expect(replacement).toHaveBeenCalledTimes(1);
+  expect(old).not.toHaveBeenCalled();
 });
 
 it("classic export saves pending prose first and will not export over an unsaved draft", async () => {

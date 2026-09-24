@@ -807,12 +807,12 @@
     };
     window.addEventListener("kindling:toggleEditorMode", emHandler);
     // Export and sync read prose from the database, so they flush the editors first.
-    registerProseFlush(prepareForSearch);
+    const unregisterProseFlush = registerProseFlush(prepareForSearch);
 
     return () => {
       window.removeEventListener("kindling:toggleDiscoveryNotes", dnHandler);
       window.removeEventListener("kindling:toggleEditorMode", emHandler);
-      registerProseFlush(null);
+      unregisterProseFlush();
     };
   });
 

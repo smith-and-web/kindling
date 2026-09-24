@@ -2,9 +2,13 @@ import { proseSaves } from "./proseSaves";
 
 let flushEditors: (() => Promise<void>) | null = null;
 
-/** The writing surface registers how to push its debounced edits into the save queue. */
-export function registerProseFlush(flush: (() => Promise<void>) | null): void {
+/** The writing surface registers how to push its debounced edits into the save queue.
+ * The returned function unregisters it, unless a newer surface has registered since. */
+export function registerProseFlush(flush: () => Promise<void>): () => void {
   flushEditors = flush;
+  return () => {
+    if (flushEditors === flush) flushEditors = null;
+  };
 }
 
 /**
