@@ -26,6 +26,7 @@ pub mod feedback;
 mod fields;
 mod import;
 mod lock;
+mod manuscript;
 mod novelwriter_sync;
 mod reference_copy;
 mod sample_project;

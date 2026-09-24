@@ -161,27 +161,15 @@ fn manuscript_heading(text: &str, l: &Layout, before: u32, after: u32) -> Paragr
 fn page_break() -> Paragraph {
     Paragraph::new().add_run(Run::new().add_break(BreakType::Page))
 }
-/// The last word of the author name, as the classic exporter's running header uses.
-fn surname(author: &str) -> &str {
-    author.split_whitespace().last().unwrap_or_default()
-}
-/// The running header's short title: the first three words, uppercased.
-fn short_title(title: &str) -> String {
-    title
-        .split_whitespace()
-        .take(3)
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_uppercase()
-}
 /// "Surname / SHORT TITLE / page", right-aligned, with a live PAGE field.
 fn running_header(d: &WorkspaceDocument) -> Header {
     let l = &d.layout;
-    let author = surname(&d.author);
+    let author = super::manuscript::header_surname(&d.author);
+    let title = super::manuscript::header_short_title(&d.title);
     let text = if l.header == "author_title" && !author.is_empty() {
-        format!("{author} / {} / ", short_title(&d.title))
+        format!("{author} / {title} / ")
     } else {
-        format!("{} / ", short_title(&d.title))
+        format!("{title} / ")
     };
     Header::new().add_paragraph(
         Paragraph::new()

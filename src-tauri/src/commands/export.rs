@@ -270,34 +270,6 @@ impl SceneBreakStyle {
     }
 }
 
-/// Extract surname from a full name
-///
-/// Assumes the last word in the name is the surname.
-/// Examples:
-/// - "John Smith" -> "Smith"
-/// - "Mary Jane Watson" -> "Watson"
-/// - "Prince" -> "Prince" (single name)
-fn extract_surname(full_name: &str) -> String {
-    full_name
-        .split_whitespace()
-        .last()
-        .unwrap_or(full_name)
-        .to_string()
-}
-
-/// Abbreviate a title for the running header
-///
-/// If the title is longer than max_words, truncate to max_words.
-/// The title is converted to uppercase as per SMF.
-fn abbreviate_title(title: &str, max_words: usize) -> String {
-    let words: Vec<&str> = title.split_whitespace().collect();
-    if words.len() <= max_words {
-        title.to_uppercase()
-    } else {
-        words[..max_words].join(" ").to_uppercase()
-    }
-}
-
 /// Convert a chapter number to its word form (uppercase)
 ///
 /// Standard Manuscript Format typically uses word numbers for chapters.
@@ -2599,7 +2571,7 @@ fn manuscript_fonts(font: &str) -> RunFonts {
 fn create_running_header(author_surname: &str, title: &str) -> Header {
     // Format: Surname / TITLE / [page number]
     // Use abbreviated title (max 3 words) in uppercase
-    let abbreviated_title = abbreviate_title(title, 3);
+    let abbreviated_title = super::manuscript::header_short_title(title);
     let header_text = format!("{} / {} / ", author_surname, abbreviated_title);
 
     Header::new().add_paragraph(
@@ -2674,10 +2646,12 @@ fn create_docx_styles(
         .footer(720); // 0.5 inch footer margin
 
     // Extract surname for running header
-    let surname = author_name.map(extract_surname).unwrap_or_default();
+    let surname = author_name
+        .map(super::manuscript::header_surname)
+        .unwrap_or_default();
 
     // Create the running header (for all pages except first)
-    let running_header = create_running_header(&surname, project_title);
+    let running_header = create_running_header(surname, project_title);
 
     // Create empty header for title page
     let empty_header = create_empty_first_header();
@@ -6032,32 +6006,6 @@ mod tests {
         let mut buffer = Vec::new();
         built.pack(&mut std::io::Cursor::new(&mut buffer)).unwrap();
         assert!(!buffer.is_empty());
-    }
-
-    #[test]
-    fn test_extract_surname() {
-        assert_eq!(extract_surname("John Smith"), "Smith");
-        assert_eq!(extract_surname("Mary Jane Watson"), "Watson");
-        assert_eq!(extract_surname("Prince"), "Prince");
-        assert_eq!(extract_surname("John   Smith"), "Smith"); // Multiple spaces
-        assert_eq!(extract_surname(""), "");
-    }
-
-    #[test]
-    fn test_abbreviate_title() {
-        // Short titles stay the same (but uppercase)
-        assert_eq!(abbreviate_title("My Novel", 3), "MY NOVEL");
-        assert_eq!(abbreviate_title("Title", 3), "TITLE");
-
-        // Long titles get truncated
-        assert_eq!(
-            abbreviate_title("The Very Long Title of My Book", 3),
-            "THE VERY LONG"
-        );
-        assert_eq!(abbreviate_title("A Tale of Two Cities", 3), "A TALE OF");
-
-        // Exactly max_words
-        assert_eq!(abbreviate_title("One Two Three", 3), "ONE TWO THREE");
     }
 
     #[test]
