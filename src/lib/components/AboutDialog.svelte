@@ -4,6 +4,7 @@
   import { ChevronRight, ExternalLink, Send } from "lucide-svelte";
   import DialogHeader from "./DialogHeader.svelte";
   import { onMount } from "svelte";
+  import { modalFocus } from "../utils/modalFocus";
 
   let { onClose, onSendFeedback }: { onClose: () => void; onSendFeedback: () => void } = $props();
 
@@ -17,12 +18,6 @@
     }
   });
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      onClose();
-    }
-  }
-
   let linkError = $state<string | null>(null);
 
   async function openLink(url: string) {
@@ -35,10 +30,9 @@
   }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
 <div
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: onClose }}
   role="dialog"
   aria-modal="true"
   aria-labelledby="about-title"

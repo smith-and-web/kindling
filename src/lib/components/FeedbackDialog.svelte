@@ -10,6 +10,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus } from "../utils/modalFocus";
   import { Loader2, Send, Star, CheckCircle2, AlertCircle } from "lucide-svelte";
 
   type FeedbackType = "bug" | "feature" | "rating";
@@ -105,12 +106,6 @@
     }
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      onClose();
-    }
-  }
-
   function handleBackdropClick(event: MouseEvent) {
     if (event.target === event.currentTarget) {
       onClose();
@@ -118,12 +113,12 @@
   }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
+<!-- Escape is the keyboard equivalent of the backdrop click; modalFocus handles it. -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
   class="dialog-scrim"
+  use:modalFocus={{ onEscape: onClose, initialFocus: "[aria-pressed='true']" }}
   onclick={handleBackdropClick}
-  onkeydown={handleKeydown}
   role="dialog"
   aria-modal="true"
   aria-labelledby="feedback-dialog-title"

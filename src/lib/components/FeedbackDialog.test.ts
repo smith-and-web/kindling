@@ -166,4 +166,52 @@ describe("FeedbackDialog", () => {
     await fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  describe("focus", () => {
+    function openFrom() {
+      const opener = document.createElement("button");
+      opener.textContent = "Help";
+      document.body.append(opener);
+      opener.focus();
+      const view = { unmount: () => {} };
+      const onClose = vi.fn(() => view.unmount());
+      view.unmount = render(FeedbackDialog, { props: { onClose } }).unmount;
+      return { opener, onClose };
+    }
+
+    it("moves focus to the selected feedback type on open", async () => {
+      renderDialog();
+      await waitFor(() =>
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "Bug" }))
+      );
+    });
+
+    it("wraps Tab from Send feedback to the first control, and Shift+Tab back", async () => {
+      renderDialog();
+      const close = screen.getByRole("button", { name: "Close" });
+      const submit = screen.getByTestId("feedback-submit");
+      submit.focus();
+      await fireEvent.keyDown(submit, { key: "Tab" });
+      expect(document.activeElement).toBe(close);
+      await fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
+      expect(document.activeElement).toBe(submit);
+    });
+
+    it("keeps typing inside the dialog, closes on Escape and restores focus", async () => {
+      const behind = vi.fn();
+      window.addEventListener("keydown", behind);
+      const { opener, onClose } = openFrom();
+      const message = screen.getByLabelText(/Message/);
+      message.focus();
+
+      await fireEvent.keyDown(message, { key: "Enter" });
+      await fireEvent.keyDown(message, { key: "Escape" });
+
+      expect(behind).not.toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(document.activeElement).toBe(opener);
+      window.removeEventListener("keydown", behind);
+      opener.remove();
+    });
+  });
 });

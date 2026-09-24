@@ -53,6 +53,7 @@
     NovelWriterExportOptions,
   } from "../types";
   import ScrivenerMatchDialog from "./ScrivenerMatchDialog.svelte";
+  import { modalFocus, ownsEnterKey } from "../utils/modalFocus";
 
   const LAST_EXPORT_PATH_KEY = "kindling:lastExportPath";
 
@@ -663,9 +664,12 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      onClose();
-    } else if (event.key === "Enter" && canExport && !exporting) {
+    // Escape and focus containment are handled by modalFocus. Enter is the default
+    // action only where it does nothing else: buttons, links, selects and textareas
+    // act on Enter themselves, so Enter on Cancel must not export.
+    if (event.key !== "Enter" || event.isComposing || ownsEnterKey(event.target)) return;
+    if (canExport && !exporting) {
+      event.preventDefault();
       handleExport();
     }
   }
@@ -694,13 +698,16 @@
   </label>
 {/snippet}
 
-<svelte:window onkeydown={handleKeydown} />
-
-<!-- Backdrop -->
+<!-- Backdrop. Escape is the keyboard equivalent of the backdrop click; modalFocus handles it. -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
   class="dialog-scrim"
+  use:modalFocus={{
+    onEscape: onClose,
+    onKeydown: handleKeydown,
+    initialFocus: "input[name='format']:checked",
+  }}
   onclick={handleBackdropClick}
-  onkeydown={handleKeydown}
   role="dialog"
   aria-modal="true"
   aria-labelledby="export-dialog-title"

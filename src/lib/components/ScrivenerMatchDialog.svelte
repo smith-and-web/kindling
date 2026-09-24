@@ -3,6 +3,7 @@
   import { onMount } from "svelte";
   import { CircleAlert } from "lucide-svelte";
   import DialogHeader from "./DialogHeader.svelte";
+  import { modalFocus } from "../utils/modalFocus";
   import type { ScrivenerMatchPreview } from "../types";
 
   let {
@@ -37,30 +38,22 @@
     }
   });
 
-  function handleKeydown(e: KeyboardEvent) {
-    // The surface, scrim and window can all see a key press; cancel once.
-    if (e.key !== "Escape" || e.defaultPrevented) return;
-    e.preventDefault();
-    onCancel();
+  function handleBackdropClick(event: MouseEvent) {
+    if (event.target === event.currentTarget) onCancel();
   }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
+<!-- Opened over the export dialog: modalFocus makes this the topmost, so Escape
+     and focus stay here rather than reaching the export dialog behind. -->
 <div
   class="dialog-scrim"
-  onclick={onCancel}
-  onkeydown={handleKeydown}
+  use:modalFocus={{ onEscape: onCancel }}
+  onclick={handleBackdropClick}
   role="presentation"
   tabindex="-1"
 >
   <div
     class="app-dialog-surface ka-dialog-default dialog-shell"
-    onclick={(e) => e.stopPropagation()}
-    onkeydown={(e) => {
-      handleKeydown(e);
-      e.stopPropagation();
-    }}
     role="dialog"
     aria-modal="true"
     aria-labelledby="scrivener-match-title"
