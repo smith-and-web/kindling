@@ -75,7 +75,11 @@ pub fn read_nwx(text: &str) -> Result<Nwx, NovelWriterError> {
                         let a = a.map_err(|e| NovelWriterError::Invalid(e.to_string()))?;
                         Ok((
                             String::from_utf8_lossy(a.key.as_ref()).into_owned(),
-                            a.decode_and_unescape_value(reader.decoder())?.into_owned(),
+                            a.decoded_and_normalized_value(
+                                quick_xml::XmlVersion::Explicit1_0,
+                                reader.decoder(),
+                            )?
+                            .into_owned(),
                         ))
                     })
                     .collect::<Result<_, NovelWriterError>>()?;
@@ -132,7 +136,7 @@ pub fn read_nwx(text: &str) -> Result<Nwx, NovelWriterError> {
             }
             Event::Text(e) => {
                 let value = e
-                    .xml_content()
+                    .xml_content(quick_xml::XmlVersion::Explicit1_0)
                     .map_err(|e| NovelWriterError::Invalid(e.to_string()))?;
                 append_text(&mut doc, &mut current, &stack, &value);
             }
