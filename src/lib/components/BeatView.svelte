@@ -289,6 +289,7 @@
       ui.setExpandedBeat(beat.id);
     } catch (e) {
       console.error("Failed to create beat:", e);
+      ui.showError(`Failed to create beat: ${String(e)}`);
     } finally {
       creatingBeat = false;
     }
@@ -396,6 +397,7 @@
       }
     } catch (e) {
       console.error("Failed to delete beat:", e);
+      ui.showError(`Failed to delete beat: ${String(e)}`);
     } finally {
       deletingBeat = false;
       deleteBeatDialog = null;
@@ -558,6 +560,7 @@
           currentProject.reorderBeats(newIds);
         } catch (e) {
           console.error("Failed to reorder beats:", e);
+          ui.showError(`Failed to reorder beats: ${String(e)}`);
         }
       }
     }

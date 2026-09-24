@@ -344,6 +344,7 @@
       suggestions = suggestions.filter((x) => x.reference_id !== s.reference_id);
     } catch (e) {
       console.error("Failed to dismiss suggestion:", e);
+      ui.showError(`Failed to dismiss suggestion: ${String(e)}`);
     }
   }
 
@@ -809,6 +810,7 @@
         if (sceneId) loadSuggestions(sceneId);
       } catch (e) {
         console.error("Failed to detect all references:", e);
+        ui.showError(`Failed to detect references: ${String(e)}`);
       }
     };
     window.addEventListener("kindling:detectReferences", handler);

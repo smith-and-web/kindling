@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { Plus, X } from "lucide-svelte";
   import type { Tag } from "../types";
+  import { ui } from "../stores/ui.svelte";
 
   let {
     projectId,
@@ -37,6 +38,7 @@
       onTagsChanged?.();
     } catch (e) {
       console.error("Failed to add tag:", e);
+      ui.showError(`Failed to add tag: ${String(e)}`);
     }
   }
 
@@ -46,6 +48,7 @@
       onTagsChanged?.();
     } catch (e) {
       console.error("Failed to remove tag:", e);
+      ui.showError(`Failed to remove tag: ${String(e)}`);
     }
   }
 
@@ -65,6 +68,7 @@
       onTagsChanged?.();
     } catch (e) {
       console.error("Failed to create tag:", e);
+      ui.showError(`Failed to create tag: ${String(e)}`);
     } finally {
       creating = false;
     }

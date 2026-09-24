@@ -337,6 +337,7 @@
       await loadSavedFilters();
     } catch (e) {
       console.error("Failed to save filter:", e);
+      ui.showError(`Failed to save filter: ${String(e)}`);
     }
   }
 
@@ -359,6 +360,7 @@
       await loadSavedFilters();
     } catch (e) {
       console.error("Failed to delete saved filter:", e);
+      ui.showError(`Failed to delete saved filter: ${String(e)}`);
     }
   }
 
@@ -556,6 +558,7 @@
       }
     } catch (e) {
       console.error("Failed to load scenes:", e);
+      ui.showError(`Failed to load scenes: ${String(e)}`);
     }
   }
 
@@ -569,6 +572,7 @@
       currentProject.setBeats(beats);
     } catch (e) {
       console.error("Failed to load beats:", e);
+      ui.showError(`Failed to load beats: ${String(e)}`);
     }
   }
 
@@ -659,6 +663,7 @@
       cancelCreate();
     } catch (e) {
       console.error("Failed to create chapter:", e);
+      ui.showError(`Failed to create ${chapterLabel.toLowerCase()}: ${String(e)}`);
     }
   }
 
@@ -676,6 +681,7 @@
       cancelCreate();
     } catch (e) {
       console.error("Failed to create part:", e);
+      ui.showError(`Failed to create ${partLabel.toLowerCase()}: ${String(e)}`);
     }
   }
 
@@ -691,6 +697,7 @@
       cancelCreate();
     } catch (e) {
       console.error("Failed to create scene:", e);
+      ui.showError(`Failed to create scene: ${String(e)}`);
     }
   }
 
@@ -755,6 +762,7 @@
       };
     } catch (e) {
       console.error("Failed to get content counts:", e);
+      ui.showError(`Failed to prepare delete: ${String(e)}`);
     }
   }
 
@@ -783,6 +791,7 @@
       };
     } catch (e) {
       console.error("Failed to get beat count:", e);
+      ui.showError(`Failed to prepare delete: ${String(e)}`);
     }
   }
 
@@ -985,6 +994,7 @@
       showSyncDialog = true;
     } catch (e) {
       console.error("Failed to get sync preview:", e);
+      ui.showError(`Failed to check for sync changes: ${String(e)}`);
     } finally {
       loadingSyncPreview = false;
     }
@@ -1188,6 +1198,7 @@
       }
     } catch (e) {
       console.error("Failed to duplicate:", e);
+      ui.showError(`Failed to duplicate: ${String(e)}`);
     }
   }
 
@@ -1262,6 +1273,7 @@
       }
     } catch (e) {
       console.error("Failed to toggle lock:", e);
+      ui.showError(`Failed to change lock: ${String(e)}`);
     }
   }
 

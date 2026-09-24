@@ -5,6 +5,7 @@
   import type { ProjectType, StoryTemplate } from "../types";
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
+  import { ui } from "../stores/ui.svelte";
 
   let {
     projectType = "novel",
@@ -41,6 +42,7 @@
       templates = [...bundled, ...user];
     } catch (e) {
       console.error("Failed to load templates:", e);
+      ui.showError(`Failed to load templates: ${String(e)}`);
     } finally {
       loading = false;
     }

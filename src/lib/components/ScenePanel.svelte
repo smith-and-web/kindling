@@ -341,6 +341,7 @@
         currentProject.updateScene(scene.id, { title: title.trim() });
       } catch (e) {
         console.error("Failed to rename scene:", e);
+        ui.showError(`Failed to rename scene: ${String(e)}`);
       }
     }, 400);
   }
@@ -508,6 +509,7 @@
       newDiscoveryNoteContent = "";
     } catch (e) {
       console.error("Failed to create discovery note:", e);
+      ui.showError(`Failed to add discovery note: ${String(e)}`);
     } finally {
       creatingDiscoveryNote = false;
     }
@@ -525,6 +527,7 @@
       editingDiscoveryNoteContent = "";
     } catch (e) {
       console.error("Failed to update discovery note:", e);
+      ui.showError(`Failed to save discovery note: ${String(e)}`);
     }
   }
 
@@ -534,6 +537,7 @@
       discoveryNotes = discoveryNotes.filter((n) => n.id !== noteId);
     } catch (e) {
       console.error("Failed to delete discovery note:", e);
+      ui.showError(`Failed to delete discovery note: ${String(e)}`);
     }
   }
 
@@ -546,6 +550,7 @@
       ui.setExpandedBeat(beat.id);
     } catch (e) {
       console.error("Failed to promote note to beat:", e);
+      ui.showError(`Failed to turn note into a beat: ${String(e)}`);
     } finally {
       promotingNoteId = null;
     }
