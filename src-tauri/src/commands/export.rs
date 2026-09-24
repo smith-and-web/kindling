@@ -2584,12 +2584,13 @@ fn create_docx_styles(
         .header(running_header)
         // Empty header for title page (first page)
         .first_header(empty_header)
-        // Heading 1 style (for chapters) - large, bold
+        // Heading 1 style (chapter and Part headings). SMF sets these at body
+        // size and weight; the style still marks them as headings for Word's
+        // navigation pane. A bold style would make every heading run bold.
         .add_style(
             Style::new("Heading1", StyleType::Paragraph)
                 .name("Heading 1")
-                .size(56) // 28pt (size is in half-points)
-                .bold()
+                .size(24) // 12pt (size is in half-points)
                 .fonts(manuscript_fonts(font_name)),
         )
         // Heading 2 style (for scenes) - medium, bold
@@ -5783,6 +5784,78 @@ mod tests {
         built.pack(&mut std::io::Cursor::new(&mut buffer)).unwrap();
         // Should produce a non-empty zip file
         assert!(!buffer.is_empty());
+    }
+
+    /// Standard Manuscript Format: chapter and Part headings are body size and
+    /// weight. The Heading 1 style must not make them bold.
+    #[test]
+    fn test_docx_chapter_and_part_headings_are_not_bold() {
+        use crate::models::PlanningStatus;
+        let bold = |xml: &str| {
+            (xml.contains("<w:b />") || xml.contains("<w:b/>") || xml.contains("<w:b "))
+                && !xml.contains("<w:b w:val=\"false\"")
+        };
+        let part = |title: &str, is_part: bool| Chapter {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            title: title.to_string(),
+            position: 0,
+            locked: false,
+            archived: false,
+            source_id: None,
+            is_part,
+            synopsis: None,
+            planning_status: PlanningStatus::Fixed,
+        };
+        let options = default_test_options();
+        let docx = create_docx_styles(Some("John Smith"), "My Novel", &options);
+        let docx = add_part_to_docx(docx, &part("Part One", true), &options, true);
+        let docx = add_chapter_to_docx(
+            docx,
+            &part("Arrival", false),
+            1,
+            &[],
+            &HashMap::new(),
+            &options,
+            false,
+        );
+        let mut buffer = Vec::new();
+        pack_docx(docx, std::io::Cursor::new(&mut buffer)).unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(buffer)).unwrap();
+        let mut read = |name: &str| {
+            let mut xml = String::new();
+            std::io::Read::read_to_string(&mut archive.by_name(name).unwrap(), &mut xml).unwrap();
+            xml
+        };
+        let styles = read("word/styles.xml");
+        let document = read("word/document.xml");
+        let style = |id: &str| {
+            let start = styles
+                .find(&format!("w:styleId=\"{id}\""))
+                .unwrap_or_else(|| panic!("no {id} style"));
+            &styles[start..start + styles[start..].find("</w:style>").unwrap()]
+        };
+        assert!(
+            !bold(style("Heading1")),
+            "Heading 1 style is bold: {}",
+            style("Heading1")
+        );
+        assert!(
+            style("Heading1").contains("w:val=\"24\""),
+            "not 12pt: {}",
+            style("Heading1")
+        );
+        // Control: the matcher does see bold where it is set.
+        assert!(bold(style("Heading2")));
+
+        for heading in ["PART ONE", "CHAPTER ONE"] {
+            let paragraph = document
+                .split("</w:p>")
+                .find(|p| p.contains(heading))
+                .unwrap_or_else(|| panic!("no {heading} in {document}"));
+            assert!(paragraph.contains("w:val=\"Heading1\""), "{paragraph}");
+            assert!(!bold(paragraph), "{heading} run is bold: {paragraph}");
+        }
     }
 
     #[test]
