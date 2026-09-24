@@ -182,8 +182,12 @@ pub(super) fn write_snapshot(
         Some(data.word_count()),
     );
 
-    // Store metadata in database
-    db::insert_snapshot_metadata(conn, &metadata).map_err(|e| e.to_string())?;
+    // Store metadata in database. Without its record the file is invisible and never
+    // pruned, so remove it if the insert fails.
+    if let Err(e) = db::insert_snapshot_metadata(conn, &metadata) {
+        let _ = std::fs::remove_file(&file_path);
+        return Err(e.to_string());
+    }
 
     Ok(metadata)
 }
