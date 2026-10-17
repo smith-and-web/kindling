@@ -146,6 +146,31 @@ fn strip_html_simple(html: &str) -> String {
     result
 }
 
+/// Words in the prose each scene is showing: its page prose in Page mode (or when it has
+/// no beats), otherwise its beats' prose. Switching modes keeps the other copy, so
+/// counting both would double the same text.
+fn project_word_count(conn: &rusqlite::Connection, project_id: &Uuid) -> Result<usize, String> {
+    let chapters = db::get_chapters(conn, project_id).map_err(|e| e.to_string())?;
+    let mut total_words: usize = 0;
+
+    for chapter in chapters.iter().filter(|c| !c.archived) {
+        let scenes = db::get_scenes(conn, &chapter.id).map_err(|e| e.to_string())?;
+        for scene in scenes.iter().filter(|s| !s.archived) {
+            let beats = db::get_beats(conn, &scene.id).map_err(|e| e.to_string())?;
+            if db::writing::uses_page_prose(scene, &beats) {
+                total_words += count_words_in_html(scene.prose.as_deref().unwrap_or(""));
+            } else {
+                total_words += beats
+                    .iter()
+                    .map(|beat| count_words_in_html(beat.prose.as_deref().unwrap_or("")))
+                    .sum::<usize>();
+            }
+        }
+    }
+
+    Ok(total_words)
+}
+
 /// Estimate page count for a project (words / 250, industry standard)
 #[tauri::command]
 pub async fn get_page_count_estimate(
@@ -155,27 +180,7 @@ pub async fn get_page_count_estimate(
     let uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
-    let chapters = db::get_chapters(&conn, &uuid).map_err(|e| e.to_string())?;
-    let mut total_words: usize = 0;
-
-    for chapter in chapters.iter().filter(|c| !c.archived) {
-        let scenes = db::get_scenes(&conn, &chapter.id).map_err(|e| e.to_string())?;
-        for scene in scenes.iter().filter(|s| !s.archived) {
-            if let Some(ref prose) = scene.prose {
-                if !prose.is_empty() {
-                    total_words += count_words_in_html(prose);
-                }
-            }
-            let beats = db::get_beats(&conn, &scene.id).map_err(|e| e.to_string())?;
-            for beat in &beats {
-                if let Some(ref prose) = beat.prose {
-                    if !prose.is_empty() {
-                        total_words += count_words_in_html(prose);
-                    }
-                }
-            }
-        }
-    }
+    let total_words = project_word_count(&conn, &uuid)?;
 
     let pages = total_words as f32 / 250.0;
     let target = db::get_project(&conn, &uuid)
@@ -559,6 +564,39 @@ mod tests {
             }
         }
         assert_eq!(total_words, 0);
+    }
+
+    #[test]
+    fn page_estimate_counts_only_the_prose_each_scene_is_showing() {
+        let conn = setup_db();
+        let project = Project {
+            project_type: "screenplay".to_string(),
+            ..Project::new("Estimate".to_string(), SourceType::Blank, None)
+        };
+        db::insert_project(&conn, &project).unwrap();
+        let chapter = Chapter::new(project.id, "Sequence".to_string(), 0);
+        db::insert_chapter(&conn, &chapter).unwrap();
+
+        // Switching modes keeps the inactive copy, so both hold the same three words.
+        let mut scene = Scene::new(chapter.id, "Scene".to_string(), None, 0);
+        scene.prose = Some("<p>one two three</p>".to_string());
+        db::insert_scene(&conn, &scene).unwrap();
+        let mut beat = Beat::new(scene.id, "Beat".to_string(), 0);
+        beat.prose = Some("<p>one two three</p>".to_string());
+        db::insert_beat(&conn, &beat).unwrap();
+
+        for mode in ["page", "beat"] {
+            conn.execute(
+                "UPDATE scenes SET editor_mode = ?1 WHERE id = ?2",
+                rusqlite::params![mode, scene.id.to_string()],
+            )
+            .unwrap();
+            assert_eq!(
+                project_word_count(&conn, &project.id).unwrap(),
+                3,
+                "{mode} mode"
+            );
+        }
     }
 
     #[test]
