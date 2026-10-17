@@ -59,8 +59,9 @@ pub struct ScrivxDocument {
 
 /// Parse a .scrivx XML string into a document tree
 pub fn parse_scrivx(xml: &str) -> Result<ScrivxDocument, ScrivenerError> {
+    // Text is not trimmed here: an entity splits the text around it into separate events,
+    // and trimming each one would join "Rock &amp; Roll" into "RockRoll".
     let mut reader = Reader::from_str(xml);
-    reader.config_mut().trim_text(true);
 
     let mut project_id = String::new();
     let mut binder_items: Vec<BinderItem> = Vec::new();
@@ -153,6 +154,21 @@ fn parse_binder_item(
                     _ => {}
                 }
             }
+            // `&amp;`, `&#233;` and the like arrive as their own events between text.
+            Ok(Event::GeneralRef(ref e)) => {
+                let entity = format!("&{};", String::from_utf8_lossy(e));
+                let text = unescape(&entity).map(|c| c.to_string()).unwrap_or(entity);
+                match current_element.as_str() {
+                    "Title" => title.push_str(&text),
+                    "IncludeInCompile" => compile_buf.push_str(&text),
+                    "KindlingProjectType" => {
+                        kindling_project_type
+                            .get_or_insert_with(String::new)
+                            .push_str(&text);
+                    }
+                    _ => {}
+                }
+            }
             Ok(Event::End(ref e)) => {
                 let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
                 if name == "BinderItem" {
@@ -161,6 +177,14 @@ fn parse_binder_item(
                 if name == "IncludeInCompile" {
                     include_in_compile = compile_buf.trim() == "Yes";
                     compile_buf.clear();
+                }
+                if name == "Title" {
+                    title = title.trim().to_string();
+                }
+                if name == "KindlingProjectType" {
+                    if let Some(project_type) = kindling_project_type.as_mut() {
+                        *project_type = project_type.trim().to_string();
+                    }
                 }
                 if name == current_element {
                     current_element.clear();
@@ -1318,6 +1342,58 @@ pub struct ParsedScrivener {
     pub beats: Vec<crate::models::Beat>,
 }
 
+/// A Text binder item and the Text items nested beneath it, in binder order.
+/// Scrivener lets a document hold sub-documents, so a chapter's prose can sit below a Text item.
+fn text_documents(item: &BinderItem) -> Vec<&BinderItem> {
+    if item.item_type != "Text" {
+        return Vec::new();
+    }
+    let mut documents = vec![item];
+    for child in &item.children {
+        documents.extend(text_documents(child));
+    }
+    documents
+}
+
+/// Add one Text binder item as a scene, with its RTF content as the scene's prose beat.
+fn push_text_scene(
+    item: &BinderItem,
+    chapter_id: uuid::Uuid,
+    position: i32,
+    data_dir: &std::path::Path,
+    scenes: &mut Vec<crate::models::Scene>,
+    beats: &mut Vec<crate::models::Beat>,
+) -> Result<(), ScrivenerError> {
+    use crate::models::{Beat, Scene};
+
+    let prose = read_rtf_content(data_dir, &item.uuid)?;
+    let scene_id = uuid::Uuid::new_v4();
+
+    if let Some(prose_html) = prose {
+        let mut beat = Beat::new(scene_id, "Scene Content".to_string(), 0)
+            .with_source_id(Some(format!("{}-prose", item.uuid)));
+        beat.prose = Some(prose_html);
+        beats.push(beat);
+    }
+
+    scenes.push(Scene {
+        id: scene_id,
+        chapter_id,
+        title: item.title.clone(),
+        synopsis: None,
+        prose: None,
+        position,
+        source_id: Some(item.uuid.clone()),
+        archived: false,
+        locked: false,
+        scene_type: Default::default(),
+        scene_status: Default::default(),
+        planning_status: Default::default(),
+        editor_mode: Default::default(),
+    });
+    Ok(())
+}
+
 /// Recursively process binder children, detecting Parts from nested Folder structure.
 /// A Folder with at least one Folder child is treated as a Part (`is_part: true`).
 fn process_binder_children(
@@ -1329,7 +1405,7 @@ fn process_binder_children(
     beats: &mut Vec<crate::models::Beat>,
     position: &mut i32,
 ) -> Result<(), ScrivenerError> {
-    use crate::models::{Beat, Chapter, Scene};
+    use crate::models::Chapter;
 
     for child in children {
         match child.item_type.as_str() {
@@ -1374,36 +1450,12 @@ fn process_binder_children(
                         planning_status: Default::default(),
                     };
 
-                    let mut scene_pos: i32 = 0;
-                    for scene_item in &child.children {
-                        if scene_item.item_type == "Text" {
-                            let prose = read_rtf_content(data_dir, &scene_item.uuid)?;
-                            let scene_id = uuid::Uuid::new_v4();
-
-                            if let Some(ref prose_html) = prose {
-                                let mut beat = Beat::new(scene_id, "Scene Content".to_string(), 0)
-                                    .with_source_id(Some(format!("{}-prose", scene_item.uuid)));
-                                beat.prose = Some(prose_html.clone());
-                                beats.push(beat);
-                            }
-
-                            scenes.push(Scene {
-                                id: scene_id,
-                                chapter_id: chapter.id,
-                                title: scene_item.title.clone(),
-                                synopsis: None,
-                                prose: None,
-                                position: scene_pos,
-                                source_id: Some(scene_item.uuid.clone()),
-                                archived: false,
-                                locked: false,
-                                scene_type: Default::default(),
-                                scene_status: Default::default(),
-                                planning_status: Default::default(),
-                                editor_mode: Default::default(),
-                            });
-                            scene_pos += 1;
-                        }
+                    for (scene_pos, scene_item) in
+                        (0..).zip(child.children.iter().flat_map(text_documents))
+                    {
+                        push_text_scene(
+                            scene_item, chapter.id, scene_pos, data_dir, scenes, beats,
+                        )?;
                     }
 
                     chapters.push(chapter);
@@ -1424,31 +1476,9 @@ fn process_binder_children(
                     planning_status: Default::default(),
                 };
 
-                let prose = read_rtf_content(data_dir, &child.uuid)?;
-                let scene_id = uuid::Uuid::new_v4();
-
-                if let Some(ref prose_html) = prose {
-                    let mut beat = Beat::new(scene_id, "Scene Content".to_string(), 0)
-                        .with_source_id(Some(format!("{}-prose", child.uuid)));
-                    beat.prose = Some(prose_html.clone());
-                    beats.push(beat);
+                for (scene_pos, document) in (0..).zip(text_documents(child)) {
+                    push_text_scene(document, chapter.id, scene_pos, data_dir, scenes, beats)?;
                 }
-
-                scenes.push(Scene {
-                    id: scene_id,
-                    chapter_id: chapter.id,
-                    title: child.title.clone(),
-                    synopsis: None,
-                    prose: None,
-                    position: 0,
-                    source_id: Some(child.uuid.clone()),
-                    archived: false,
-                    locked: false,
-                    scene_type: Default::default(),
-                    scene_status: Default::default(),
-                    planning_status: Default::default(),
-                    editor_mode: Default::default(),
-                });
 
                 chapters.push(chapter);
                 *position += 1;
@@ -1682,6 +1712,87 @@ mod tests {
     fn test_html_to_rtf_line_break() {
         let rtf = html_to_rtf("<p>Line one<br>Line two</p>");
         assert!(rtf.contains("Line one\\line Line two"));
+    }
+
+    #[test]
+    fn documents_nested_under_text_items_are_imported() {
+        let dir = tempfile::tempdir().unwrap();
+        let scriv = dir.path().join("Nested.scriv");
+        std::fs::create_dir_all(&scriv).unwrap();
+        let item = |uuid: &str, title: &str, children: &str| {
+            format!(
+                r#"<BinderItem UUID="{uuid}" Type="Text" Created="2024-01-01" Modified="2024-01-01">
+              <Title>{title}</Title>
+              <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+              <Children>{children}</Children>
+            </BinderItem>"#
+            )
+        };
+        let nested = item("SC1", "Opening", &item("SC1A", "Opening, continued", ""));
+        let scrivx = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="TEST-1" Version="2.0">
+  <Binder>
+    <BinderItem UUID="DRAFT" Type="DraftFolder" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Draft</Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+      <Children>
+        <BinderItem UUID="CH1" Type="Folder" Created="2024-01-01" Modified="2024-01-01">
+          <Title>Chapter One</Title>
+          <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+          <Children>{nested}</Children>
+        </BinderItem>
+      </Children>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#
+        );
+        std::fs::write(scriv.join("Nested.scrivx"), scrivx).unwrap();
+        let data = scriv.join("Files").join("Data");
+        for (uuid, prose) in [("SC1", "First part."), ("SC1A", "Nested part.")] {
+            std::fs::create_dir_all(data.join(uuid)).unwrap();
+            std::fs::write(
+                data.join(uuid).join("content.rtf"),
+                format!(r"{{\rtf1\ansi {prose}}}"),
+            )
+            .unwrap();
+        }
+
+        let parsed = parse_scrivener_bundle(&scriv).unwrap();
+        assert_eq!(parsed.chapters.len(), 1);
+        let titles: Vec<_> = parsed.scenes.iter().map(|s| s.title.as_str()).collect();
+        assert_eq!(titles, ["Opening", "Opening, continued"]);
+        assert_eq!(parsed.scenes[1].position, 1);
+        assert_eq!(parsed.beats.len(), 2);
+        assert!(parsed.beats[1]
+            .prose
+            .as_ref()
+            .unwrap()
+            .contains("Nested part."));
+    }
+
+    #[test]
+    fn binder_titles_keep_entities_and_the_spaces_around_them() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="ABC-123" Version="2.0">
+  <Binder>
+    <BinderItem UUID="SC-1" Type="Text" Created="2024-01-01" Modified="2024-01-01">
+      <Title>Rock &amp; Roll &#233;</Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+    </BinderItem>
+    <BinderItem UUID="SC-2" Type="Text" Created="2024-01-01" Modified="2024-01-01">
+      <Title>
+        Plain title
+      </Title>
+      <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+    </BinderItem>
+  </Binder>
+</ScrivenerProject>"#;
+
+        let doc = parse_scrivx(xml).unwrap();
+        assert_eq!(doc.binder[0].title, "Rock & Roll \u{e9}");
+        assert!(doc.binder[0].include_in_compile);
+        assert_eq!(doc.binder[1].title, "Plain title");
     }
 
     #[test]
