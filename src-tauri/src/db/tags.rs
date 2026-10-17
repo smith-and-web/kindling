@@ -1,5 +1,6 @@
 use crate::models::{EntityTag, SavedFilter, Tag};
 use rusqlite::{params, Connection, Result};
+use std::collections::BTreeSet;
 use uuid::Uuid;
 
 // ============================================================================
@@ -244,62 +245,52 @@ pub fn filter_entities(
         .and_then(|v| v.as_str())
         .unwrap_or("AND");
 
-    // Build the tag IDs including children (hierarchy traversal)
-    let mut all_tag_ids = tag_ids.clone();
-    for tag_id_str in &tag_ids {
-        collect_child_tags(conn, tag_id_str, &mut all_tag_ids)?;
+    // Each requested tag stands for itself and every descendant of it. AND needs an
+    // entity in every one of those groups, so the groups are matched one at a time:
+    // pooling them lets two children of one parent satisfy two requested tags.
+    let mut matches: Option<BTreeSet<String>> = None;
+    for tag_id in &tag_ids {
+        let mut group = vec![tag_id.clone()];
+        collect_child_tags(conn, tag_id, &mut group)?;
+        let found = entities_with_any_tag(conn, project_id, entity_type, &group)?;
+        matches = Some(match matches {
+            None => found,
+            Some(so_far) if operator == "OR" => so_far.union(&found).cloned().collect(),
+            Some(so_far) => so_far.intersection(&found).cloned().collect(),
+        });
     }
 
-    let placeholders: Vec<String> = all_tag_ids
+    Ok(matches
+        .unwrap_or_default()
         .iter()
-        .enumerate()
-        .map(|(i, _)| format!("?{}", i + 3))
-        .collect();
+        .map(|id| Uuid::parse_str(id).unwrap_or_default())
+        .collect())
+}
 
-    let sql = if operator == "OR" {
-        format!(
-            "SELECT DISTINCT et.entity_id FROM entity_tags et
-             JOIN tags t ON t.id = et.tag_id
-             WHERE t.project_id = ?1 AND et.entity_type = ?2 AND et.tag_id IN ({})
-             ORDER BY et.entity_id",
-            placeholders.join(", ")
-        )
-    } else {
-        // AND: entity must have ALL specified tags (any tag_id among all_tag_ids for each original tag)
-        format!(
-            "SELECT et.entity_id FROM entity_tags et
-             JOIN tags t ON t.id = et.tag_id
-             WHERE t.project_id = ?1 AND et.entity_type = ?2 AND et.tag_id IN ({})
-             GROUP BY et.entity_id
-             HAVING COUNT(DISTINCT et.tag_id) >= ?{}",
-            placeholders.join(", "),
-            all_tag_ids.len() + 3
-        )
-    };
+/// Entity IDs carrying at least one of `tag_ids`.
+fn entities_with_any_tag(
+    conn: &Connection,
+    project_id: &Uuid,
+    entity_type: &str,
+    tag_ids: &[String],
+) -> Result<BTreeSet<String>> {
+    let placeholders: Vec<String> = (0..tag_ids.len()).map(|i| format!("?{}", i + 3)).collect();
+    let sql = format!(
+        "SELECT DISTINCT et.entity_id FROM entity_tags et
+         JOIN tags t ON t.id = et.tag_id
+         WHERE t.project_id = ?1 AND et.entity_type = ?2 AND et.tag_id IN ({})",
+        placeholders.join(", ")
+    );
 
-    let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = vec![
-        Box::new(project_id.to_string()),
-        Box::new(entity_type.to_string()),
-    ];
-    for id in &all_tag_ids {
-        params_vec.push(Box::new(id.clone()));
-    }
-    if operator != "OR" {
-        params_vec.push(Box::new(tag_ids.len() as i64));
-    }
-
-    let param_refs: Vec<&dyn rusqlite::types::ToSql> =
-        params_vec.iter().map(|p| p.as_ref()).collect();
+    let project_id = project_id.to_string();
+    let mut params_vec: Vec<&dyn rusqlite::types::ToSql> = vec![&project_id, &entity_type];
+    params_vec.extend(tag_ids.iter().map(|id| id as &dyn rusqlite::types::ToSql));
 
     let mut stmt = conn.prepare(&sql)?;
     let ids = stmt
-        .query_map(param_refs.as_slice(), |row| {
-            let id_str: String = row.get(0)?;
-            Ok(Uuid::parse_str(&id_str).unwrap_or_default())
-        })?
+        .query_map(params_vec.as_slice(), |row| row.get::<_, String>(0))?
         .filter_map(|r| r.ok())
         .collect();
-
     Ok(ids)
 }
 
@@ -457,6 +448,44 @@ mod tests {
         let filter = format!(r#"{{"tags":["{}"],"operator":"OR"}}"#, parent.id);
         let results = filter_entities(&conn, &project_id, "scene", &filter).unwrap();
         assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn and_filter_needs_every_requested_tag_group() {
+        let (conn, project_id) = setup();
+
+        let subplot = Tag::new(project_id, "Subplot".to_string(), None, None, 0);
+        create_tag(&conn, &subplot).unwrap();
+        let romance = Tag::new(project_id, "Romance".to_string(), None, Some(subplot.id), 1);
+        create_tag(&conn, &romance).unwrap();
+        let rivalry = Tag::new(project_id, "Rivalry".to_string(), None, Some(subplot.id), 2);
+        create_tag(&conn, &rivalry).unwrap();
+        let flashback = Tag::new(project_id, "Flashback".to_string(), None, None, 3);
+        create_tag(&conn, &flashback).unwrap();
+
+        // Two children of Subplot, nothing from Flashback.
+        let subplot_only = Uuid::new_v4();
+        tag_entity(&conn, &romance.id, "scene", &subplot_only).unwrap();
+        tag_entity(&conn, &rivalry.id, "scene", &subplot_only).unwrap();
+        // One child of Subplot plus Flashback.
+        let both = Uuid::new_v4();
+        tag_entity(&conn, &rivalry.id, "scene", &both).unwrap();
+        tag_entity(&conn, &flashback.id, "scene", &both).unwrap();
+
+        let filter = |operator: &str| {
+            format!(
+                r#"{{"tags":["{}","{}"],"operator":"{operator}"}}"#,
+                subplot.id, flashback.id
+            )
+        };
+        let and = filter_entities(&conn, &project_id, "scene", &filter("AND")).unwrap();
+        assert_eq!(and, vec![both]);
+
+        let mut or = filter_entities(&conn, &project_id, "scene", &filter("OR")).unwrap();
+        or.sort();
+        let mut expected = vec![both, subplot_only];
+        expected.sort();
+        assert_eq!(or, expected);
     }
 
     #[test]
