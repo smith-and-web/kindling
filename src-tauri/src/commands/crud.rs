@@ -239,6 +239,11 @@ pub async fn duplicate_chapter(
 ) -> Result<Chapter, String> {
     let uuid = Uuid::parse_str(&chapter_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    duplicate_chapter_in(&conn, &uuid)
+}
+
+fn duplicate_chapter_in(conn: &rusqlite::Connection, uuid: &Uuid) -> Result<Chapter, String> {
+    let uuid = *uuid;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
     let original = db::get_chapter_by_id(&tx, &uuid)
@@ -294,6 +299,8 @@ pub async fn duplicate_chapter(
             };
             db::insert_beat(&tx, &new_beat).map_err(|e| e.to_string())?;
         }
+
+        db::copy_scene_associations(&tx, &scene.id, &new_scene.id).map_err(|e| e.to_string())?;
     }
 
     db::update_project_modified(&tx, &original.project_id).map_err(|e| e.to_string())?;
@@ -746,6 +753,11 @@ pub async fn duplicate_scene(
 ) -> Result<Scene, String> {
     let uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    duplicate_scene_in(&conn, &uuid)
+}
+
+fn duplicate_scene_in(conn: &rusqlite::Connection, uuid: &Uuid) -> Result<Scene, String> {
+    let uuid = *uuid;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
     let original = db::get_scene_by_id(&tx, &uuid)
@@ -785,6 +797,8 @@ pub async fn duplicate_scene(
         };
         db::insert_beat(&tx, &new_beat).map_err(|e| e.to_string())?;
     }
+
+    db::copy_scene_associations(&tx, &uuid, &new_scene.id).map_err(|e| e.to_string())?;
 
     if let Some(project_id) =
         db::get_chapter_project_id(&tx, &original.chapter_id).map_err(|e| e.to_string())?
@@ -2797,5 +2811,69 @@ mod lock_enforcement_tests {
         set_unlocked_chapter_planning_status(&book.conn, &book.one.id, "undefined").unwrap();
         assert_eq!(scene_status(&book), PlanningStatus::Undefined);
         assert_eq!(chapter_status(&book), PlanningStatus::Undefined);
+    }
+}
+
+#[cfg(test)]
+mod duplicate_tests {
+    use super::*;
+    use crate::models::{Character, DiscoveryNote, Project, SourceType};
+    use rusqlite::Connection;
+
+    /// A scene with one discovery note and one linked character.
+    fn fixture() -> (Connection, Project, Chapter, Scene, Character) {
+        let conn = Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        let project = Project::new("Duplicates".into(), SourceType::Blank, None);
+        db::insert_project(&conn, &project).unwrap();
+        let chapter = Chapter::new(project.id, "Chapter".into(), 0);
+        db::insert_chapter(&conn, &chapter).unwrap();
+        let scene = Scene::new(chapter.id, "Scene".into(), None, 0);
+        db::insert_scene(&conn, &scene).unwrap();
+        let character = Character::new(project.id, "Ana".into(), None, None);
+        db::insert_character(&conn, &character).unwrap();
+        db::add_scene_character_ref(&conn, &scene.id, &character.id).unwrap();
+        db::insert_discovery_note(
+            &conn,
+            &DiscoveryNote {
+                id: Uuid::new_v4(),
+                scene_id: scene.id,
+                content: "Ana already knows".into(),
+                tags: vec![],
+                position: 0,
+                created_at: "2026-09-23T00:00:00Z".into(),
+            },
+        )
+        .unwrap();
+        (conn, project, chapter, scene, character)
+    }
+
+    fn assert_carried_over(conn: &Connection, project: &Project, copy: &Scene, ana: &Character) {
+        let notes = db::get_discovery_notes(conn, &copy.id).unwrap();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].content, "Ana already knows");
+        let links = db::get_all_scene_character_refs(conn, &project.id).unwrap();
+        assert!(links
+            .iter()
+            .any(|l| l.scene_id == copy.id && l.character_id == ana.id));
+    }
+
+    #[test]
+    fn duplicating_a_scene_copies_its_notes_and_linked_references() {
+        let (conn, project, _, scene, ana) = fixture();
+        let copy = duplicate_scene_in(&conn, &scene.id).unwrap();
+        assert_ne!(copy.id, scene.id);
+        assert_carried_over(&conn, &project, &copy, &ana);
+        // The original keeps its own.
+        assert_eq!(db::get_discovery_notes(&conn, &scene.id).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn duplicating_a_chapter_copies_each_scenes_notes_and_linked_references() {
+        let (conn, project, chapter, _, ana) = fixture();
+        let copy = duplicate_chapter_in(&conn, &chapter.id).unwrap();
+        let scenes = db::get_scenes(&conn, &copy.id).unwrap();
+        assert_eq!(scenes.len(), 1);
+        assert_carried_over(&conn, &project, &scenes[0], &ana);
     }
 }
