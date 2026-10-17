@@ -695,8 +695,20 @@ fn migrate_reference_tag_types(conn: &Connection) -> Result<()> {
 }
 
 /// Migrate legacy *_attributes tables into the new field_definitions + field_values system.
-/// Only runs once: skips if field_definitions already has rows for a given project+entity_type.
+///
+/// The legacy rows are never removed, so each (project, entity type, key) that has been
+/// handled is recorded in `migrated_attribute_fields`. Without that record a field the
+/// writer deleted or renamed would be recreated from its legacy rows on the next start.
 fn migrate_attributes_to_fields(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS migrated_attribute_fields (
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            entity_type TEXT NOT NULL,
+            key TEXT NOT NULL,
+            PRIMARY KEY (project_id, entity_type, key)
+        );",
+    )?;
+
     struct AttrSource {
         entity_type: &'static str,
         table: &'static str,
@@ -783,7 +795,20 @@ fn migrate_attributes_to_fields(conn: &Connection) -> Result<()> {
             .collect();
 
         for (project_id, key) in &pairs {
-            // Check if a field_definition already exists for this project+entity_type+name
+            let already_migrated: bool = conn
+                .prepare(
+                    "SELECT count(*) FROM migrated_attribute_fields WHERE project_id = ?1 AND entity_type = ?2 AND key = ?3"
+                )?
+                .query_row(params![project_id, source.entity_type, key], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .map(|c| c > 0)?;
+
+            if already_migrated {
+                continue;
+            }
+
+            // A database migrated before this record existed already has the definition.
             let exists: bool = conn
                 .prepare(
                     "SELECT count(*) FROM field_definitions WHERE project_id = ?1 AND entity_type = ?2 AND name = ?3"
@@ -792,6 +817,11 @@ fn migrate_attributes_to_fields(conn: &Connection) -> Result<()> {
                     row.get::<_, i64>(0)
                 })
                 .map(|c| c > 0)?;
+
+            conn.execute(
+                "INSERT OR IGNORE INTO migrated_attribute_fields (project_id, entity_type, key) VALUES (?1, ?2, ?3)",
+                params![project_id, source.entity_type, key],
+            )?;
 
             if exists {
                 continue;
@@ -1066,5 +1096,72 @@ mod tests {
             .query_row(params![project_id], |row| row.get(0))
             .unwrap();
         assert_eq!(def_count_after, 2);
+    }
+
+    #[test]
+    fn migrated_attribute_fields_stay_deleted_or_renamed_after_restart() {
+        let conn = Connection::open_in_memory().unwrap();
+        initialize_schema(&conn).unwrap();
+
+        let project_id = Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO projects (id, name, source_type, created_at, modified_at) VALUES (?1, 'Test', 'Blank', datetime('now'), datetime('now'))",
+            params![project_id],
+        )
+        .unwrap();
+        let char_id = Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO characters (id, project_id, name) VALUES (?1, ?2, 'Hero')",
+            params![char_id, project_id],
+        )
+        .unwrap();
+        for (key, value) in [("Age", "30"), ("Role", "Lead")] {
+            conn.execute(
+                "INSERT INTO character_attributes (character_id, key, value) VALUES (?1, ?2, ?3)",
+                params![char_id, key, value],
+            )
+            .unwrap();
+        }
+        migrate_attributes_to_fields(&conn).unwrap();
+
+        conn.execute("DELETE FROM field_definitions WHERE name = 'Age'", [])
+            .unwrap();
+        conn.execute(
+            "UPDATE field_definitions SET name = 'Occupation' WHERE name = 'Role'",
+            [],
+        )
+        .unwrap();
+
+        // A restart reruns schema initialisation.
+        initialize_schema(&conn).unwrap();
+
+        let names: Vec<String> = conn
+            .prepare("SELECT name FROM field_definitions ORDER BY name")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_>>()
+            .unwrap();
+        assert_eq!(names, ["Occupation"]);
+        let values: i64 = conn
+            .query_row("SELECT count(*) FROM field_values", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(values, 1, "the deleted field's values must not return");
+
+        // A key written to the legacy table afterwards (an import) still migrates.
+        conn.execute(
+            "INSERT INTO character_attributes (character_id, key, value) VALUES (?1, 'Eyes', 'green')",
+            params![char_id],
+        )
+        .unwrap();
+        initialize_schema(&conn).unwrap();
+        let names: Vec<String> = conn
+            .prepare("SELECT name FROM field_definitions ORDER BY name")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_>>()
+            .unwrap();
+        assert_eq!(names, ["Eyes", "Occupation"]);
     }
 }
