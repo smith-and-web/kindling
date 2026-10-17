@@ -66,6 +66,15 @@ class ProjectStore {
     this.chapters = [...this.chapters, chapter];
   }
 
+  /** Insert a chapter at its saved manuscript position (e.g. when restoring from the archive). */
+  insertChapterByPosition(chapter: Chapter) {
+    const index = this.chapters.findIndex((c) => c.position > chapter.position);
+    this.chapters =
+      index === -1
+        ? [...this.chapters, chapter]
+        : [...this.chapters.slice(0, index), chapter, ...this.chapters.slice(index)];
+  }
+
   setCurrentChapter(chapter: Chapter | null) {
     this.currentChapter = chapter;
     if (!chapter) {
