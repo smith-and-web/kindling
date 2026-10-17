@@ -2218,7 +2218,7 @@ fn add_scene_from_entry(
         scene_content.synopsis,
         scene_position,
     )
-    .with_source_id(Some(scene_source_id));
+    .with_source_id(Some(scene_source_id.clone()));
     scene.editor_mode = scene_content.editor_mode;
     scene.prose = scene_content.prose;
     scene.scene_type = scene_content.scene_type;
@@ -2284,7 +2284,10 @@ fn add_scene_from_entry(
     }
 
     for (beat_position, beat) in scene_content.beats.into_iter().enumerate() {
-        let mut new_beat = Beat::new(scene.id, beat.content, beat_position as i32);
+        // A beat has no name of its own in the note, so its place in the scene identifies it.
+        // Sync needs an identity to tell a changed beat from a new one.
+        let mut new_beat = Beat::new(scene.id, beat.content, beat_position as i32)
+            .with_source_id(Some(format!("{scene_source_id}#beat-{beat_position}")));
         new_beat.prose = beat.prose;
         context.beats.push(new_beat);
     }
