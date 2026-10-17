@@ -55,6 +55,12 @@ pub struct ParsedMarkdown {
 pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown, MarkdownError> {
     let path = path.as_ref();
     let content = fs::read_to_string(path)?;
+    // Some editors write a UTF-8 byte order mark. Left in, it hides the opening `---`
+    // and the first `#` heading from the checks below.
+    let content = match content.strip_prefix('\u{feff}') {
+        Some(rest) => rest.to_string(),
+        None => content,
+    };
 
     let (frontmatter, body) = match split_frontmatter(&content) {
         Some((frontmatter_str, body)) => {
@@ -394,6 +400,36 @@ mod tests {
 
     fn fixtures_dir() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
+    }
+
+    #[test]
+    fn a_utf8_byte_order_mark_does_not_change_what_is_imported() {
+        let outline = "---\ntitle: Marked\n---\n# Act I\n## Opening\n- First beat\n";
+        let dir = tempfile::tempdir().unwrap();
+        let plain = dir.path().join("plain.md");
+        let marked = dir.path().join("marked.md");
+        std::fs::write(&plain, outline).unwrap();
+        std::fs::write(&marked, format!("\u{feff}{outline}")).unwrap();
+
+        let plain = parse_markdown_outline(&plain).unwrap();
+        let marked = parse_markdown_outline(&marked).unwrap();
+        assert_eq!(marked.project.name, "Marked");
+        assert_eq!(marked.project.name, plain.project.name);
+        assert_eq!(marked.chapters.len(), 1);
+        assert_eq!(marked.chapters[0].title, "Act I");
+        assert_eq!(marked.scenes[0].title, "Opening");
+        let beats = |parsed: &ParsedMarkdown| -> Vec<String> {
+            parsed.beats.iter().map(|b| b.content.clone()).collect()
+        };
+        assert_eq!(beats(&marked), beats(&plain));
+        assert_eq!(beats(&marked), ["First beat"]);
+
+        // Without frontmatter the BOM sits in front of the first heading.
+        let bare = dir.path().join("bare.md");
+        std::fs::write(&bare, "\u{feff}# Act I\n## Opening\n- First beat\n").unwrap();
+        let bare = parse_markdown_outline(&bare).unwrap();
+        assert_eq!(bare.chapters[0].title, "Act I");
+        assert_eq!(bare.scenes.len(), 1);
     }
 
     // ========================================================================
