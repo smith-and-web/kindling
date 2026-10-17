@@ -2118,8 +2118,15 @@ fn build_longform_structure(
         let mut chapter_position = 0;
         let mut scene_position = 0;
         let mut chapter_has_scenes = false;
+        // A top-level entry with nested entries below it groups them as a chapter. That
+        // entry only names the chapter unless a note of the same name exists.
+        let groups_scenes: Vec<bool> = scene_entries
+            .iter()
+            .enumerate()
+            .map(|(i, _)| scene_entries.get(i + 1).is_some_and(|next| next._depth > 0))
+            .collect();
 
-        for entry in scene_entries {
+        for (entry, groups_scenes) in scene_entries.into_iter().zip(groups_scenes) {
             if entry._depth == 0 {
                 if let Some(chapter) = current_chapter.take() {
                     if chapter_has_scenes {
@@ -2135,7 +2142,9 @@ fn build_longform_structure(
                 );
                 chapter_position += 1;
 
-                if !should_ignore_scene(&entry.name, ignored_patterns) {
+                let names_chapter_only =
+                    groups_scenes && !scene_file_exists(&entry.name, scene_dir);
+                if !should_ignore_scene(&entry.name, ignored_patterns) && !names_chapter_only {
                     if let Some(ref chapter) = current_chapter {
                         add_scene_from_entry(chapter, entry, scene_position, &mut build_context)?;
                         scene_position += 1;
@@ -2180,6 +2189,11 @@ fn build_longform_structure(
         scene_location_refs,
         scene_reference_item_refs,
     })
+}
+
+fn scene_file_exists(name: &str, scene_dir: &Path) -> bool {
+    let file_name = ensure_markdown_extension(&normalize_scene_name(name));
+    scene_dir.join(file_name).exists()
 }
 
 fn add_scene_from_entry(
@@ -3096,6 +3110,62 @@ longform:
         let parsed = parse_longform_index(&index_path).unwrap();
         assert_eq!(parsed.scenes.len(), 1);
         assert_eq!(parsed.scenes[0].title, "keep scene");
+    }
+
+    #[test]
+    fn documented_chapter_grouping_imports_without_a_chapter_note() {
+        // The layout from docs/importing-projects.md: "Chapter One" only groups its scenes.
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("scenes")).unwrap();
+        fs::write(
+            dir.path().join("index.md"),
+            r#"---
+longform:
+  format: scenes
+  title: My Project
+  sceneFolder: scenes
+  scenes:
+    - Chapter One
+    - - Scene One
+      - Scene Two
+---"#,
+        )
+        .unwrap();
+        fs::write(dir.path().join("scenes/Scene One.md"), "One").unwrap();
+        fs::write(dir.path().join("scenes/Scene Two.md"), "Two").unwrap();
+
+        let parsed = parse_longform_index(dir.path().join("index.md")).unwrap();
+        assert_eq!(parsed.chapters.len(), 1);
+        assert_eq!(parsed.chapters[0].title, "Chapter One");
+        let titles: Vec<_> = parsed.scenes.iter().map(|s| s.title.as_str()).collect();
+        assert_eq!(titles, ["Scene One", "Scene Two"]);
+        assert!(parsed
+            .scenes
+            .iter()
+            .all(|s| s.chapter_id == parsed.chapters[0].id));
+    }
+
+    #[test]
+    fn a_missing_scene_note_outside_a_grouping_entry_is_still_an_error() {
+        let dir = tempdir().unwrap();
+        fs::write(
+            dir.path().join("index.md"),
+            r#"---
+longform:
+  format: scenes
+  title: My Project
+  sceneFolder: /
+  scenes:
+    - Prologue
+    - Chapter One
+    - - Scene One
+---"#,
+        )
+        .unwrap();
+        fs::write(dir.path().join("Scene One.md"), "One").unwrap();
+
+        // Prologue stands alone and has no note, so this is the ordinary missing-file case.
+        assert!(parse_longform_index(dir.path().join("index.md")).is_err());
     }
 
     #[test]
