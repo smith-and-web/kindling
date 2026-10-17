@@ -5,6 +5,9 @@ use tauri::{
     AppHandle, Emitter, Manager, Wry,
 };
 
+const WINDOW_MINIMIZE: &str = "window_minimize";
+const WINDOW_TOGGLE_MAXIMIZE: &str = "window_toggle_maximize";
+
 /// Build a fresh menu: muda 0.17 on macOS does not clear the native key
 /// equivalent when set_accelerator(None) is called on an existing item.
 pub fn create_menu(app: &AppHandle<Wry>, bindings: &BTreeMap<String, String>) -> tauri::Result<()> {
@@ -55,10 +58,29 @@ pub fn create_menu(app: &AppHandle<Wry>, bindings: &BTreeMap<String, String>) ->
         .build()?;
     // Close Project owns Mod+W; a second predefined Close Window item would
     // retain that accelerator after the user's Close Project binding changes.
-    let window_submenu = SubmenuBuilder::new(app, "Window")
-        .minimize()
-        .maximize()
-        .build()?;
+    //
+    // muda does not implement the predefined Minimize and Maximize items on
+    // Linux, so the menu rendered empty there. Linux gets ordinary items that
+    // setup_menu_events handles natively.
+    let window_submenu = if cfg!(target_os = "linux") {
+        SubmenuBuilder::new(app, "Window")
+            .item(
+                &MenuItemBuilder::new("Minimize")
+                    .id(WINDOW_MINIMIZE)
+                    .build(app)?,
+            )
+            .item(
+                &MenuItemBuilder::new("Maximize")
+                    .id(WINDOW_TOGGLE_MAXIMIZE)
+                    .build(app)?,
+            )
+            .build()?
+    } else {
+        SubmenuBuilder::new(app, "Window")
+            .minimize()
+            .maximize()
+            .build()?
+    };
     let view_submenu = SubmenuBuilder::new(app, "View")
         .item(&command("toggle_sidebar", "Toggle Sidebar")?)
         .item(&command("toggle_references", "Toggle References Panel")?)
@@ -87,8 +109,23 @@ pub fn create_menu(app: &AppHandle<Wry>, bindings: &BTreeMap<String, String>) ->
 pub fn setup_menu_events(app: &AppHandle<Wry>) {
     let app_handle = app.clone();
     app.on_menu_event(move |_app, event| {
-        if let Some(window) = app_handle.get_webview_window("main") {
-            let _ = window.emit("menu-event", event.id().0.as_str());
+        let Some(window) = app_handle.get_webview_window("main") else {
+            return;
+        };
+        match event.id().0.as_str() {
+            WINDOW_MINIMIZE => {
+                let _ = window.minimize();
+            }
+            WINDOW_TOGGLE_MAXIMIZE => {
+                if window.is_maximized().unwrap_or(false) {
+                    let _ = window.unmaximize();
+                } else {
+                    let _ = window.maximize();
+                }
+            }
+            id => {
+                let _ = window.emit("menu-event", id);
+            }
         }
     });
 }
