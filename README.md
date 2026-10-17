@@ -24,7 +24,7 @@
     <img src="https://github.com/smith-and-web/kindling/actions/workflows/ci.yml/badge.svg" alt="CI Status" />
   </a>
   <a href="https://github.com/smith-and-web/kindling/releases">
-    <img src="https://img.shields.io/github/v/release/smith-and-web/kindling?include_prereleases&label=version" alt="Version" />
+    <img src="https://img.shields.io/github/v/release/smith-and-web/kindling?sort=semver&label=version" alt="Version" />
   </a>
   <a href="https://github.com/smith-and-web/kindling/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/smith-and-web/kindling" alt="License" />
