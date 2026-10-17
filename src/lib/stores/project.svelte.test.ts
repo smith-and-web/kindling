@@ -301,6 +301,29 @@ describe("currentProject store", () => {
     expect(currentProject.chapters[1].id).toBe("ch-2");
   });
 
+  it("should insert a restored chapter at its saved position", () => {
+    const make = (id: string, position: number) => ({
+      id,
+      project_id: "p1",
+      title: id,
+      position,
+      archived: false,
+      locked: false,
+      is_part: false,
+      ...defaultChapterMeta,
+    });
+
+    currentProject.setChapters([make("b", 1), make("c", 2)]);
+    currentProject.insertChapterByPosition(make("a", 0));
+    expect(currentProject.chapters.map((c) => c.id)).toEqual(["a", "b", "c"]);
+
+    currentProject.insertChapterByPosition(make("d", 3));
+    expect(currentProject.chapters.map((c) => c.id)).toEqual(["a", "b", "c", "d"]);
+
+    currentProject.insertChapterByPosition(make("b2", 1));
+    expect(currentProject.chapters.map((c) => c.id)).toEqual(["a", "b", "b2", "c", "d"]);
+  });
+
   it("should manage scenes", () => {
     const mockScenes = [
       {
