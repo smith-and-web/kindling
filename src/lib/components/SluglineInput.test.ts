@@ -32,6 +32,16 @@ describe("SluglineInput", () => {
     expect(onSave).toHaveBeenLastCalledWith(expect.stringMatching(/HARBOUR|Harbour/));
   });
 
+  it("keeps dash-separated location qualifiers when the time of day changes (#326)", async () => {
+    const onSave = vi.fn();
+    render(SluglineInput, { value: "INT. CAR - MOVING - DAY", onSave });
+    expect((screen.getByLabelText("Location") as HTMLInputElement).value).toBe("CAR - MOVING");
+    expect((screen.getByLabelText("Time of day") as HTMLSelectElement).value).toBe("DAY");
+
+    await fireEvent.change(screen.getByLabelText("Time of day"), { target: { value: "NIGHT" } });
+    expect(onSave).toHaveBeenLastCalledWith("INT. CAR - MOVING - NIGHT");
+  });
+
   it("keeps an unlisted time of day selectable", () => {
     render(SluglineInput, { value: "INT. LIGHTHOUSE - GOLDEN HOUR", onSave: vi.fn() });
     const time = screen.getByLabelText("Time of day") as HTMLSelectElement;

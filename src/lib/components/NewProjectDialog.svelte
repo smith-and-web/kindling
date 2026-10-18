@@ -53,7 +53,7 @@
       if (projectType === "screenplay") {
         project = await invoke<Project>("create_screenplay_project", {
           name: trimmedName,
-          target_length: targetLength,
+          targetLength,
         });
       } else {
         project = await invoke<Project>("create_blank_project", { name: trimmedName });

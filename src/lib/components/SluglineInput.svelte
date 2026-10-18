@@ -56,7 +56,8 @@
     }
     const prefixVal: "INT" | "EXT" = hasExtPrefix ? "EXT" : "INT";
     const rest = trimmed.slice(prefixVal.length + 1).trim();
-    const dashIdx = rest.indexOf(" - ");
+    // The time of day is the last segment; earlier " - " parts belong to the location.
+    const dashIdx = rest.lastIndexOf(" - ");
     let loc: string;
     let time = "DAY";
     if (dashIdx >= 0) {
