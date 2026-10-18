@@ -172,3 +172,25 @@ it.each(["a dialog is open", "the Escape was already handled"])(
     expect(screen.queryByLabelText("New discovery note")).toBeNull();
   }
 );
+
+it.each(["page", "beat"] as const)(
+  "counts a screenplay scene's %s-mode prose once in its page estimate",
+  async (mode) => {
+    // Switching modes keeps the other copy of the prose, so both hold the same 250 words.
+    const prose = `<p>${Array(250).fill("word").join(" ")}</p>`;
+    currentProject.setProject({ ...mockProject, project_type: "screenplay" });
+    currentProject.setCurrentChapter(mockChapters[0]);
+    currentProject.setCurrentScene({
+      ...mockScenes[0],
+      chapter_id: mockChapters[0].id,
+      editor_mode: mode,
+      planning_status: "fixed",
+      prose,
+    });
+    currentProject.setBeats([
+      { id: "beat-1", scene_id: mockScenes[0].id, content: "Beat", prose, position: 0 },
+    ]);
+    render(ScenePanel);
+    expect(await screen.findByText("~1.0 pages")).toBeTruthy();
+  }
+);

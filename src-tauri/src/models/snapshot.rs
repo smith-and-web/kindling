@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{
-    Beat, Chapter, Character, DiscoveryNote, Location, Project, ReferenceItem, Scene,
-    SceneReferenceState,
+    Beat, Chapter, Character, DiscoveryNote, EntityTag, FieldDefinition, FieldValue, Location,
+    Project, ReferenceItem, SavedFilter, Scene, SceneReferenceState, Tag,
 };
 
 /// Trigger type for snapshot creation
@@ -108,6 +108,21 @@ pub struct SceneReferenceItemRef {
     pub reference_item_id: Uuid,
 }
 
+/// The tags, custom fields and saved filters that organise a project's content.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SnapshotOrganization {
+    #[serde(default)]
+    pub tags: Vec<Tag>,
+    #[serde(default)]
+    pub entity_tags: Vec<EntityTag>,
+    #[serde(default)]
+    pub saved_filters: Vec<SavedFilter>,
+    #[serde(default)]
+    pub field_definitions: Vec<FieldDefinition>,
+    #[serde(default)]
+    pub field_values: Vec<FieldValue>,
+}
+
 /// The full snapshot data stored in the compressed file
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnapshotData {
@@ -131,6 +146,10 @@ pub struct SnapshotData {
     pub discovery_notes: Vec<DiscoveryNote>,
     #[serde(default)]
     pub scene_reviews: Vec<crate::db::revisions::ReviewBackup>,
+    /// `None` in a snapshot taken before organisation was captured. Restoring one leaves
+    /// the project's current tags, fields and filters alone rather than emptying them.
+    #[serde(default)]
+    pub organization: Option<SnapshotOrganization>,
 }
 
 impl SnapshotData {
@@ -165,6 +184,7 @@ impl SnapshotData {
             scene_reference_states,
             discovery_notes,
             scene_reviews: vec![],
+            organization: None,
         }
     }
 
