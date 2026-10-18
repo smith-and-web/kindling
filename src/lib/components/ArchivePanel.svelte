@@ -61,7 +61,7 @@
         chapterId: chapter.id,
       });
       archivedChapters = archivedChapters.filter((c) => c.id !== chapter.id);
-      currentProject.addChapter(restored);
+      currentProject.insertChapterByPosition(restored);
     } catch (e) {
       rowError = { id: chapter.id, message: messageOf(e, "Could not restore this chapter.") };
     } finally {
