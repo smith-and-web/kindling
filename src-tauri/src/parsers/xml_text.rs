@@ -126,7 +126,7 @@ pub(crate) fn assert_archive_well_formed(bytes: &[u8]) {
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).unwrap();
-        let name = file.name().to_string();
+        let name = file.name().unwrap().to_string();
         if [".xml", ".rels", ".xhtml", ".opf", ".ncx"]
             .iter()
             .any(|ext| name.ends_with(ext))

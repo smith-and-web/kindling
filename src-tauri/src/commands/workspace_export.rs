@@ -788,7 +788,7 @@ mod tests {
         export(path.to_string_lossy().into(), "epub".into(), document()).unwrap();
         let mut zip = zip::ZipArchive::new(fs::File::open(&path).unwrap()).unwrap();
         let first = zip.by_index(0).unwrap();
-        assert_eq!(first.name(), "mimetype");
+        assert_eq!(first.name().unwrap(), "mimetype");
         assert_eq!(first.compression(), CompressionMethod::Stored);
         drop(first);
         let opf = member(&path, "OEBPS/content.opf");
