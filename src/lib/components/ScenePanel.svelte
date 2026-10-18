@@ -121,10 +121,13 @@
   const scenePageEstimate = $derived.by(() => {
     if (!isScreenplay || !currentProject.currentScene) return null;
     const scene = currentProject.currentScene;
-    let words = countWordsInHtml(scene.prose);
-    for (const beat of currentProject.beats) {
-      words += countWordsInHtml(beat.prose);
-    }
+    const beats = currentProject.beats;
+    // Switching modes keeps the inactive copy of the prose, so count only the one showing.
+    // This is the same rule as uses_page_prose in db/writing.rs.
+    const words =
+      scene.editor_mode === "page" || beats.length === 0
+        ? countWordsInHtml(scene.prose)
+        : beats.reduce((sum, beat) => sum + countWordsInHtml(beat.prose), 0);
     return words / 250;
   });
 

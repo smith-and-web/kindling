@@ -6,7 +6,7 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -15,8 +15,9 @@ use uuid::Uuid;
 
 use crate::db;
 use crate::models::{
-    Beat, Chapter, Character, DiscoveryNote, Location, Project, ReferenceItem, RestoreMode, Scene,
-    SceneReferenceState, SnapshotData, SnapshotMetadata, SnapshotTrigger,
+    Beat, Chapter, Character, DiscoveryNote, FieldDefinition, FieldValue, Location, Project,
+    ReferenceItem, RestoreMode, SavedFilter, Scene, SceneReferenceState, SnapshotData,
+    SnapshotMetadata, SnapshotOrganization, SnapshotTrigger, Tag,
 };
 
 use super::AppState;
@@ -95,6 +96,16 @@ fn collect_project_data(
         discovery_notes,
     );
     data.scene_reviews = db::revisions::backup(conn, project_id)?;
+    data.organization = Some(SnapshotOrganization {
+        tags: db::get_tags(conn, project_id).map_err(|e| e.to_string())?,
+        entity_tags: db::get_all_entity_tags_for_project(conn, project_id)
+            .map_err(|e| e.to_string())?,
+        saved_filters: db::get_saved_filters(conn, project_id).map_err(|e| e.to_string())?,
+        field_definitions: db::get_all_field_definitions(conn, project_id)
+            .map_err(|e| e.to_string())?,
+        field_values: db::get_all_field_values_for_project(conn, project_id)
+            .map_err(|e| e.to_string())?,
+    });
     Ok(data)
 }
 
@@ -284,6 +295,20 @@ fn restore_replace_current(
     // Delete all existing project content
     db::delete_all_project_content(&tx, &project_id).map_err(|e| e.to_string())?;
 
+    // The snapshot's settings come back with its content. Name and source stay as they are,
+    // as they do for a copy.
+    let mut current = db::get_project(&tx, &project_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Project not found".to_string())?;
+    current.author_pen_name = data.project.author_pen_name.clone();
+    current.genre = data.project.genre.clone();
+    current.description = data.project.description.clone();
+    current.word_target = data.project.word_target;
+    current.reference_types = data.project.reference_types.clone();
+    current.project_type = data.project.project_type.clone();
+    current.target_page_count = data.project.target_page_count;
+    db::update_project(&tx, &current).map_err(|e| e.to_string())?;
+
     // Insert chapters
     for chapter in &data.chapters {
         db::insert_chapter(&tx, chapter).map_err(|e| e.to_string())?;
@@ -363,6 +388,11 @@ fn restore_replace_current(
     // Insert discovery notes
     for note in &data.discovery_notes {
         db::insert_discovery_note(&tx, note).map_err(|e| e.to_string())?;
+    }
+
+    if let Some(organization) = &data.organization {
+        delete_organization(&tx, &project_id)?;
+        restore_organization(&tx, organization, project_id, None)?;
     }
 
     db::update_project_modified(&tx, &project_id).map_err(|e| e.to_string())?;
@@ -591,9 +621,165 @@ fn restore_create_new(
         db::insert_discovery_note(&tx, &new_note).map_err(|e| e.to_string())?;
     }
 
+    if let Some(organization) = &data.organization {
+        restore_organization(&tx, organization, new_project_id, Some(&id_map))?;
+    }
+
     tx.commit().map_err(|e| e.to_string())?;
 
     Ok(new_project)
+}
+
+/// Remove a project's tags, custom fields and saved filters, with their assignments.
+fn delete_organization(conn: &rusqlite::Connection, project_id: &Uuid) -> Result<(), String> {
+    let project = project_id.to_string();
+    for sql in [
+        "DELETE FROM field_values WHERE field_definition_id IN
+            (SELECT id FROM field_definitions WHERE project_id = ?1)",
+        "DELETE FROM field_definitions WHERE project_id = ?1",
+        "DELETE FROM entity_tags WHERE tag_id IN (SELECT id FROM tags WHERE project_id = ?1)",
+        "DELETE FROM tags WHERE project_id = ?1",
+        "DELETE FROM saved_filters WHERE project_id = ?1",
+    ] {
+        conn.execute(sql, [&project]).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Write a snapshot's tags, custom fields and saved filters into `project_id`.
+///
+/// `entity_ids` is the old-to-new ID map when restoring as a copy: the organisation then gets
+/// new IDs of its own and its assignments follow the entities they were on. `None` restores
+/// in place, where every ID is still the one the snapshot recorded.
+fn restore_organization(
+    conn: &rusqlite::Connection,
+    organization: &SnapshotOrganization,
+    project_id: Uuid,
+    entity_ids: Option<&HashMap<Uuid, Uuid>>,
+) -> Result<(), String> {
+    let copying = entity_ids.is_some();
+    let fresh = |old: Uuid| if copying { Uuid::new_v4() } else { old };
+    let tag_map: HashMap<Uuid, Uuid> = organization
+        .tags
+        .iter()
+        .map(|t| (t.id, fresh(t.id)))
+        .collect();
+    let definition_map: HashMap<Uuid, Uuid> = organization
+        .field_definitions
+        .iter()
+        .map(|d| (d.id, fresh(d.id)))
+        .collect();
+    let entity = |old: &Uuid| match entity_ids {
+        Some(map) => map.get(old).copied(),
+        None => Some(*old),
+    };
+
+    // A tag's parent has to exist first. A parent the snapshot doesn't hold, or a cycle,
+    // leaves the tag at the top level.
+    let mut pending: Vec<Tag> = organization
+        .tags
+        .iter()
+        .map(|tag| Tag {
+            id: tag_map[&tag.id],
+            project_id,
+            parent_id: tag.parent_id.and_then(|p| tag_map.get(&p).copied()),
+            ..tag.clone()
+        })
+        .collect();
+    let mut inserted: HashSet<Uuid> = HashSet::new();
+    while !pending.is_empty() {
+        let (ready, waiting): (Vec<Tag>, Vec<Tag>) = pending
+            .into_iter()
+            .partition(|tag| tag.parent_id.is_none_or(|p| inserted.contains(&p)));
+        if ready.is_empty() {
+            for mut tag in waiting {
+                tag.parent_id = None;
+                db::create_tag(conn, &tag).map_err(|e| e.to_string())?;
+            }
+            break;
+        }
+        for tag in ready {
+            db::create_tag(conn, &tag).map_err(|e| e.to_string())?;
+            inserted.insert(tag.id);
+        }
+        pending = waiting;
+    }
+
+    for assignment in &organization.entity_tags {
+        let (Some(tag_id), Some(entity_id)) = (
+            tag_map.get(&assignment.tag_id),
+            entity(&assignment.entity_id),
+        ) else {
+            continue;
+        };
+        db::tag_entity(conn, tag_id, &assignment.entity_type, &entity_id)
+            .map_err(|e| e.to_string())?;
+    }
+
+    for filter in &organization.saved_filters {
+        db::save_filter(
+            conn,
+            &SavedFilter {
+                id: fresh(filter.id),
+                project_id,
+                filter_json: remap_filter_tags(&filter.filter_json, &tag_map),
+                ..filter.clone()
+            },
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    for definition in &organization.field_definitions {
+        db::create_field_definition(
+            conn,
+            &FieldDefinition {
+                id: definition_map[&definition.id],
+                project_id,
+                ..definition.clone()
+            },
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    for value in &organization.field_values {
+        let (Some(definition_id), Some(entity_id)) = (
+            definition_map.get(&value.field_definition_id),
+            entity(&value.entity_id),
+        ) else {
+            continue;
+        };
+        db::insert_field_value(
+            conn,
+            &FieldValue {
+                id: fresh(value.id),
+                field_definition_id: *definition_id,
+                entity_id,
+                value: value.value.clone(),
+            },
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+/// A saved filter names its tags by ID, so a copy's filters must name the copy's tags.
+fn remap_filter_tags(filter_json: &str, tag_map: &HashMap<Uuid, Uuid>) -> String {
+    let Ok(mut filter) = serde_json::from_str::<serde_json::Value>(filter_json) else {
+        return filter_json.to_string();
+    };
+    if let Some(tags) = filter.get_mut("tags").and_then(|t| t.as_array_mut()) {
+        for tag in tags {
+            let mapped = tag
+                .as_str()
+                .and_then(|id| Uuid::parse_str(id).ok())
+                .and_then(|id| tag_map.get(&id));
+            if let Some(new_id) = mapped {
+                *tag = serde_json::Value::String(new_id.to_string());
+            }
+        }
+    }
+    filter.to_string()
 }
 
 /// Preview snapshot - returns light metadata without full deserialization
@@ -631,6 +817,136 @@ mod tests {
     use super::*;
     use crate::models::SourceType;
     use tempfile::tempdir;
+
+    #[test]
+    fn tags_fields_filters_and_settings_survive_both_restore_paths() {
+        use crate::models::{FieldDefinition, SavedFilter, Tag};
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        conn.execute_batch("PRAGMA foreign_keys=ON").unwrap();
+        let mut project = Project::new("Organised".into(), SourceType::Blank, None);
+        project.word_target = Some(80_000);
+        db::insert_project(&conn, &project).unwrap();
+        let chapter = Chapter::new(project.id, "Chapter".into(), 0);
+        db::insert_chapter(&conn, &chapter).unwrap();
+        let scene = Scene::new(chapter.id, "Scene".into(), None, 0);
+        db::insert_scene(&conn, &scene).unwrap();
+        let character = Character::new(project.id, "Ana".into(), None, None);
+        db::insert_character(&conn, &character).unwrap();
+
+        // A child written before its parent in position order exercises parent-first insertion.
+        let parent = Tag::new(project.id, "Subplot".into(), None, None, 1);
+        let child = Tag::new(project.id, "Romance".into(), None, Some(parent.id), 0);
+        db::create_tag(&conn, &parent).unwrap();
+        db::create_tag(&conn, &child).unwrap();
+        db::tag_entity(&conn, &child.id, "scene", &scene.id).unwrap();
+        let definition = FieldDefinition::new(
+            project.id,
+            "character".into(),
+            "Age".into(),
+            "text".into(),
+            0,
+        );
+        db::create_field_definition(&conn, &definition).unwrap();
+        db::set_field_value(&conn, &definition.id, &character.id, Some("30")).unwrap();
+        let filter = SavedFilter::new(
+            project.id,
+            "Romance scenes".into(),
+            "scene".into(),
+            format!(r#"{{"tags":["{}"],"operator":"AND"}}"#, child.id),
+            0,
+        );
+        db::save_filter(&conn, &filter).unwrap();
+
+        let serialized =
+            serde_json::to_string(&collect_project_data(&conn, &project.id).unwrap()).unwrap();
+        let snapshot: SnapshotData = serde_json::from_str(&serialized).unwrap();
+
+        // Restoring as a copy keeps all of it, on the copy's own IDs.
+        let copy = restore_create_new(&conn, snapshot.clone(), Some("Copy".into())).unwrap();
+        let tags = db::get_tags(&conn, &copy.id).unwrap();
+        assert_eq!(tags.len(), 2);
+        let copied_child = tags.iter().find(|t| t.name == "Romance").unwrap();
+        let copied_parent = tags.iter().find(|t| t.name == "Subplot").unwrap();
+        assert_eq!(copied_child.parent_id, Some(copied_parent.id));
+        assert_ne!(copied_child.id, child.id);
+        let copied_chapters = db::get_chapters(&conn, &copy.id).unwrap();
+        let copied_scene = &db::get_scenes(&conn, &copied_chapters[0].id).unwrap()[0];
+        let scene_tags = db::get_entity_tags(&conn, "scene", &copied_scene.id).unwrap();
+        assert_eq!(scene_tags.len(), 1);
+        assert_eq!(scene_tags[0].id, copied_child.id);
+        let definitions = db::get_all_field_definitions(&conn, &copy.id).unwrap();
+        assert_eq!(definitions.len(), 1);
+        let copied_character = &db::get_characters(&conn, &copy.id).unwrap()[0];
+        let values = db::get_field_values(&conn, &copied_character.id).unwrap();
+        assert_eq!(values.len(), 1);
+        assert_eq!(values[0].field_definition_id, definitions[0].id);
+        assert_eq!(values[0].value.as_deref(), Some("30"));
+        let filters = db::get_saved_filters(&conn, &copy.id).unwrap();
+        assert_eq!(filters.len(), 1);
+        assert!(filters[0]
+            .filter_json
+            .contains(&copied_child.id.to_string()));
+        assert!(!filters[0].filter_json.contains(&child.id.to_string()));
+        assert_eq!(copy.word_target, Some(80_000));
+
+        // Restoring in place rolls organisation and settings back to the snapshot.
+        db::delete_tag(&conn, &child.id).unwrap();
+        db::create_tag(
+            &conn,
+            &Tag::new(project.id, "Added later".into(), None, None, 5),
+        )
+        .unwrap();
+        db::delete_field_definition(&conn, &definition.id).unwrap();
+        db::delete_saved_filter(&conn, &filter.id).unwrap();
+        let mut changed = db::get_project(&conn, &project.id).unwrap().unwrap();
+        changed.word_target = Some(1);
+        db::update_project(&conn, &changed).unwrap();
+
+        let restored = restore_replace_current(&conn, snapshot).unwrap();
+        assert_eq!(restored.word_target, Some(80_000));
+        let mut names: Vec<_> = db::get_tags(&conn, &project.id)
+            .unwrap()
+            .into_iter()
+            .map(|t| t.name)
+            .collect();
+        names.sort();
+        assert_eq!(names, ["Romance", "Subplot"]);
+        assert_eq!(
+            db::get_entity_tags(&conn, "scene", &scene.id)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            db::get_all_field_definitions(&conn, &project.id)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            db::get_field_values(&conn, &character.id).unwrap()[0]
+                .value
+                .as_deref(),
+            Some("30")
+        );
+        assert_eq!(db::get_saved_filters(&conn, &project.id).unwrap().len(), 1);
+
+        // A snapshot from before organisation was captured leaves current organisation alone.
+        let mut old =
+            serde_json::to_value(collect_project_data(&conn, &project.id).unwrap()).unwrap();
+        old.as_object_mut().unwrap().remove("organization");
+        let old: SnapshotData = serde_json::from_value(old).unwrap();
+        assert!(old.organization.is_none());
+        restore_replace_current(&conn, old).unwrap();
+        assert_eq!(db::get_tags(&conn, &project.id).unwrap().len(), 2);
+        assert_eq!(
+            db::get_all_field_definitions(&conn, &project.id)
+                .unwrap()
+                .len(),
+            1
+        );
+    }
 
     #[test]
     fn editorial_history_survives_both_snapshot_restore_paths() {

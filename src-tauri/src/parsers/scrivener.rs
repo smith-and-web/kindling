@@ -680,7 +680,12 @@ fn escape_rtf(text: &str) -> String {
             '}' => result.push_str("\\}"),
             '\n' => result.push_str("\\line "),
             c if (c as u32) > 127 => {
-                result.push_str(&format!("\\u{}?", c as i16 as u16));
+                // RTF \uN is a signed UTF-16 code unit; characters above U+FFFF
+                // are written as a surrogate pair of two words.
+                let mut units = [0u16; 2];
+                for unit in c.encode_utf16(&mut units) {
+                    result.push_str(&format!("\\u{}?", *unit as i16));
+                }
             }
             _ => result.push(c),
         }
@@ -1995,6 +2000,20 @@ mod tests {
         assert_eq!(draft.children[0].children[0].children.len(), 1);
         assert_eq!(draft.children[0].children[0].children[0].title, "Scene 1");
         assert_eq!(draft.children[0].children[0].children[0].item_type, "Text");
+    }
+
+    #[test]
+    fn test_html_to_rtf_keeps_characters_above_the_bmp() {
+        let rtf = html_to_rtf("<p>Hello \u{1F600}</p>");
+        // U+1F600 is the surrogate pair D83D DE00, written as two signed words.
+        assert!(rtf.contains("\\u-10179?\\u-8704?"), "{rtf}");
+        assert_eq!(rtf_to_html(&rtf), "<p>Hello \u{1F600}</p>");
+    }
+
+    #[test]
+    fn test_html_to_rtf_round_trips_bmp_characters_above_u7fff() {
+        let rtf = html_to_rtf("<p>\u{FF20}\u{4E2D}</p>");
+        assert_eq!(rtf_to_html(&rtf), "<p>\u{FF20}\u{4E2D}</p>");
     }
 
     #[test]

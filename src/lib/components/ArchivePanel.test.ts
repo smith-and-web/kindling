@@ -129,8 +129,21 @@ describe("ArchivePanel", () => {
 
     await vi.waitFor(() => expect(screen.queryByText("Lost Chapter")).toBeNull());
     expect(invoke).toHaveBeenCalledWith("restore_chapter", { chapterId: "ch-archived" });
-    expect(currentProject.chapters[currentProject.chapters.length - 1]).toEqual(restored);
+    expect(currentProject.chapters).toContainEqual(restored);
     expect(screen.getByText("Cut Scene")).toBeTruthy();
+  });
+
+  it("puts a restored chapter back at its saved position, not at the end (#303)", async () => {
+    const restored = { ...archivedChapter, archived: false, position: 0 };
+    currentProject.setChapters(mockChapters.map((c, i) => ({ ...c, position: i + 1 })));
+    mockInvoke({ restore_chapter: () => restored });
+    await renderLoaded();
+
+    await fireEvent.click(within(rowFor("Lost Chapter")).getByTestId("archive-restore"));
+
+    await vi.waitFor(() => expect(screen.queryByText("Lost Chapter")).toBeNull());
+    expect(currentProject.chapters[0].id).toBe("ch-archived");
+    expect(currentProject.chapters).toHaveLength(mockChapters.length + 1);
   });
 
   it("restores a scene into the open chapter", async () => {

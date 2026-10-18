@@ -2521,6 +2521,43 @@ pub fn get_all_beats_for_project(conn: &Connection, project_id: &Uuid) -> Result
     Ok(beats)
 }
 
+/// Copy a scene's discovery notes and reference links onto another scene, for a duplicate.
+/// Prose and beats are the caller's to copy; reviews and draft history stay with the original.
+pub fn copy_scene_associations(conn: &Connection, from: &Uuid, to: &Uuid) -> Result<()> {
+    for note in get_discovery_notes(conn, from)? {
+        insert_discovery_note(
+            conn,
+            &DiscoveryNote {
+                id: Uuid::new_v4(),
+                scene_id: *to,
+                ..note
+            },
+        )?;
+    }
+
+    let links = [
+        ("scene_character_refs", "character_id"),
+        ("scene_location_refs", "location_id"),
+        ("scene_reference_item_refs", "reference_item_id"),
+    ];
+    for (table, column) in links {
+        conn.execute(
+            &format!(
+                "INSERT INTO {table} (scene_id, {column})
+                 SELECT ?2, {column} FROM {table} WHERE scene_id = ?1"
+            ),
+            params![from.to_string(), to.to_string()],
+        )?;
+    }
+    conn.execute(
+        "INSERT INTO scene_reference_state (scene_id, reference_type, reference_id, position, expanded)
+         SELECT ?2, reference_type, reference_id, position, expanded
+         FROM scene_reference_state WHERE scene_id = ?1",
+        params![from.to_string(), to.to_string()],
+    )?;
+    Ok(())
+}
+
 /// Delete all project content (for restore)
 pub fn delete_all_project_content(conn: &Connection, project_id: &Uuid) -> Result<()> {
     // Delete scene references first
@@ -2798,6 +2835,76 @@ mod tests {
     // ========================================================================
     // Project Tests
     // ========================================================================
+
+    #[test]
+    fn copying_scene_associations_carries_notes_and_reference_links() {
+        let conn = setup_test_db();
+        let project = create_test_project(&conn);
+        let chapter = create_test_chapter(&conn, project.id);
+        let original = create_test_scene(&conn, chapter.id);
+        let copy = create_test_scene(&conn, chapter.id);
+
+        let character = Character::new(project.id, "Ana".into(), None, None);
+        insert_character(&conn, &character).unwrap();
+        let location = Location::new(project.id, "Harbor".into(), None, None);
+        insert_location(&conn, &location).unwrap();
+        let item = ReferenceItem::new(project.id, "items".into(), "Key".into(), None, None);
+        insert_reference_item(&conn, &item).unwrap();
+        add_scene_character_ref(&conn, &original.id, &character.id).unwrap();
+        add_scene_location_ref(&conn, &original.id, &location.id).unwrap();
+        add_scene_reference_item_ref(&conn, &original.id, &item.id).unwrap();
+        insert_scene_reference_state(
+            &conn,
+            &SceneReferenceState {
+                scene_id: original.id,
+                reference_type: "items".into(),
+                reference_id: item.id,
+                position: 2,
+                expanded: true,
+            },
+        )
+        .unwrap();
+        let note = DiscoveryNote {
+            id: Uuid::new_v4(),
+            scene_id: original.id,
+            content: "Ana already knows".into(),
+            tags: vec!["plot".into()],
+            position: 1,
+            created_at: "2026-09-23T00:00:00Z".into(),
+        };
+        insert_discovery_note(&conn, &note).unwrap();
+
+        copy_scene_associations(&conn, &original.id, &copy.id).unwrap();
+
+        let notes = get_discovery_notes(&conn, &copy.id).unwrap();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].content, "Ana already knows");
+        assert_eq!(notes[0].tags, ["plot"]);
+        assert_ne!(notes[0].id, note.id, "the copy owns its own note");
+        let refs = |table: &str| -> i64 {
+            conn.query_row(
+                &format!("SELECT count(*) FROM {table} WHERE scene_id = ?1"),
+                params![copy.id.to_string()],
+                |row| row.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(refs("scene_character_refs"), 1);
+        assert_eq!(refs("scene_location_refs"), 1);
+        assert_eq!(refs("scene_reference_item_refs"), 1);
+        let states = get_scene_reference_states(&conn, &copy.id).unwrap();
+        assert_eq!(states.len(), 1);
+        assert!(states[0].expanded);
+
+        // The original keeps all of its own.
+        assert_eq!(get_discovery_notes(&conn, &original.id).unwrap().len(), 1);
+        assert_eq!(
+            get_scene_reference_states(&conn, &original.id)
+                .unwrap()
+                .len(),
+            1
+        );
+    }
 
     #[test]
     fn reference_state_max_position_handles_null_and_scopes() {

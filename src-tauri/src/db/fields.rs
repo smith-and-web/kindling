@@ -171,6 +171,48 @@ pub fn get_field_values(conn: &Connection, entity_id: &Uuid) -> Result<Vec<Field
     Ok(values)
 }
 
+/// Every custom field value of a project's fields (for snapshots).
+pub fn get_all_field_values_for_project(
+    conn: &Connection,
+    project_id: &Uuid,
+) -> Result<Vec<FieldValue>> {
+    let mut stmt = conn.prepare(
+        "SELECT fv.id, fv.field_definition_id, fv.entity_id, fv.value
+         FROM field_values fv
+         JOIN field_definitions fd ON fd.id = fv.field_definition_id
+         WHERE fd.project_id = ?1",
+    )?;
+
+    let values = stmt
+        .query_map(params![project_id.to_string()], |row| {
+            Ok(FieldValue {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap_or_default(),
+                field_definition_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap_or_default(),
+                entity_id: Uuid::parse_str(&row.get::<_, String>(2)?).unwrap_or_default(),
+                value: row.get(3)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(values)
+}
+
+/// Insert a field value with the ID it already has (for restoring a snapshot).
+pub fn insert_field_value(conn: &Connection, value: &FieldValue) -> Result<()> {
+    conn.execute(
+        "INSERT INTO field_values (id, field_definition_id, entity_id, value)
+         VALUES (?1, ?2, ?3, ?4)",
+        params![
+            value.id.to_string(),
+            value.field_definition_id.to_string(),
+            value.entity_id.to_string(),
+            value.value,
+        ],
+    )?;
+    Ok(())
+}
+
 pub fn get_field_values_bulk(conn: &Connection, entity_ids: &[Uuid]) -> Result<Vec<FieldValue>> {
     if entity_ids.is_empty() {
         return Ok(vec![]);

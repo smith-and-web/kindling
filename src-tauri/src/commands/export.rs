@@ -3074,7 +3074,8 @@ fn add_prose_to_docx(
                     let needs_indent = !(is_first_para_in_section && regular_para_index == 0);
 
                     if needs_indent {
-                        para = para.indent(None, None, Some(720), None);
+                        para =
+                            para.indent(None, Some(SpecialIndentType::FirstLine(720)), None, None);
                     }
 
                     regular_para_index += 1;
@@ -3950,21 +3951,21 @@ fn treatment_to_text(content: &TreatmentContent, level: &TreatmentLevel) -> Stri
     match level {
         TreatmentLevel::OnePage => {
             for part in &content.parts {
-                if !part.title.is_empty() && !part.synopsis.is_empty() {
-                    out.push_str(&part.synopsis);
-                    out.push_str("\n\n");
-                } else if !part.title.is_empty() {
-                    let combined = part
-                        .chapters
+                // Projects without Parts compile to one untitled part, so the title
+                // must not gate the synopsis (the DOCX treatment does the same).
+                let text = if !part.synopsis.is_empty() {
+                    part.synopsis.clone()
+                } else {
+                    part.chapters
                         .iter()
                         .filter(|c| !c.synopsis.is_empty())
                         .map(|c| c.synopsis.as_str())
                         .collect::<Vec<_>>()
-                        .join(" ");
-                    if !combined.is_empty() {
-                        out.push_str(&combined);
-                        out.push_str("\n\n");
-                    }
+                        .join(" ")
+                };
+                if !text.is_empty() {
+                    out.push_str(&text);
+                    out.push_str("\n\n");
                 }
             }
         }
@@ -5835,6 +5836,34 @@ mod tests {
     }
 
     #[test]
+    fn test_docx_prose_uses_a_first_line_indent_not_a_right_indent() {
+        let options = default_test_options();
+        let (docx, _) = add_prose_to_docx(
+            Docx::new(),
+            Some("<p>First paragraph.</p><p>Second paragraph.</p>"),
+            &options,
+            true,
+        );
+        let mut buffer = Vec::new();
+        pack_docx(docx, std::io::Cursor::new(&mut buffer)).unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(buffer)).unwrap();
+        let mut xml = String::new();
+        std::io::Read::read_to_string(&mut archive.by_name("word/document.xml").unwrap(), &mut xml)
+            .unwrap();
+        let first = xml
+            .split("</w:p>")
+            .find(|p| p.contains("First paragraph."))
+            .unwrap();
+        let second = xml
+            .split("</w:p>")
+            .find(|p| p.contains("Second paragraph."))
+            .unwrap();
+        assert!(!first.contains("w:firstLine"), "{first}");
+        assert!(second.contains("w:firstLine=\"720\""), "{second}");
+        assert!(!second.contains("w:right=\"720\""), "{second}");
+    }
+
+    #[test]
     fn test_docx_runs_name_the_font_for_every_script_slot() {
         let options = default_test_options();
         let (docx, _) = add_prose_to_docx(
@@ -6026,7 +6055,7 @@ mod tests {
             let mut text = String::new();
             for i in 0..archive.len() {
                 let mut file = archive.by_index(i).unwrap();
-                if file.name().starts_with("word/header") {
+                if file.name().unwrap().starts_with("word/header") {
                     let mut xml = String::new();
                     std::io::Read::read_to_string(&mut file, &mut xml).unwrap();
                     if let Some(start) = xml.find("<w:t xml:space=\"preserve\">") {
@@ -7137,6 +7166,37 @@ mod tests {
         assert!(text.contains("The world is established."));
         assert!(text.contains("Obstacles mount."));
         assert!(!text.contains("INT. OFFICE"));
+    }
+
+    #[test]
+    fn test_treatment_text_one_page_without_parts_keeps_chapter_summaries() {
+        // Projects with no Part headings compile into one untitled part.
+        let content = TreatmentContent {
+            title: "No Parts".to_string(),
+            author: String::new(),
+            logline: "A story.".to_string(),
+            parts: vec![TreatmentPart {
+                title: String::new(),
+                synopsis: String::new(),
+                chapters: vec![
+                    TreatmentChapter {
+                        title: "One".to_string(),
+                        synopsis: "The hero leaves home.".to_string(),
+                        scenes: vec![],
+                    },
+                    TreatmentChapter {
+                        title: "Two".to_string(),
+                        synopsis: "The hero returns.".to_string(),
+                        scenes: vec![],
+                    },
+                ],
+            }],
+        };
+        let text = treatment_to_text(&content, &TreatmentLevel::OnePage);
+        assert!(
+            text.contains("The hero leaves home. The hero returns."),
+            "{text}"
+        );
     }
 
     #[test]
@@ -8620,14 +8680,14 @@ mod tests {
         // Verify mimetype is first entry
         {
             let first_entry = archive.by_index(0).unwrap();
-            assert_eq!(first_entry.name(), "mimetype");
+            assert_eq!(first_entry.name().unwrap(), "mimetype");
         }
 
         // Verify key files exist
         let file_names: Vec<String> = (0..archive.len())
             .map(|i| {
                 let entry = archive.by_index(i).unwrap();
-                entry.name().to_string()
+                entry.name().unwrap().to_string()
             })
             .collect();
 
