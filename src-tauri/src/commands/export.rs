@@ -6055,7 +6055,7 @@ mod tests {
             let mut text = String::new();
             for i in 0..archive.len() {
                 let mut file = archive.by_index(i).unwrap();
-                if file.name().starts_with("word/header") {
+                if file.name().unwrap().starts_with("word/header") {
                     let mut xml = String::new();
                     std::io::Read::read_to_string(&mut file, &mut xml).unwrap();
                     if let Some(start) = xml.find("<w:t xml:space=\"preserve\">") {
@@ -8680,14 +8680,14 @@ mod tests {
         // Verify mimetype is first entry
         {
             let first_entry = archive.by_index(0).unwrap();
-            assert_eq!(first_entry.name(), "mimetype");
+            assert_eq!(first_entry.name().unwrap(), "mimetype");
         }
 
         // Verify key files exist
         let file_names: Vec<String> = (0..archive.len())
             .map(|i| {
                 let entry = archive.by_index(i).unwrap();
-                entry.name().to_string()
+                entry.name().unwrap().to_string()
             })
             .collect();
 

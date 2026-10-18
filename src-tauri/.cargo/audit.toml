@@ -35,6 +35,20 @@ ignore = [
     # Remove these once tauri-plugin-mcp's xcap/xcb drop quick-xml 0.30.
     "RUSTSEC-2026-0194",
     "RUSTSEC-2026-0195",
+
+    # zip < 9 (SUID/SGID preserved on extract; symlink targets not confined on
+    # extract). All three are in `ZipArchive::extract` / `ZipStreamReader::extract`.
+    # kindling's own `zip` is on 9.x, which is fixed. Two older copies remain, both
+    # transitive and neither reachable by an attacker:
+    #   - zip 0.6.6 via docx-rs 0.4: kindling only *writes* DOCX through it and never
+    #     reads or extracts an archive with it. docx-rs 0.4.22 still needs zip 8.x.
+    #   - zip 4.6.1 via tauri-plugin-updater: `extract_zip` runs only for the legacy
+    #     Windows .zip updater bundle, after the download's minisign signature has been
+    #     verified against the pubkey in tauri.conf.json.
+    # Remove these once docx-rs and tauri-plugin-updater move to zip >= 9.
+    "RUSTSEC-2026-0367",
+    "RUSTSEC-2026-0368",
+    "RUSTSEC-2026-0369",
 ]
 
 # Don't treat unmaintained crate warnings as errors
