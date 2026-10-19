@@ -518,7 +518,7 @@ fn epub(file: &mut fs::File, d: &WorkspaceDocument) -> Result<()> {
     Ok(())
 }
 #[tauri::command]
-pub fn export_workspace_document(
+pub async fn export_workspace_document(
     path: String,
     format: String,
     document: WorkspaceDocument,
