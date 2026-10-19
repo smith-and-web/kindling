@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 This changelog is automatically generated from [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [1.3.1](https://github.com/smith-and-web/kindling/compare/v1.3.0...v1.3.1) (2026-10-19)
+
+### Bug Fixes
+
+* **editor:** quitting from the Dock, at logout or shutdown, or with an AppleScript `quit` on macOS now saves your last few seconds of typing first, and asks before discarding anything that could not be saved, just like **File → Quit** ([#368](https://github.com/smith-and-web/kindling/issues/368))
+* **editor:** screenplay page estimates no longer count prose twice after switching editor modes ([#325](https://github.com/smith-and-web/kindling/issues/325))
+* **editor:** changing a slugline's time of day keeps dash-separated location details ([#326](https://github.com/smith-and-web/kindling/issues/326))
+* **editor:** duplicating a scene or chapter keeps its discovery notes and linked references ([#302](https://github.com/smith-and-web/kindling/issues/302))
+* **db:** a failure partway through adding a chapter, reordering beats or promoting a note to a beat no longer leaves the outline half-changed ([#376](https://github.com/smith-and-web/kindling/issues/376))
+* **db:** restoring a snapshot brings back custom fields, tags and saved filters ([#297](https://github.com/smith-and-web/kindling/issues/297))
+* **db:** deleted or renamed custom fields stay that way after a restart ([#307](https://github.com/smith-and-web/kindling/issues/307))
+* **db:** "match all" tag filters no longer match items missing one of the requested tag groups ([#311](https://github.com/smith-and-web/kindling/issues/311))
+* **references:** the scene view's References section shows linked characters and locations, and linking one no longer makes the layout jump ([#414](https://github.com/smith-and-web/kindling/issues/414))
+* **export:** Word manuscripts with a title page number the first page of text 1, as Standard Manuscript Format expects ([#356](https://github.com/smith-and-web/kindling/issues/356))
+* **export:** the export workspace no longer freezes the window while it builds a manuscript ([#350](https://github.com/smith-and-web/kindling/issues/350))
+* **export:** Word prose gets a first-line indent instead of a right indent ([#310](https://github.com/smith-and-web/kindling/issues/310))
+* **export:** the one-page TXT treatment includes chapter summaries in projects without Parts ([#309](https://github.com/smith-and-web/kindling/issues/309))
+* **export:** Scrivener export keeps emoji and other less common characters intact ([#301](https://github.com/smith-and-web/kindling/issues/301))
+* **import:** yWriter imports keep their reference items, and Longform imports keep each scene's links to reference items ([#316](https://github.com/smith-and-web/kindling/issues/316), [#299](https://github.com/smith-and-web/kindling/issues/299))
+* **import:** Scrivener imports include documents nested under other text documents, and keep `&`, quotes and spacing in titles ([#320](https://github.com/smith-and-web/kindling/issues/320), [#313](https://github.com/smith-and-web/kindling/issues/313))
+* **import:** Markdown files saved with a byte-order mark keep their frontmatter and first heading ([#319](https://github.com/smith-and-web/kindling/issues/319))
+* **longform:** the documented chapter-grouping example imports without a chapter scene file ([#332](https://github.com/smith-and-web/kindling/issues/332)), and sync now picks up added and changed beats ([#317](https://github.com/smith-and-web/kindling/issues/317))
+* **ui:** restoring an archived chapter puts it back where it was ([#303](https://github.com/smith-and-web/kindling/issues/303))
+* **ui:** creating a screenplay respects the target length you chose ([#300](https://github.com/smith-and-web/kindling/issues/300))
+* **linux:** the Window menu shows Minimize and Maximize ([#404](https://github.com/smith-and-web/kindling/issues/404)), and the AppImage includes its icon
+* **security:** release builds no longer include the Web Inspector developer console ([#361](https://github.com/smith-and-web/kindling/issues/361))
+* **release:** `checksums.sha256` now covers the Windows `.exe` installer and the Linux `.rpm` ([#358](https://github.com/smith-and-web/kindling/issues/358))
+
 ## [1.3.0](https://github.com/smith-and-web/kindling/compare/v1.2.0...v1.3.0) (2026-09-24)
 
 ### Features
