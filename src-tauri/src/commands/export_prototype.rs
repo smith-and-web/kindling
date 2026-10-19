@@ -26,7 +26,7 @@ pub struct PreviewChapter {
 }
 
 #[tauri::command]
-pub fn get_export_prototype_document(
+pub async fn get_export_prototype_document(
     project_id: String,
     state: State<'_, super::AppState>,
 ) -> Result<Vec<PreviewChapter>, String> {
@@ -86,7 +86,7 @@ pub fn get_export_prototype_document(
 
 /// Save only a new HTML preview. Staging plus no-clobber publication preserves existing files.
 #[tauri::command]
-pub fn save_export_prototype_html(path: String, html: String) -> Result<(), String> {
+pub async fn save_export_prototype_html(path: String, html: String) -> Result<(), String> {
     let target = Path::new(&path);
     if !target.is_absolute() || target.extension().and_then(|s| s.to_str()) != Some("html") {
         return Err("Choose an absolute filename ending in .html.".into());
@@ -109,27 +109,34 @@ pub fn save_export_prototype_html(path: String, html: String) -> Result<(), Stri
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn preview_never_overwrites_an_existing_file() {
+    #[tokio::test]
+    async fn preview_never_overwrites_an_existing_file() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir
             .path()
             .join("preview.html")
             .to_string_lossy()
             .into_owned();
-        save_export_prototype_html(path.clone(), "first".into()).unwrap();
-        assert!(save_export_prototype_html(path.clone(), "second".into()).is_err());
+        save_export_prototype_html(path.clone(), "first".into())
+            .await
+            .unwrap();
+        assert!(save_export_prototype_html(path.clone(), "second".into())
+            .await
+            .is_err());
         assert_eq!(std::fs::read_to_string(path).unwrap(), "first");
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
     }
-    #[test]
-    fn preview_rejects_non_html_and_relative_paths() {
-        assert!(save_export_prototype_html("preview.html".into(), "".into()).is_err());
+    #[tokio::test]
+    async fn preview_rejects_non_html_and_relative_paths() {
+        assert!(save_export_prototype_html("preview.html".into(), "".into())
+            .await
+            .is_err());
         let dir = tempfile::tempdir().unwrap();
         assert!(save_export_prototype_html(
             dir.path().join("project.db").to_string_lossy().into_owned(),
             "".into()
         )
+        .await
         .is_err());
     }
 }
