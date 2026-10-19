@@ -167,26 +167,50 @@ pub async fn create_chapter(
     state: State<'_, AppState>,
 ) -> Result<Chapter, String> {
     let project_uuid = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
+    let after_uuid = after_id
+        .as_deref()
+        .map(Uuid::parse_str)
+        .transpose()
+        .map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    insert_new_chapter(
+        &conn,
+        &project_uuid,
+        title,
+        is_part.unwrap_or(false),
+        after_uuid.as_ref(),
+    )
+}
+
+/// Shifting later chapters and inserting the new one commit together, so a
+/// failed insert cannot leave a gap in the chapter positions.
+fn insert_new_chapter(
+    conn: &rusqlite::Connection,
+    project_uuid: &Uuid,
+    title: String,
+    is_part: bool,
+    after_uuid: Option<&Uuid>,
+) -> Result<Chapter, String> {
+    let project_uuid = *project_uuid;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
     // Determine position based on after_id or append to end
-    let position = if let Some(ref after_chapter_id) = after_id {
-        let after_uuid = Uuid::parse_str(after_chapter_id).map_err(|e| e.to_string())?;
-        let after_chapter = db::get_chapter_by_id(&conn, &after_uuid)
+    let position = if let Some(after_uuid) = after_uuid {
+        let after_chapter = db::get_chapter_by_id(&tx, after_uuid)
             .map_err(|e| e.to_string())?
-            .ok_or_else(|| format!("Chapter not found: {}", after_chapter_id))?;
+            .ok_or_else(|| format!("Chapter not found: {}", after_uuid))?;
 
         // Insert after the specified chapter
         let new_position = after_chapter.position + 1;
 
         // Shift all chapters at or after this position
-        db::shift_chapters_after_position(&conn, &project_uuid, new_position)
+        db::shift_chapters_after_position(&tx, &project_uuid, new_position)
             .map_err(|e| e.to_string())?;
 
         new_position
     } else {
         // Append to end
-        db::get_max_chapter_position(&conn, &project_uuid).map_err(|e| e.to_string())? + 1
+        db::get_max_chapter_position(&tx, &project_uuid).map_err(|e| e.to_string())? + 1
     };
 
     let chapter = Chapter {
@@ -197,13 +221,14 @@ pub async fn create_chapter(
         source_id: None,
         archived: false,
         locked: false,
-        is_part: is_part.unwrap_or(false),
+        is_part,
         synopsis: None,
         planning_status: PlanningStatus::Fixed,
     };
 
-    db::insert_chapter(&conn, &chapter).map_err(|e| e.to_string())?;
-    db::update_project_modified(&conn, &project_uuid).map_err(|e| e.to_string())?;
+    db::insert_chapter(&tx, &chapter).map_err(|e| e.to_string())?;
+    db::update_project_modified(&tx, &project_uuid).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
 
     Ok(chapter)
 }
@@ -984,31 +1009,50 @@ pub async fn reorder_beats(
 ) -> Result<(), String> {
     let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    reorder_scene_beats(&conn, &scene_uuid, &beat_ids)
+}
 
-    if db::is_scene_locked(&conn, &scene_uuid).map_err(|e| e.to_string())? {
+/// Validates the whole new order before writing anything, then applies every
+/// position in one transaction so a reorder lands completely or not at all.
+fn reorder_scene_beats(
+    conn: &rusqlite::Connection,
+    scene_uuid: &Uuid,
+    beat_ids: &[String],
+) -> Result<(), String> {
+    if db::is_scene_locked(conn, scene_uuid).map_err(|e| e.to_string())? {
         return Err("Cannot reorder beats in a locked scene".to_string());
     }
 
-    let existing_beats = db::get_beats(&conn, &scene_uuid).map_err(|e| e.to_string())?;
-    let existing_ids: std::collections::HashSet<_> = existing_beats.iter().map(|b| b.id).collect();
+    let existing_beats = db::get_beats(conn, scene_uuid).map_err(|e| e.to_string())?;
+    let existing_ids: HashSet<_> = existing_beats.iter().map(|b| b.id).collect();
 
     if beat_ids.len() != existing_beats.len() {
         return Err("Beat order must include all beats in the scene".to_string());
     }
 
-    for (position, id_str) in beat_ids.iter().enumerate() {
+    let mut new_order = Vec::with_capacity(beat_ids.len());
+    for id_str in beat_ids {
         let beat_uuid = Uuid::parse_str(id_str).map_err(|e| e.to_string())?;
         if !existing_ids.contains(&beat_uuid) {
             return Err(format!("Beat {} does not belong to this scene", id_str));
         }
-        db::update_beat_position(&conn, &beat_uuid, position as i32).map_err(|e| e.to_string())?;
+        new_order.push(beat_uuid);
+    }
+    if new_order.iter().collect::<HashSet<_>>().len() != new_order.len() {
+        return Err("Beat order must include all beats in the scene".to_string());
+    }
+
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    for (position, beat_uuid) in new_order.iter().enumerate() {
+        db::update_beat_position(&tx, beat_uuid, position as i32).map_err(|e| e.to_string())?;
     }
 
     if let Some(project_id) =
-        db::get_scene_project_id(&conn, &scene_uuid).map_err(|e| e.to_string())?
+        db::get_scene_project_id(&tx, scene_uuid).map_err(|e| e.to_string())?
     {
-        let _ = db::update_project_modified(&conn, &project_id);
+        let _ = db::update_project_modified(&tx, &project_id);
     }
+    tx.commit().map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -1361,25 +1405,32 @@ pub async fn promote_discovery_note_to_beat(
 ) -> Result<Beat, String> {
     let note_uuid = Uuid::parse_str(&note_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    promote_note(&conn, &note_uuid)
+}
 
-    let note = db::get_discovery_note(&conn, &note_uuid)
+/// Inserting the beat and deleting its note commit together, so a failure
+/// cannot leave the note duplicated as a beat.
+fn promote_note(conn: &rusqlite::Connection, note_uuid: &Uuid) -> Result<Beat, String> {
+    let note = db::get_discovery_note(conn, note_uuid)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "Discovery note not found".to_string())?;
 
-    if db::is_scene_locked(&conn, &note.scene_id).map_err(|e| e.to_string())? {
+    if db::is_scene_locked(conn, &note.scene_id).map_err(|e| e.to_string())? {
         return Err("Cannot promote notes in a locked scene".to_string());
     }
 
-    let max_pos = db::get_max_beat_position(&conn, &note.scene_id).map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    let max_pos = db::get_max_beat_position(&tx, &note.scene_id).map_err(|e| e.to_string())?;
     let beat = Beat::new(note.scene_id, note.content.clone(), max_pos + 1);
-    db::insert_beat(&conn, &beat).map_err(|e| e.to_string())?;
-    db::delete_discovery_note(&conn, &note_uuid).map_err(|e| e.to_string())?;
+    db::insert_beat(&tx, &beat).map_err(|e| e.to_string())?;
+    db::delete_discovery_note(&tx, note_uuid).map_err(|e| e.to_string())?;
 
     if let Some(project_id) =
-        db::get_scene_project_id(&conn, &note.scene_id).map_err(|e| e.to_string())?
+        db::get_scene_project_id(&tx, &note.scene_id).map_err(|e| e.to_string())?
     {
-        let _ = db::update_project_modified(&conn, &project_id);
+        let _ = db::update_project_modified(&tx, &project_id);
     }
+    tx.commit().map_err(|e| e.to_string())?;
 
     Ok(beat)
 }
@@ -2976,5 +3027,134 @@ mod scene_reference_items_tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+}
+
+#[cfg(test)]
+mod transaction_tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    fn setup() -> (Connection, Project, Scene) {
+        let conn = Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        let project = Project::new("Atomic".into(), SourceType::Blank, None);
+        db::insert_project(&conn, &project).unwrap();
+        let chapter = Chapter::new(project.id, "One".into(), 0);
+        db::insert_chapter(&conn, &chapter).unwrap();
+        let scene = Scene::new(chapter.id, "Scene".into(), None, 0);
+        db::insert_scene(&conn, &scene).unwrap();
+        (conn, project, scene)
+    }
+
+    fn beat_positions(conn: &Connection, scene: &Scene) -> Vec<(String, i32)> {
+        db::get_beats(conn, &scene.id)
+            .unwrap()
+            .into_iter()
+            .map(|b| (b.content, b.position))
+            .collect()
+    }
+
+    #[test]
+    fn reorder_beats_with_a_foreign_id_last_changes_nothing() {
+        let (conn, project, scene) = setup();
+        let beats: Vec<_> = ["A", "B", "C"]
+            .iter()
+            .enumerate()
+            .map(|(i, c)| {
+                let beat = Beat::new(scene.id, (*c).into(), i as i32);
+                db::insert_beat(&conn, &beat).unwrap();
+                beat
+            })
+            .collect();
+        let other = Scene::new(scene.chapter_id, "Other".into(), None, 1);
+        db::insert_scene(&conn, &other).unwrap();
+        let foreign = Beat::new(other.id, "X".into(), 0);
+        db::insert_beat(&conn, &foreign).unwrap();
+        let before = beat_positions(&conn, &scene);
+
+        let order = [beats[2].id, beats[1].id, foreign.id].map(|id| id.to_string());
+        let err = reorder_scene_beats(&conn, &scene.id, &order).unwrap_err();
+        assert!(err.contains("does not belong"));
+        assert_eq!(beat_positions(&conn, &scene), before);
+
+        let duplicate = [beats[2].id, beats[2].id, beats[0].id].map(|id| id.to_string());
+        assert!(reorder_scene_beats(&conn, &scene.id, &duplicate).is_err());
+        assert_eq!(beat_positions(&conn, &scene), before);
+
+        // A write that fails part-way rolls back the positions already written.
+        conn.execute_batch("CREATE TEMP TRIGGER fail_beat BEFORE UPDATE OF position ON beats WHEN OLD.content = 'A' BEGIN SELECT RAISE(ABORT, 'injected failure'); END;").unwrap();
+        let reversed = [beats[2].id, beats[1].id, beats[0].id].map(|id| id.to_string());
+        let err = reorder_scene_beats(&conn, &scene.id, &reversed).unwrap_err();
+        assert!(err.contains("injected failure"));
+        assert_eq!(beat_positions(&conn, &scene), before);
+        conn.execute_batch("DROP TRIGGER fail_beat").unwrap();
+
+        reorder_scene_beats(&conn, &scene.id, &reversed).unwrap();
+        assert_eq!(
+            beat_positions(&conn, &scene),
+            [("C", 0), ("B", 1), ("A", 2)].map(|(c, p)| (c.to_string(), p))
+        );
+        assert!(db::get_project(&conn, &project.id).unwrap().is_some());
+    }
+
+    #[test]
+    fn create_chapter_failure_leaves_no_position_gap() {
+        let (conn, project, _) = setup();
+        let first = db::get_chapters(&conn, &project.id).unwrap()[0].clone();
+        let two = Chapter::new(project.id, "Two".into(), 1);
+        db::insert_chapter(&conn, &two).unwrap();
+        let positions = |conn: &Connection| -> Vec<(String, i32)> {
+            db::get_chapters(conn, &project.id)
+                .unwrap()
+                .into_iter()
+                .map(|c| (c.title, c.position))
+                .collect()
+        };
+        let before = positions(&conn);
+
+        conn.execute_batch("CREATE TEMP TRIGGER fail_chapter BEFORE INSERT ON chapters BEGIN SELECT RAISE(ABORT, 'injected failure'); END;").unwrap();
+        let err = insert_new_chapter(&conn, &project.id, "New".into(), false, Some(&first.id))
+            .unwrap_err();
+        assert!(err.contains("injected failure"));
+        assert_eq!(positions(&conn), before);
+        conn.execute_batch("DROP TRIGGER fail_chapter").unwrap();
+
+        let chapter =
+            insert_new_chapter(&conn, &project.id, "New".into(), false, Some(&first.id)).unwrap();
+        assert_eq!(chapter.position, 1);
+        assert_eq!(
+            positions(&conn),
+            [("One", 0), ("New", 1), ("Two", 2)].map(|(t, p)| (t.to_string(), p))
+        );
+        let appended = insert_new_chapter(&conn, &project.id, "End".into(), true, None).unwrap();
+        assert_eq!(appended.position, 3);
+        assert!(appended.is_part);
+    }
+
+    #[test]
+    fn promote_note_failure_keeps_the_note_and_adds_no_beat() {
+        let (conn, _, scene) = setup();
+        let note = DiscoveryNote {
+            id: Uuid::new_v4(),
+            scene_id: scene.id,
+            content: "Idea".into(),
+            tags: vec![],
+            position: 0,
+            created_at: chrono::Utc::now().to_rfc3339(),
+        };
+        db::insert_discovery_note(&conn, &note).unwrap();
+
+        conn.execute_batch("CREATE TEMP TRIGGER fail_note BEFORE DELETE ON discovery_notes BEGIN SELECT RAISE(ABORT, 'injected failure'); END;").unwrap();
+        let err = promote_note(&conn, &note.id).unwrap_err();
+        assert!(err.contains("injected failure"));
+        assert!(db::get_beats(&conn, &scene.id).unwrap().is_empty());
+        assert!(db::get_discovery_note(&conn, &note.id).unwrap().is_some());
+        conn.execute_batch("DROP TRIGGER fail_note").unwrap();
+
+        let beat = promote_note(&conn, &note.id).unwrap();
+        assert_eq!(beat.content, "Idea");
+        assert_eq!(db::get_beats(&conn, &scene.id).unwrap().len(), 1);
+        assert!(db::get_discovery_note(&conn, &note.id).unwrap().is_none());
     }
 }
