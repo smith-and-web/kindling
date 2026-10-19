@@ -8,13 +8,16 @@ Get the latest release from the [GitHub Releases page](https://github.com/smith-
 
 ### Available Downloads
 
-| Platform              | File                        | Description                          |
-| --------------------- | --------------------------- | ------------------------------------ |
-| macOS (Apple Silicon) | `Kindling_*_aarch64.dmg`    | For M1, M2, M3 Macs                  |
-| macOS (Intel)         | `Kindling_*_x64.dmg`        | For Intel-based Macs                 |
-| Windows               | `Kindling_*_x64-setup.msi`  | Windows installer                    |
-| Linux                 | `Kindling_*_amd64.AppImage` | Portable, works on most distros      |
-| Linux (Debian/Ubuntu) | `kindling_*_amd64.deb`      | Native package for apt-based systems |
+| Platform              | File                                | Description                                   |
+| --------------------- | ----------------------------------- | --------------------------------------------- |
+| macOS                 | `Kindling_<version>_universal.dmg`  | One build for both Apple Silicon and Intel    |
+| Windows               | `Kindling_<version>_x64-setup.exe`  | Windows installer (recommended)               |
+| Windows               | `Kindling_<version>_x64_en-US.msi`  | MSI package, for managed or scripted installs |
+| Linux                 | `Kindling_<version>_amd64.AppImage` | Portable, works on most distros               |
+| Linux (Debian/Ubuntu) | `Kindling_<version>_amd64.deb`      | Native package for apt-based systems          |
+| Linux (Fedora/RHEL)   | `Kindling-<version>-1.x86_64.rpm`   | Native package for dnf/rpm-based systems      |
+
+The `.sig` files next to each download are update signatures used by the in-app updater; you don't need them for a manual install.
 
 ---
 
@@ -32,7 +35,7 @@ To ensure you downloaded the authentic Kindling release:
 shasum -a 256 -c checksums.sha256 --ignore-missing
 
 # Windows (PowerShell)
-certutil -hashfile Kindling_*_x64-setup.msi SHA256
+certutil -hashfile Kindling_<version>_x64_en-US.msi SHA256
 ```
 
 If your checksum doesn't match, delete the file and re-download from the official release page.
@@ -61,8 +64,8 @@ Kindling is not signed with a Windows code signing certificate. Windows SmartScr
 
 ### Bypassing SmartScreen
 
-1. Download the `.msi` installer
-2. Double-click to run the installer
+1. Download the `_x64-setup.exe` installer (or the `.msi` package)
+2. Double-click to run it
 3. If you see **"Windows protected your PC"**:
    - Click **More info**
    - Click **Run anyway**
@@ -121,7 +124,7 @@ For Debian-based distributions (Ubuntu, Linux Mint, Pop!\_OS, etc.):
 
 ```bash
 # Install the package
-sudo dpkg -i kindling_*.deb
+sudo dpkg -i Kindling_*_amd64.deb
 
 # If there are dependency issues
 sudo apt-get install -f
@@ -135,24 +138,30 @@ Launch Kindling from your application menu or run `kindling` in the terminal.
 sudo apt remove kindling
 ```
 
+### Fedora/RHEL (.rpm)
+
+For RPM-based distributions (Fedora, RHEL, openSUSE, etc.):
+
+```bash
+# Install the package
+sudo dnf install ./Kindling-*-1.x86_64.rpm
+```
+
+Launch Kindling from your application menu or run `kindling` in the terminal.
+
 ---
 
 ## Troubleshooting
 
 ### macOS: App crashes immediately
 
-Ensure you downloaded the correct version:
-
-- **Apple Silicon** (M1/M2/M3): `aarch64.dmg`
-- **Intel**: `x64.dmg`
-
-Check your Mac's chip: Apple menu → About This Mac → Chip/Processor.
+The macOS download is a single universal build (`Kindling_<version>_universal.dmg`) that runs natively on both Apple Silicon and Intel Macs, so there is no architecture to choose. Delete the app, re-download the DMG from the [Releases page](https://github.com/smith-and-web/kindling/releases) and drag it to Applications again.
 
 ### Windows: Installer fails silently
 
 Try running the installer as Administrator:
 
-1. Right-click the `.msi` file
+1. Right-click the `_x64-setup.exe` or `.msi` file
 2. Select **Run as administrator**
 
 ### Linux: AppImage won't start

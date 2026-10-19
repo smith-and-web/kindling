@@ -18,6 +18,7 @@
 //!
 //! See `docs/ARCHITECTURE.md` for a full overview of the system.
 
+mod app_quit;
 pub mod commands;
 pub mod db;
 pub mod detect;
@@ -207,6 +208,7 @@ pub fn run() {
             let app_handle = app.handle();
             menu::setup_menu_events(app_handle);
             shortcuts::initialize(app_handle).expect("Failed to create menu");
+            app_quit::install(app_handle);
 
             Ok(())
         })
@@ -393,19 +395,29 @@ pub fn run() {
             commands::delete_user_template,
             // Feedback commands
             commands::submit_feedback,
+            // App lifecycle
+            app_quit::cancel_app_quit,
         ])
         .build(context)
         .expect("error while building tauri application")
-        .run(|app, event| {
+        .run(|app, event| match event {
+            // Our own `exit()` answering a pending macOS system quit: AppKit
+            // finishes that terminate, so this exit must not race it.
+            tauri::RunEvent::ExitRequested { code, api, .. } => {
+                if app_quit::on_exit_requested(code) {
+                    api.prevent_exit();
+                }
+            }
             #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Opened { urls } = event {
+            tauri::RunEvent::Opened { urls } => {
                 editorial_files::enqueue(
                     app,
                     urls.into_iter().filter_map(|url| url.to_file_path().ok()),
                 );
             }
-            #[cfg(not(target_os = "macos"))]
-            let _ = (app, event);
+            _ => {
+                let _ = app;
+            }
         });
 }
 

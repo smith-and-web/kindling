@@ -317,7 +317,12 @@ fn docx_document(d: &WorkspaceDocument, contact: &[String]) -> Docx {
     if l.header != "none" {
         doc = doc.header(running_header(d));
         if d.title_page {
-            doc = doc.title_pg().first_header(Header::new());
+            // The title page is unnumbered and the first page of text is 1
+            // (SMF): the title page is page 0 of the same section.
+            doc = doc
+                .title_pg()
+                .first_header(Header::new())
+                .page_num_type(PageNumType::new().start(0));
         }
     }
     let line = body_line(l);
@@ -518,7 +523,7 @@ fn epub(file: &mut fs::File, d: &WorkspaceDocument) -> Result<()> {
     Ok(())
 }
 #[tauri::command]
-pub fn export_workspace_document(
+pub async fn export_workspace_document(
     path: String,
     format: String,
     document: WorkspaceDocument,
@@ -968,8 +973,11 @@ mod tests {
         assert!(header.contains("PAGE"), "No PAGE field: {header}");
         assert!(header.contains("w:fldCharType=\"end\""), "{header}");
         assert!(header.contains("Times New Roman"), "{header}");
-        // The title page keeps its own empty first-page header.
-        assert!(member(&path, "word/document.xml").contains("w:titlePg"));
+        // The title page keeps its own empty first-page header and is page 0,
+        // so the first page of text is numbered 1 (#356).
+        let doc = member(&path, "word/document.xml");
+        assert!(doc.contains("w:titlePg"), "{doc}");
+        assert!(doc.contains(r#"<w:pgNumType w:start="0" />"#), "{doc}");
     }
     #[test]
     fn title_only_header_keeps_the_page_field_without_an_author() {

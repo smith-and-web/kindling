@@ -61,6 +61,7 @@
 - **One Settings window** for preferences and per-project details.
 - **Remembers where you were.** Each project reopens at the scene, beat, cursor and scroll position where you left it.
 - **A new sample project**, _The Letter_.
+- **Backups before upgrades.** The first launch of a new version saves a copy of your library to `backups/` in the kindling data folder before upgrading it. The newest three are kept.
 - **Reliability fixes** across sync, locking, imports and exports. See the [v1.3 triage](docs/release-triage-v1.3.md) for what is fixed now and what is scheduled for v1.3.1.
 
 [All releases and notes →](https://github.com/smith-and-web/kindling/releases)
@@ -136,12 +137,13 @@ Each release includes `checksums.sha256`. See [Installation](docs/installation.m
 
 ### App
 
-| Feature                    | Description                                                           |
-| -------------------------- | --------------------------------------------------------------------- |
-| **Light, dark and system** | Press chrome in both themes; the manuscript stays light paper         |
-| **Keyboard shortcuts**     | Rebind any command and see the changes immediately in menus and hints |
-| **Local-first**            | One SQLite database on your machine                                   |
-| **Cross-platform**         | macOS, Windows and Linux                                              |
+| Feature                    | Description                                                                            |
+| -------------------------- | -------------------------------------------------------------------------------------- |
+| **Light, dark and system** | Press chrome in both themes; the manuscript stays light paper                          |
+| **Keyboard shortcuts**     | Rebind any command and see the changes immediately in menus and hints                  |
+| **Local-first**            | One SQLite database on your machine                                                    |
+| **Upgrade backups**        | A copy of your library is saved before each version upgrade; the newest three are kept |
+| **Cross-platform**         | macOS, Windows and Linux                                                               |
 
 See the full [features overview](https://kindlingwriter.com/features/) on the website.
 

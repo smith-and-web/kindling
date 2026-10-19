@@ -136,8 +136,8 @@ jobs:
 
             Download the appropriate installer for your platform:
             - **macOS**: `Kindling_*_universal.dmg` (works on both Apple Silicon and Intel Macs)
-            - **Windows**: `Kindling_*_x64-setup.msi`
-            - **Linux**: `Kindling_*_amd64.AppImage` or `.deb`
+            - **Windows**: `Kindling_*_x64-setup.exe` (or `Kindling_*_x64_en-US.msi`)
+            - **Linux**: `Kindling_*_amd64.AppImage`, `Kindling_*_amd64.deb` or `Kindling-*-1.x86_64.rpm`
 
             ### First-Time Installation Notes
 
@@ -177,7 +177,8 @@ jobs:
       - name: Generate checksums
         run: |
           cd artifacts
-          find . -type f \( -name "*.dmg" -o -name "*.msi" -o -name "*.AppImage" -o -name "*.deb" \) \
+          find . -type f \( -name "*.dmg" -o -name "*.msi" -o -name "*.AppImage" -o -name "*.deb" \
+            -o -name "*.exe" -o -name "*.rpm" \) \
             -exec sha256sum {} \; | sort > ../checksums.sha256
 
       - name: Upload checksums to release

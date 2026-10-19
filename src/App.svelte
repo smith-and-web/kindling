@@ -312,11 +312,24 @@
   }
 
   async function quit() {
-    if (!(await flushBeforeClose())) return;
+    if (!(await flushBeforeClose())) return false;
     try {
       await exit(0);
+      return true;
     } catch (error) {
       console.error("Failed to quit:", error);
+      return false;
+    }
+  }
+
+  // macOS Dock Quit, logout and AppleScript `quit` arrive here: the backend
+  // holds the system quit open until this either exits or cancels it.
+  async function quitFromSystem() {
+    if (await quit()) return;
+    try {
+      await invoke("cancel_app_quit");
+    } catch (error) {
+      console.error("Failed to cancel system quit:", error);
     }
   }
 
@@ -379,9 +392,16 @@
     const unlisten = listen<string>("menu-event", (event) => {
       if (!blockedByModal(event.payload)) runCommand(event.payload);
     });
+    const unlistenSystemQuit = listen("app-quit-requested", () => void quitFromSystem()).catch(
+      (error) => {
+        console.error("Failed to listen for system quit:", error);
+        return () => {};
+      }
+    );
 
     return () => {
       unlisten.then((fn) => fn());
+      void unlistenSystemQuit.then((fn) => fn());
     };
   });
 
