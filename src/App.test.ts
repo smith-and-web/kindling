@@ -189,6 +189,98 @@ it.each(["menu", "native"])(
   }
 );
 
+async function systemQuit() {
+  const callback = vi
+    .mocked(listen)
+    .mock.calls.find(([event]) => event === "app-quit-requested")![1];
+  callback({ event: "app-quit-requested", id: 1, payload: undefined });
+  await tick();
+}
+
+it("flushes a debounced synopsis before a system quit and then exits", async () => {
+  vi.useFakeTimers();
+  currentProject.setChapters(mockChapters);
+  render(App);
+  await vi.advanceTimersByTimeAsync(0);
+  synopsisSaves.stage({
+    projectId: mockProject.id,
+    sceneId: mockScenes[0].id,
+    synopsis: "Typed just before Dock Quit",
+  });
+  await systemQuit();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(invoke).toHaveBeenCalledWith("save_scene_synopsis", {
+    sceneId: mockScenes[0].id,
+    synopsis: "Typed just before Dock Quit",
+  });
+  expect(exit).toHaveBeenCalledWith(0);
+  expect(invoke).not.toHaveBeenCalledWith("cancel_app_quit");
+});
+
+it("cancels a system quit when a save fails, then allows quit-and-discard", async () => {
+  vi.useFakeTimers();
+  currentProject.setChapters(mockChapters);
+  render(App);
+  await vi.advanceTimersByTimeAsync(0);
+  synopsisSaves.stage({
+    projectId: mockProject.id,
+    sceneId: mockScenes[0].id,
+    synopsis: "Unsavable draft",
+  });
+  vi.mocked(invoke).mockImplementation(async (cmd) => {
+    if (cmd === "save_scene_synopsis") throw "disk full";
+    return [];
+  });
+  await systemQuit();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(exit).not.toHaveBeenCalled();
+  expect(invoke).toHaveBeenCalledWith("cancel_app_quit");
+  expect(
+    screen.getByRole("dialog", { name: "Quit without saving synopsis changes?" })
+  ).toBeTruthy();
+  await fireEvent.click(screen.getByRole("button", { name: "Quit and discard" }));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(exit).toHaveBeenCalledWith(0);
+});
+
+it("cancels a system quit when exiting fails", async () => {
+  render(App);
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.mocked(exit).mockRejectedValueOnce(new Error("no exit"));
+  await systemQuit();
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith("cancel_app_quit"));
+  expect(error).toHaveBeenCalledWith("Failed to quit:", expect.any(Error));
+});
+
+it("logs when the system quit cannot be cancelled", async () => {
+  render(App);
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.mocked(exit).mockRejectedValueOnce(new Error("no exit"));
+  vi.mocked(invoke).mockImplementation(async (cmd) => {
+    if (cmd === "cancel_app_quit") throw "ipc down";
+    return [];
+  });
+  await systemQuit();
+  await waitFor(() =>
+    expect(error).toHaveBeenCalledWith("Failed to cancel system quit:", "ipc down")
+  );
+});
+
+it("logs when the system quit listener cannot be registered", async () => {
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.mocked(listen).mockImplementation(async (event) => {
+    if (event === "app-quit-requested") throw "no events";
+    return () => {};
+  });
+  render(App);
+  await waitFor(() =>
+    expect(error).toHaveBeenCalledWith("Failed to listen for system quit:", "no events")
+  );
+  cleanup();
+  vi.mocked(listen).mockReset();
+  vi.mocked(listen).mockResolvedValue(() => {});
+});
+
 it("waits for pending position saves before quitting from the menu", async () => {
   let finish!: () => void;
   vi.spyOn(session, "flush").mockReturnValue(
