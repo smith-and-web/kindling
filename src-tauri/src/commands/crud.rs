@@ -1476,7 +1476,52 @@ pub async fn get_scene_reference_items(
     let scene_uuid = Uuid::parse_str(&scene_id).map_err(|e| e.to_string())?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
-    db::get_scene_reference_items(&conn, &scene_uuid, &reference_type).map_err(|e| e.to_string())
+    scene_reference_items_with_connection(&conn, &scene_uuid, &reference_type)
+}
+
+/// Characters and locations live in their own tables, so they are linked through
+/// `scene_character_refs` / `scene_location_refs` rather than `scene_reference_item_refs`.
+fn scene_reference_items_with_connection(
+    conn: &rusqlite::Connection,
+    scene_id: &Uuid,
+    reference_type: &str,
+) -> Result<Vec<ReferenceItem>, String> {
+    let linked: HashSet<Uuid> = match reference_type {
+        "characters" => db::get_scene_characters(conn, scene_id),
+        "locations" => db::get_scene_locations(conn, scene_id),
+        _ => {
+            return db::get_scene_reference_items(conn, scene_id, reference_type)
+                .map_err(|e| e.to_string())
+        }
+    }
+    .map_err(|e| e.to_string())?
+    .into_iter()
+    .collect();
+    if linked.is_empty() {
+        return Ok(Vec::new());
+    }
+    let Some(project_id) = db::get_scene_project_id(conn, scene_id).map_err(|e| e.to_string())?
+    else {
+        return Ok(Vec::new());
+    };
+
+    let mut items: Vec<ReferenceItem> = if reference_type == "characters" {
+        db::get_characters(conn, &project_id)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .filter(|c| linked.contains(&c.id))
+            .map(character_to_reference)
+            .collect()
+    } else {
+        db::get_locations(conn, &project_id)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .filter(|l| linked.contains(&l.id))
+            .map(location_to_reference)
+            .collect()
+    };
+    items.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(items)
 }
 
 #[derive(serde::Deserialize)]
@@ -2875,5 +2920,61 @@ mod duplicate_tests {
         let scenes = db::get_scenes(&conn, &copy.id).unwrap();
         assert_eq!(scenes.len(), 1);
         assert_carried_over(&conn, &project, &scenes[0], &ana);
+    }
+}
+
+#[cfg(test)]
+mod scene_reference_items_tests {
+    use super::*;
+    use crate::models::{Character, Location, Project, SourceType};
+    use rusqlite::Connection;
+
+    #[test]
+    fn returns_linked_characters_and_locations_by_name() {
+        let conn = Connection::open_in_memory().unwrap();
+        db::initialize_schema(&conn).unwrap();
+        let project = Project::new("Refs".into(), SourceType::Blank, None);
+        db::insert_project(&conn, &project).unwrap();
+        let chapter = Chapter::new(project.id, "Chapter".into(), 0);
+        db::insert_chapter(&conn, &chapter).unwrap();
+        let scene = Scene::new(chapter.id, "Scene".into(), None, 0);
+        db::insert_scene(&conn, &scene).unwrap();
+
+        let zed = Character::new(project.id, "Zed".into(), None, None);
+        let ana = Character::new(project.id, "Ana".into(), None, None);
+        let unlinked = Character::new(project.id, "Bo".into(), None, None);
+        for c in [&zed, &ana, &unlinked] {
+            db::insert_character(&conn, c).unwrap();
+        }
+        db::add_scene_character_ref(&conn, &scene.id, &zed.id).unwrap();
+        db::add_scene_character_ref(&conn, &scene.id, &ana.id).unwrap();
+        let harbor = Location::new(project.id, "Harbor".into(), None, None);
+        db::insert_location(&conn, &harbor).unwrap();
+        db::add_scene_location_ref(&conn, &scene.id, &harbor.id).unwrap();
+
+        let characters =
+            scene_reference_items_with_connection(&conn, &scene.id, "characters").unwrap();
+        let names: Vec<_> = characters.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, ["Ana", "Zed"]);
+        assert!(characters.iter().all(|c| c.reference_type == "characters"));
+
+        let locations =
+            scene_reference_items_with_connection(&conn, &scene.id, "locations").unwrap();
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].name, "Harbor");
+        assert_eq!(locations[0].reference_type, "locations");
+
+        assert!(
+            scene_reference_items_with_connection(&conn, &scene.id, "items")
+                .unwrap()
+                .is_empty()
+        );
+        let other = Scene::new(chapter.id, "Other".into(), None, 1);
+        db::insert_scene(&conn, &other).unwrap();
+        assert!(
+            scene_reference_items_with_connection(&conn, &other.id, "characters")
+                .unwrap()
+                .is_empty()
+        );
     }
 }

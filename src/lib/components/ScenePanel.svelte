@@ -201,9 +201,7 @@
     { value: "undefined", label: "Undefined" },
   ];
 
-  const sceneReferenceOptions = REFERENCE_TYPE_OPTIONS.filter(
-    (option) => option.id !== "characters" && option.id !== "locations"
-  );
+  const sceneReferenceOptions = REFERENCE_TYPE_OPTIONS;
 
   let sceneReferenceItems = $state<Record<ReferenceTypeId, ReferenceItem[]>>(
     {} as Record<ReferenceTypeId, ReferenceItem[]>
@@ -225,9 +223,11 @@
   let editingDiscoveryNoteContent = $state("");
   let promotingNoteId: string | null = $state(null);
 
-  async function loadSceneReferenceItems(sceneId: string) {
+  // A refresh after linking keeps the current rows on screen; toggling the loading
+  // state would unmount the list and shift everything below it.
+  async function loadSceneReferenceItems(sceneId: string, refresh = false) {
     const requestId = ++sceneReferenceRequestId;
-    sceneReferenceLoading = true;
+    if (!refresh) sceneReferenceLoading = true;
     sceneReferenceError = null;
     try {
       const results = await Promise.all(
@@ -469,7 +469,7 @@
     if (!sceneId) return;
     if (refreshId === lastSceneReferenceRefreshId) return;
     lastSceneReferenceRefreshId = refreshId;
-    loadSceneReferenceItems(sceneId);
+    loadSceneReferenceItems(sceneId, true);
   });
 
   async function loadDiscoveryNotes(sceneId: string) {
@@ -1202,8 +1202,7 @@
                 </dl>
               {:else if !sceneReferenceLoading}
                 <p class="ka-help">
-                  No items or other references linked yet. Characters and locations are in the
-                  references panel.
+                  No references linked yet. Link them from the references panel.
                 </p>
               {/if}
             {/if}

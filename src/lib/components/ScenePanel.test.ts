@@ -1,9 +1,10 @@
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { invoke } from "@tauri-apps/api/core";
 import ScenePanel from "./ScenePanel.svelte";
 import { currentProject } from "../stores/project.svelte";
 import { session } from "../stores/session.svelte";
+import { ui } from "../stores/ui.svelte";
 import { mockProject, mockChapters, mockScenes } from "../../dev/mock-data";
 
 vi.hoisted(() => {
@@ -194,3 +195,52 @@ it.each(["page", "beat"] as const)(
     expect(await screen.findByText("~1.0 pages")).toBeTruthy();
   }
 );
+
+const fixedScene = () =>
+  currentProject.setCurrentScene({
+    ...mockScenes[0],
+    chapter_id: mockChapters[0].id,
+    planning_status: "fixed",
+    editor_mode: "beat",
+  });
+const referencesSection = () =>
+  screen.getByRole("heading", { name: "References" }).closest("section") as HTMLElement;
+
+it("lists linked characters and locations in the scene references section", async () => {
+  fixedScene();
+  vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+    const type = (args as { referenceType?: string } | undefined)?.referenceType;
+    if (cmd === "get_scene_reference_items" && type === "characters")
+      return [{ id: "c1", name: "Mara", reference_type: "characters" }];
+    if (cmd === "get_scene_reference_items" && type === "locations")
+      return [{ id: "l1", name: "Old Harbor", reference_type: "locations" }];
+    return [];
+  });
+  render(ScenePanel);
+  expect(await screen.findByText("Mara")).toBeTruthy();
+  expect(screen.getByText("Old Harbor")).toBeTruthy();
+  expect(referencesSection().textContent).toContain("Characters");
+  expect(referencesSection().textContent).toContain("Locations");
+});
+
+it("keeps the references section steady while a link refresh is in flight", async () => {
+  fixedScene();
+  let release: (() => void) | undefined;
+  let refreshing = false;
+  vi.mocked(invoke).mockImplementation(async (cmd) => {
+    if (cmd !== "get_scene_reference_items") return [];
+    if (refreshing) await new Promise<void>((resolve) => (release = resolve));
+    return [];
+  });
+  render(ScenePanel);
+  const empty = await screen.findByText(
+    "No references linked yet. Link them from the references panel."
+  );
+
+  refreshing = true;
+  ui.bumpSceneReferenceRefresh();
+  await waitFor(() => expect(release).toBeDefined());
+  expect(empty.isConnected).toBe(true);
+  expect(referencesSection().textContent).not.toContain("Loading…");
+  release?.();
+});
