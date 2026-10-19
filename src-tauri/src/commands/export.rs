@@ -1175,7 +1175,10 @@ fn add_title_page(
     // Page break after title page
     docx = docx.add_paragraph(Paragraph::new().page_break_before(true));
 
-    docx
+    // SMF leaves the title page unnumbered and numbers the first page of text
+    // 1. The title page shares the body's section (its header is hidden by
+    // `title_pg()`), so start that section at 0 to make the next page 1.
+    docx.page_num_type(PageNumType::new().start(0))
 }
 
 /// Generate markdown content for a scene
@@ -6457,8 +6460,19 @@ mod tests {
             contact_email: Some("author@email.com".to_string()),
         };
 
-        let docx = Docx::new();
+        // The first page of text is page 1, not 2 (#356)
+        let docx = create_docx_styles(Some("Real Name"), "My Novel", &default_test_options());
+        // Without a title page the first page of text keeps the default start.
+        let untitled = String::from_utf8(docx.clone().build().document).unwrap();
+        assert!(!untitled.contains("w:pgNumType"), "{untitled}");
         let docx = add_title_page(docx, &project, &app_settings, 75000);
+        let xml = String::from_utf8(docx.clone().build().document).unwrap();
+        assert!(xml.contains(r#"<w:pgNumType w:start="0" />"#), "{xml}");
+        assert!(xml.contains("<w:titlePg />"), "{xml}");
+        assert!(
+            xml.contains(r#"<w:headerReference w:type="first""#),
+            "{xml}"
+        );
 
         // Build should succeed
         let built = docx.build();
