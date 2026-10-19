@@ -165,6 +165,7 @@ fn reimport_project_with_connection(
         }
     };
     reconcile_markdown(conn, &project, &mut parsed)?;
+    reconcile_longform(conn, &project, &parsed)?;
 
     let mut summary = ReimportSummary {
         chapters_added: 0,
@@ -442,6 +443,7 @@ pub(super) fn get_sync_preview_with_connection(
         }
     };
     reconcile_markdown(conn, &project, &mut parsed)?;
+    reconcile_longform(conn, &project, &parsed)?;
 
     let mut preview = SyncPreview {
         additions: Vec::new(),
@@ -665,6 +667,63 @@ fn truncate_string(s: &str, max_len: usize) -> String {
         Some((end, _)) => format!("{}...", &s[..end]),
         None => s.to_string(),
     }
+}
+
+/// Longform beats now carry a source ID built from their scene and position, but a project
+/// imported before that has beats with none. Link each of those to the source beat at the
+/// same position in the same scene, so sync offers its changes instead of adding the whole
+/// scene's beats again. Beats the source has no counterpart for stay local.
+fn reconcile_longform(
+    conn: &Connection,
+    project: &crate::models::Project,
+    parsed: &crate::parsers::ParsedPlottr,
+) -> Result<(), String> {
+    if !matches!(project.source_type, crate::models::SourceType::Longform) {
+        return Ok(());
+    }
+    let scenes = db::get_all_project_scenes(conn, &project.id).map_err(|e| e.to_string())?;
+    let beats = db::get_all_project_beats(conn, &project.id).map_err(|e| e.to_string())?;
+    let scene_by_source: HashMap<&str, Uuid> = scenes
+        .iter()
+        .filter_map(|s| s.source_id.as_deref().map(|sid| (sid, s.id)))
+        .collect();
+    let parsed_scene_source: HashMap<Uuid, &str> = parsed
+        .scenes
+        .iter()
+        .filter_map(|s| s.source_id.as_deref().map(|sid| (s.id, sid)))
+        .collect();
+    let linked: HashSet<&str> = beats
+        .iter()
+        .filter_map(|b| b.source_id.as_deref())
+        .collect();
+    let unlinked: HashMap<(Uuid, i32), Uuid> = beats
+        .iter()
+        .filter(|b| b.source_id.is_none())
+        .map(|b| ((b.scene_id, b.position), b.id))
+        .collect();
+    if unlinked.is_empty() {
+        return Ok(());
+    }
+
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    for beat in &parsed.beats {
+        let Some(beat_sid) = beat.source_id.as_deref() else {
+            continue;
+        };
+        if linked.contains(beat_sid) {
+            continue;
+        }
+        let Some(scene_id) = parsed_scene_source
+            .get(&beat.scene_id)
+            .and_then(|sid| scene_by_source.get(sid))
+        else {
+            continue;
+        };
+        if let Some(local) = unlinked.get(&(*scene_id, beat.position)) {
+            db::update_beat_source_id(&tx, local, beat_sid).map_err(|e| e.to_string())?;
+        }
+    }
+    tx.commit().map_err(|e| e.to_string())
 }
 
 /// Markdown has no durable source IDs. Match labels within parents, retain
@@ -1165,6 +1224,7 @@ fn apply_reviewed_sync(
         }
     };
     reconcile_markdown(conn, &project, &mut parsed)?;
+    reconcile_longform(conn, &project, &parsed)?;
 
     let accepted_set: HashSet<String> = accepted_change_ids.into_iter().collect();
     let accepted_additions_set: HashSet<String> = accepted_addition_ids.into_iter().collect();
@@ -2288,6 +2348,98 @@ mod source_regression_tests {
         let p = parse_longform_index(&index).unwrap();
         exercise(p.project, p.chapters, p.scenes, p.beats);
     }
+    #[test]
+    fn longform_sync_offers_changed_and_new_beats_for_new_and_legacy_imports() {
+        let temp = tempfile::tempdir().unwrap();
+        let index = temp.path().join("Index.md");
+        std::fs::write(
+            &index,
+            "---\nlongform:\n  format: scenes\n  title: Test\n  sceneFolder: /\n  scenes:\n    - Opening\n---\n",
+        )
+        .unwrap();
+        let note = temp.path().join("Opening.md");
+        let original = "Prose.\n\n<!-- kindling: beats -->\n- First beat\n- Second beat\n";
+        std::fs::write(&note, original).unwrap();
+        let parsed = parse_longform_index(&index).unwrap();
+
+        // A legacy import predates beat source IDs, so its beats have none.
+        for legacy in [false, true] {
+            std::fs::write(&note, original).unwrap();
+            let conn = Connection::open_in_memory().unwrap();
+            db::initialize_schema(&conn).unwrap();
+            db::insert_project(&conn, &parsed.project).unwrap();
+            for c in &parsed.chapters {
+                db::insert_chapter(&conn, c).unwrap();
+            }
+            for s in &parsed.scenes {
+                db::insert_scene(&conn, s).unwrap();
+            }
+            for b in &parsed.beats {
+                db::insert_beat(&conn, b).unwrap();
+            }
+            if legacy {
+                conn.execute("UPDATE beats SET source_id = NULL", [])
+                    .unwrap();
+            }
+            let project_id = parsed.project.id;
+            let beat_texts = |conn: &Connection| -> Vec<String> {
+                let mut beats = db::get_all_project_beats(conn, &project_id).unwrap();
+                beats.sort_by_key(|b| b.position);
+                beats.into_iter().map(|b| b.content).collect()
+            };
+
+            // Untouched, there is nothing to offer.
+            let preview = get_sync_preview_with_connection(&conn, project_id).unwrap();
+            assert!(
+                preview.changes.iter().all(|c| c.item_type != "beat"),
+                "legacy={legacy}"
+            );
+            assert!(
+                preview.additions.iter().all(|a| a.item_type != "beat"),
+                "legacy={legacy}"
+            );
+
+            // Change a beat and add one in the source.
+            std::fs::write(
+                &note,
+                "Prose.\n\n<!-- kindling: beats -->\n- First beat, revised\n- Second beat\n- Third beat\n",
+            )
+            .unwrap();
+            let preview = get_sync_preview_with_connection(&conn, project_id).unwrap();
+            let changed: Vec<_> = preview
+                .changes
+                .iter()
+                .filter(|c| c.item_type == "beat")
+                .map(|c| (c.current_value.as_str(), c.new_value.as_str()))
+                .collect();
+            assert_eq!(
+                changed,
+                [("First beat", "First beat, revised")],
+                "legacy={legacy}"
+            );
+            let added: Vec<_> = preview
+                .additions
+                .iter()
+                .filter(|a| a.item_type == "beat")
+                .map(|a| a.title.as_str())
+                .collect();
+            assert_eq!(added, ["Third beat"], "legacy={legacy}");
+
+            apply_sync_with_connection(
+                &conn,
+                project_id,
+                preview.changes.iter().map(|c| c.id.clone()).collect(),
+                preview.additions.iter().map(|a| a.id.clone()).collect(),
+            )
+            .unwrap();
+            assert_eq!(
+                beat_texts(&conn),
+                ["First beat, revised", "Second beat", "Third beat"],
+                "legacy={legacy}"
+            );
+        }
+    }
+
     #[test]
     fn novelwriter_all_three_commands_dispatch_and_reimport_preserves_prose() {
         let (original, project) = crate::parsers::novelwriter::tests::fixture();
