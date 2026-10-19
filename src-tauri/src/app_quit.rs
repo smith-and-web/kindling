@@ -18,6 +18,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 /// Event the frontend listens for to run its quit flow.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const QUIT_REQUESTED_EVENT: &str = "app-quit-requested";
 
 /// How long a system quit waits for the frontend before going ahead anyway, so
