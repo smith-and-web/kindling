@@ -160,9 +160,90 @@ jobs:
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
           args: ${{ matrix.args }}
 
+  # The Tauri bundler stores AppRun.wrapped as 0770 (tauri-apps/tauri#16155).
+  # FUSE launches don't notice, but kernel mounts (firejail --appimage, the
+  # appimage.github.io catalog test) get "Permission denied". Repack the
+  # published AppImage with world-executable modes, re-sign it for the updater,
+  # and point latest.json at the new signature. Runs after every matrix job so
+  # no tauri-action run can merge an old signature back into latest.json.
+  appimage:
+    name: Fix AppImage Permissions
+    needs: release
+    runs-on: ubuntu-22.04
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Install squashfs-tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y squashfs-tools
+
+      - name: Download AppImage and latest.json
+        run: |
+          mkdir -p artifacts
+          gh release download "$TAG" --dir artifacts --pattern '*.AppImage' --pattern latest.json
+          ls -l artifacts
+
+      - name: Repack AppImage
+        run: |
+          for f in artifacts/*.AppImage; do
+            scripts/fix-appimage-perms.sh "$f"
+          done
+
+      - name: Check AppImage permissions
+        run: |
+          for f in artifacts/*.AppImage; do
+            scripts/check-appimage-perms.sh "$f"
+          done
+
+      - name: Re-sign AppImage for the updater
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          cli="$(node -p "require('./package-lock.json').packages['node_modules/@tauri-apps/cli'].version")"
+          # Bind the signature to the version latest.json announces, as tauri build does.
+          version="$(jq -er .version artifacts/latest.json)"
+          for f in artifacts/*.AppImage; do
+            rm -f "$f.sig"
+            npx --yes "@tauri-apps/cli@$cli" signer sign --app-version "$version" "$f"
+            test -s "$f.sig"
+          done
+
+      - name: Point latest.json at the new signature
+        run: |
+          for f in artifacts/*.AppImage; do
+            name="$(basename "$f")"
+            sig="$(cat "$f.sig")"
+            jq --arg name "$name" --arg sig "$sig" '
+              .platforms |= with_entries(
+                if (.value.url | endswith("/" + $name)) then .value.signature = $sig else . end)
+            ' artifacts/latest.json > artifacts/latest.json.new
+            # Every entry pointing at this AppImage must now carry its new signature.
+            jq -e --arg name "$name" --arg sig "$sig" '
+              [.platforms[] | select(.url | endswith("/" + $name))]
+              | length > 0 and all(.signature == $sig)
+            ' artifacts/latest.json.new
+            mv artifacts/latest.json.new artifacts/latest.json
+          done
+
+      - name: Replace release assets
+        run: |
+          gh release upload "$TAG" --clobber \
+            artifacts/*.AppImage artifacts/*.AppImage.sig artifacts/latest.json
+
   checksums:
     name: Generate Checksums
-    needs: release
+    needs: [release, appimage]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
