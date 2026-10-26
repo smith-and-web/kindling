@@ -64,9 +64,11 @@ For users who prefer plain text, Kindling supports a simple markdown outline for
 
 ### What Gets Imported
 
-- **Project name** - Derived from the filename
+- **Project name** - The `title` from the optional front matter, otherwise derived from the filename
+- **Project details** - `author`, `description` and `word_target` from the optional front matter
 - **Chapters** - H1 headers (`# Chapter Title`)
 - **Scenes** - H2 headers (`## Scene Title`)
+- **Scene synopsis** - A `>` blockquote directly after a scene heading
 - **Beats** - List items or paragraphs under scenes
 
 ### File Format
@@ -110,14 +112,16 @@ Multiple paragraphs also work as beats.
 | Scene | `## ` + title | `## The Beginning` |
 | Beat (list) | `- ` or `* ` + content | `- Hero wakes up` |
 | Beat (paragraph) | Plain text under a scene | `The sun rose slowly.` |
+| Scene synopsis | `> ` lines directly after the scene heading | `> A short summary of the scene.` |
+| Front matter | YAML block between `---` lines at the top of the file | `title: My Novel` |
 
 ### Rules and Behavior
 
 1. **Chapters require H1** - Lines starting with `# ` (hash + space) become chapters
 2. **Scenes require H2** - Lines starting with `## ` (two hashes + space) become scenes
-3. **Scenes need chapters** - H2 headers are ignored if no H1 chapter exists yet
-4. **Beats need scenes** - List items and paragraphs are ignored if no scene exists yet
-5. **H3+ are treated as beats** - `###` and beyond become paragraph-style beats, not structure
+3. **Scenes without a chapter** - An H2 before any H1 goes into a default "Chapter 1"
+4. **Beats without a scene** - List items and paragraphs before any H2 go into a default "Scene 1" (inside a default "Chapter 1" if there is no chapter yet)
+5. **H3+ are ignored** - Lines that start with `###` or deeper are skipped; they are neither structure nor beats
 6. **Empty list items are skipped** - A line with just `- ` or `* ` is ignored
 
 ### Tips for Best Results
@@ -140,8 +144,8 @@ The parser handles special characters correctly:
 | Input | Result |
 |-------|--------|
 | Empty file | Creates a default "Chapter 1" |
-| Only H2 headers (no H1) | Creates default chapter, but scenes are ignored |
-| Only list items (no headers) | Creates default chapter, but beats are ignored |
+| Only H2 headers (no H1) | Creates a default "Chapter 1" that holds the scenes |
+| Only list items (no headers) | Creates a default "Chapter 1" and "Scene 1" that hold the beats |
 | Only H1 headers | Chapters with no scenes or beats |
 
 ---
