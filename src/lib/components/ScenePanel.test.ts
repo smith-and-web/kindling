@@ -24,8 +24,10 @@ let tokensCss = "";
 beforeAll(async () => {
   const fsModule = "node:fs";
   const { readFileSync } = await import(/* @vite-ignore */ fsModule);
+  const urlModule = "node:url";
+  const { fileURLToPath } = await import(/* @vite-ignore */ urlModule);
   const read = (path: string): string =>
-    readFileSync(new URL(path, import.meta.url).pathname, "utf8");
+    readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
   const appCss = read("../../app.css");
   tokensCss = read("../../styles/press/tokens.css");
   // The app's disabled-control rules: the global disabled pair through the
