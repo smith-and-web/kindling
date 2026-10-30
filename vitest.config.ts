@@ -1,12 +1,16 @@
 import { defineConfig } from "vitest/config";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { fileURLToPath } from "node:url";
+
+// Plain paths keep the alias working from a checkout whose folder name is not ASCII.
+const fromHere = (relative: string) => fileURLToPath(new URL(relative, import.meta.url));
 
 export default defineConfig({
   plugins: [svelte({ hot: !process.env.VITEST })],
   resolve: {
     alias: {
-      $lib: new URL("./src/lib", import.meta.url).pathname,
-      $press: new URL("./src/styles/press", import.meta.url).pathname,
+      $lib: fromHere("./src/lib"),
+      $press: fromHere("./src/styles/press"),
     },
     conditions: ["browser"],
   },
