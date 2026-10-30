@@ -30,7 +30,7 @@ npm run qa:visual -- --only 07 --variants narrow --calibrate
 Translate requested IDs such as `09 15 17` into `--only 09,15,17`. Unsupported IDs
 remain manual/unexecuted unless actually performed. Use `--calibrate` only for
 requested repeatability work or diagnosing capture instability, not every pass.
-The last normal 120-checkpoint pass took 235 seconds; the 240-capture calibration
+The last normal 147-checkpoint pass took 248 seconds; the 240-capture calibration
 pass took 379 seconds. Report measured timing and allow the process to finish.
 
 ## Prepare and run

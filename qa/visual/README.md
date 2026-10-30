@@ -56,9 +56,16 @@ Exit codes: **0** all checkpoint evidence passes; **1** run, assertion, audit or
 cleanup failure; **2** review pending (changed/new/incompatible images or incomplete
 evidence). A matching image cannot waive a failed accessibility audit.
 
-The latest 147-checkpoint comparison (after the Press reskin baseline update) took
-**334 seconds**; all images matched and every checkpoint passed. The earlier
+The latest 147-checkpoint comparison (after the macOS 27.2 baseline refresh) took
+**248 seconds**; all images matched and every checkpoint passed. The earlier
 240-capture calibration took **379 seconds**. See VALIDATION.md for measured evidence.
+
+Baselines are tied to the OS/WebKit build that captured them (the manifest's
+`environment.os`): a macOS update can shift text metrics by a pixel or two on
+every screen and flag every image as changed. Before bisecting source commits,
+run `--only 00 --variants light` from a worktree at the manifest's `revision`; if
+it shows the same mismatch as the current source, the drift is environmental and
+the set needs re-inspection and re-acceptance, not a code fix.
 
 ## Capture and comparison
 
