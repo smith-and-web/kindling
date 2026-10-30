@@ -4,6 +4,7 @@
   import { currentProject } from "../stores/project.svelte";
   import { synopsisSaves } from "../stores/synopsisSaves.svelte";
   import { loadPreviousScene } from "../utils/previousScene";
+  import { t } from "../i18n";
 
   let {
     actions,
@@ -75,7 +76,7 @@
 
 {#if previous || actions || error}
   <div class="previously" aria-busy={loading}>
-    <div class="previously-tools" role="group" aria-label="Scene tools">
+    <div class="previously-tools" role="group" aria-label={t("editor.previously.toolsLabel")}>
       {#if previous}
         <button
           type="button"
@@ -85,7 +86,7 @@
           class="ka-button ka-button--ghost previously-toggle"
         >
           <ChevronDown class={collapsed ? "w-5 h-5 -rotate-90" : "w-5 h-5"} aria-hidden="true" />
-          Previously
+          {t("editor.previously.toggle")}
         </button>
       {/if}
       {@render actions?.()}
@@ -93,7 +94,7 @@
     {#if previous && !collapsed}
       <section
         id="previously-content"
-        aria-label="Previously"
+        aria-label={t("editor.previously.heading")}
         data-testid="previously"
         class="previously-body"
       >
@@ -111,9 +112,9 @@
       </section>
     {:else if error}
       <p role="status" class="ka-help previously-error">
-        Could not load previous scene context.
+        {t("editor.previously.loadError")}
         <button type="button" onclick={() => retry++} class="ka-button ka-button--ghost"
-          >Retry</button
+          >{t("editor.previously.retry")}</button
         >
       </p>
     {/if}

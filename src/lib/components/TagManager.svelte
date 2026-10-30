@@ -5,6 +5,7 @@
   import { Loader2, Pencil, Plus, Trash2, X, Check } from "lucide-svelte";
   import pressTokens from "../../styles/press/tokens.json";
   import type { Tag } from "../types";
+  import { t } from "../i18n";
 
   let {
     projectId,
@@ -153,7 +154,9 @@
       ></span>
       <span class="ka-name">{tag.name}</span>
       {#if children.length > 0}
-        <span class="ka-badge" title={`${children.length} child tags`}>{children.length}</span>
+        <span class="ka-badge" title={t("sidebar.tagManager.childTags", { count: children.length })}
+          >{children.length}</span
+        >
       {/if}
       <div class="ka-row">
         {#if depth < 2}
@@ -161,8 +164,8 @@
             type="button"
             onclick={() => openCreateForm(tag.id)}
             class="ka-button ka-button--ghost ka-icon-button"
-            aria-label="Add child tag"
-            title="Add child tag"
+            aria-label={t("sidebar.tagManager.addChildTag")}
+            title={t("sidebar.tagManager.addChildTag")}
             disabled={!!editingTag}
           >
             <Plus class="w-5 h-5" aria-hidden="true" />
@@ -172,8 +175,8 @@
           type="button"
           onclick={() => openEditForm(tag)}
           class="ka-button ka-button--ghost ka-icon-button"
-          aria-label="Edit tag"
-          title="Edit tag"
+          aria-label={t("sidebar.tagManager.editTag")}
+          title={t("sidebar.tagManager.editTag")}
           disabled={!!editingTag}
         >
           <Pencil class="w-5 h-5" aria-hidden="true" />
@@ -182,8 +185,8 @@
           type="button"
           onclick={() => deleteTag(tag.id)}
           class="ka-button ka-button--ghost ka-icon-button tag-delete"
-          aria-label="Delete tag"
-          title="Delete tag"
+          aria-label={t("sidebar.tagManager.deleteTag")}
+          title={t("sidebar.tagManager.deleteTag")}
         >
           <Trash2 class="w-5 h-5" aria-hidden="true" />
         </button>
@@ -201,7 +204,7 @@
 
 <div class="tags">
   <div class="tags-head">
-    <p class="ka-help">Tags nest up to three levels.</p>
+    <p class="ka-help">{t("sidebar.tagManager.tagsNestLevels")}</p>
     <button
       type="button"
       onclick={() => openCreateForm()}
@@ -209,16 +212,16 @@
       disabled={!!editingTag}
     >
       <Plus class="w-5 h-5" aria-hidden="true" />
-      New tag
+      {t("sidebar.tagManager.newTag")}
     </button>
   </div>
 
   {#if loading}
-    <p class="ka-help" role="status">Loading tags…</p>
+    <p class="ka-help" role="status">{t("sidebar.tagManager.loadingTags")}</p>
   {:else if error}
     <p class="ka-error" role="alert">{error}</p>
   {:else if tags.length === 0 && !editingTag}
-    <p class="ka-help">No tags defined yet.</p>
+    <p class="ka-help">{t("sidebar.tagManager.noTags")}</p>
   {:else}
     <ul class="ka-tagtree">
       {#each getRootTags() as tag (tag.id)}
@@ -230,32 +233,34 @@
   {#if editingTag}
     <div class="ka-tagedit">
       <div class="tags-edit-head">
-        <h4>{editMode === "create" ? "New tag" : "Edit tag"}</h4>
+        <h4>
+          {editMode === "create" ? t("sidebar.tagManager.newTag") : t("sidebar.tagManager.editTag")}
+        </h4>
         <button
           type="button"
           onclick={cancelEdit}
           class="ka-button ka-button--ghost ka-icon-button"
-          aria-label="Close tag editor"
-          title="Close tag editor"
+          aria-label={t("sidebar.tagManager.closeEditor")}
+          title={t("sidebar.tagManager.closeEditor")}
         >
           <X class="w-5 h-5" aria-hidden="true" />
         </button>
       </div>
 
       <div class="ka-field od-field">
-        <label for="tag-name">Name</label>
+        <label for="tag-name">{t("sidebar.tagManager.name")}</label>
         <input
           id="tag-name"
           type="text"
           use:focusOnMount
           bind:value={editingTag.name}
-          placeholder="e.g. Flashback, Action, Romance…"
+          placeholder={t("sidebar.tagManager.namePlaceholder")}
           disabled={saving}
         />
       </div>
 
       <fieldset class="ka-swatches">
-        <legend>Color</legend>
+        <legend>{t("sidebar.tagManager.color")}</legend>
         <button
           type="button"
           onclick={() => {
@@ -264,8 +269,8 @@
           class="ka-swatch-option ka-swatch-option--none swatch-button"
           class:is-selected={!editingTag.color}
           aria-pressed={!editingTag.color}
-          aria-label="No color"
-          title="No color"
+          aria-label={t("sidebar.tagManager.noColor")}
+          title={t("sidebar.tagManager.noColor")}
         >
           <span
             >{#if !editingTag.color}<Check class="w-4 h-4" aria-hidden="true" />{/if}</span
@@ -282,8 +287,8 @@
             class:is-selected={editingTag.color === color}
             style:--swatch={tagColor(color)}
             aria-pressed={editingTag.color === color}
-            aria-label={preset.name}
-            title={preset.name}
+            aria-label={t(`sidebar.tagManager.color${preset.name}`)}
+            title={t(`sidebar.tagManager.color${preset.name}`)}
           >
             <span
               >{#if editingTag.color === color}<Check
@@ -302,7 +307,7 @@
           class="ka-button ka-button--secondary"
           disabled={saving}
         >
-          Cancel
+          {t("common.cancel")}
         </button>
         <button
           type="button"
@@ -314,7 +319,7 @@
           {#if saving}
             <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
           {/if}
-          {editMode === "create" ? "Add" : "Save"}
+          {editMode === "create" ? t("sidebar.tagManager.add") : t("common.save")}
         </button>
       </div>
     </div>

@@ -22,6 +22,7 @@
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { saveProseBefore } from "../utils/proseFlush";
+  import { t } from "../i18n";
   import {
     compileWorkspaceDocument,
     exportFilename,
@@ -77,99 +78,128 @@
   let dialog: HTMLDialogElement;
 
   const allCategories = [
-    { id: "overview", label: "Overview", description: "A familiar starting point" },
-    { id: "content", label: "Content", description: "Choose what goes in" },
-    { id: "headings", label: "Headings & breaks", description: "Give the story structure" },
-    { id: "text", label: "Text & page", description: "Set the reading rhythm" },
-    { id: "details", label: "Book details", description: "Title, author & contents" },
-    { id: "files", label: "Files & format", description: "Prepare the handoff" },
+    {
+      id: "overview",
+      label: t("export.exportWorkspace.categoryOverview"),
+      description: t("export.exportWorkspace.categoryOverviewDesc"),
+    },
+    {
+      id: "content",
+      label: t("export.exportWorkspace.categoryContent"),
+      description: t("export.exportWorkspace.categoryContentDesc"),
+    },
+    {
+      id: "headings",
+      label: t("export.exportWorkspace.categoryHeadings"),
+      description: t("export.exportWorkspace.categoryHeadingsDesc"),
+    },
+    {
+      id: "text",
+      label: t("export.exportWorkspace.categoryText"),
+      description: t("export.exportWorkspace.categoryTextDesc"),
+    },
+    {
+      id: "details",
+      label: t("export.exportWorkspace.categoryDetails"),
+      description: t("export.exportWorkspace.categoryDetailsDesc"),
+    },
+    {
+      id: "files",
+      label: t("export.exportWorkspace.categoryFiles"),
+      description: t("export.exportWorkspace.categoryFilesDesc"),
+    },
   ];
   const presetDescriptions: Record<string, string> = {
-    docx: "A clean, familiar submission format",
-    epub: "A comfortable copy for your readers",
+    docx: t("export.exportWorkspace.presetDocx"),
+    epub: t("export.exportWorkspace.presetEpub"),
   };
   const settingsIndex = [
     {
-      label: "Included chapters",
+      label: t("export.exportWorkspace.settingIncludedChapters"),
       terms: "selection scene manuscript scope",
       section: "content",
       control: "scope",
     },
     {
-      label: "Scene titles and synopses",
+      label: t("export.exportWorkspace.settingSceneTitles"),
       terms: "notes summary outline",
       section: "content",
       control: "scene-titles",
     },
-    { label: "Beat headings", terms: "outline prompts", section: "content", control: "beats" },
     {
-      label: "Chapter headings",
+      label: t("export.exportWorkspace.settingBeatHeadings"),
+      terms: "outline prompts",
+      section: "content",
+      control: "beats",
+    },
+    {
+      label: t("export.exportWorkspace.settingChapterHeadings"),
       terms: "title number roman numbering",
       section: "headings",
       control: "heading",
     },
     {
-      label: "Scene separator",
+      label: t("export.exportWorkspace.settingSceneSeparator"),
       terms: "break marker hash asterisks",
       section: "headings",
       control: "separator",
     },
     {
-      label: "Chapter page breaks",
+      label: t("export.exportWorkspace.settingChapterBreaks"),
       terms: "new page",
       section: "headings",
       control: "chapter-breaks",
     },
     {
-      label: "Font and size",
+      label: t("export.exportWorkspace.settingFont"),
       terms: "typeface times courier georgia",
       section: "text",
       control: "font",
     },
     {
-      label: "Line spacing",
+      label: t("export.exportWorkspace.settingSpacing"),
       terms: "double spaced single leading",
       section: "text",
       control: "spacing",
     },
     {
-      label: "Paragraph spacing and indent",
+      label: t("export.exportWorkspace.settingIndent"),
       terms: "first line flush",
       section: "text",
       control: "indent",
     },
     {
-      label: "Paper and margins",
+      label: t("export.exportWorkspace.settingMargin"),
       terms: "a4 letter gutter page size",
       section: "text",
       control: "margin",
     },
     {
-      label: "Title page and pen name",
+      label: t("export.exportWorkspace.settingTitle"),
       terms: "author identity subtitle",
       section: "details",
       control: "title",
     },
     {
-      label: "Running header",
+      label: t("export.exportWorkspace.settingHeader"),
       terms: "running head author title",
       section: "details",
       control: "header",
     },
     {
-      label: "Table of contents",
+      label: t("export.exportWorkspace.settingContents"),
       terms: "toc navigation",
       section: "details",
       control: "contents",
     },
     {
-      label: "HTML structure and styling",
+      label: t("export.exportWorkspace.settingHtml"),
       terms: "fragment full document css web",
       section: "files",
       control: "html-mode",
     },
     {
-      label: "Filename pattern",
+      label: t("export.exportWorkspace.settingFilename"),
       terms: "date destination name tokens",
       section: "files",
       control: "filename",
@@ -187,8 +217,15 @@
   });
   const unsupported = $derived(
     draft.format === "novelwriter" && project.project_type === "screenplay"
-      ? "novelWriter export supports novel projects only."
+      ? t("export.exportWorkspace.unsupportedNovelwriter")
       : ""
+  );
+  const scopeLabel = $derived(
+    scope === "project"
+      ? t("export.exportWorkspace.scopeProject")
+      : scope === "chapter"
+        ? t("export.exportWorkspace.scopeChapter")
+        : t("export.exportWorkspace.scopeScene")
   );
   const searchResults = $derived(
     settingsIndex.filter(
@@ -291,13 +328,13 @@
             if (journal.id === parsed.activeId && profiles.some((p) => p.id === journal.id))
               draft = checked.profiles[0];
           } catch {
-            message = "An incomplete draft could not be restored. Your saved profile was loaded.";
+            message = t("export.exportWorkspace.draftNotRestored");
           }
         }
       }
     } catch (e) {
       storageBlocked = true;
-      storageError = `Could not load saved profiles. Their stored data is preserved. ${String(e)}`;
+      storageError = t("export.exportWorkspace.profilesLoadFailed", { error: String(e) });
     }
     ready = true;
     // Preview the latest prose, not only what had reached the database. A draft
@@ -315,7 +352,7 @@
     try {
       localStorage.setItem(profileStorageKey(project.id), data);
     } catch (e) {
-      storageError = `Could not retain the draft on this device: ${String(e)}`;
+      storageError = t("export.exportWorkspace.draftRetainFailed", { error: String(e) });
     }
   });
 
@@ -344,7 +381,7 @@
       }
       if (initial) previewChapter = selectedChapters(chapters, draft)[0]?.id ?? "";
     } catch (e) {
-      error = `Could not load the saved manuscript: ${String(e)}`;
+      error = t("export.exportWorkspace.loadFailedWithError", { error: String(e) });
     } finally {
       loading = false;
     }
@@ -356,12 +393,12 @@
       return;
     }
     if (!draft.name.trim()) {
-      message = "Give this profile a name first.";
+      message = t("export.exportWorkspace.nameRequired");
       section = "overview";
       return;
     }
     if (storageBlocked) {
-      message = "Profile storage could not be loaded; saving is disabled to preserve it.";
+      message = t("export.exportWorkspace.storageBlockedSave");
       return;
     }
     try {
@@ -379,9 +416,9 @@
       draft = window.structuredClone(saved);
       contextSelection = null;
       storageError = "";
-      message = `“${draft.name}” saved on this device.`;
+      message = t("export.exportWorkspace.profileSavedMessage", { name: draft.name });
     } catch (e) {
-      storageError = `Could not save profile: ${String(e)}`;
+      storageError = t("export.exportWorkspace.saveFailed", { error: String(e) });
     }
   }
 
@@ -434,9 +471,9 @@
       contextSelection = null;
       storageError = "";
       section = "overview";
-      message = "Copy created. Give it a name for your next writing routine.";
+      message = t("export.exportWorkspace.copyCreated");
     } catch (e) {
-      message = `Could not duplicate profile: ${String(e)}`;
+      message = t("export.exportWorkspace.duplicateFailed", { error: String(e) });
     }
   }
 
@@ -458,7 +495,7 @@
       if (details) details.open = true;
       target.focus();
       target.scrollIntoView({ block: "center", behavior: "smooth" });
-    } else message = `“${item.label}” applies to a different output format.`;
+    } else message = t("export.exportWorkspace.settingUnavailable", { label: item.label });
   }
 
   async function saveExport() {
@@ -480,13 +517,15 @@
       let path: string | null;
       if (["longform", "novelwriter"].includes(profile.format)) {
         const parent = await open({
-          title: "Choose the parent folder for a new export",
+          title: t("export.exportWorkspace.parentFolderTitle"),
           directory: true,
         });
         path = parent ? `${parent.replace(/[\\/]$/, "")}/${filename}` : null;
       } else {
         path = await save({
-          title: `Export ${formatLabels[profile.format]} (choose a new name)`,
+          title: t("export.exportWorkspace.saveDialogTitle", {
+            format: formatLabels[profile.format],
+          }),
           defaultPath: filename,
           filters: [{ name: formatLabels[profile.format], extensions: [outputExtension(profile)] }],
         });
@@ -517,7 +556,12 @@
         });
       }
       savedPath = path;
-      message = `${formatLabels[profile.format]} exported. ${isExchange(profile.format) ? "The whole project was used." : "The full selection was included."}`;
+      message = t(
+        isExchange(profile.format)
+          ? "export.exportWorkspace.exportedExchange"
+          : "export.exportWorkspace.exportedSelection",
+        { format: formatLabels[profile.format] }
+      );
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -527,26 +571,30 @@
   async function chooseCover() {
     try {
       const path = await open({
-        title: "Choose an ebook cover",
-        filters: [{ name: "Cover image", extensions: ["png", "jpg", "jpeg"] }],
+        title: t("export.exportWorkspace.coverDialogTitle"),
+        filters: [
+          { name: t("export.exportWorkspace.coverFilterName"), extensions: ["png", "jpg", "jpeg"] },
+        ],
       });
       if (path) draft.coverPath = path;
     } catch (e) {
-      error = `Could not choose a cover image: ${String(e)}`;
+      error = t("export.exportWorkspace.coverChooseFailed", { error: String(e) });
     }
   }
 
   // Reveal rather than open: the opener capability grants reveal-in-folder
   // (the classic export's success dialog uses it too) but not open-path, so
   // openPath was always refused at runtime.
-  const revealFailed = "Couldn’t show the export in its folder";
+  const revealFailed = t("export.exportWorkspace.revealFailed");
   async function openSaved() {
     try {
       await revealItemInDir(savedPath);
       if (error.startsWith(revealFailed)) error = "";
     } catch (e) {
       console.error("Failed to show export in folder:", e);
-      error = `${revealFailed}: ${e instanceof Error ? e.message : String(e)}`;
+      error = t("export.exportWorkspace.revealFailedWithError", {
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 </script>
@@ -562,15 +610,17 @@
   }}
 >
   <header class="xw-appbar">
-    <h3 id="export-workspace-title">Export workspace</h3>
+    <h3 id="export-workspace-title">{t("export.exportWorkspace.title")}</h3>
     <div class="xw-appbar-actions">
       <button type="button" class="ka-button ka-button--ghost" onclick={onClassic} disabled={saving}
-        ><ArrowLeft class="w-5 h-5" aria-hidden="true" />Back to export</button
+        ><ArrowLeft class="w-5 h-5" aria-hidden="true" />{t(
+          "export.exportWorkspace.backToExport"
+        )}</button
       ><button
         type="button"
         class="ka-button ka-button--ghost ka-icon-button"
-        aria-label="Close export workspace"
-        title="Close export workspace"
+        aria-label={t("export.exportWorkspace.closeWorkspace")}
+        title={t("export.exportWorkspace.closeWorkspace")}
         onclick={onClose}
         disabled={saving}><X class="w-5 h-5" aria-hidden="true" /></button
       >
@@ -579,7 +629,7 @@
 
   <div class="xw-tools">
     <div class="ka-field od-field xw-picker">
-      <label for="export-profile">Export profile</label>
+      <label for="export-profile">{t("export.exportWorkspace.profileLabel")}</label>
       <select
         id="export-profile"
         value={draft.id}
@@ -591,45 +641,54 @@
     <button
       type="button"
       class="ka-button ka-button--secondary"
-      aria-label="Duplicate profile"
+      aria-label={t("export.exportWorkspace.duplicateProfile")}
       onclick={duplicateProfile}
-      disabled={storageBlocked}>Duplicate profile</button
+      disabled={storageBlocked}>{t("export.exportWorkspace.duplicateProfile")}</button
     >
     <div class="ka-field od-field xw-picker">
-      <label for="export-format">Output format</label><select
+      <label for="export-format">{t("export.exportWorkspace.outputFormat")}</label><select
         id="export-format"
         bind:value={draft.format}
-        ><option value="docx">Word manuscript</option><option value="epub"
-          >Ebook / reader copy</option
-        ><option value="html">Web / HTML</option><option value="markdown">Markdown</option><option
-          value="txt">Plain text</option
-        ><option value="longform">Longform / Obsidian</option><option value="scrivener"
-          >Scrivener</option
-        ><option value="novelwriter">novelWriter</option><option value="treatment">Treatment</option
-        ></select
+        ><option value="docx">{t("export.exportWorkspace.formatDocx")}</option><option value="epub"
+          >{t("export.exportWorkspace.formatEpub")}</option
+        ><option value="html">{t("export.exportWorkspace.formatHtml")}</option><option
+          value="markdown">{t("export.exportWorkspace.formatMarkdown")}</option
+        ><option value="txt">{t("export.exportWorkspace.formatTxt")}</option><option
+          value="longform">{t("export.exportWorkspace.formatLongform")}</option
+        ><option value="scrivener">{t("export.exportWorkspace.formatScrivener")}</option><option
+          value="novelwriter">{t("export.exportWorkspace.formatNovelwriter")}</option
+        ><option value="treatment">{t("export.exportWorkspace.formatTreatment")}</option></select
       >
     </div>
     <div class="xw-status" role="status">
-      {#if dirty}<span class="ka-badge ka-badge--warning">Unsaved changes</span>{:else}<span
-          class="xw-ok"><Check class="w-5 h-5" aria-hidden="true" />Profile saved</span
+      {#if dirty}<span class="ka-badge ka-badge--warning"
+          >{t("export.exportWorkspace.unsavedChanges")}</span
+        >{:else}<span class="xw-ok"
+          ><Check class="w-5 h-5" aria-hidden="true" />{t(
+            "export.exportWorkspace.profileSaved"
+          )}</span
         >{/if}
-      <span class="xw-meta">Profiles stay on this device</span>
+      <span class="xw-meta">{t("export.exportWorkspace.profilesLocal")}</span>
     </div>
   </div>
 
-  <div class="ka-segment-track xw-switch" role="group" aria-label="Workspace view">
+  <div
+    class="ka-segment-track xw-switch"
+    role="group"
+    aria-label={t("export.exportWorkspace.workspaceView")}
+  >
     <button
       type="button"
       class="ka-segment"
       class:ka-selected={narrowPane === "settings"}
       aria-pressed={narrowPane === "settings"}
-      onclick={() => (narrowPane = "settings")}>Settings</button
+      onclick={() => (narrowPane = "settings")}>{t("export.exportWorkspace.settings")}</button
     ><button
       type="button"
       class="ka-segment"
       class:ka-selected={narrowPane === "preview"}
       aria-pressed={narrowPane === "preview"}
-      onclick={() => (narrowPane = "preview")}>Preview</button
+      onclick={() => (narrowPane = "preview")}>{t("export.exportWorkspace.preview")}</button
     >
   </div>
 
@@ -639,22 +698,24 @@
         <div class="ka-field od-field od-fill">
           <input
             type="search"
-            aria-label="Find an export setting"
-            placeholder="Find a setting…"
+            aria-label={t("export.exportWorkspace.findSetting")}
+            placeholder={t("export.exportWorkspace.searchPlaceholder")}
             bind:value={query}
           />
         </div>
         {#if query}<button
             type="button"
             class="ka-button ka-button--ghost ka-icon-button"
-            aria-label="Clear settings search"
-            title="Clear settings search"
+            aria-label={t("export.exportWorkspace.clearSearch")}
+            title={t("export.exportWorkspace.clearSearch")}
             onclick={() => (query = "")}><X class="w-5 h-5" aria-hidden="true" /></button
           >{/if}
       </div>
       {#if query.trim()}
         {#if searchResults.length}
-          <p class="xw-meta" role="status">{searchResults.length} settings found</p>
+          <p class="xw-meta" role="status">
+            {t("export.exportWorkspace.settingsFound", { count: searchResults.length })}
+          </p>
           <ul class="xw-results">
             {#each searchResults as item (item.control)}<li>
                 <button type="button" class="xw-row-button" onclick={() => findSetting(item)}
@@ -668,12 +729,12 @@
         {:else}
           <div class="ka-empty od-stack xw-empty" role="status">
             <Search class="w-7 h-7" aria-hidden="true" />
-            <h4>No settings match “{query.trim()}”</h4>
-            <p>Try “spacing,” “header,” or “HTML.”</p>
+            <h4>{t("export.exportWorkspace.noSettingsMatch", { query: query.trim() })}</h4>
+            <p>{t("export.exportWorkspace.searchHint")}</p>
           </div>
         {/if}
       {:else}
-        <nav class="ka-tree" aria-label="Export settings">
+        <nav class="ka-tree" aria-label={t("export.exportWorkspace.exportSettings")}>
           <ul class="ka-tree-list">
             {#each categories as category (category.id)}<li>
                 <button
@@ -690,7 +751,7 @@
           </ul>
         </nav>
         <p class="ka-help xw-nav-note">
-          Make it yours. Your manuscript stays exactly as you wrote it.
+          {t("export.exportWorkspace.navNote")}
         </p>
       {/if}
     </aside>
@@ -698,7 +759,7 @@
     <section
       class="settings-panel xw-pane"
       class:mobile-hidden={narrowPane === "preview"}
-      aria-label="Export configuration"
+      aria-label={t("export.exportWorkspace.exportSettings")}
     >
       <div class="xw-pane-head">
         <p class="xw-meta">{formatLabels[draft.format]}</p>
@@ -709,7 +770,7 @@
       {#if section === "overview"}
         <div class="xw-group">
           <div class="ka-field od-field">
-            <label for="export-name">Profile name</label><input
+            <label for="export-name">{t("export.exportWorkspace.profileName")}</label><input
               id="export-name"
               bind:value={draft.name}
               maxlength="100"
@@ -717,13 +778,13 @@
               aria-describedby="export-name-help"
             />
             <p class="ka-help" id="export-name-help">
-              Name it for a recipient or a writing routine.
+              {t("export.exportWorkspace.profileNameHelp")}
             </p>
           </div>
         </div>
         <div class="xw-group">
           <fieldset class="xw-choice-list">
-            <legend class="xw-label">A starting point for every handoff</legend>
+            <legend class="xw-label">{t("export.exportWorkspace.startingPoint")}</legend>
             {#each profiles.slice(0, 3) as preset (preset.id)}<div class="ka-check xw-choice">
                 <input
                   id={`export-preset-${preset.id}`}
@@ -737,18 +798,19 @@
                 <div class="od-field od-fill">
                   <label for={`export-preset-${preset.id}`}>{preset.name}</label>
                   <p class="ka-help" id={`export-preset-${preset.id}-help`}>
-                    {presetDescriptions[preset.format] ?? "Clean markup for your next destination"}
+                    {presetDescriptions[preset.format] ??
+                      t("export.exportWorkspace.presetFallback")}
                   </p>
                 </div>
               </div>{/each}
           </fieldset>
         </div>
         <div class="xw-group">
-          <h4 class="xw-label">At a glance</h4>
+          <h4 class="xw-label">{t("export.exportWorkspace.atAGlance")}</h4>
           <dl class="ka-facts xw-facts">
             {#if !exchange}
               <div>
-                <dt>Content</dt>
+                <dt>{t("export.exportWorkspace.categoryContent")}</dt>
                 <dd class="ka-between">
                   <span
                     >{countLabel(selected.length, "chapter")} · {countLabel(
@@ -758,70 +820,73 @@
                   ><button
                     type="button"
                     class="ka-button ka-button--ghost"
-                    aria-label="Change content"
-                    onclick={() => (section = "content")}>Change</button
+                    aria-label={t("export.exportWorkspace.changeContent")}
+                    onclick={() => (section = "content")}
+                    >{t("export.exportWorkspace.change")}</button
                   >
                 </dd>
               </div>
               {#if !plain}
                 <div>
-                  <dt>Text &amp; page</dt>
+                  <dt>{t("export.exportWorkspace.categoryText")}</dt>
                   <dd class="ka-between">
                     <span>{draft.font} · {draft.fontSize} pt</span><button
                       type="button"
                       class="ka-button ka-button--ghost"
-                      aria-label="Change text and page"
-                      onclick={() => (section = "text")}>Change</button
+                      aria-label={t("export.exportWorkspace.changeTextPage")}
+                      onclick={() => (section = "text")}
+                      >{t("export.exportWorkspace.change")}</button
                     >
                   </dd>
                 </div>
               {/if}
               <div>
-                <dt>Headings &amp; breaks</dt>
+                <dt>{t("export.exportWorkspace.categoryHeadings")}</dt>
                 <dd class="ka-between">
-                  <span>{draft.separator || "Blank line"}</span><button
+                  <span>{draft.separator || t("export.exportWorkspace.blankLine")}</span><button
                     type="button"
                     class="ka-button ka-button--ghost"
-                    aria-label="Change headings and breaks"
-                    onclick={() => (section = "headings")}>Change</button
+                    aria-label={t("export.exportWorkspace.changeHeadings")}
+                    onclick={() => (section = "headings")}
+                    >{t("export.exportWorkspace.change")}</button
                   >
                 </dd>
               </div>
             {:else}
               <div>
-                <dt>Content</dt>
+                <dt>{t("export.exportWorkspace.categoryContent")}</dt>
                 <dd class="ka-between">
-                  <span>Whole project</span><button
+                  <span>{t("export.exportWorkspace.wholeProject")}</span><button
                     type="button"
                     class="ka-button ka-button--ghost"
-                    aria-label="Change content"
-                    onclick={() => (section = "files")}>Change</button
+                    aria-label={t("export.exportWorkspace.changeContent")}
+                    onclick={() => (section = "files")}>{t("export.exportWorkspace.change")}</button
                   >
                 </dd>
               </div>
             {/if}
             <div>
-              <dt>Output</dt>
+              <dt>{t("export.exportWorkspace.outputFact")}</dt>
               <dd class="ka-between">
                 <span>{formatLabels[draft.format]}</span><button
                   type="button"
                   class="ka-button ka-button--ghost"
-                  aria-label="Change output"
-                  onclick={() => (section = "files")}>Change</button
+                  aria-label={t("export.exportWorkspace.changeOutput")}
+                  onclick={() => (section = "files")}>{t("export.exportWorkspace.change")}</button
                 >
               </dd>
             </div>
           </dl>
           <p class="ka-help">
             {exchange
-              ? "This format uses its dedicated exporter to preserve project structure and metadata. Configure the handoff in Files & format."
-              : "Your selected settings are applied to the exported file. The on-screen preview is an approximation of Word pagination and ebook reading systems."}
+              ? t("export.exportWorkspace.overviewHelpExchange")
+              : t("export.exportWorkspace.overviewHelpApprox")}
           </p>
         </div>
       {:else if section === "content"}
         <div class="xw-group">
           <div class="ka-field od-field">
-            <label for="export-scope">Include in this export</label><select
+            <label for="export-scope">{t("export.exportWorkspace.includeInExport")}</label><select
               id="export-scope"
               bind:value={draft.selection}
               onchange={() => {
@@ -829,8 +894,8 @@
                 if (draft.selection === "selected" && !draft.chapterIds.length)
                   draft.chapterIds = chapters.map((c) => c.id);
               }}
-              ><option value="all">Entire manuscript</option><option value="selected"
-                >Selected chapters</option
+              ><option value="all">{t("export.exportWorkspace.scopeAll")}</option><option
+                value="selected">{t("export.exportWorkspace.scopeSelected")}</option
               ></select
             >
           </div>
@@ -838,23 +903,27 @@
               <Info class="w-5 h-5" aria-hidden="true" />
               <div class="od-field od-fill">
                 <p>
-                  Opened for your selected {scope}. Saving this profile will remember that
-                  selection.
+                  {t("export.exportWorkspace.contextNotice", { scope: scopeLabel })}
                 </p>
               </div>
             </div>{/if}
           {#if draft.sceneId}<div class="ka-notice od-row-top">
               <Info class="w-5 h-5" aria-hidden="true" />
               <div class="od-field od-fill xw-notice-body">
-                <p>Only the selected scene is included.</p>
+                <p>{t("export.exportWorkspace.onlySelectedScene")}</p>
                 <button
                   type="button"
                   class="ka-button ka-button--ghost"
-                  onclick={() => (draft.sceneId = null)}>Include the rest of its chapter</button
+                  onclick={() => (draft.sceneId = null)}
+                  >{t("export.exportWorkspace.includeRestOfChapter")}</button
                 >
               </div>
             </div>{/if}
-          <div class="chapter-list" role="group" aria-label="Chapter selection">
+          <div
+            class="chapter-list"
+            role="group"
+            aria-label={t("export.exportWorkspace.chapterSelection")}
+          >
             {#each chapters as chapter (chapter.id)}<label class="ka-check xw-check chapter-row"
                 ><input
                   type="checkbox"
@@ -872,7 +941,7 @@
           </div>
         </div>
         <div class="xw-group">
-          <h4 class="xw-label">Alongside the prose</h4>
+          <h4 class="xw-label">{t("export.exportWorkspace.alongsideProse")}</h4>
           <div class="xw-checks">
             <label class="ka-check xw-check"
               ><input
@@ -880,60 +949,62 @@
                 type="checkbox"
                 bind:checked={draft.sceneTitles}
               /><span class="xw-check-text"
-                ><span>Scene titles</span><small>Use your scene names as headings.</small></span
+                ><span>{t("export.exportWorkspace.sceneTitles")}</span><small
+                  >{t("export.exportWorkspace.sceneTitlesHelp")}</small
+                ></span
               ></label
             >
             <label class="ka-check xw-check"
               ><input type="checkbox" bind:checked={draft.synopses} /><span class="xw-check-text"
-                ><span>Scene synopses</span><small>Add the scene summary before its prose.</small
+                ><span>{t("export.exportWorkspace.synopses")}</span><small
+                  >{t("export.exportWorkspace.synopsesHelp")}</small
                 ></span
               ></label
             >
             <label class="ka-check xw-check"
               ><input id="export-beats" type="checkbox" bind:checked={draft.beatHeadings} /><span
                 class="xw-check-text"
-                ><span>Beat headings</span><small>Page View outlines follow the scene prose.</small
+                ><span>{t("export.exportWorkspace.beatHeadings")}</span><small
+                  >{t("export.exportWorkspace.beatHeadingsHelp")}</small
                 ></span
               ></label
             >
           </div>
           <p class="ka-help">
-            Archived chapters and scenes, unused scenes, notes, to-dos, and editorial comments are
-            excluded from the manuscript export.
+            {t("export.exportWorkspace.contentExclusions")}
           </p>
         </div>
       {:else if section === "headings"}
         <div class="xw-group">
           <div class="ka-field od-field">
-            <label for="export-heading">Chapter heading</label><select
+            <label for="export-heading">{t("export.exportWorkspace.chapterHeading")}</label><select
               id="export-heading"
               bind:value={draft.chapterHeading}
-              ><option value="number_title">Number and title</option><option value="number"
-                >Number only</option
-              ><option value="title">Title only</option><option value="none">No heading</option
-              ></select
+              ><option value="number_title">{t("export.exportWorkspace.headingNumberTitle")}</option
+              ><option value="number">{t("export.exportWorkspace.headingNumber")}</option><option
+                value="title">{t("export.exportWorkspace.headingTitle")}</option
+              ><option value="none">{t("export.exportWorkspace.headingNone")}</option></select
             >
             <p class="ka-help">
               {draft.chapterHeading === "number_title"
-                ? "Chapter 1: The Crossing"
+                ? t("export.exportWorkspace.headingExampleNumberTitle")
                 : draft.chapterHeading === "number"
-                  ? "Chapter 1"
+                  ? t("export.exportWorkspace.headingExampleNumber")
                   : draft.chapterHeading === "title"
-                    ? "The Crossing"
-                    : "Prose begins without a chapter heading"}
+                    ? t("export.exportWorkspace.headingExampleTitle")
+                    : t("export.exportWorkspace.headingExampleNone")}
             </p>
           </div>
           {#if draft.chapterHeading.startsWith("number")}<div class="xw-pair">
               <div class="ka-field od-field">
-                <label for="export-number-style">Number style</label><select
-                  id="export-number-style"
-                  bind:value={draft.numberStyle}
+                <label for="export-number-style">{t("export.exportWorkspace.numberStyle")}</label
+                ><select id="export-number-style" bind:value={draft.numberStyle}
                   ><option value="arabic">1, 2, 3</option><option value="roman">I, II, III</option
                   ></select
                 >
               </div>
               <div class="ka-field od-field">
-                <label for="export-number-start">Start at</label><input
+                <label for="export-number-start">{t("export.exportWorkspace.startAt")}</label><input
                   id="export-number-start"
                   type="number"
                   min="1"
@@ -945,29 +1016,34 @@
         </div>
         <div class="xw-group">
           <div class="ka-field od-field">
-            <label for="export-separator">Between scenes</label><input
+            <label for="export-separator">{t("export.exportWorkspace.betweenScenes")}</label><input
               id="export-separator"
               bind:value={draft.separator}
               maxlength="80"
               aria-describedby="export-separator-help"
             />
-            <div class="xw-chips" role="group" aria-label="Scene break markers">
+            <div
+              class="xw-chips"
+              role="group"
+              aria-label={t("export.exportWorkspace.sceneBreakMarkers")}
+            >
               {#each ["#", "* * *", "⁂", ""] as marker (marker)}<button
                   type="button"
                   class="ka-tag"
                   aria-pressed={draft.separator === marker}
-                  onclick={() => (draft.separator = marker)}>{marker || "Blank line"}</button
+                  onclick={() => (draft.separator = marker)}
+                  >{marker || t("export.exportWorkspace.blankLine")}</button
                 >{/each}
             </div>
             <p class="ka-help" id="export-separator-help">
-              A centered marker separates scenes within a chapter.
+              {t("export.exportWorkspace.separatorHelp")}
             </p>
           </div>
           <div class="xw-checks">
             <label class="ka-check xw-check"
               ><input type="checkbox" bind:checked={draft.partTitles} /><span class="xw-check-text"
-                ><span>Include Part titles</span><small
-                  >Keep the larger movements of your story.</small
+                ><span>{t("export.exportWorkspace.includePartTitles")}</span><small
+                  >{t("export.exportWorkspace.includePartTitlesHelp")}</small
                 ></span
               ></label
             >
@@ -977,8 +1053,8 @@
                   type="checkbox"
                   bind:checked={draft.chapterBreaks}
                 /><span class="xw-check-text"
-                  ><span>Start chapters on a new page</span><small
-                    >Dashed boundaries in preview; page breaks when printing HTML.</small
+                  ><span>{t("export.exportWorkspace.chapterBreaks")}</span><small
+                    >{t("export.exportWorkspace.chapterBreaksHelp")}</small
                   ></span
                 ></label
               >{/if}
@@ -988,7 +1064,7 @@
         <div class="xw-group">
           <div class="xw-pair">
             <div class="ka-field od-field">
-              <label for="export-font">Body font</label><select
+              <label for="export-font">{t("export.exportWorkspace.bodyFont")}</label><select
                 id="export-font"
                 bind:value={draft.font}
                 >{#each ["Times New Roman", "Courier New", "Georgia", "Arial"] as font (font)}<option
@@ -997,7 +1073,7 @@
               >
             </div>
             <div class="ka-field od-field">
-              <label for="export-font-size">Size (pt)</label><input
+              <label for="export-font-size">{t("export.exportWorkspace.sizePt")}</label><input
                 id="export-font-size"
                 type="number"
                 min="8"
@@ -1007,17 +1083,19 @@
             </div>
           </div>
           <div class="ka-field od-field">
-            <label for="export-spacing">Line spacing</label><select
+            <label for="export-spacing">{t("export.exportWorkspace.lineSpacing")}</label><select
               id="export-spacing"
               bind:value={draft.lineSpacing}
-              ><option value={1}>Single</option><option value={1.5}>1.5 lines</option><option
-                value={1.6}>Comfortable · 1.6 lines</option
-              ><option value={2}>Double</option><option value={2.5}>2.5 lines</option></select
+              ><option value={1}>{t("export.exportWorkspace.spacingSingle")}</option><option
+                value={1.5}>{t("export.exportWorkspace.spacingOneHalf")}</option
+              ><option value={1.6}>{t("export.exportWorkspace.spacingComfortable")}</option><option
+                value={2}>{t("export.exportWorkspace.spacingDouble")}</option
+              ><option value={2.5}>{t("export.exportWorkspace.spacingTwoHalf")}</option></select
             >
           </div>
           <div class="xw-pair">
             <div class="ka-field od-field">
-              <label for="export-indent">First-line indent (in)</label><input
+              <label for="export-indent">{t("export.exportWorkspace.firstLineIndent")}</label><input
                 id="export-indent"
                 type="number"
                 min="0"
@@ -1027,7 +1105,9 @@
               />
             </div>
             <div class="ka-field od-field">
-              <label for="export-paragraph-spacing">After paragraphs (pt)</label><input
+              <label for="export-paragraph-spacing"
+                >{t("export.exportWorkspace.paragraphSpacing")}</label
+              ><input
                 id="export-paragraph-spacing"
                 type="number"
                 min="0"
@@ -1038,37 +1118,40 @@
             </div>
           </div>
           <label class="ka-check"
-            ><input type="checkbox" bind:checked={draft.firstParagraphFlush} /> No indent after a heading
-            or scene break</label
+            ><input type="checkbox" bind:checked={draft.firstParagraphFlush} />{t(
+              "export.exportWorkspace.firstParagraphFlush"
+            )}</label
           >
           <details class="xw-details">
             <summary
-              ><span>More text options</span><span class="xw-meta"
-                >{draft.alignment === "left" ? "Left aligned" : "Justified"}</span
+              ><span>{t("export.exportWorkspace.moreTextOptions")}</span><span class="xw-meta"
+                >{draft.alignment === "left"
+                  ? t("export.exportWorkspace.leftAligned")
+                  : t("export.exportWorkspace.justified")}</span
               ></summary
             >
             <div class="ka-field od-field">
-              <label for="export-alignment">Body alignment</label><select
-                id="export-alignment"
-                bind:value={draft.alignment}
-                ><option value="left">Left aligned</option><option value="justify">Justified</option
+              <label for="export-alignment">{t("export.exportWorkspace.bodyAlignment")}</label
+              ><select id="export-alignment" bind:value={draft.alignment}
+                ><option value="left">{t("export.exportWorkspace.leftAligned")}</option><option
+                  value="justify">{t("export.exportWorkspace.justified")}</option
                 ></select
               >
             </div>
           </details>
         </div>
         {#if draft.format === "docx"}<div class="xw-group">
-            <h4 class="xw-label">Page layout</h4>
+            <h4 class="xw-label">{t("export.exportWorkspace.pageLayout")}</h4>
             <div class="xw-pair">
               <div class="ka-field od-field">
-                <label for="export-paper">Paper size</label><select
+                <label for="export-paper">{t("export.exportWorkspace.paperSize")}</label><select
                   id="export-paper"
                   bind:value={draft.paper}
                   ><option value="letter">US Letter</option><option value="a4">A4</option></select
                 >
               </div>
               <div class="ka-field od-field">
-                <label for="export-margin">Margins (in)</label><input
+                <label for="export-margin">{t("export.exportWorkspace.marginsIn")}</label><input
                   id="export-margin"
                   type="number"
                   min="0.25"
@@ -1079,127 +1162,135 @@
               </div>
             </div>
             <p class="ka-help">
-              Word output uses your paper size, margins, chapter breaks, and repeating header. This
-              flowing preview does not reproduce Word pagination or page numbers.
+              {t("export.exportWorkspace.wordLayoutHelp")}
             </p>
           </div>{:else}<p class="ka-help xw-note">
-            Reflowable output has no fixed paper size. An ebook reader may override your font and
-            spacing preferences.
+            {t("export.exportWorkspace.reflowableHelp")}
           </p>{/if}
         {#if draft.format === "html" && !draft.styled}<div class="ka-notice od-row-top xw-note">
             <Info class="w-5 h-5" aria-hidden="true" />
             <div class="od-field od-fill xw-notice-body">
-              <p>HTML styling is off. Enable styling to see these typography settings.</p>
+              <p>{t("export.exportWorkspace.htmlStylingOff")}</p>
               <button
                 type="button"
                 class="ka-button ka-button--ghost"
-                onclick={() => (draft.styled = true)}>Enable styling</button
+                onclick={() => (draft.styled = true)}
+                >{t("export.exportWorkspace.enableStyling")}</button
               >
             </div>
           </div>{/if}
       {:else if section === "details"}
         <div class="xw-group">
           <div class="ka-field od-field">
-            <label for="export-title">Book title</label><input
+            <label for="export-title">{t("export.exportWorkspace.bookTitle")}</label><input
               id="export-title"
               bind:value={draft.title}
             />
           </div>
           <div class="ka-field od-field">
-            <label for="export-author">Author / pen name</label><input
+            <label for="export-author">{t("export.exportWorkspace.authorPenName")}</label><input
               id="export-author"
               bind:value={draft.author}
-              placeholder="Your publishing name"
+              placeholder={t("export.exportWorkspace.authorPlaceholder")}
             />
           </div>
           <label class="ka-check xw-check"
             ><input type="checkbox" bind:checked={draft.titlePage} /><span class="xw-check-text"
-              ><span>{plain ? "Include a title block" : "Include a title page"}</span><small
-                >Choose “Whole selection” in the preview to see it.</small
-              ></span
+              ><span
+                >{plain
+                  ? t("export.exportWorkspace.includeTitleBlock")
+                  : t("export.exportWorkspace.includeTitlePage")}</span
+              ><small>{t("export.exportWorkspace.titlePageHint")}</small></span
             ></label
           >
           {#if draft.titlePage}<div class="ka-field od-field">
               <label for="export-subtitle"
-                >Subtitle <span class="ka-optional">(optional)</span></label
+                >{t("export.exportWorkspace.subtitle")}
+                <span class="ka-optional">{t("export.exportWorkspace.optional")}</span></label
               ><input id="export-subtitle" bind:value={draft.subtitle} />
             </div>
             <div class="ka-field od-field">
-              <label for="export-word-count">Title-page word count</label><select
-                id="export-word-count"
-                bind:value={draft.wordCount}
-                ><option value="rounded">Rounded to nearest 1,000</option><option value="exact"
-                  >Exact prose count</option
-                ><option value="none">Omit</option></select
+              <label for="export-word-count">{t("export.exportWorkspace.titlePageWordCount")}</label
+              ><select id="export-word-count" bind:value={draft.wordCount}
+                ><option value="rounded">{t("export.exportWorkspace.wordCountRounded")}</option
+                ><option value="exact">{t("export.exportWorkspace.wordCountExact")}</option><option
+                  value="none">{t("export.exportWorkspace.wordCountOmit")}</option
+                ></select
               >
             </div>{/if}
           {#if draft.format === "docx"}<div class="ka-field od-field">
-              <label for="export-header">Running header</label><select
+              <label for="export-header">{t("export.exportWorkspace.runningHeader")}</label><select
                 id="export-header"
                 bind:value={draft.header}
-                ><option value="author_title">Author / Title</option><option value="title"
-                  >Title only</option
-                ><option value="none">None</option></select
+                ><option value="author_title"
+                  >{t("export.exportWorkspace.headerAuthorTitle")}</option
+                ><option value="title">{t("export.exportWorkspace.headerTitleOnly")}</option><option
+                  value="none">{t("export.exportWorkspace.headerNone")}</option
+                ></select
               >
               <p class="ka-help">
-                Repeats in Word, with no header on the title page. Shown once in this preview.
+                {t("export.exportWorkspace.runningHeaderHelp")}
               </p>
             </div>{/if}
           <label class="ka-check xw-check"
             ><input id="export-contents" type="checkbox" bind:checked={draft.contents} /><span
               class="xw-check-text"
-              ><span>Table of contents</span><small
+              ><span>{t("export.exportWorkspace.tableOfContents")}</span><small
                 >{plain
-                  ? "Lists the chapter titles in your selection."
-                  : "Links to the chapters in your full selection."}</small
+                  ? t("export.exportWorkspace.contentsPlainHelp")
+                  : t("export.exportWorkspace.contentsLinkHelp")}</small
               ></span
             ></label
           >
           {#if draft.format === "epub" || draft.format === "html"}
             <details class="xw-details">
-              <summary><span>Language</span><span class="xw-meta">{draft.language}</span></summary>
+              <summary
+                ><span>{t("export.exportWorkspace.language")}</span><span class="xw-meta"
+                  >{draft.language}</span
+                ></summary
+              >
               <div class="ka-field od-field">
-                <label for="export-language">Document language</label><select
-                  id="export-language"
-                  bind:value={draft.language}
-                  ><option value="en">English</option><option value="en-GB">English (UK)</option
-                  ><option value="fr">French</option><option value="de">German</option><option
-                    value="es">Spanish</option
-                  ><option value="pt">Portuguese</option></select
+                <label for="export-language">{t("export.exportWorkspace.documentLanguage")}</label
+                ><select id="export-language" bind:value={draft.language}
+                  ><option value="en">{t("export.exportWorkspace.langEnglish")}</option><option
+                    value="en-GB">{t("export.exportWorkspace.langEnglishUK")}</option
+                  ><option value="fr">{t("export.exportWorkspace.langFrench")}</option><option
+                    value="de">{t("export.exportWorkspace.langGerman")}</option
+                  ><option value="es">{t("export.exportWorkspace.langSpanish")}</option><option
+                    value="pt">{t("export.exportWorkspace.langPortuguese")}</option
+                  ></select
                 >
               </div>
             </details>
           {/if}
         </div>
         {#if draft.format === "epub"}<div class="xw-group">
-            <h4 class="xw-label">Ebook metadata</h4>
+            <h4 class="xw-label">{t("export.exportWorkspace.ebookMetadata")}</h4>
             <div class="ka-field od-field">
-              <label for="export-description">Description</label><textarea
-                id="export-description"
-                rows="3"
-                bind:value={draft.description}
-              ></textarea>
+              <label for="export-description">{t("export.exportWorkspace.description")}</label
+              ><textarea id="export-description" rows="3" bind:value={draft.description}></textarea>
             </div>
             <div class="ka-field od-field">
-              <label for="export-cover">Cover image</label>
+              <label for="export-cover">{t("export.exportWorkspace.coverImage")}</label>
               <div class="xw-location">
                 <input
                   id="export-cover"
                   readonly
                   value={draft.coverPath}
-                  placeholder="Optional PNG or JPEG"
+                  placeholder={t("export.exportWorkspace.coverPlaceholder")}
                   aria-describedby="export-cover-help"
                 />
                 <button type="button" class="ka-button ka-button--secondary" onclick={chooseCover}
-                  >Choose cover</button
+                  >{t("export.exportWorkspace.chooseCover")}</button
                 >{#if draft.coverPath}<button
                     type="button"
                     class="ka-button ka-button--ghost"
-                    onclick={() => (draft.coverPath = "")}>Remove</button
+                    onclick={() => (draft.coverPath = "")}
+                    >{t("export.exportWorkspace.remove")}</button
                   >{/if}
               </div>
               <p class="ka-help" id="export-cover-help">
-                The cover is embedded in the EPUB; it is not shown in the manuscript preview.
+                {t("export.exportWorkspace.coverHelp")}
               </p>
             </div>
           </div>
@@ -1207,12 +1298,16 @@
       {:else if section === "files"}
         <div class="xw-group">
           <div class="ka-field od-field">
-            <label for="export-filename">Filename pattern</label><input
+            <label for="export-filename">{t("export.exportWorkspace.filenamePattern")}</label><input
               id="export-filename"
               bind:value={draft.fileName}
               aria-describedby="export-filename-sample"
             />
-            <div class="xw-chips" role="group" aria-label="Filename tokens">
+            <div
+              class="xw-chips"
+              role="group"
+              aria-label={t("export.exportWorkspace.filenameTokens")}
+            >
               {#each ["{title}", "{profile}", "{date}"] as token (token)}<button
                   type="button"
                   class="ka-tag"
@@ -1222,28 +1317,27 @@
             <p class="ka-help filename-sample" id="export-filename-sample">{fileName}</p>
           </div>
           {#if draft.format === "html"}<div class="ka-field od-field">
-              <label for="export-html-mode">HTML structure</label><select
-                id="export-html-mode"
-                bind:value={draft.htmlMode}
-                ><option value="document">Complete HTML document</option><option value="fragment"
-                  >Body fragment for pasting</option
+              <label for="export-html-mode">{t("export.exportWorkspace.htmlStructure")}</label
+              ><select id="export-html-mode" bind:value={draft.htmlMode}
+                ><option value="document">{t("export.exportWorkspace.htmlDocument")}</option><option
+                  value="fragment">{t("export.exportWorkspace.htmlFragment")}</option
                 ></select
               >
-              <p class="ka-help">Both are saved as a single .html file</p>
+              <p class="ka-help">{t("export.exportWorkspace.htmlSavedNote")}</p>
             </div>
             <div class="ka-field od-field">
-              <label for="export-html-heading">Chapter heading element</label><select
-                id="export-html-heading"
-                bind:value={draft.headingLevel}
-                ><option value="h1">Heading 1 · &lt;h1&gt;</option><option value="h2"
-                  >Heading 2 · &lt;h2&gt;</option
+              <label for="export-html-heading"
+                >{t("export.exportWorkspace.htmlHeadingElement")}</label
+              ><select id="export-html-heading" bind:value={draft.headingLevel}
+                ><option value="h1">{t("export.exportWorkspace.heading1Option")}</option><option
+                  value="h2">{t("export.exportWorkspace.heading2Option")}</option
                 ></select
               >
             </div>
             <label class="ka-check xw-check"
               ><input type="checkbox" bind:checked={draft.styled} /><span class="xw-check-text"
-                ><span>Include built-in styling</span><small
-                  >Turn off for clean semantic markup.</small
+                ><span>{t("export.exportWorkspace.builtInStyling")}</span><small
+                  >{t("export.exportWorkspace.builtInStylingHelp")}</small
                 ></span
               ></label
             >{/if}
@@ -1252,48 +1346,47 @@
               <label class="ka-check xw-check"
                 ><input type="checkbox" bind:checked={draft.includeNotes} /><span
                   class="xw-check-text"
-                  ><span>Reference notes</span><small
-                    >Include character, location, and reference material.</small
+                  ><span>{t("export.exportWorkspace.referenceNotes")}</span><small
+                    >{t("export.exportWorkspace.referenceNotesHelp")}</small
                   ></span
                 ></label
               >
               <label class="ka-check xw-check"
                 ><input type="checkbox" bind:checked={draft.includeBeatComments} /><span
                   class="xw-check-text"
-                  ><span>Beat comments</span><small>Retain outline prompts as comments.</small
+                  ><span>{t("export.exportWorkspace.beatComments")}</span><small
+                    >{t("export.exportWorkspace.beatCommentsHelp")}</small
                   ></span
                 ></label
               >
             </div>
           {:else if draft.format === "treatment"}
             <div class="ka-field od-field">
-              <label for="export-treatment-level">Treatment detail</label><select
-                id="export-treatment-level"
-                bind:value={draft.treatmentLevel}
-                ><option value="one_page">One page · overview</option><option value="five_page"
-                  >Five pages · key scenes</option
-                ><option value="full">Full · scenes and beats</option></select
+              <label for="export-treatment-level"
+                >{t("export.exportWorkspace.treatmentDetail")}</label
+              ><select id="export-treatment-level" bind:value={draft.treatmentLevel}
+                ><option value="one_page">{t("export.exportWorkspace.treatmentOnePage")}</option
+                ><option value="five_page">{t("export.exportWorkspace.treatmentFivePage")}</option
+                ><option value="full">{t("export.exportWorkspace.treatmentFull")}</option></select
               >
               <p class="ka-help">
-                Detail levels guide the content; page counts depend on the material.
+                {t("export.exportWorkspace.treatmentDetailHelp")}
               </p>
             </div>
             <div class="ka-field od-field">
-              <label for="export-treatment-format">Treatment file</label><select
-                id="export-treatment-format"
-                bind:value={draft.treatmentFormat}
-                ><option value="docx">Word document (.docx)</option><option value="txt"
-                  >Plain text (.txt)</option
+              <label for="export-treatment-format"
+                >{t("export.exportWorkspace.treatmentFile")}</label
+              ><select id="export-treatment-format" bind:value={draft.treatmentFormat}
+                ><option value="docx">{t("export.exportWorkspace.treatmentDocx")}</option><option
+                  value="txt">{t("export.exportWorkspace.treatmentTxt")}</option
                 ></select
               >
             </div>
           {:else if draft.format === "scrivener"}<p class="ka-help">
-              Creates a new .scriv project. To update an existing Scrivener project with scene
-              matching and backups, use Back to export.
+              {t("export.exportWorkspace.scrivenerHelp")}
             </p>
           {:else if draft.format === "longform"}<p class="ka-help">
-              Creates a Longform index, individual scene files, and reference notes. Project and
-              round-trip metadata are retained.
+              {t("export.exportWorkspace.longformHelp")}
             </p>{/if}
         </div>
         <div class="xw-group">
@@ -1302,24 +1395,21 @@
             <div class="od-field od-fill">
               <strong>{formatLabels[draft.format]}</strong><span class="xw-meta"
                 >{exchange
-                  ? "Whole project · dedicated exporter"
+                  ? t("export.exportWorkspace.fileWholeProject")
                   : `${countLabel(selected.length, "chapter")} · ${countLabel(sceneCount, "scene")}`}</span
               >
             </div>
             <span class="xw-file-type"
               >{["longform", "novelwriter"].includes(draft.format)
-                ? "Folder"
+                ? t("export.exportWorkspace.fileTypeFolder")
                 : `.${outputExtension(draft)}`}</span
             >
           </div>
           <p class="ka-help">
-            Choose a destination when exporting. Existing files and folders are preserved; use a new
-            name for each export.
+            {t("export.exportWorkspace.destinationHelp")}
           </p>
           {#if draft.format === "markdown"}<p class="ka-help">
-              Exports a single manuscript file with headings, emphasis, lists, and block quotations.
-              For an Obsidian project with separate scene files and reference notes, choose Longform
-              / Obsidian.
+              {t("export.exportWorkspace.markdownHelp")}
             </p>{/if}
         </div>
       {/if}
@@ -1328,63 +1418,69 @@
     <section
       class="xw-preview"
       class:mobile-hidden={narrowPane === "settings"}
-      aria-label="Manuscript preview"
+      aria-label={t("export.exportWorkspace.previewAria")}
     >
       {#if exchange}<div class="ka-empty od-stack empty-preview">
           <FileDown class="w-7 h-7" aria-hidden="true" />
           <h4>{formatLabels[draft.format]}</h4>
           <p>
             {draft.format === "treatment"
-              ? "Builds a treatment from the whole project’s outline, synopses, and beats. Manuscript prose styling does not apply."
-              : "Transfers the whole project using its existing structure and metadata. Manuscript formatting controls do not apply."}
+              ? t("export.exportWorkspace.treatmentPreview")
+              : t("export.exportWorkspace.exchangePreview")}
           </p>
           <p class="filename-sample">{fileName}</p>
           <p>
             {draft.format === "scrivener"
-              ? "A new Scrivener bundle with chapters, scenes, and RTF prose."
+              ? t("export.exportWorkspace.scrivenerPreview")
               : draft.format === "longform"
-                ? "A Longform index, scene Markdown files, and reference folders."
+                ? t("export.exportWorkspace.longformPreview")
                 : draft.format === "novelwriter"
-                  ? "nwProject.nwx, content documents, and selected notes."
-                  : "Uses project title and author settings with the selected treatment detail."}
+                  ? t("export.exportWorkspace.novelwriterPreview")
+                  : t("export.exportWorkspace.treatmentPreviewDetail")}
           </p>
         </div>{:else}
         <header class="xw-preview-head">
           <div class="xw-preview-title">
-            <span class="xw-label">Live preview</span>
-            <span class="ka-badge ka-badge--success">Live</span>
+            <span class="xw-label">{t("export.exportWorkspace.livePreview")}</span>
+            <span class="ka-badge ka-badge--success">{t("export.exportWorkspace.liveBadge")}</span>
             {#if draft.format === "html"}<div
                 class="ka-segment-track preview-tabs"
                 role="group"
-                aria-label="Preview view"
+                aria-label={t("export.exportWorkspace.previewView")}
               >
                 <button
                   type="button"
                   class="ka-segment"
                   class:ka-selected={previewMode === "rendered"}
                   aria-pressed={previewMode === "rendered"}
-                  onclick={() => (previewMode = "rendered")}>Read</button
+                  onclick={() => (previewMode = "rendered")}
+                  >{t("export.exportWorkspace.previewRead")}</button
                 ><button
                   type="button"
                   class="ka-segment"
                   class:ka-selected={previewMode === "source"}
                   aria-pressed={previewMode === "source"}
-                  onclick={() => (previewMode = "source")}>HTML</button
+                  onclick={() => (previewMode = "source")}
+                  >{t("export.exportWorkspace.previewHtml")}</button
                 >
               </div>
             {/if}
           </div>
           <div class="xw-preview-controls">
-            {#if plain}<p class="xw-meta od-fill">Whole selection · single file</p>{:else}<div
-                class="ka-field od-field od-fill"
-              >
-                <label class="ka-sr" for="export-preview-chapter">Preview chapter</label><select
+            {#if plain}<p class="xw-meta od-fill">
+                {t("export.exportWorkspace.wholeSelectionSingleFile")}
+              </p>{:else}<div class="ka-field od-field od-fill">
+                <label class="ka-sr" for="export-preview-chapter"
+                  >{t("export.exportWorkspace.previewChapter")}</label
+                ><select
                   id="export-preview-chapter"
                   value={actualPreviewChapter}
                   onchange={(event) => (previewChapter = event.currentTarget.value)}
                   disabled={!selected.length}
                   ><option value=""
-                    >{selected.length ? "Whole selection" : "No chapters selected"}</option
+                    >{selected.length
+                      ? t("export.exportWorkspace.wholeSelection")
+                      : t("export.exportWorkspace.noChaptersSelected")}</option
                   >{#each selected as chapter (chapter.id)}<option value={chapter.id}
                       >{chapter.title}</option
                     >{/each}</select
@@ -1392,8 +1488,8 @@
               </div>{/if}<button
               type="button"
               class="ka-button ka-button--ghost ka-icon-button"
-              aria-label="Refresh saved manuscript"
-              title="Refresh saved manuscript"
+              aria-label={t("export.exportWorkspace.refreshManuscript")}
+              title={t("export.exportWorkspace.refreshManuscript")}
               disabled={loading}
               aria-busy={loading || undefined}
               onclick={() => loadManuscript()}
@@ -1407,26 +1503,30 @@
         <div class="xw-desk">
           {#if loading}<div class="ka-empty od-stack empty-preview" role="status">
               <Loader2 class="w-7 h-7 animate-spin" aria-hidden="true" />
-              <h4>Gathering your manuscript…</h4>
+              <h4>{t("export.exportWorkspace.loadingManuscript")}</h4>
             </div>{:else if !selected.length}<div class="ka-empty od-stack empty-preview">
               <BookOpen class="w-7 h-7" aria-hidden="true" />
-              <h4>Nothing selected yet</h4>
-              <p>Choose a chapter with manuscript scenes to see it here.</p>
+              <h4>{t("export.exportWorkspace.nothingSelected")}</h4>
+              <p>{t("export.exportWorkspace.nothingSelectedHelp")}</p>
               <button
                 type="button"
                 class="ka-button ka-button--secondary"
                 onclick={() => {
                   section = "content";
                   narrowPane = "settings";
-                }}>Choose content <ArrowRight class="w-5 h-5" aria-hidden="true" /></button
+                }}
+                >{t("export.exportWorkspace.chooseContent")}
+                <ArrowRight class="w-5 h-5" aria-hidden="true" /></button
               >
             </div>{:else if (draft.format === "html" && previewMode === "source") || plain}<textarea
               class="source-preview"
               readonly
-              aria-label={plain ? "Generated manuscript text" : "Generated HTML source"}
+              aria-label={plain
+                ? t("export.exportWorkspace.generatedTextAria")
+                : t("export.exportWorkspace.generatedHtmlAria")}
               value={sourceText}
             ></textarea>{:else}<iframe
-              title="Export layout preview"
+              title={t("export.exportWorkspace.layoutPreviewTitle")}
               sandbox=""
               srcdoc={previewDocument}
               data-ready={previewLoaded === previewDocument}
@@ -1436,11 +1536,16 @@
         <footer class="xw-preview-foot">
           <span
             >{draft.format === "html"
-              ? "HTML output"
+              ? t("export.exportWorkspace.htmlOutput")
               : plain
-                ? "Text output"
-                : "Layout approximation"}</span
-          ><span>{wordCount.toLocaleString()} words · {countLabel(sceneCount, "scene")}</span>
+                ? t("export.exportWorkspace.textOutput")
+                : t("export.exportWorkspace.layoutApproximation")}</span
+          ><span
+            >{t("export.exportWorkspace.previewSummary", {
+              words: wordCount.toLocaleString(),
+              scenes: countLabel(sceneCount, "scene"),
+            })}</span
+          >
         </footer>
       {/if}
     </section>
@@ -1452,17 +1557,17 @@
           <TriangleAlert class="w-5 h-5" aria-hidden="true" />
           <div class="od-field od-fill xw-notice-body">
             <p>{error || storageError}</p>
-            {#if !loading && error.includes("load")}<button
+            {#if !loading && error.startsWith(t("export.exportWorkspace.loadFailed"))}<button
                 type="button"
                 class="ka-button ka-button--ghost"
-                onclick={() => loadManuscript()}>Retry</button
+                onclick={() => loadManuscript()}>{t("common.retry")}</button
               >{/if}
           </div>
         </div>{/if}
       {#if missingSelection}<div class="ka-notice ka-notice--error od-row-top" role="alert">
           <TriangleAlert class="w-5 h-5" aria-hidden="true" />
           <div class="od-field od-fill">
-            <p>Part of this saved selection is missing. Review Content before saving a preview.</p>
+            <p>{t("export.exportWorkspace.missingSelection")}</p>
           </div>
         </div>{/if}
       {#if message}<div class="ka-notice od-row-top" role="status">
@@ -1473,7 +1578,8 @@
                 type="button"
                 class="ka-button ka-button--ghost"
                 onclick={openSaved}
-                >Show in folder <ArrowRight class="w-5 h-5" aria-hidden="true" /></button
+                >{t("export.exportWorkspace.showInFolder")}
+                <ArrowRight class="w-5 h-5" aria-hidden="true" /></button
               >{/if}
           </div>
         </div>{/if}
@@ -1489,8 +1595,12 @@
   {/if}
   <footer class="xw-foot">
     <div class="ka-help xw-foot-note">
-      <div>{exchange ? "Whole project" : "Saved manuscript"} → {formatLabels[draft.format]}</div>
-      <div>Profiles and recovered drafts are local to this device.</div>
+      <div>
+        {exchange
+          ? t("export.exportWorkspace.wholeProject")
+          : t("export.exportWorkspace.footOriginSaved")} → {formatLabels[draft.format]}
+      </div>
+      <div>{t("export.exportWorkspace.footNote")}</div>
     </div>
     <div class="ka-row xw-foot-actions">
       {#if dirty}<button
@@ -1500,12 +1610,12 @@
           onclick={() => {
             if (savedProfile) draft = window.structuredClone($state.snapshot(savedProfile));
             contextSelection = null;
-          }}>Revert</button
+          }}>{t("export.exportWorkspace.revert")}</button
         >{/if}<button
         type="button"
         class="ka-button ka-button--secondary"
         disabled={saving || storageBlocked || !!validationError}
-        onclick={() => saveProfile()}>Save profile</button
+        onclick={() => saveProfile()}>{t("export.exportWorkspace.saveProfile")}</button
       ><button
         type="button"
         class="ka-button"
@@ -1518,13 +1628,17 @@
           !!validationError}
         aria-busy={saving || undefined}
         onclick={saveExport}
-        >{#if saving}<Loader2
-            class="w-5 h-5 animate-spin"
-            aria-hidden="true"
-          />Exporting…{:else}<Download
-            class="w-5 h-5"
-            aria-hidden="true"
-          />{`Export ${draft.format === "treatment" ? draft.treatmentFormat.toUpperCase() : draft.format === "longform" || draft.format === "novelwriter" ? "project" : outputExtension(draft).toUpperCase()}`}{/if}</button
+        >{#if saving}<Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />{t(
+            "export.exportWorkspace.exporting"
+          )}{:else}<Download class="w-5 h-5" aria-hidden="true" />{draft.format === "longform" ||
+          draft.format === "novelwriter"
+            ? t("export.exportWorkspace.exportProjectButton")
+            : t("export.exportWorkspace.exportButton", {
+                format:
+                  draft.format === "treatment"
+                    ? draft.treatmentFormat.toUpperCase()
+                    : outputExtension(draft).toUpperCase(),
+              })}{/if}</button
       >
     </div>
   </footer>

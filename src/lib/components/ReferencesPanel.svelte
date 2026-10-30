@@ -46,6 +46,7 @@
   import SuggestionCard from "./SuggestionCard.svelte";
   import TagSelector from "./TagSelector.svelte";
   import { safeProse } from "../utils/safeHtml";
+  import { t } from "../i18n";
 
   let { contextSceneId, embedded = false }: { contextSceneId?: string | null; embedded?: boolean } =
     $props();
@@ -192,7 +193,7 @@
             entityType,
           });
         } catch {
-          if (reportErrors) throw new Error("Could not load copied fields");
+          if (reportErrors) throw new Error(t("references.referencesPanel.copiedFieldsFailed"));
           defsMap[type] = [];
         }
       }
@@ -213,7 +214,8 @@
             vMap[v.entity_id][v.field_definition_id] = v.value;
           }
         } catch {
-          if (reportErrors) throw new Error("Could not load copied field values");
+          if (reportErrors)
+            throw new Error(t("references.referencesPanel.copiedFieldValuesFailed"));
         }
       }
 
@@ -230,9 +232,10 @@
             )?.[1] ?? "item";
           try {
             const tags = await invoke<Tag[]>("get_entity_tags", { entityType, entityId: id });
-            tagMap[id] = tags.map((t) => t.id);
+            tagMap[id] = tags.map((tag) => tag.id);
           } catch {
-            if (reportErrors) throw new Error("Could not load copied tag assignments");
+            if (reportErrors)
+              throw new Error(t("references.referencesPanel.copiedTagAssignmentsFailed"));
             tagMap[id] = [];
           }
         }
@@ -287,7 +290,8 @@
     } catch (e) {
       if (requestId !== sceneReferenceRequestId) return;
       console.error("Failed to load scene reference state:", e);
-      sceneReferenceError = e instanceof Error ? e.message : "Failed to load scene reference state";
+      sceneReferenceError =
+        e instanceof Error ? e.message : t("references.referencesPanel.loadSceneStateFailed");
       sceneReferenceStates = [];
       syncExpandedIdsFromState([]);
     } finally {
@@ -348,7 +352,7 @@
       suggestions = suggestions.filter((x) => x.reference_id !== s.reference_id);
     } catch (e) {
       console.error("Failed to dismiss suggestion:", e);
-      ui.showError(`Failed to dismiss suggestion: ${String(e)}`);
+      ui.showError(t("references.referencesPanel.dismissSuggestionFailed", { error: String(e) }));
     }
   }
 
@@ -391,7 +395,8 @@
       ui.bumpSceneReferenceRefresh();
     } catch (e) {
       console.error("Failed to save scene reference state:", e);
-      sceneReferenceError = e instanceof Error ? e.message : "Failed to save scene reference state";
+      sceneReferenceError =
+        e instanceof Error ? e.message : t("references.referencesPanel.saveSceneStateFailed");
     }
   }
 
@@ -529,6 +534,20 @@
     return REFERENCE_TYPE_OPTIONS.find((option) => option.id === type) ?? null;
   }
 
+  const REFERENCE_TYPE_KEYS: Record<ReferenceTypeId, string> = {
+    characters: "typeCharacters",
+    locations: "typeLocations",
+    items: "typeItems",
+    objectives: "typeObjectives",
+    organizations: "typeOrganizations",
+    timelines: "typeTimelines",
+    custom: "typeCustom",
+  };
+
+  function referenceTypeName(type: ReferenceTypeId | null): string {
+    return type ? t(`references.referencesPanel.${REFERENCE_TYPE_KEYS[type]}`) : "";
+  }
+
   function getReferencesForType(type: ReferenceTypeId) {
     return referencesByType[type] ?? [];
   }
@@ -620,7 +639,7 @@
       }
     } catch (e) {
       console.error("Failed to delete reference:", e);
-      ui.showError(`Failed to delete reference: ${e}`);
+      ui.showError(t("references.referencesPanel.deleteReferenceFailed", { error: String(e) }));
     } finally {
       deleteTarget = null;
     }
@@ -754,8 +773,17 @@
   async function moveReferenceOneStep(reference: ReferenceItem, step: -1 | 1) {
     const from = referenceOrder(reference.id);
     if (!from || !(await moveReference(reference.id, from.index + step))) return;
-    const direction = step < 0 ? "up" : "down";
-    moveAnnouncement = `Moved “${reference.name}” ${direction}, to position ${from.index + step + 1} of ${from.count}.`;
+    const direction = t(
+      step < 0
+        ? "references.referencesPanel.moveDirectionUp"
+        : "references.referencesPanel.moveDirectionDown"
+    );
+    moveAnnouncement = t("references.referencesPanel.movedAnnouncement", {
+      name: reference.name,
+      direction,
+      position: from.index + step + 1,
+      count: from.count,
+    });
   }
 
   // Resize handlers
@@ -834,7 +862,7 @@
         if (sceneId) loadSuggestions(sceneId);
       } catch (e) {
         console.error("Failed to detect all references:", e);
-        ui.showError(`Failed to detect references: ${String(e)}`);
+        ui.showError(t("references.referencesPanel.detectReferencesFailed", { error: String(e) }));
       }
     };
     window.addEventListener("kindling:detectReferences", handler);
@@ -850,7 +878,7 @@
   class="refs"
   class:is-collapsed={collapsed}
   class:is-embedded={embedded}
-  aria-label="References"
+  aria-label={t("references.referencesPanel.title")}
   style={embedded || collapsed ? undefined : `width: ${ui.referencesPanelWidth}px`}
 >
   <p class="ka-sr" role="status" aria-live="polite">{moveAnnouncement}</p>
@@ -860,8 +888,10 @@
         type="button"
         onclick={toggleReferencesPanel}
         class="ka-button ka-button--ghost ka-icon-button"
-        aria-label={`Expand references panel, ${referenceTypeOptions.reduce((n, o) => n + getReferenceCount(o.id), 0)} references`}
-        title="Expand references panel"
+        aria-label={t("references.referencesPanel.expandWithCount", {
+          count: referenceTypeOptions.reduce((n, o) => n + getReferenceCount(o.id), 0),
+        })}
+        title={t("references.referencesPanel.expandPanel")}
       >
         <PanelRightOpen class="w-5 h-5" aria-hidden="true" />
       </button>
@@ -878,7 +908,7 @@
         onkeydown={onResizeKeydown}
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize references panel"
+        aria-label={t("references.referencesPanel.resizePanel")}
         aria-valuenow={ui.referencesPanelWidth}
         aria-valuemin={ui.referencesPanelMinWidth}
         aria-valuemax={ui.referencesPanelMaxWidth}
@@ -887,15 +917,15 @@
     {/if}
     <!-- Header with tabs -->
     <div class="refs-head">
-      <h2>References</h2>
+      <h2>{t("references.referencesPanel.title")}</h2>
       <div class="refs-head-actions">
         <button
           type="button"
           onclick={() => (copyDestination = currentProject.value)}
           disabled={!currentProject.value || editDialog !== null}
           class="ka-button ka-button--ghost ka-icon-button"
-          aria-label="Copy references from project…"
-          title="Copy references from project…"
+          aria-label={t("references.referencesPanel.copyFromProject")}
+          title={t("references.referencesPanel.copyFromProject")}
         >
           <Copy class="w-5 h-5" aria-hidden="true" />
         </button>
@@ -904,11 +934,15 @@
           onclick={openCreateDialog}
           class="ka-button ka-button--ghost ka-icon-button"
           aria-label={activeTab
-            ? `Add ${getReferenceTypeOption(activeTab)?.label ?? "reference"}`
-            : "Add reference"}
+            ? t("references.referencesPanel.addReferenceOfType", {
+                type: referenceTypeName(activeTab),
+              })
+            : t("references.referencesPanel.addReference")}
           title={activeTab
-            ? `Add ${getReferenceTypeOption(activeTab)?.label ?? "reference"}`
-            : "Add reference"}
+            ? t("references.referencesPanel.addReferenceOfType", {
+                type: referenceTypeName(activeTab),
+              })
+            : t("references.referencesPanel.addReference")}
           data-testid="add-reference-button"
           disabled={!activeTab}
         >
@@ -918,8 +952,8 @@
           type="button"
           onclick={collapseAll}
           class="ka-button ka-button--ghost ka-icon-button"
-          aria-label="Collapse all"
-          title="Collapse all"
+          aria-label={t("references.referencesPanel.collapseAll")}
+          title={t("references.referencesPanel.collapseAll")}
         >
           <ListChevronsDownUp class="w-5 h-5" aria-hidden="true" />
         </button>
@@ -927,8 +961,8 @@
           type="button"
           onclick={sortAlphabetically}
           class="ka-button ka-button--ghost ka-icon-button"
-          aria-label="Sort alphabetically"
-          title="Sort A–Z"
+          aria-label={t("references.referencesPanel.sortAlphabetically")}
+          title={t("references.referencesPanel.sortAZ")}
         >
           <ArrowDownAZ class="w-5 h-5" aria-hidden="true" />
         </button>
@@ -937,8 +971,8 @@
             type="button"
             onclick={toggleReferencesPanel}
             class="ka-button ka-button--ghost ka-icon-button"
-            aria-label="Collapse references panel"
-            title="Collapse references panel"
+            aria-label={t("references.referencesPanel.collapsePanel")}
+            title={t("references.referencesPanel.collapsePanel")}
           >
             <PanelRightClose class="w-5 h-5" aria-hidden="true" />
           </button>
@@ -947,7 +981,11 @@
     </div>
 
     <!-- Tabs -->
-    <div class="ka-tablist refs-tabs" role="tablist" aria-label="Reference types">
+    <div
+      class="ka-tablist refs-tabs"
+      role="tablist"
+      aria-label={t("references.referencesPanel.referenceTypes")}
+    >
       {#each referenceTypeOptions as typeOption (typeOption.id)}
         <button
           type="button"
@@ -959,7 +997,9 @@
           onclick={() => (activeTab = typeOption.id)}
           onkeydown={onTabKeydown}
         >
-          {typeOption.label}<span class="refs-tab-count">{getReferenceCount(typeOption.id)}</span>
+          {referenceTypeName(typeOption.id)}<span class="refs-tab-count"
+            >{getReferenceCount(typeOption.id)}</span
+          >
         </button>
       {/each}
     </div>
@@ -981,7 +1021,9 @@
               aria-expanded={suggestionsOpen}
             >
               <ChevronRight class="w-4 h-4 refs-chev" aria-hidden="true" />
-              <h3 id="refs-suggested-title" class="refs-group-label">Suggested</h3>
+              <h3 id="refs-suggested-title" class="refs-group-label">
+                {t("references.referencesPanel.suggested")}
+              </h3>
               {#if suggestions.length > 0}
                 <span class="ka-badge">{suggestions.length}</span>
               {/if}
@@ -992,22 +1034,23 @@
                 onclick={linkAllSuggestions}
                 class="ka-button ka-button--ghost refs-group-action"
               >
-                Link all
+                {t("references.referencesPanel.linkAll")}
               </button>
               <button
                 type="button"
                 onclick={dismissAllSuggestions}
                 class="ka-button ka-button--ghost refs-group-action"
               >
-                Dismiss all
+                {t("references.referencesPanel.dismissAll")}
               </button>
             {/if}
           </div>
           {#if suggestionsOpen}
             {#if suggestionsLoading}
               <div class="ka-progress od-field refs-finding" role="status">
-                <span>Finding mentions…</span>
-                <progress aria-label="Finding mentions"></progress>
+                <span>{t("references.referencesPanel.findingMentions")}</span>
+                <progress aria-label={t("references.referencesPanel.findingMentionsLabel")}
+                ></progress>
               </div>
             {:else}
               <ul class="refs-list">
@@ -1029,39 +1072,54 @@
       <!-- Content -->
       {#if loading}
         <div class="ka-progress od-field refs-finding" role="status">
-          <span>Loading references…</span>
-          <progress aria-label="Loading references"></progress>
+          <span>{t("references.referencesPanel.loadingReferences")}</span>
+          <progress aria-label={t("references.referencesPanel.loadingReferencesLabel")}></progress>
         </div>
       {:else if !activeTab}
         <p class="ka-help refs-empty">
-          No reference types enabled. Enable them in Settings → Reference Types.
+          {t("references.referencesPanel.noTypesEnabled")}
         </p>
       {:else if activeItems.length === 0}
         <div class="ka-empty od-stack refs-empty-state">
-          <h4>No {activeTypeOption?.label.toLowerCase() ?? "references"} yet</h4>
+          <h4>
+            {t("references.referencesPanel.emptyNoType", {
+              type: activeTab
+                ? referenceTypeName(activeTab).toLowerCase()
+                : t("references.referencesPanel.typeFallback"),
+            })}
+          </h4>
           <p>
-            Add {activeTypeOption?.label.toLowerCase() ?? "references"} to keep track of who and what
-            appears in your story.
+            {t("references.referencesPanel.emptyHint", {
+              type: activeTab
+                ? referenceTypeName(activeTab).toLowerCase()
+                : t("references.referencesPanel.typeFallback"),
+            })}
           </p>
           <button type="button" class="ka-button" onclick={openCreateDialog}>
             <Plus class="w-5 h-5" aria-hidden="true" />
-            Add {activeTypeOption?.label.toLowerCase() ?? "reference"}
+            {t("references.referencesPanel.addReferenceOfType", {
+              type: activeTab
+                ? referenceTypeName(activeTab).toLowerCase()
+                : t("references.referencesPanel.typeFallbackSingular"),
+            })}
           </button>
         </div>
       {:else}
         <section class="refs-group">
           {#if referenceScene}
             <div class="refs-group-head">
-              <h3 class="refs-group-label refs-group-title">Linked to this scene</h3>
+              <h3 class="refs-group-label refs-group-title">
+                {t("references.referencesPanel.linkedToScene")}
+              </h3>
               {#if sceneReferenceLoading}
-                <span class="ka-help" role="status">Loading…</span>
+                <span class="ka-help" role="status">{t("references.referencesPanel.loading")}</span>
               {/if}
             </div>
             {#if sceneReferenceError}
               <p class="ka-error refs-empty" role="alert">{sceneReferenceError}</p>
             {:else if linkedItems.length === 0 && !sceneReferenceLoading}
               <p class="ka-help refs-empty">
-                No references linked to this scene yet. Link one below or accept a suggestion.
+                {t("references.referencesPanel.noLinked")}
               </p>
             {/if}
           {/if}
@@ -1078,7 +1136,9 @@
                   class:refs-group-divider={linkedItems.length > 0}
                   role="listitem"
                 >
-                  <h3 class="refs-group-label refs-group-title">All references</h3>
+                  <h3 class="refs-group-label refs-group-title">
+                    {t("references.referencesPanel.allReferences")}
+                  </h3>
                 </div>
               {/if}
               <div
@@ -1095,7 +1155,7 @@
                     class:is-disabled={!canDrag}
                     onmousedown={(e) => onDragHandleMouseDown(e, reference.id, canDrag)}
                     aria-hidden="true"
-                    title="Drag to reorder"
+                    title={t("references.referencesPanel.dragToReorder")}
                   >
                     <GripVertical class="w-4 h-4" aria-hidden="true" />
                   </div>
@@ -1127,16 +1187,22 @@
                       class:ka-button--ghost={isLinked}
                       class:ka-button--secondary={!isLinked}
                       aria-label={isLinked
-                        ? `Unlink ${reference.name} from this scene`
-                        : `Link ${reference.name} to this scene`}
-                      title={isLinked ? "Unlink from scene" : "Link to scene"}
+                        ? t("references.referencesPanel.unlinkFromSceneLabel", {
+                            name: reference.name,
+                          })
+                        : t("references.referencesPanel.linkToSceneLabel", {
+                            name: reference.name,
+                          })}
+                      title={isLinked
+                        ? t("references.referencesPanel.unlinkFromScene")
+                        : t("references.referencesPanel.linkToScene")}
                     >
                       {#if isLinked}
                         <Unlink class="w-4 h-4" aria-hidden="true" />
-                        Unlink
+                        {t("references.referencesPanel.unlink")}
                       {:else}
                         <Link2 class="w-4 h-4" aria-hidden="true" />
-                        Link
+                        {t("references.referencesPanel.link")}
                       {/if}
                     </button>
                   {/if}
@@ -1182,7 +1248,9 @@
                               <dt>{def.name}</dt>
                               <dd>
                                 {#if def.field_type === "checkbox"}
-                                  {fv === "true" ? "Yes" : "No"}
+                                  {fv === "true"
+                                    ? t("references.referencesPanel.yes")
+                                    : t("references.referencesPanel.no")}
                                 {:else if def.field_type === "multiselect" || def.field_type === "multi_select"}
                                   {(() => {
                                     try {
@@ -1211,7 +1279,7 @@
 
                     {#if currentProject.value}
                       <div class="refs-tags">
-                        <span class="refs-group-label">Tags</span>
+                        <span class="refs-group-label">{t("references.referencesPanel.tags")}</span>
                         <TagSelector
                           projectId={currentProject.value.id}
                           entityType={activeTypeOption
@@ -1226,7 +1294,7 @@
                     {/if}
 
                     {#if !reference.description && !notes && attributes.length === 0 && !hasFieldValues}
-                      <p class="ka-help">No additional details yet.</p>
+                      <p class="ka-help">{t("references.referencesPanel.noDetails")}</p>
                     {/if}
 
                     <div class="refs-detail-actions">
@@ -1237,39 +1305,43 @@
                           onclick={() => moveReferenceOneStep(reference, -1)}
                           disabled={!order || order.index === 0}
                           class="ka-button ka-button--ghost"
-                          aria-label="Move {reference.name} up"
+                          aria-label={t("references.referencesPanel.moveUpLabel", {
+                            name: reference.name,
+                          })}
                         >
                           <ArrowUp class="w-5 h-5" aria-hidden="true" />
-                          Move up
+                          {t("references.referencesPanel.moveUp")}
                         </button>
                         <button
                           type="button"
                           onclick={() => moveReferenceOneStep(reference, 1)}
                           disabled={!order || order.index === order.count - 1}
                           class="ka-button ka-button--ghost"
-                          aria-label="Move {reference.name} down"
+                          aria-label={t("references.referencesPanel.moveDownLabel", {
+                            name: reference.name,
+                          })}
                         >
                           <ArrowDown class="w-5 h-5" aria-hidden="true" />
-                          Move down
+                          {t("references.referencesPanel.moveDown")}
                         </button>
                       {/if}
                       <button
                         type="button"
                         onclick={() => openEditDialog(reference)}
                         class="ka-button ka-button--ghost"
-                        aria-label="Edit reference"
+                        aria-label={t("references.referencesPanel.editReference")}
                       >
                         <Pencil class="w-5 h-5" aria-hidden="true" />
-                        Edit
+                        {t("references.referencesPanel.edit")}
                       </button>
                       <button
                         type="button"
                         onclick={() => (deleteTarget = reference)}
                         class="ka-button ka-button--ghost refs-danger"
-                        aria-label="Delete reference"
+                        aria-label={t("references.referencesPanel.deleteReference")}
                       >
                         <Trash2 class="w-5 h-5" aria-hidden="true" />
-                        Delete
+                        {t("references.referencesPanel.delete")}
                       </button>
                     </div>
                   </div>
@@ -1295,9 +1367,9 @@
 
 {#if deleteTarget}
   <ConfirmDialog
-    title="Delete reference?"
-    message={`This will permanently delete "${deleteTarget.name}".`}
-    confirmLabel="Delete"
+    title={t("references.referencesPanel.deleteConfirmTitle")}
+    message={t("references.referencesPanel.deleteConfirmMessage", { name: deleteTarget.name })}
+    confirmLabel={t("references.referencesPanel.delete")}
     onConfirm={handleDeleteReference}
     onCancel={() => (deleteTarget = null)}
   />

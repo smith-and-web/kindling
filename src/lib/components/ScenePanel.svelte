@@ -50,6 +50,7 @@
   import SluglineInput from "./SluglineInput.svelte";
   import TagSelector from "./TagSelector.svelte";
   import Tooltip from "./Tooltip.svelte";
+  import { t } from "../i18n";
 
   let {
     onOpenEditorial,
@@ -72,7 +73,7 @@
     try {
       await prepareForSearch();
       if (proseSaves.draftsForRecovery(project.id).length)
-        throw new Error("Save or recover unsaved prose before opening Revisions.");
+        throw new Error(t("editor.scenePanel.revisionsUnsavedError"));
       if (currentProject.currentScene?.id !== scene.id) return;
       const anchor = window
         .getSelection()
@@ -183,22 +184,22 @@
   let allProjectTags = $state<Tag[]>([]);
 
   const sceneTypeOptions: { value: SceneType; label: string }[] = [
-    { value: "normal", label: "Normal" },
-    { value: "notes", label: "Notes" },
-    { value: "todo", label: "ToDo" },
-    { value: "unused", label: "Unused" },
+    { value: "normal", label: t("editor.scenePanel.sceneTypeNormal") },
+    { value: "notes", label: t("editor.scenePanel.sceneTypeNotes") },
+    { value: "todo", label: t("editor.scenePanel.sceneTypeTodo") },
+    { value: "unused", label: t("editor.scenePanel.sceneTypeUnused") },
   ];
 
   const sceneStatusOptions: { value: SceneStatus; label: string }[] = [
-    { value: "draft", label: "Draft" },
-    { value: "revised", label: "Revised" },
-    { value: "final", label: "Final" },
+    { value: "draft", label: t("editor.scenePanel.sceneStatusDraft") },
+    { value: "revised", label: t("editor.scenePanel.sceneStatusRevised") },
+    { value: "final", label: t("editor.scenePanel.sceneStatusFinal") },
   ];
 
   const planningStatusOptions: { value: PlanningStatus; label: string }[] = [
-    { value: "fixed", label: "Fixed" },
-    { value: "flexible", label: "Flexible" },
-    { value: "undefined", label: "Undefined" },
+    { value: "fixed", label: t("editor.scenePanel.planningFixed") },
+    { value: "flexible", label: t("editor.scenePanel.planningFlexible") },
+    { value: "undefined", label: t("editor.scenePanel.planningUndefined") },
   ];
 
   const sceneReferenceOptions = REFERENCE_TYPE_OPTIONS;
@@ -249,7 +250,8 @@
     } catch (e) {
       if (requestId !== sceneReferenceRequestId) return;
       console.error("Failed to load scene reference items:", e);
-      sceneReferenceError = e instanceof Error ? e.message : "Failed to load scene reference items";
+      sceneReferenceError =
+        e instanceof Error ? e.message : t("editor.scenePanel.referenceLoadError");
       sceneReferenceItems = {} as Record<ReferenceTypeId, ReferenceItem[]>;
     } finally {
       if (requestId === sceneReferenceRequestId) {
@@ -294,7 +296,7 @@
         scene_status: nextStatus,
       });
     } catch (e) {
-      metadataError = e instanceof Error ? e.message : "Failed to update scene metadata";
+      metadataError = e instanceof Error ? e.message : t("editor.scenePanel.metadataUpdateError");
     } finally {
       metadataSaving = false;
     }
@@ -323,7 +325,7 @@
       });
       currentProject.updateScene(scene.id, { planning_status: nextStatus });
     } catch (e) {
-      metadataError = e instanceof Error ? e.message : "Failed to update planning status";
+      metadataError = e instanceof Error ? e.message : t("editor.scenePanel.planningUpdateError");
     } finally {
       metadataSaving = false;
     }
@@ -345,7 +347,7 @@
         currentProject.updateScene(scene.id, { title: title.trim() });
       } catch (e) {
         console.error("Failed to rename scene:", e);
-        ui.showError(`Failed to rename scene: ${String(e)}`);
+        ui.showError(t("editor.scenePanel.renameSceneError", { error: String(e) }));
       }
     }, 400);
   }
@@ -516,7 +518,7 @@
       newDiscoveryNoteContent = "";
     } catch (e) {
       console.error("Failed to create discovery note:", e);
-      ui.showError(`Failed to add discovery note: ${String(e)}`);
+      ui.showError(t("editor.scenePanel.addNoteError", { error: String(e) }));
     } finally {
       creatingDiscoveryNote = false;
     }
@@ -534,7 +536,7 @@
       editingDiscoveryNoteContent = "";
     } catch (e) {
       console.error("Failed to update discovery note:", e);
-      ui.showError(`Failed to save discovery note: ${String(e)}`);
+      ui.showError(t("editor.scenePanel.saveNoteError", { error: String(e) }));
     }
   }
 
@@ -544,7 +546,7 @@
       discoveryNotes = discoveryNotes.filter((n) => n.id !== noteId);
     } catch (e) {
       console.error("Failed to delete discovery note:", e);
-      ui.showError(`Failed to delete discovery note: ${String(e)}`);
+      ui.showError(t("editor.scenePanel.deleteNoteError", { error: String(e) }));
     }
   }
 
@@ -557,7 +559,7 @@
       ui.setExpandedBeat(beat.id);
     } catch (e) {
       console.error("Failed to promote note to beat:", e);
-      ui.showError(`Failed to turn note into a beat: ${String(e)}`);
+      ui.showError(t("editor.scenePanel.promoteNoteError", { error: String(e) }));
     } finally {
       promotingNoteId = null;
     }
@@ -636,9 +638,7 @@
                 )
           )
       ) {
-        throw new Error(
-          "Save, recover, or discard unsaved prose in Find and Replace before switching editor modes."
-        );
+        throw new Error(t("editor.scenePanel.modeSwitchUnsavedError"));
       }
       if (currentProject.currentScene?.id !== scene.id || isLocked) return;
       beatViewRef?.flushOnSceneChange();
@@ -663,7 +663,7 @@
       }
     } catch (e) {
       console.error("Failed to switch editor mode:", e);
-      ui.showError(`Failed to switch editor mode: ${String(e)}`);
+      ui.showError(t("editor.scenePanel.modeSwitchError", { error: String(e) }));
     } finally {
       switchingMode = false;
     }
@@ -745,7 +745,7 @@
     const freshScene = scenes.find((s) => s.id === scene?.id);
     const beats = freshScene ? await invoke<Beat[]>("get_beats", { sceneId: freshScene.id }) : [];
     if (currentProject.value?.id !== projectId || currentProject.currentScene?.id !== scene?.id) {
-      throw new Error("The selected project or scene changed. Reopen Find and Replace.");
+      throw new Error(t("editor.scenePanel.sceneChangedError"));
     }
     await proseSaves.discard(drafts, () => draftView?.discardFailedDrafts(drafts));
     if (currentProject.value?.id !== projectId || currentProject.currentScene?.id !== scene?.id)
@@ -848,10 +848,16 @@
         class="ka-button ka-button--ghost"
       >
         <History class="w-5 h-5" aria-hidden="true" />
-        {openingRevisions ? "Opening revisions…" : "Revisions"}
+        {openingRevisions
+          ? t("editor.scenePanel.openingRevisions")
+          : t("editor.scenePanel.revisions")}
       </button>
       {#if planning === "fixed"}
-        <div class="ka-segment-track scene-view" role="group" aria-label="View">
+        <div
+          class="ka-segment-track scene-view"
+          role="group"
+          aria-label={t("editor.scenePanel.viewGroupLabel")}
+        >
           <button
             type="button"
             data-testid="view-beats"
@@ -860,10 +866,10 @@
             class="ka-segment"
             class:ka-selected={scene.editor_mode === "beat"}
             aria-pressed={scene.editor_mode === "beat"}
-            title="Beat cards"
+            title={t("editor.scenePanel.beatsTabTooltip")}
           >
             <List class="w-5 h-5" aria-hidden="true" />
-            Beats
+            {t("editor.scenePanel.beatsTab")}
           </button>
           <button
             type="button"
@@ -873,10 +879,10 @@
             class="ka-segment"
             class:ka-selected={scene.editor_mode === "page"}
             aria-pressed={scene.editor_mode === "page"}
-            title="Full page prose"
+            title={t("editor.scenePanel.pageTabTooltip")}
           >
             <FileText class="w-5 h-5" aria-hidden="true" />
-            Page
+            {t("editor.scenePanel.pageTab")}
           </button>
         </div>
       {/if}
@@ -888,15 +894,26 @@
         <header class="scene-header">
           <p class="scene-eyebrow">
             {#if sceneChapter}
-              <span>{isScreenplay ? "Sequence" : "Chapter"} · {sceneChapter.title}</span>
+              <span
+                >{t("editor.scenePanel.breadcrumb", {
+                  kind: isScreenplay
+                    ? t("editor.scenePanel.sequence")
+                    : t("editor.scenePanel.chapter"),
+                  name: sceneChapter.title,
+                })}</span
+              >
             {/if}
             {#if isScreenplay && scenePageEstimate !== null}
-              <span>~{scenePageEstimate.toFixed(1)} pages</span>
+              <span
+                >{t("editor.scenePanel.pageEstimate", {
+                  pages: scenePageEstimate.toFixed(1),
+                })}</span
+              >
             {/if}
             {#if isLocked}
               <span class="ka-badge ka-badge--warning scene-locked">
                 <Lock class="w-4 h-4" aria-hidden="true" />
-                Locked
+                {t("editor.scenePanel.locked")}
               </span>
             {/if}
           </p>
@@ -913,7 +930,7 @@
           {/if}
           <div class="scene-meta">
             <div class="ka-field od-field">
-              <label for="scene-type">Scene type</label>
+              <label for="scene-type">{t("editor.scenePanel.sceneTypeLabel")}</label>
               <select
                 id="scene-type"
                 value={scene.scene_type ?? "normal"}
@@ -926,7 +943,7 @@
               </select>
             </div>
             <div class="ka-field od-field">
-              <label for="scene-status">Status</label>
+              <label for="scene-status">{t("editor.scenePanel.statusLabel")}</label>
               <select
                 id="scene-status"
                 value={scene.scene_status ?? "draft"}
@@ -940,15 +957,12 @@
             </div>
             <div class="ka-field od-field">
               <span class="scene-label-tip">
-                <label for="planning-status">Planning</label>
-                <Tooltip
-                  text="Controls how much structure this scene has: Undefined → Flexible → Fixed"
-                  position="top"
-                >
+                <label for="planning-status">{t("editor.scenePanel.planningLabel")}</label>
+                <Tooltip text={t("editor.scenePanel.planningTooltip")} position="top">
                   <button
                     type="button"
                     class="scene-tip"
-                    aria-label="About planning"
+                    aria-label={t("editor.scenePanel.aboutPlanning")}
                     aria-describedby="planning-status-help"
                   >
                     <Info class="w-4 h-4" aria-hidden="true" />
@@ -967,7 +981,7 @@
                 {/each}
               </select>
               <span id="planning-status-help" class="ka-sr"
-                >Controls how much structure this scene has: Undefined, Flexible or Fixed.</span
+                >{t("editor.scenePanel.planningHelp")}</span
               >
             </div>
           </div>
@@ -978,7 +992,7 @@
           <!-- Scene tags -->
           {#if currentProject.value}
             <div class="scene-tags">
-              <span class="scene-tags-label">Tags</span>
+              <span class="scene-tags-label">{t("editor.scenePanel.tagsLabel")}</span>
               <TagSelector
                 projectId={currentProject.value.id}
                 entityType="scene"
@@ -996,33 +1010,40 @@
           <aside class="scene-guide" aria-labelledby="planning-guide-title">
             <div class="scene-guide-head">
               <Lightbulb class="w-5 h-5" aria-hidden="true" />
-              <h3 id="planning-guide-title">Rolling outline</h3>
+              <h3 id="planning-guide-title">{t("editor.scenePanel.rollingOutline")}</h3>
               <button
                 type="button"
                 onclick={() => ui.markTooltipSeen("planningStatus")}
                 class="ka-button ka-button--ghost ka-icon-button"
-                aria-label="Dismiss"
-                title="Dismiss"
+                aria-label={t("editor.scenePanel.dismiss")}
+                title={t("editor.scenePanel.dismiss")}
               >
                 <X class="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
             <p class="scene-guide-lede">
-              The <strong>Planning</strong> menu above controls how much structure this scene has. Use
-              it to work through your story gradually:
+              {t("editor.scenePanel.guideLedeBefore")}<strong
+                >{t("editor.scenePanel.guidePlanning")}</strong
+              >{t("editor.scenePanel.guideLedeAfter")}
             </p>
             <dl class="scene-guide-steps">
               <div>
-                <dt><CircleDashed class="w-4 h-4" aria-hidden="true" /> Undefined</dt>
-                <dd>A placeholder — you know it exists but haven’t planned it.</dd>
+                <dt>
+                  <CircleDashed class="w-4 h-4" aria-hidden="true" />
+                  {t("editor.scenePanel.planningUndefined")}
+                </dt>
+                <dd>{t("editor.scenePanel.guideUndefinedDesc")}</dd>
               </div>
               <div>
-                <dt><CircleDot class="w-4 h-4 is-warning" aria-hidden="true" /> Flexible</dt>
-                <dd>You have the gist — a synopsis and rough direction.</dd>
+                <dt>
+                  <CircleDot class="w-4 h-4 is-warning" aria-hidden="true" />
+                  {t("editor.scenePanel.planningFlexible")}
+                </dt>
+                <dd>{t("editor.scenePanel.guideFlexibleDesc")}</dd>
               </div>
               <div>
-                <dt>Fixed</dt>
-                <dd>Full structure with beats, references and notes.</dd>
+                <dt>{t("editor.scenePanel.planningFixed")}</dt>
+                <dd>{t("editor.scenePanel.guideFixedDesc")}</dd>
               </div>
             </dl>
           </aside>
@@ -1033,11 +1054,10 @@
           <section class="scene-planning" aria-labelledby="planning-undefined-title">
             <CircleDashed class="w-5 h-5 scene-planning-icon" aria-hidden="true" />
             <div class="scene-planning-body">
-              <h3 id="planning-undefined-title">Undefined scene</h3>
-              <p>This is a placeholder — you know it exists but haven’t planned it yet.</p>
+              <h3 id="planning-undefined-title">{t("editor.scenePanel.undefinedSceneTitle")}</h3>
+              <p>{t("editor.scenePanel.undefinedSceneBody")}</p>
               <p class="ka-help">
-                Add a synopsis below to capture the gist, then promote it when you’re ready to flesh
-                it out.
+                {t("editor.scenePanel.undefinedSceneHelp")}
               </p>
               {#if !isLocked}
                 <div class="scene-planning-actions">
@@ -1046,14 +1066,14 @@
                     onclick={() => setScenePlanningStatus(scene, "flexible")}
                     class="ka-button ka-button--secondary"
                   >
-                    Switch to Flexible
+                    {t("editor.scenePanel.switchToFlexible")}
                   </button>
                   <button
                     type="button"
                     onclick={() => setScenePlanningStatus(scene, "fixed")}
                     class="ka-button ka-button--ghost"
                   >
-                    Go straight to Fixed
+                    {t("editor.scenePanel.goStraightToFixed")}
                   </button>
                 </div>
               {/if}
@@ -1063,11 +1083,10 @@
           <section class="scene-planning" aria-labelledby="planning-flexible-title">
             <CircleDot class="w-5 h-5 scene-planning-icon is-warning" aria-hidden="true" />
             <div class="scene-planning-body">
-              <h3 id="planning-flexible-title">Flexible scene</h3>
-              <p>You have an idea for this scene but haven’t locked down the structure.</p>
+              <h3 id="planning-flexible-title">{t("editor.scenePanel.flexibleSceneTitle")}</h3>
+              <p>{t("editor.scenePanel.flexibleSceneBody")}</p>
               <p class="ka-help">
-                Use the synopsis to capture your intent. When you’re ready to break it into beats,
-                switch to Fixed.
+                {t("editor.scenePanel.flexibleSceneHelp")}
               </p>
               {#if !isLocked}
                 <div class="scene-planning-actions">
@@ -1076,7 +1095,7 @@
                     onclick={() => setScenePlanningStatus(scene, "fixed")}
                     class="ka-button ka-button--secondary"
                   >
-                    Define beats
+                    {t("editor.scenePanel.defineBeats")}
                   </button>
                 </div>
               {/if}
@@ -1089,12 +1108,12 @@
           <div class="ka-notice ka-notice--warning od-row-top scene-locked-notice" role="status">
             <Lock class="w-5 h-5 shrink-0" aria-hidden="true" />
             <div class="od-field od-fill">
-              <strong>This scene is locked</strong>
+              <strong>{t("editor.scenePanel.sceneLockedTitle")}</strong>
               <p>
                 {#if currentProject.currentChapter?.locked}
-                  The parent chapter is locked. Unlock the chapter to edit this scene.
+                  {t("editor.scenePanel.chapterLockedHelp")}
                 {:else}
-                  Unlock this scene from the sidebar to make changes.
+                  {t("editor.scenePanel.sceneLockedHelp")}
                 {/if}
               </p>
             </div>
@@ -1104,14 +1123,14 @@
         <!-- Synopsis (shown for all planning statuses) -->
         <section class="scene-section" aria-labelledby="synopsis-title">
           <div class="scene-section-head">
-            <h3 id="synopsis-title">Synopsis</h3>
+            <h3 id="synopsis-title">{t("editor.scenePanel.synopsisTitle")}</h3>
             {#if synopsis && !editingSynopsis && !isLocked}
               <button
                 type="button"
                 onclick={startEditingSynopsis}
                 class="ka-button ka-button--ghost ka-icon-button"
-                aria-label="Edit synopsis"
-                title="Edit synopsis"
+                aria-label={t("editor.scenePanel.editSynopsis")}
+                title={t("editor.scenePanel.editSynopsis")}
               >
                 <Pencil class="w-5 h-5" aria-hidden="true" />
               </button>
@@ -1119,10 +1138,12 @@
           </div>
           {#if editingSynopsis && !isLocked}
             <div class="ka-field od-field scene-synopsis-field">
-              <label for="scene-synopsis" class="ka-sr">Synopsis</label>
+              <label for="scene-synopsis" class="ka-sr"
+                >{t("editor.scenePanel.synopsisTitle")}</label
+              >
               <textarea
                 id="scene-synopsis"
-                placeholder="Write a brief synopsis for this scene…"
+                placeholder={t("editor.scenePanel.synopsisPlaceholder")}
                 bind:value={synopsisText}
                 oninput={(e) => handleSynopsisInput(e.currentTarget.value)}
                 aria-describedby="scene-synopsis-help"
@@ -1130,9 +1151,9 @@
               <p id="scene-synopsis-help" class="ka-help scene-synopsis-help">
                 {#if synopsisSave.saving}
                   <Loader2 class="w-4 h-4 animate-spin" aria-hidden="true" />
-                  Saving…
+                  {t("editor.scenePanel.saving")}
                 {:else}
-                  Press Escape to close. Changes are saved automatically.
+                  {t("editor.scenePanel.synopsisEditingHelp")}
                 {/if}
               </p>
             </div>
@@ -1145,26 +1166,30 @@
               class="ka-button ka-button--secondary"
             >
               <Plus class="w-5 h-5" aria-hidden="true" />
-              Add synopsis
+              {t("editor.scenePanel.addSynopsis")}
             </button>
           {:else}
             <p class="ka-help scene-quiet">
-              <Lock class="w-4 h-4" aria-hidden="true" /> Scene is locked
+              <Lock class="w-4 h-4" aria-hidden="true" />
+              {t("editor.scenePanel.sceneLockedShort")}
             </p>
           {/if}
           {#if synopsisSave.error}
             <div role="alert" class="ka-notice ka-notice--error scene-inline-notice">
-              <p>Synopsis not saved: {synopsisSave.error}. Your draft is kept for retry.</p>
+              <p>
+                {t("editor.scenePanel.synopsisSaveFailed", { error: synopsisSave.error ?? "" })}
+              </p>
               <button
                 type="button"
                 onclick={flushSynopsisSave}
                 disabled={synopsisSave.saving}
                 class="ka-button ka-button--secondary"
-                aria-label="Retry synopsis save">Retry saving</button
+                aria-label={t("editor.scenePanel.retrySynopsisSave")}
+                >{t("editor.scenePanel.retrySaving")}</button
               >
             </div>
           {:else if synopsisSave.draft && !synopsisSave.saving}
-            <p role="status" class="ka-help">Unsaved changes</p>
+            <p role="status" class="ka-help">{t("editor.scenePanel.unsavedChanges")}</p>
           {/if}
         </section>
 
@@ -1172,9 +1197,9 @@
         {#if planning === "fixed"}
           <section class="scene-section" aria-labelledby="scene-references-title">
             <div class="scene-section-head">
-              <h3 id="scene-references-title">References</h3>
+              <h3 id="scene-references-title">{t("editor.scenePanel.referencesTitle")}</h3>
               {#if sceneReferenceLoading}
-                <span class="ka-help" role="status">Loading…</span>
+                <span class="ka-help" role="status">{t("editor.scenePanel.loading")}</span>
               {/if}
             </div>
             {#if sceneReferenceError}
@@ -1202,7 +1227,7 @@
                 </dl>
               {:else if !sceneReferenceLoading}
                 <p class="ka-help">
-                  No references linked yet. Link them from the references panel.
+                  {t("editor.scenePanel.noReferences")}
                 </p>
               {/if}
             {/if}
@@ -1220,24 +1245,26 @@
               aria-controls="discovery-notes-body"
             >
               <ChevronRight class="w-5 h-5 scene-chev" aria-hidden="true" />
-              <h3 id="discovery-notes-title">Discovery notes</h3>
+              <h3 id="discovery-notes-title">{t("editor.scenePanel.discoveryNotesTitle")}</h3>
               <span class="scene-disclose-hint">
-                {discoveryNotesVisible ? "Hide" : "Show"}
+                {discoveryNotesVisible ? t("editor.scenePanel.hide") : t("editor.scenePanel.show")}
                 <kbd>{shortcuts.label("toggle_discovery_notes")}</kbd>
               </span>
             </button>
             {#if discoveryNotesVisible}
               <div id="discovery-notes-body" class="scene-notes">
                 {#if discoveryNotesLoading}
-                  <p class="ka-help" role="status">Loading…</p>
+                  <p class="ka-help" role="status">{t("editor.scenePanel.loading")}</p>
                 {:else}
                   {#if addingDiscoveryNote}
                     <div class="ka-field od-field scene-note-form">
-                      <label for="new-discovery-note" class="ka-sr">New discovery note</label>
+                      <label for="new-discovery-note" class="ka-sr"
+                        >{t("editor.scenePanel.newNoteLabel")}</label
+                      >
                       <textarea
                         id="new-discovery-note"
                         bind:value={newDiscoveryNoteContent}
-                        placeholder="What did you discover?"
+                        placeholder={t("editor.scenePanel.newNotePlaceholder")}
                         rows="3"
                       ></textarea>
                       <div class="ka-row">
@@ -1248,7 +1275,9 @@
                           aria-busy={creatingDiscoveryNote || undefined}
                           class="ka-button"
                         >
-                          {creatingDiscoveryNote ? "Adding…" : "Add note"}
+                          {creatingDiscoveryNote
+                            ? t("editor.scenePanel.addingNote")
+                            : t("editor.scenePanel.addNote")}
                         </button>
                         <button
                           type="button"
@@ -1258,7 +1287,7 @@
                           }}
                           class="ka-button ka-button--ghost"
                         >
-                          Cancel
+                          {t("editor.scenePanel.cancel")}
                         </button>
                       </div>
                     </div>
@@ -1271,7 +1300,7 @@
                           {#if isEditing}
                             <div class="ka-field od-field">
                               <label for={`note-${note.id}`} class="ka-sr"
-                                >Edit discovery note</label
+                                >{t("editor.scenePanel.editNoteLabel")}</label
                               >
                               <textarea
                                 id={`note-${note.id}`}
@@ -1286,7 +1315,7 @@
                                   updateDiscoveryNote(note.id, editingDiscoveryNoteContent)}
                                 class="ka-button"
                               >
-                                Save
+                                {t("editor.scenePanel.save")}
                               </button>
                               <button
                                 type="button"
@@ -1296,7 +1325,7 @@
                                 }}
                                 class="ka-button ka-button--ghost"
                               >
-                                Cancel
+                                {t("editor.scenePanel.cancel")}
                               </button>
                             </div>
                           {:else}
@@ -1317,7 +1346,7 @@
                                 }}
                                 class="ka-button ka-button--ghost"
                               >
-                                Edit
+                                {t("editor.scenePanel.edit")}
                               </button>
                               <button
                                 type="button"
@@ -1326,14 +1355,16 @@
                                 aria-busy={promotingNoteId === note.id || undefined}
                                 class="ka-button ka-button--ghost"
                               >
-                                {promotingNoteId === note.id ? "Promoting…" : "Promote to beat"}
+                                {promotingNoteId === note.id
+                                  ? t("editor.scenePanel.promoting")
+                                  : t("editor.scenePanel.promoteToBeat")}
                               </button>
                               <button
                                 type="button"
                                 onclick={() => deleteDiscoveryNote(note.id)}
                                 class="ka-button ka-button--ghost scene-danger"
                               >
-                                Delete
+                                {t("editor.scenePanel.delete")}
                               </button>
                             </div>
                           {/if}
@@ -1342,8 +1373,7 @@
                     </ul>
                   {:else if !addingDiscoveryNote}
                     <p class="ka-help">
-                      No discovery notes yet. Capture what you find while drafting — notes are not
-                      part of the manuscript.
+                      {t("editor.scenePanel.noNotes")}
                     </p>
                   {/if}
                   {#if !addingDiscoveryNote && !isLocked}
@@ -1353,7 +1383,7 @@
                       class="ka-button ka-button--secondary scene-add-note"
                     >
                       <Plus class="w-5 h-5" aria-hidden="true" />
-                      Add note
+                      {t("editor.scenePanel.addNote")}
                     </button>
                   {/if}
                 {/if}
@@ -1394,7 +1424,7 @@
         {#if planning === "fixed" && scene.editor_mode !== "page" && scene.prose && currentProject.beats.length === 0}
           <section class="scene-section" aria-labelledby="scene-content-title">
             <div class="scene-section-head">
-              <h3 id="scene-content-title">Content</h3>
+              <h3 id="scene-content-title">{t("editor.scenePanel.contentTitle")}</h3>
             </div>
             <div class="app-prose-sheet scene-content-sheet">
               <p>{scene.prose}</p>
@@ -1408,8 +1438,8 @@
     <div data-testid="empty-state" class="scene-empty">
       <div class="ka-empty od-stack">
         <FileText class="w-7 h-7" aria-hidden="true" />
-        <h2>Select a scene to start writing</h2>
-        <p>Choose a scene from the sidebar to view its content.</p>
+        <h2>{t("editor.scenePanel.emptyTitle")}</h2>
+        <p>{t("editor.scenePanel.emptyBody")}</p>
       </div>
     </div>
   {/if}
@@ -1420,9 +1450,9 @@
 
 {#if showSwitchToBeatConfirm}
   <ConfirmDialog
-    title="Switch to Beat View"
-    message="Any changes made in Page View will be synced back to the corresponding beats. Continue?"
-    confirmLabel="Switch"
+    title={t("editor.scenePanel.switchToBeatTitle")}
+    message={t("editor.scenePanel.switchToBeatMessage")}
+    confirmLabel={t("editor.scenePanel.switchConfirm")}
     onConfirm={() => {
       showSwitchToBeatConfirm = false;
       doSwitchMode("beat");

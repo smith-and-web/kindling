@@ -62,6 +62,7 @@
     type EditorialChange,
     type FeedbackEntry,
   } from "../utils/editorial";
+  import { t } from "../i18n";
 
   let {
     prepareWriting,
@@ -95,7 +96,7 @@
   let exportSources = $state<EditorialSource[]>([]),
     rounds = $state<EditorialRound[]>([]);
   let projectId = $state(""),
-    roundName = $state("Editorial pass"),
+    roundName = $state(t("editorial.editorialWorkspace.defaultRoundName")),
     brief = $state("");
   let exportScope = $state("all");
   let menuPosition = $state<{ x: number; y: number } | null>(null);
@@ -108,14 +109,14 @@
     ...(local
       ? [
           {
-            label: "Draft history",
+            label: t("editorial.editorialWorkspace.menuDraftHistory"),
             icon: History,
             action: async () => {
               if (!session || (await reviewDecisions())) showHistory = true;
             },
           },
           {
-            label: "Start suggestions from current prose",
+            label: t("editorial.editorialWorkspace.menuStartSuggestions"),
             icon: RotateCcw,
             action: async () => {
               await suggest(true);
@@ -123,7 +124,7 @@
           },
           { label: "", divider: true, action: () => {} },
           {
-            label: "Review packages and rounds…",
+            label: t("editorial.editorialWorkspace.menuReviewPackages"),
             icon: FileOutput,
             action: () => openProject(projectId),
           },
@@ -132,15 +133,23 @@
     ...(session
       ? [
           {
-            label: "Export feedback",
+            label: t("editorial.editorialWorkspace.menuExportFeedback"),
             icon: FileOutput,
             disabled: !session.name.trim() || busy,
             action: () => returnFeedback(),
           },
-          { label: "Export recovery copy", icon: Download, action: () => returnFeedback(true) },
+          {
+            label: t("editorial.editorialWorkspace.exportRecoveryCopy"),
+            icon: Download,
+            action: () => returnFeedback(true),
+          },
         ]
       : []),
-    { label: "Open review or feedback file…", icon: FolderOpen, action: () => openFile() },
+    {
+      label: t("editorial.editorialWorkspace.openReviewFile"),
+      icon: FolderOpen,
+      action: () => openFile(),
+    },
   ]);
   function dismissManuscriptMenu(event: MouseEvent) {
     if (!menuPosition || !(event.target instanceof Element)) return;
@@ -155,7 +164,7 @@
   let reanchorReady = $state(false);
   let selectedId = $state<string | null>(null);
   let commentText = $state(""),
-    writerName = $state("Writer");
+    writerName = $state(t("editorial.editorialWorkspace.defaultWriterName"));
   let showComment = $state(false),
     markup = $state(false),
     filter = $state("open");
@@ -172,7 +181,7 @@
     searchIndex = $state(0),
     searchCount = $state(0);
   let manuscriptVersion = $state(0);
-  let savedState = $state("Saved locally");
+  let savedState = $state(t("editorial.editorialWorkspace.savedLocally"));
   let saves: EditorialSaves | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const incoming: string[] = [];
@@ -224,11 +233,11 @@
   // Why the primary export is unavailable, shown under it (never a bare disabled button).
   const exportBlocked = $derived(
     !exportSources.length
-      ? "This project has no scenes to include yet."
+      ? t("editorial.editorialWorkspace.exportBlockedNoScenes")
       : !roundName.trim()
-        ? "Name the review round to export it."
+        ? t("editorial.editorialWorkspace.exportBlockedNoName")
         : exportScope === "selected" && !selectedChapters.length
-          ? "Choose at least one chapter."
+          ? t("editorial.editorialWorkspace.exportBlockedNoChapters")
           : ""
   );
   let exporting = $state(false);
@@ -269,8 +278,12 @@
       id: a.key,
       kind: a.change.kind,
       state: a.annotation.state,
-      author: a.annotation.messages[0]?.author || "Writer",
-      excerpt: a.annotation.quote || a.annotation.replacement || "General feedback",
+      author:
+        a.annotation.messages[0]?.author || t("editorial.editorialWorkspace.defaultWriterName"),
+      excerpt:
+        a.annotation.quote ||
+        a.annotation.replacement ||
+        t("editorial.editorialWorkspace.generalFeedback"),
       messages: a.change.messages,
       before: a.annotation.quote
         ? sliceHtml(
@@ -328,8 +341,8 @@
       id: `inactive:${review.scene_id}:${a.id}`,
       kind: a.replacement === null ? ("comment" as const) : ("suggestion" as const),
       state: a.state,
-      author: a.messages[0]?.author || "Writer",
-      excerpt: a.quote || a.replacement || "General feedback",
+      author: a.messages[0]?.author || t("editorial.editorialWorkspace.defaultWriterName"),
+      excerpt: a.quote || a.replacement || t("editorial.editorialWorkspace.generalFeedback"),
       messages: a.messages.map((m, i) => ({ ...m, id: `${a.id}:${i}` })),
       before: a.quote
         ? sliceHtml(new Slice(Fragment.from(editorialSchema.text(a.quote)), 0, 0).toJSON())
@@ -337,7 +350,19 @@
       after: a.replacement
         ? sliceHtml(new Slice(Fragment.from(editorialSchema.text(a.replacement)), 0, 0).toJSON())
         : "",
-      unavailable: `Saved on inactive ${review.mode === "page" ? "beat" : "page"} prose in “${sources.find((s) => s.scene_id === review.scene_id)?.scene || "this scene"}”. Return to Writing and switch that scene to ${review.mode === "page" ? "Beat" : "Page"} mode to act on this feedback.`,
+      unavailable: t("editorial.editorialWorkspace.unavailableInactive", {
+        mode:
+          review.mode === "page"
+            ? t("editorial.editorialWorkspace.modeBeatLower")
+            : t("editorial.editorialWorkspace.modePageLower"),
+        scene:
+          sources.find((s) => s.scene_id === review.scene_id)?.scene ||
+          t("editorial.editorialWorkspace.thisScene"),
+        target:
+          review.mode === "page"
+            ? t("editorial.editorialWorkspace.modeBeat")
+            : t("editorial.editorialWorkspace.modePage"),
+      }),
     })),
   ]);
   function stepAnnotation(direction: number) {
@@ -450,7 +475,9 @@
       selectedId = null;
       resetSearch();
       showComment = false;
-      writerName = localStorage.getItem("kindling.editorial.name") || "Writer";
+      writerName =
+        localStorage.getItem("kindling.editorial.name") ||
+        t("editorial.editorialWorkspace.defaultWriterName");
       manuscriptVersion++;
       await show();
       await tick();
@@ -528,14 +555,14 @@
     const old = legacy.find((a) => a.key === id);
     if (!old) return;
     await action(async () => {
-      if (old.locked) throw new Error("Unlock this scene before changing its review.");
+      if (old.locked) throw new Error(t("editorial.editorialWorkspace.sceneLockedReview"));
       const expected = $state.snapshot(old.review);
       let data = window.structuredClone(expected.data);
       let next = null;
       if (reanchor) {
         const range = localSelection(sources, selection.from, selection.to);
         if (range.source.scene_id !== old.review.scene_id)
-          throw new Error("Select a passage in the original scene.");
+          throw new Error(t("editorial.editorialWorkspace.selectOriginalScene"));
         Object.assign(data.annotations.find((a) => a.id === old.annotation.id)!, {
           document_id: range.source.id,
           anchor_html: range.source.html,
@@ -574,7 +601,7 @@
     return action(async () => {
       const old = legacy.find((a) => a.key === id);
       if (old) {
-        if (old.locked) throw new Error("Unlock this scene before changing its review.");
+        if (old.locked) throw new Error(t("editorial.editorialWorkspace.sceneLockedReview"));
         const expected = $state.snapshot(old.review);
         const data = window.structuredClone(expected.data);
         data.annotations
@@ -584,7 +611,7 @@
         await loadLocalScenes();
       } else if (session) {
         const change = session.changes.find((c) => c.id === id);
-        if (!change) throw new Error("This conversation is no longer available.");
+        if (!change) throw new Error(t("editorial.editorialWorkspace.conversationUnavailable"));
         change.messages.push(message(session.name, text));
         stage();
       } else if (feedback) {
@@ -623,7 +650,7 @@
           (filter === "all" || filter === "open")
       );
       if (targets.some((a) => a.locked))
-        throw new Error("Unlock the selected scenes before deciding on their suggestions.");
+        throw new Error(t("editorial.editorialWorkspace.scenesLockedBulk"));
       const updates = [...new Set(targets.map((a) => a.review.scene_id))].map((id) => {
         const expected = $state.snapshot(sceneReviews.find((r) => r.scene_id === id)!);
         const ids = targets.filter((a) => a.review.scene_id === id).map((a) => a.annotation.id);
@@ -708,9 +735,9 @@
               session: committed,
             },
           });
-        savedState = "Saved locally";
+        savedState = t("editorial.editorialWorkspace.savedLocally");
       } catch (e) {
-        savedState = "Not saved — retry or export a recovery copy";
+        savedState = t("editorial.editorialWorkspace.notSaved");
         error = String(e);
         throw e;
       }
@@ -720,9 +747,9 @@
     if (!saves || !session) return;
     try {
       saves.stage($state.snapshot(session));
-      savedState = "Saving…";
+      savedState = t("editorial.editorialWorkspace.saving");
     } catch (e) {
-      error = `Recovery journal: ${String(e)}. Keep this window open until saving succeeds.`;
+      error = t("editorial.editorialWorkspace.recoveryJournalError", { error: String(e) });
     }
     clearTimeout(timer);
     timer = setTimeout(() => {
@@ -799,11 +826,11 @@
       const selected =
         path ??
         (await open({
-          title: "Open a kindling review or feedback file",
+          title: t("editorial.editorialWorkspace.openFileTitle"),
           multiple: false,
           filters: [
             {
-              name: "kindling editorial files",
+              name: t("editorial.editorialWorkspace.openFileFilter"),
               extensions: ["kindling-review", "kindling-feedback"],
             },
           ],
@@ -913,9 +940,14 @@
   async function exportPackage() {
     await action(async () => {
       const path = await save({
-        title: "Export for editorial review",
+        title: t("editorial.editorialWorkspace.exportPackageTitle"),
         defaultPath: `${roundName}.kindling-review`,
-        filters: [{ name: "kindling review", extensions: ["kindling-review"] }],
+        filters: [
+          {
+            name: t("editorial.editorialWorkspace.exportPackageFilter"),
+            extensions: ["kindling-review"],
+          },
+        ],
       });
       if (!path) return;
       const created = await invoke<EditorialRound>("export_editorial_review", {
@@ -926,7 +958,7 @@
         path,
       });
       rounds = [created, ...rounds];
-      notice = `Review package saved to ${path}. Give this file to your editor.`;
+      notice = t("editorial.editorialWorkspace.reviewPackageSaved", { path });
     });
   }
 
@@ -991,7 +1023,7 @@
         if (lockSources.some((s) => s.id === node.attrs.source && s.locked)) locked = true;
       });
       if (locked) {
-        error = "Unlock this scene before adding feedback.";
+        error = t("editorial.editorialWorkspace.sceneLockedFeedback");
         return;
       }
     }
@@ -1063,11 +1095,15 @@
       if (!round || !session) return;
       if (!recovery) await flush();
       const path = await save({
-        title: recovery ? "Export recovery copy" : "Return editorial feedback",
+        title: recovery
+          ? t("editorial.editorialWorkspace.exportRecoveryCopy")
+          : t("editorial.editorialWorkspace.returnFeedbackTitle"),
         defaultPath: `${round.title} — ${round.name} — ${session.name || "review"}${recovery ? " — recovery.kindling-review" : ".kindling-feedback"}`,
         filters: [
           {
-            name: recovery ? "kindling recovery review" : "kindling feedback",
+            name: recovery
+              ? t("editorial.editorialWorkspace.recoveryFilter")
+              : t("editorial.editorialWorkspace.feedbackFilter"),
             extensions: [recovery ? "kindling-review" : "kindling-feedback"],
           },
         ],
@@ -1082,10 +1118,10 @@
         path,
       });
       if (recovery) {
-        notice = `Recovery review saved to ${path}. Open it in kindling to resume your work, then export feedback normally.`;
+        notice = t("editorial.editorialWorkspace.recoverySaved", { path });
         return;
       }
-      notice = `Feedback saved to ${path}. Return this file to the writer. You can continue reviewing and export another response later.`;
+      notice = t("editorial.editorialWorkspace.feedbackSaved", { path });
     });
   }
   async function sendWriterReply() {
@@ -1095,13 +1131,18 @@
       const reviewer = reviewers.find((r) => r.id === reviewerId);
       if (!reviewer) return;
       const path = await save({
-        title: "Send replies and decisions to your editor",
+        title: t("editorial.editorialWorkspace.sendReplyTitle"),
         defaultPath: `${round!.title} — ${round!.name} — reply to ${reviewer.name}.kindling-review`,
-        filters: [{ name: "kindling review response", extensions: ["kindling-review"] }],
+        filters: [
+          {
+            name: t("editorial.editorialWorkspace.sendReplyFilter"),
+            extensions: ["kindling-review"],
+          },
+        ],
       });
       if (!path) return;
       await invoke("export_editorial_reply", { roundId: feedback.round.id, reviewerId, path });
-      notice = `Response saved to ${path}. Your editor opens it to receive your replies and decisions while keeping their ongoing review.`;
+      notice = t("editorial.editorialWorkspace.replySaved", { path });
     });
   }
   async function importFeedback() {
@@ -1112,7 +1153,7 @@
       screen = "feedback";
       manuscriptVersion++;
       selectedId = null;
-      notice = "Feedback imported. Your manuscript has not changed. Review the suggestions below.";
+      notice = t("editorial.editorialWorkspace.feedbackImported");
       await tick();
       focusSceneAt(1);
     });
@@ -1180,8 +1221,8 @@
       await onManuscriptChanged();
       notice =
         decision === "accepted"
-          ? "Changes accepted. Previous prose is preserved in scene draft history."
-          : "Review decision saved.";
+          ? t("editorial.editorialWorkspace.changesAccepted")
+          : t("editorial.editorialWorkspace.decisionSaved");
     });
   }
   function closeSearch() {
@@ -1256,7 +1297,7 @@
   class="editorial-workspace"
   class:active
   hidden={!active}
-  aria-label="Editorial workspace"
+  aria-label={t("editorial.editorialWorkspace.workspaceAria")}
   tabindex="-1"
   onkeydown={(e) => {
     if (e.key === "Escape" && menuPosition) {
@@ -1272,11 +1313,15 @@
       type="button"
       class="ka-button ka-button--ghost ka-icon-button"
       aria-label={packageReturn
-        ? "Return to revisions"
+        ? t("editorial.editorialWorkspace.returnToRevisions")
         : local
-          ? "Return to writing"
-          : "Close review"}
-      title={packageReturn ? "Return to revisions" : local ? "Return to writing" : "Close review"}
+          ? t("editorial.editorialWorkspace.returnToWriting")
+          : t("editorial.editorialWorkspace.closeReview")}
+      title={packageReturn
+        ? t("editorial.editorialWorkspace.returnToRevisions")
+        : local
+          ? t("editorial.editorialWorkspace.returnToWriting")
+          : t("editorial.editorialWorkspace.closeReview")}
       disabled={busy}
       onclick={back}><ArrowLeft class="w-5 h-5" aria-hidden="true" /></button
     >
@@ -1286,14 +1331,16 @@
       {/if}
       <h1>
         {screen === "export"
-          ? "Review packages"
-          : focusedSource?.scene || round?.title || "Editorial review"}
+          ? t("editorial.editorialWorkspace.reviewPackagesHeading")
+          : focusedSource?.scene ||
+            round?.title ||
+            t("editorial.editorialWorkspace.editorialReviewFallback")}
       </h1>
     </div>
     <div class="workspace-actions">
       {#if local && focusedReview && screen !== "export"}<div class="ka-field bar-field">
           <select
-            aria-label="Revision status"
+            aria-label={t("editorial.editorialWorkspace.revisionStatus")}
             disabled={busy || focusedSource?.locked}
             value={focusedReview.data.status}
             onchange={(e) => setLocalStatus(e.currentTarget.value)}
@@ -1306,7 +1353,7 @@
       {#if screen === "review" || screen === "feedback"}
         {#if local}<div class="ka-field bar-field">
             <select
-              aria-label="Editor mode"
+              aria-label={t("editorial.editorialWorkspace.editorMode")}
               value={screen}
               disabled={busy}
               onchange={(e) => {
@@ -1314,25 +1361,29 @@
                 else if (e.currentTarget.value === "writing") void close();
                 else void reviewDecisions();
               }}
-              ><option value="writing">Writing</option><option value="feedback">Reviewing</option
-              ><option value="review">Suggesting</option></select
+              ><option value="writing">{t("editorial.editorialWorkspace.modeWriting")}</option
+              ><option value="feedback">{t("editorial.editorialWorkspace.modeReviewing")}</option
+              ><option value="review">{t("editorial.editorialWorkspace.modeSuggesting")}</option
+              ></select
             >
           </div>{:else}<span class="ka-badge mode"
-            >{session ? "Suggesting" : "Reviewing feedback"}</span
+            >{session
+              ? t("editorial.editorialWorkspace.modeSuggesting")
+              : t("editorial.editorialWorkspace.reviewingFeedback")}</span
           >{/if}
         <button
           type="button"
           class="ka-button ka-button--ghost ka-icon-button"
-          title="Find in manuscript"
-          aria-label="Find in manuscript"
+          title={t("editorial.editorialWorkspace.findInManuscript")}
+          aria-label={t("editorial.editorialWorkspace.findInManuscript")}
           onclick={focusSearch}><Search class="w-5 h-5" aria-hidden="true" /></button
         >
         <button
           type="button"
           bind:this={menuTrigger}
           class="ka-button ka-button--ghost ka-icon-button"
-          aria-label="Manuscript actions"
-          title="Manuscript actions"
+          aria-label={t("editorial.editorialWorkspace.manuscriptActions")}
+          title={t("editorial.editorialWorkspace.manuscriptActions")}
           aria-haspopup="menu"
           aria-expanded={!!menuPosition}
           onclick={(event) => {
@@ -1362,11 +1413,13 @@
             <button
               type="button"
               class="ka-button ka-button--secondary"
-              onclick={() => flush().catch(() => {})}>Retry saving</button
+              onclick={() => flush().catch(() => {})}
+              >{t("editorial.editorialWorkspace.retrySaving")}</button
             ><button
               type="button"
               class="ka-button ka-button--ghost"
-              onclick={() => returnFeedback(true)}>Export recovery copy</button
+              onclick={() => returnFeedback(true)}
+              >{t("editorial.editorialWorkspace.exportRecoveryCopy")}</button
             >
           </div>{/if}
       </div>
@@ -1380,45 +1433,46 @@
       <div class="package-layout">
         <section class="package-form" aria-labelledby="package-title">
           <div class="package-intro">
-            <h2 id="package-title">Send a manuscript for review</h2>
+            <h2 id="package-title">{t("editorial.editorialWorkspace.packageTitle")}</h2>
             <p class="package-description">
-              Create a file your editor can open in kindling. They can read, suggest edits, and
-              return their feedback without an account.
+              {t("editorial.editorialWorkspace.packageDescription")}
             </p>
           </div>
           <div class="ka-field od-field">
-            <label for="editorial-round-name">Review round</label>
+            <label for="editorial-round-name">{t("editorial.editorialWorkspace.reviewRound")}</label
+            >
             <input
               id="editorial-round-name"
               bind:value={roundName}
-              placeholder="Developmental edit — September"
+              placeholder={t("editorial.editorialWorkspace.reviewRoundPlaceholder")}
               aria-invalid={!roundName.trim() || undefined}
               aria-describedby={!roundName.trim() ? "editorial-round-name-error" : undefined}
             />
             {#if !roundName.trim()}<p class="ka-error" id="editorial-round-name-error">
-                Enter a name for this review round.
+                {t("editorial.editorialWorkspace.reviewRoundRequired")}
               </p>{/if}
           </div>
           <div class="ka-field od-field">
             <label for="editorial-brief"
-              >Brief for your editor <span class="ka-optional">(optional)</span></label
+              >{t("editorial.editorialWorkspace.briefLabel")}
+              <span class="ka-optional">{t("editorial.editorialWorkspace.optional")}</span></label
             >
             <textarea
               id="editorial-brief"
               bind:value={brief}
-              placeholder="What would you like your editor to focus on?"
+              placeholder={t("editorial.editorialWorkspace.briefPlaceholder")}
               rows="4"
             ></textarea>
           </div>
           <fieldset class="package-scope">
-            <legend>Manuscript to include</legend>
+            <legend>{t("editorial.editorialWorkspace.manuscriptToInclude")}</legend>
             <label class="ka-check"
               ><input
                 type="radio"
                 name="editorial-package-scope"
                 bind:group={exportScope}
                 value="all"
-              />Entire manuscript</label
+              />{t("editorial.editorialWorkspace.entireManuscript")}</label
             >
             <label class="ka-check"
               ><input
@@ -1426,7 +1480,7 @@
                 name="editorial-package-scope"
                 bind:group={exportScope}
                 value="selected"
-              />Selected chapters</label
+              />{t("editorial.editorialWorkspace.selectedChapters")}</label
             >
             {#if exportScope === "selected"}
               <div class="chapter-choices">
@@ -1455,34 +1509,38 @@
                     class="w-5 h-5 animate-spin"
                     aria-hidden="true"
                   />{:else}<Download class="w-5 h-5" aria-hidden="true" />{/if}{exporting
-                  ? "Exporting package…"
-                  : "Export review package"}</button
+                  ? t("editorial.editorialWorkspace.exportingPackage")
+                  : t("editorial.editorialWorkspace.exportReviewPackage")}</button
               >
             </div>
             {#if exportBlocked}<p class="ka-help" id="editorial-export-blocked">
                 {exportBlocked}
               </p>{/if}
-            <p class="ka-help">Save the file, then share it with your editor.</p>
+            <p class="ka-help">{t("editorial.editorialWorkspace.exportShareHelp")}</p>
           </div>
         </section>
-        <aside class="package-rounds" aria-label="Review rounds">
+        <aside class="package-rounds" aria-label={t("editorial.editorialWorkspace.reviewRounds")}>
           <section class="side-group" aria-labelledby="editorial-continue-title">
-            <h2 id="editorial-continue-title">Continue a review</h2>
+            <h2 id="editorial-continue-title">
+              {t("editorial.editorialWorkspace.continueReview")}
+            </h2>
             <div>
               <button
                 type="button"
                 class="ka-button ka-button--secondary"
                 disabled={busy}
                 onclick={() => openFile()}
-                ><FolderOpen class="w-5 h-5" aria-hidden="true" />Open review or feedback file…</button
+                ><FolderOpen class="w-5 h-5" aria-hidden="true" />{t(
+                  "editorial.editorialWorkspace.openReviewFile"
+                )}</button
               >
             </div>
             <p class="ka-help">
-              Open returned feedback to review suggestions and send your decisions back.
+              {t("editorial.editorialWorkspace.continueReviewHelp")}
             </p>
           </section>
           <section class="side-group" aria-labelledby="editorial-rounds-title">
-            <h2 id="editorial-rounds-title">Review rounds</h2>
+            <h2 id="editorial-rounds-title">{t("editorial.editorialWorkspace.reviewRounds")}</h2>
             {#if rounds.length}
               <ul class="round-rows">
                 {#each rounds as item}<li>
@@ -1511,8 +1569,8 @@
             {:else}
               <div class="ka-empty od-stack">
                 <MessageSquare class="w-7 h-7" aria-hidden="true" />
-                <h3>No review rounds yet</h3>
-                <p>Your review rounds will appear here after you export a package.</p>
+                <h3>{t("editorial.editorialWorkspace.noRoundsTitle")}</h3>
+                <p>{t("editorial.editorialWorkspace.noRoundsBody")}</p>
               </div>
             {/if}
           </section>
@@ -1529,32 +1587,42 @@
       <div class="package-layout feedback-preview">
         <section class="package-form feedback-summary" aria-labelledby="feedback-heading">
           <div class="package-intro">
-            <h2 id="feedback-heading">Feedback from {received.session!.name}</h2>
+            <h2 id="feedback-heading">
+              {t("editorial.editorialWorkspace.feedbackFrom", {
+                name: received.session!.name,
+              })}
+            </h2>
             <p class="package-description">
-              Bring your editor’s feedback into the original review round, then read it alongside
-              your manuscript.
+              {t("editorial.editorialWorkspace.previewDescription")}
             </p>
           </div>
-          <ul class="feedback-counts" aria-label="Feedback in this file">
+          <ul
+            class="feedback-counts"
+            aria-label={t("editorial.editorialWorkspace.feedbackInFileAria")}
+          >
             <li>
-              <strong>{sceneCount}</strong>{sceneCount === 1 ? "scene included" : "scenes included"}
+              <strong>{sceneCount}</strong>{sceneCount === 1
+                ? t("editorial.editorialWorkspace.sceneIncluded.one")
+                : t("editorial.editorialWorkspace.sceneIncluded.many")}
             </li>
             <li>
               <strong>{suggestionCount}</strong>{suggestionCount === 1
-                ? "suggestion"
-                : "suggestions"}
+                ? t("editorial.editorialWorkspace.suggestion.one")
+                : t("editorial.editorialWorkspace.suggestion.many")}
             </li>
-            <li><strong>{commentCount}</strong>{commentCount === 1 ? "comment" : "comments"}</li>
+            <li>
+              <strong>{commentCount}</strong>{commentCount === 1
+                ? t("editorial.editorialWorkspace.comment.one")
+                : t("editorial.editorialWorkspace.comment.many")}
+            </li>
           </ul>
           <div class="feedback-next">
-            <h3>What happens next</h3>
+            <h3>{t("editorial.editorialWorkspace.whatHappensNext")}</h3>
             <p>
-              Read comments, reply to your editor, and accept or reject suggestions. If you’ve
-              rewritten a passage, kindling helps you place its feedback before applying an edit.
+              {t("editorial.editorialWorkspace.nextBody")}
             </p>
             <p>
-              You can work through the feedback at your own pace and export your replies and
-              decisions when you’re ready.
+              {t("editorial.editorialWorkspace.nextBodyPace")}
             </p>
           </div>
           <div class="package-export">
@@ -1565,29 +1633,34 @@
                 disabled={busy}
                 aria-busy={busy || undefined}
                 onclick={importFeedback}
-                ><FolderOpen class="w-5 h-5" aria-hidden="true" />Import and review feedback</button
+                ><FolderOpen class="w-5 h-5" aria-hidden="true" />{t(
+                  "editorial.editorialWorkspace.importReviewFeedback"
+                )}</button
               >
             </div>
-            <p class="ka-help">Your manuscript changes only when you accept a suggestion.</p>
+            <p class="ka-help">{t("editorial.editorialWorkspace.importHelp")}</p>
           </div>
         </section>
-        <aside class="package-rounds feedback-details" aria-label="Review details">
+        <aside
+          class="package-rounds feedback-details"
+          aria-label={t("editorial.editorialWorkspace.reviewDetails")}
+        >
           <section class="side-group">
-            <h2>Review details</h2>
+            <h2>{t("editorial.editorialWorkspace.reviewDetails")}</h2>
             <dl class="ka-facts">
               <div>
-                <dt>Manuscript</dt>
+                <dt>{t("editorial.editorialWorkspace.manuscript")}</dt>
                 <dd>{received.round.title}</dd>
               </div>
               <div>
-                <dt>Review round</dt>
+                <dt>{t("editorial.editorialWorkspace.reviewRound")}</dt>
                 <dd>{received.round.name}</dd>
               </div>
             </dl>
           </section>
           {#if received.round.brief.trim()}
             <section class="side-group">
-              <h2>Your original brief</h2>
+              <h2>{t("editorial.editorialWorkspace.originalBrief")}</h2>
               <p class="brief">{received.round.brief}</p>
             </section>
           {/if}
@@ -1596,14 +1669,17 @@
     </div>
   {:else if round && (session || feedback)}
     <div class="workspace-layout">
-      {#if !local && showNavigation}<nav class="manuscript-nav" aria-label="Manuscript navigation">
+      {#if !local && showNavigation}<nav
+          class="manuscript-nav"
+          aria-label={t("editorial.editorialWorkspace.manuscriptNavAria")}
+        >
           <div class="nav-title">
             <BrandWordmark />
             <button
               type="button"
               class="ka-button ka-button--ghost ka-icon-button"
-              aria-label="Hide manuscript navigation"
-              title="Hide manuscript navigation"
+              aria-label={t("editorial.editorialWorkspace.hideNav")}
+              title={t("editorial.editorialWorkspace.hideNav")}
               onclick={() => (showNavigation = false)}
               ><PanelLeftClose class="w-5 h-5" aria-hidden="true" /></button
             >
@@ -1613,7 +1689,7 @@
             <p class="round-name">{round.name}</p>
           </div>
           {#if round.brief}<details class="ka-disclosure nav-brief">
-              <summary>Writer’s brief</summary>
+              <summary>{t("editorial.editorialWorkspace.writerBrief")}</summary>
               <p class="brief">{round.brief}</p>
             </details>{/if}
           <div class="ka-tree nav-tree">
@@ -1636,15 +1712,15 @@
             {/each}
           </div>
         </nav>{/if}
-      <section class="manuscript-region" aria-label="Manuscript">
+      <section class="manuscript-region" aria-label={t("editorial.editorialWorkspace.manuscript")}>
         {#if showSearch}<div class="search-bar">
             <div class="ka-field search-field">
               <span class="ka-input-icon"
                 ><Search class="ka-icon w-5 h-5" aria-hidden="true" /><input
                   type="search"
-                  aria-label="Find in manuscript"
+                  aria-label={t("editorial.editorialWorkspace.findInManuscript")}
                   bind:value={search}
-                  placeholder="Find in manuscript"
+                  placeholder={t("editorial.editorialWorkspace.findInManuscript")}
                   oninput={() => {
                     searchIndex = 0;
                     searchCount = prose?.find(search, 0) ?? 0;
@@ -1665,21 +1741,24 @@
             <span class="search-count" aria-live="polite"
               >{search
                 ? searchCount
-                  ? `${(((searchIndex % searchCount) + searchCount) % searchCount) + 1} of ${searchCount}`
-                  : "No matches"
+                  ? t("editorial.editorialWorkspace.searchPosition", {
+                      index: (((searchIndex % searchCount) + searchCount) % searchCount) + 1,
+                      count: searchCount,
+                    })
+                  : t("editorial.editorialWorkspace.noMatches")
                 : ""}</span
             ><button
               type="button"
               class="ka-button ka-button--ghost"
               disabled={!searchCount}
-              onclick={() => findNext(-1)}>Previous</button
+              onclick={() => findNext(-1)}>{t("editorial.editorialWorkspace.previous")}</button
             ><button
               type="button"
               class="ka-button ka-button--ghost"
               disabled={!searchCount}
-              onclick={() => findNext(1)}>Next</button
+              onclick={() => findNext(1)}>{t("editorial.editorialWorkspace.next")}</button
             ><button type="button" class="ka-button ka-button--secondary" onclick={closeSearch}
-              >Done</button
+              >{t("editorial.editorialWorkspace.done")}</button
             >
           </div>{/if}
         <div class="manuscript-column">
@@ -1709,20 +1788,20 @@
                 {#if !local && !showNavigation}<button
                     type="button"
                     class="ka-button ka-button--ghost ka-icon-button"
-                    aria-label="Show manuscript navigation"
-                    title="Show manuscript navigation"
+                    aria-label={t("editorial.editorialWorkspace.showNav")}
+                    title={t("editorial.editorialWorkspace.showNav")}
                     onclick={() => (showNavigation = true)}
                     ><PanelLeftOpen class="w-5 h-5" aria-hidden="true" /></button
                   >{/if}
                 <div class="ka-field markup-field">
-                  <label for="editorial-markup">Markup</label>
+                  <label for="editorial-markup">{t("editorial.editorialWorkspace.markup")}</label>
                   <select
                     id="editorial-markup"
-                    aria-label="Markup view"
+                    aria-label={t("editorial.editorialWorkspace.markupViewAria")}
                     value={markup ? "all" : "simple"}
                     onchange={(e) => (markup = e.currentTarget.value === "all")}
-                    ><option value="simple">Simple markup</option><option value="all"
-                      >All markup</option
+                    ><option value="simple">{t("editorial.editorialWorkspace.simpleMarkup")}</option
+                    ><option value="all">{t("editorial.editorialWorkspace.allMarkup")}</option
                     ></select
                   >
                 </div>
@@ -1758,55 +1837,81 @@
               (e) => e.decision === "open" && e.change.kind === "suggestion"
             )}
             {#if suggestions.length}
-              <div class="review-menu-group" role="group" aria-label="Current review round">
-                <p class="review-menu-caption">Review round · {feedback.round.name}</p>
+              <div
+                class="review-menu-group"
+                role="group"
+                aria-label={t("editorial.editorialWorkspace.currentRoundAria")}
+              >
+                <p class="review-menu-caption">
+                  {t("editorial.editorialWorkspace.roundCaption", {
+                    name: feedback.round.name,
+                  })}
+                </p>
                 <button
                   type="button"
                   class="accept-decision"
-                  aria-label="Accept visible suggestions in this round"
+                  aria-label={t("editorial.editorialWorkspace.acceptRoundAria")}
                   disabled={busy}
                   onclick={() => decide(suggestions, "accepted")}
-                  ><Check class="w-5 h-5" aria-hidden="true" />Accept visible suggestions</button
+                  ><Check class="w-5 h-5" aria-hidden="true" />{t(
+                    "editorial.editorialWorkspace.acceptVisible"
+                  )}</button
                 >
                 <button
                   type="button"
                   class="reject-decision"
-                  aria-label="Reject visible suggestions in this round"
+                  aria-label={t("editorial.editorialWorkspace.rejectRoundAria")}
                   disabled={busy}
                   onclick={() => decide(suggestions, "rejected")}
-                  ><X class="w-5 h-5" aria-hidden="true" />Reject visible suggestions</button
+                  ><X class="w-5 h-5" aria-hidden="true" />{t(
+                    "editorial.editorialWorkspace.rejectVisible"
+                  )}</button
                 >
               </div>
             {/if}
             {#if (filter === "all" || filter === "open") && legacy.some((a) => a.annotation.state === "open" && a.change.kind === "suggestion")}
-              <div class="review-menu-group" role="group" aria-label="Active scene prose">
-                <p class="review-menu-caption">Active scene prose</p>
+              <div
+                class="review-menu-group"
+                role="group"
+                aria-label={t("editorial.editorialWorkspace.activeSceneProse")}
+              >
+                <p class="review-menu-caption">
+                  {t("editorial.editorialWorkspace.activeSceneProse")}
+                </p>
                 <button
                   type="button"
                   class="accept-decision"
-                  aria-label="Accept visible suggestions on active scene prose"
+                  aria-label={t("editorial.editorialWorkspace.acceptActiveAria")}
                   disabled={busy}
                   onclick={() => bulkLegacy("accepted")}
-                  ><Check class="w-5 h-5" aria-hidden="true" />Accept visible suggestions</button
+                  ><Check class="w-5 h-5" aria-hidden="true" />{t(
+                    "editorial.editorialWorkspace.acceptVisible"
+                  )}</button
                 ><button
                   type="button"
                   class="reject-decision"
-                  aria-label="Reject visible suggestions on active scene prose"
+                  aria-label={t("editorial.editorialWorkspace.rejectActiveAria")}
                   disabled={busy}
                   onclick={() => bulkLegacy("rejected")}
-                  ><X class="w-5 h-5" aria-hidden="true" />Reject visible suggestions</button
+                  ><X class="w-5 h-5" aria-hidden="true" />{t(
+                    "editorial.editorialWorkspace.rejectVisible"
+                  )}</button
                 >
               </div>
             {/if}
             <div class="review-menu-group">
               <button type="button" disabled={busy} onclick={() => openRound(feedback!.round.id)}
-                ><RefreshCw class="w-5 h-5" aria-hidden="true" />Refresh manuscript</button
+                ><RefreshCw class="w-5 h-5" aria-hidden="true" />{t(
+                  "editorial.editorialWorkspace.refreshManuscript"
+                )}</button
               >
             </div>
             {#if reviewers.length}
               <div class="review-menu-group">
                 <div class="ka-field review-menu-field">
-                  <label for="editorial-reply-reviewer">Send to editor</label>
+                  <label for="editorial-reply-reviewer"
+                    >{t("editorial.editorialWorkspace.sendToEditor")}</label
+                  >
                   <select id="editorial-reply-reviewer" bind:value={replyReviewer}
                     >{#each reviewers as reviewer}<option value={reviewer.id}
                         >{reviewer.name}</option
@@ -1814,7 +1919,9 @@
                   >
                 </div>
                 <button type="button" disabled={busy} onclick={sendWriterReply}
-                  ><Download class="w-5 h-5" aria-hidden="true" />Export replies and decisions</button
+                  ><Download class="w-5 h-5" aria-hidden="true" />{t(
+                    "editorial.editorialWorkspace.exportReplies"
+                  )}</button
                 >
               </div>
             {/if}

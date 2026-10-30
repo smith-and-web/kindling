@@ -1,4 +1,5 @@
 import definitions from "../shortcutDefinitions.json";
+import { t } from "../i18n";
 
 export type Bindings = Record<string, string>;
 export const defaultBindings: Bindings = Object.fromEntries(
@@ -94,10 +95,9 @@ export function formatShortcut(binding: string, mac = isMac()): string {
 
 export function bindingProblem(id: string, binding: string, bindings: Bindings): string | null {
   if (!binding) return null;
-  if (reservedBindings.includes(binding))
-    return "This shortcut is reserved for standard text editing or window controls.";
+  if (reservedBindings.includes(binding)) return t("logic.shortcuts.reserved");
   const conflict = definitions.find((def) => def.id !== id && bindings[def.id] === binding);
   return conflict
-    ? `Already used by ${conflict.label}. Clear or change that shortcut first.`
+    ? t("logic.shortcuts.conflict", { label: t(`logic.command.${conflict.id}.label`) })
     : null;
 }

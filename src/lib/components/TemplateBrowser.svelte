@@ -6,6 +6,7 @@
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
   import { ui } from "../stores/ui.svelte";
+  import { t } from "../i18n";
 
   let {
     projectType = "novel",
@@ -42,7 +43,7 @@
       templates = [...bundled, ...user];
     } catch (e) {
       console.error("Failed to load templates:", e);
-      ui.showError(`Failed to load templates: ${String(e)}`);
+      ui.showError(t("sidebar.templateBrowser.failedLoad", { error: String(e) }));
     } finally {
       loading = false;
     }
@@ -80,23 +81,23 @@
 >
   <div class="app-dialog-surface ka-dialog-default dialog-shell templates">
     <DialogHeader
-      title="Story structure templates"
+      title={t("sidebar.templateBrowser.title")}
       titleId="template-browser-title"
       {onClose}
-      closeLabel="Close"
+      closeLabel={t("common.close")}
       closeTestId="template-close"
     />
 
     <div class="ka-dialog-body">
       {#if loading}
         <div class="ka-progress od-field" role="status">
-          <span>Loading templates…</span>
-          <progress aria-label="Loading templates"></progress>
+          <span>{t("sidebar.templateBrowser.loading")}</span>
+          <progress aria-label={t("sidebar.templateBrowser.loadingAria")}></progress>
         </div>
       {:else if filteredTemplates.length === 0}
         <div class="ka-empty od-stack">
-          <h4>No templates available</h4>
-          <p>You can still start from a blank structure and add chapters yourself.</p>
+          <h4>{t("sidebar.templateBrowser.noTemplates")}</h4>
+          <p>{t("sidebar.templateBrowser.noTemplatesHint")}</p>
         </div>
       {:else}
         <ul class="template-list">
@@ -124,7 +125,9 @@
                 <span class="template-text">
                   <span class="template-name">{template.name}</span>
                   <small>
-                    {totalBeats(template)} beats{#if template.source}
+                    {t("sidebar.templateBrowser.beatsCount", {
+                      count: totalBeats(template),
+                    })}{#if template.source}
                       · {template.source}{/if}
                   </small>
                   {#if template.description}
@@ -164,13 +167,21 @@
 
     <footer class="ka-dialog-footer">
       <p class="ka-help ka-dialog-footer-start">
-        {filteredTemplates.length} template{filteredTemplates.length !== 1 ? "s" : ""} available
+        {#if filteredTemplates.length !== 1}
+          {t("sidebar.templateBrowser.templateCount.many", {
+            count: filteredTemplates.length,
+          })}
+        {:else}
+          {t("sidebar.templateBrowser.templateCount.one", {
+            count: filteredTemplates.length,
+          })}
+        {/if}
       </p>
       <button type="button" onclick={onClose} class="ka-button ka-button--secondary">
-        Cancel
+        {t("common.cancel")}
       </button>
       <button type="button" onclick={handleSelect} disabled={!selectedTemplate} class="ka-button">
-        Use template
+        {t("sidebar.templateBrowser.useTemplate")}
       </button>
     </footer>
   </div>

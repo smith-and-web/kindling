@@ -11,6 +11,7 @@
   import type { ExportResult } from "../types";
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus, ownsEnterKey } from "../utils/modalFocus";
+  import { t } from "../i18n";
 
   let {
     result,
@@ -28,7 +29,9 @@
       await revealItemInDir(result.output_path);
     } catch (e) {
       console.error("Failed to open folder:", e);
-      openError = `Couldn’t open the folder: ${e instanceof Error ? e.message : String(e)}`;
+      openError = t("export.exportSuccessDialog.openFolderFailed", {
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 
@@ -60,31 +63,52 @@
 >
   <div class="app-dialog-surface ka-dialog-narrow dialog-shell">
     <DialogHeader
-      title="Export complete"
+      title={t("export.exportSuccessDialog.title")}
       titleId="export-success-dialog-title"
       {onClose}
-      closeLabel="Close"
+      closeLabel={t("export.exportSuccessDialog.close")}
     />
 
     <div class="ka-dialog-body export-success">
       <div class="ka-notice ka-notice--success od-row-top" role="status">
         <CircleCheck class="w-5 h-5" aria-hidden="true" />
         <div class="od-field od-fill">
-          <strong>Successfully exported:</strong>
+          <strong>{t("export.exportSuccessDialog.successHeading")}</strong>
           <ul class="export-counts">
             {#if result.chapters_exported > 0}
-              <li>{result.chapters_exported} chapter{result.chapters_exported === 1 ? "" : "s"}</li>
+              <li>
+                {t(
+                  result.chapters_exported === 1
+                    ? "export.exportSuccessDialog.chaptersOne"
+                    : "export.exportSuccessDialog.chaptersMany",
+                  { count: result.chapters_exported }
+                )}
+              </li>
             {/if}
             {#if result.scenes_exported > 0}
-              <li>{result.scenes_exported} scene{result.scenes_exported === 1 ? "" : "s"}</li>
+              <li>
+                {t(
+                  result.scenes_exported === 1
+                    ? "export.exportSuccessDialog.scenesOne"
+                    : "export.exportSuccessDialog.scenesMany",
+                  { count: result.scenes_exported }
+                )}
+              </li>
             {/if}
-            <li>{result.files_created} file{result.files_created === 1 ? "" : "s"} created</li>
+            <li>
+              {t(
+                result.files_created === 1
+                  ? "export.exportSuccessDialog.filesOne"
+                  : "export.exportSuccessDialog.filesMany",
+                { count: result.files_created }
+              )}
+            </li>
           </ul>
         </div>
       </div>
 
       <div class="od-field export-location">
-        <p class="ka-label">Saved to</p>
+        <p class="ka-label">{t("export.exportSuccessDialog.savedTo")}</p>
         <div class="ka-code">
           <code>{result.output_path}</code>
         </div>
@@ -96,11 +120,11 @@
 
     <footer class="ka-dialog-footer">
       <button type="button" onclick={onClose} class="ka-button ka-button--secondary">
-        Close
+        {t("export.exportSuccessDialog.close")}
       </button>
       <button type="button" onclick={openFolder} class="ka-button">
         <FolderOpen class="w-5 h-5" aria-hidden="true" />
-        Open folder
+        {t("export.exportSuccessDialog.openFolder")}
       </button>
     </footer>
   </div>

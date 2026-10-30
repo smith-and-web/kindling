@@ -1,6 +1,7 @@
 <script lang="ts">
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
+  import { t } from "../i18n";
   interface Props {
     partTitle: string;
     childChapterCount: number;
@@ -14,8 +15,8 @@
   let {
     partTitle,
     childChapterCount,
-    partLabel = "Part",
-    chapterLabel = "Chapter",
+    partLabel = t("sidebar.partDeleteDialog.partLabel"),
+    chapterLabel = t("sidebar.partDeleteDialog.chapterLabel"),
     onDeletePartOnly,
     onDeletePartAndChapters,
     onCancel,
@@ -32,11 +33,26 @@
   tabindex="-1"
 >
   <div class="app-dialog-surface ka-dialog-narrow dialog-shell">
-    <DialogHeader title={`Delete ${partLabel}`} titleId="dialog-title" onClose={onCancel} />
+    <DialogHeader
+      title={t("sidebar.partDeleteDialog.title", { label: partLabel })}
+      titleId="dialog-title"
+      onClose={onCancel}
+    />
     <div class="ka-dialog-body part-delete">
       <p class="part-delete-lede">
-        “{partTitle}” contains {childChapterCount}
-        {chapterLabel.toLowerCase()}{childChapterCount !== 1 ? "s" : ""}. What would you like to do?
+        {#if childChapterCount !== 1}
+          {t("sidebar.partDeleteDialog.lede.many", {
+            title: partTitle,
+            count: childChapterCount,
+            label: chapterLabel.toLowerCase(),
+          })}
+        {:else}
+          {t("sidebar.partDeleteDialog.lede.one", {
+            title: partTitle,
+            count: childChapterCount,
+            label: chapterLabel.toLowerCase(),
+          })}
+        {/if}
       </p>
 
       <button
@@ -45,10 +61,19 @@
         onclick={onDeletePartOnly}
         class="ka-button ka-button--secondary part-delete-choice"
       >
-        <span>Delete {partLabel.toLowerCase()} only</span>
+        <span>{t("sidebar.partDeleteDialog.deleteOnly", { label: partLabel.toLowerCase() })}</span>
         <small>
-          The {childChapterCount}
-          {chapterLabel.toLowerCase()}{childChapterCount !== 1 ? "s" : ""} will remain in the project.
+          {#if childChapterCount !== 1}
+            {t("sidebar.partDeleteDialog.deleteOnlyHint.many", {
+              count: childChapterCount,
+              label: chapterLabel.toLowerCase(),
+            })}
+          {:else}
+            {t("sidebar.partDeleteDialog.deleteOnlyHint.one", {
+              count: childChapterCount,
+              label: chapterLabel.toLowerCase(),
+            })}
+          {/if}
         </small>
       </button>
 
@@ -58,10 +83,26 @@
         onclick={onDeletePartAndChapters}
         class="ka-button ka-button--danger part-delete-choice"
       >
-        <span>Delete {partLabel.toLowerCase()} and all {chapterLabel.toLowerCase()}s</span>
+        <span
+          >{t("sidebar.partDeleteDialog.deleteAll", {
+            part: partLabel.toLowerCase(),
+            chapter: chapterLabel.toLowerCase(),
+          })}</span
+        >
         <small>
-          This permanently deletes the {partLabel.toLowerCase()} and its {childChapterCount}
-          {chapterLabel.toLowerCase()}{childChapterCount !== 1 ? "s" : ""}.
+          {#if childChapterCount !== 1}
+            {t("sidebar.partDeleteDialog.deleteAllHint.many", {
+              part: partLabel.toLowerCase(),
+              count: childChapterCount,
+              chapter: chapterLabel.toLowerCase(),
+            })}
+          {:else}
+            {t("sidebar.partDeleteDialog.deleteAllHint.one", {
+              part: partLabel.toLowerCase(),
+              count: childChapterCount,
+              chapter: chapterLabel.toLowerCase(),
+            })}
+          {/if}
         </small>
       </button>
     </div>
@@ -72,7 +113,7 @@
         onclick={onCancel}
         class="ka-button ka-button--secondary"
       >
-        Cancel
+        {t("common.cancel")}
       </button>
     </footer>
   </div>

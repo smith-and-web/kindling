@@ -5,6 +5,7 @@
   import DialogHeader from "./DialogHeader.svelte";
   import { onMount } from "svelte";
   import { modalFocus } from "../utils/modalFocus";
+  import { t } from "../i18n";
 
   let { onClose, onSendFeedback }: { onClose: () => void; onSendFeedback: () => void } = $props();
 
@@ -14,7 +15,7 @@
     try {
       version = await getVersion();
     } catch {
-      version = "unknown";
+      version = t("onboarding.aboutDialog.unknownVersion");
     }
   });
 
@@ -25,7 +26,7 @@
     try {
       await openUrl(url);
     } catch (error) {
-      linkError = `Couldn’t open the link: ${error}`;
+      linkError = t("onboarding.aboutDialog.linkError", { error: String(error) });
     }
   }
 </script>
@@ -40,10 +41,10 @@
 >
   <div class="app-dialog-surface ka-dialog-narrow dialog-shell" data-testid="about-dialog">
     <DialogHeader
-      title="About kindling"
+      title={t("onboarding.aboutDialog.title")}
       titleId="about-title"
       {onClose}
-      closeLabel="Close"
+      closeLabel={t("common.close")}
       closeTestId="about-close"
     />
 
@@ -57,12 +58,12 @@
           width="88"
           height="50"
         />
-        <p class="about-tagline">Spark your draft — bridge the gap between outline and prose.</p>
+        <p class="about-tagline">{t("onboarding.aboutDialog.tagline")}</p>
       </div>
 
       <dl class="ka-facts">
         <div>
-          <dt>Version</dt>
+          <dt>{t("onboarding.aboutDialog.versionLabel")}</dt>
           <dd>{version}</dd>
         </div>
       </dl>
@@ -71,7 +72,7 @@
         <li>
           <button type="button" onclick={onSendFeedback} class="about-link">
             <Send class="w-5 h-5" aria-hidden="true" />
-            <span>Send feedback</span>
+            <span>{t("onboarding.aboutDialog.sendFeedback")}</span>
             <ChevronRight class="w-5 h-5" aria-hidden="true" />
           </button>
         </li>
@@ -82,7 +83,7 @@
             class="about-link"
           >
             <ExternalLink class="w-5 h-5" aria-hidden="true" />
-            <span>GitHub repository</span>
+            <span>{t("onboarding.aboutDialog.github")}</span>
           </button>
         </li>
         <li>
@@ -92,7 +93,7 @@
             class="about-link"
           >
             <ExternalLink class="w-5 h-5" aria-hidden="true" />
-            <span>Report an issue</span>
+            <span>{t("onboarding.aboutDialog.reportIssue")}</span>
           </button>
         </li>
         <li>
@@ -102,7 +103,7 @@
             class="about-link"
           >
             <ExternalLink class="w-5 h-5" aria-hidden="true" />
-            <span>Release notes</span>
+            <span>{t("onboarding.aboutDialog.releaseNotes")}</span>
           </button>
         </li>
       </ul>

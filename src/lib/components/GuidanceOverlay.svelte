@@ -14,37 +14,34 @@
   import type { GuidanceArea } from "../stores/ui.svelte";
   import { Check, Info, EyeOff } from "lucide-svelte";
   import { modalFocus } from "../utils/modalFocus";
+  import { t } from "../i18n";
 
   const TOOLTIP_CONFIG: Record<
     GuidanceArea,
-    { message: string; position: "left" | "center" | "right" }
+    { messageKey: string; position: "left" | "center" | "right" }
   > = {
     sidebar: {
-      message: "Your outline lives here. Click chapters to expand, drag to reorder.",
+      messageKey: "onboarding.guidanceOverlay.sidebarMessage",
       position: "left",
     },
     scenePanel: {
-      message: "Edit beats and scenes here. Capture ideas in discovery notes.",
+      messageKey: "onboarding.guidanceOverlay.scenePanelMessage",
       position: "center",
     },
     references: {
-      message:
-        "Link characters, locations, and items to scenes. Use the + button to search and add references, or accept the suggested references kindling finds in your prose.",
+      messageKey: "onboarding.guidanceOverlay.referencesMessage",
       position: "right",
     },
     sync: {
-      message:
-        "Sync from source reimports your outline file when you've made changes elsewhere. Use it to pull in edits from Plottr, yWriter, Longform, Scrivener, or Markdown.",
+      messageKey: "onboarding.guidanceOverlay.syncMessage",
       position: "left",
     },
     planningStatus: {
-      message:
-        "Use planning status (Fixed, Flexible, Undefined) to control how much structure each scene has. Start loose and tighten as you go.",
+      messageKey: "onboarding.guidanceOverlay.planningStatusMessage",
       position: "center",
     },
     screenplay: {
-      message:
-        "This is a screenplay project. Acts and Sequences replace Chapters. Use sluglines for scene headings — the page count estimate updates as you write.",
+      messageKey: "onboarding.guidanceOverlay.screenplayMessage",
       position: "left",
     },
   };
@@ -171,23 +168,23 @@
       <div class="guidance-body">
         <h4 id="guidance-title">
           <Info class="w-5 h-5 ka-icon" aria-hidden="true" />
-          Tip
+          {t("onboarding.guidanceOverlay.tipTitle")}
         </h4>
-        <p id="guidance-message">{config.message}</p>
+        <p id="guidance-message">{t(config.messageKey)}</p>
       </div>
       <footer class="guidance-actions">
         <button
           type="button"
           onclick={disableTips}
           class="ka-button ka-button--ghost"
-          title="Don’t show tips again"
+          title={t("onboarding.guidanceOverlay.disableTipsTitle")}
         >
           <EyeOff class="w-5 h-5" aria-hidden="true" />
-          Disable tips
+          {t("onboarding.guidanceOverlay.disableTips")}
         </button>
         <button type="button" onclick={dismiss} class="ka-button" use:focusOnMount>
           <Check class="w-5 h-5" aria-hidden="true" />
-          Got it
+          {t("onboarding.guidanceOverlay.gotIt")}
         </button>
       </footer>
     </div>

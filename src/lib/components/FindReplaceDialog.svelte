@@ -10,6 +10,8 @@
     type ProseDocument,
     type ProseReplacement,
   } from "../utils/proseSearch";
+  import { countLabel } from "../utils/plural";
+  import { t } from "../i18n";
 
   let {
     projectId,
@@ -193,7 +195,9 @@
             prose: change.expected_prose,
           })),
         ];
-      message = undoing ? "Replacement undone." : "Replacement saved.";
+      message = undoing
+        ? t("find.findReplaceDialog.replacementUndone")
+        : t("find.findReplaceDialog.replacementSaved");
       if (after) advancePast(after);
       else selected = Math.min(selected, Math.max(0, results.length - 1));
     } catch (e) {
@@ -232,7 +236,7 @@
     if (changes.length) void apply(changes, false, after);
     else {
       confirming = false;
-      message = "No changes needed.";
+      message = t("find.findReplaceDialog.noChangesNeeded");
       if (after) advancePast(after);
     }
   }
@@ -250,11 +254,16 @@
     event.stopPropagation();
   }}
 >
-  <DialogHeader title="Find and Replace" titleId="find-title" {onClose} disabled={busy} />
+  <DialogHeader
+    title={t("find.findReplaceDialog.title")}
+    titleId="find-title"
+    {onClose}
+    disabled={busy}
+  />
   <div class="ka-dialog-body find-body">
     <fieldset disabled={busy || loadFailed} class="find-form">
       <div class="ka-field od-field">
-        <label for="find-query">Find</label>
+        <label for="find-query">{t("find.findReplaceDialog.find")}</label>
         <div class="find-query">
           <input
             id="find-query"
@@ -275,45 +284,53 @@
             class="ka-button ka-button--secondary"
             disabled={!results.length}
             onclick={() => navigate(-1)}
-            title="Previous match (Shift+Enter)">Previous</button
+            title={t("find.findReplaceDialog.previousMatch")}
+            >{t("find.findReplaceDialog.previous")}</button
           >
           <button
             type="button"
             class="ka-button ka-button--secondary"
             disabled={!results.length}
             onclick={() => navigate(1)}
-            title="Next match (Enter)">Next</button
+            title={t("find.findReplaceDialog.nextMatch")}>{t("find.findReplaceDialog.next")}</button
           >
         </div>
         <p id="find-status" role="status" class="ka-help">
           {busy
-            ? "Loading prose…"
+            ? t("find.findReplaceDialog.loadingProse")
             : query
-              ? `${results.length} ${results.length === 1 ? "match" : "matches"}`
-              : "Enter text to find."}
+              ? countLabel(results.length, "match", "matches")
+              : t("find.findReplaceDialog.enterQuery")}
         </p>
       </div>
       <div class="find-options">
         <div class="ka-field od-field find-scope">
-          <label for="find-scope">Search in</label>
+          <label for="find-scope">{t("find.findReplaceDialog.searchIn")}</label>
           <select id="find-scope" bind:value={scope} onchange={reset}>
-            <option value="scene" disabled={!sceneId}>Current scene</option>
-            <option value="project">Entire project</option>
+            <option value="scene" disabled={!sceneId}
+              >{t("find.findReplaceDialog.currentScene")}</option
+            >
+            <option value="project">{t("find.findReplaceDialog.entireProject")}</option>
           </select>
         </div>
         <div class="ka-checks">
           <label class="ka-check"
-            ><input type="checkbox" bind:checked={caseSensitive} onchange={reset} /> Match case</label
+            ><input type="checkbox" bind:checked={caseSensitive} onchange={reset} />
+            {t("find.findReplaceDialog.matchCase")}</label
           >
           <label class="ka-check"
-            ><input type="checkbox" bind:checked={wholeWord} onchange={reset} /> Whole words</label
+            ><input type="checkbox" bind:checked={wholeWord} onchange={reset} />
+            {t("find.findReplaceDialog.wholeWords")}</label
           >
-          <label class="ka-check"><input type="checkbox" bind:checked={replacing} /> Replace</label>
+          <label class="ka-check"
+            ><input type="checkbox" bind:checked={replacing} />
+            {t("find.findReplaceDialog.replace")}</label
+          >
         </div>
       </div>
       {#if replacing}
         <div class="ka-field od-field">
-          <label for="find-replacement">Replace with</label>
+          <label for="find-replacement">{t("find.findReplaceDialog.replaceWith")}</label>
           <input
             id="find-replacement"
             type="text"
@@ -323,17 +340,22 @@
         </div>
       {/if}
       <p class="ka-help">
-        Searches visible prose in Fixed scenes. Flexible, Undefined and archived scenes are
-        excluded; locked scenes are searchable but cannot be replaced.
+        {t("find.findReplaceDialog.scopeHelp")}
       </p>
       {#if active}
         <div class="ka-results find-result">
           <p class="find-location">
-            {Math.min(selected + 1, results.length)} of {results.length} · {active.doc
-              .chapter_title} /
+            {t("find.findReplaceDialog.position", {
+              current: Math.min(selected + 1, results.length),
+              total: results.length,
+            })} · {active.doc.chapter_title} /
             {active.doc.scene_title}{active.doc.beat_title !== null
               ? ` / ${active.doc.beat_title}`
-              : ""}{active.doc.locked ? " · Locked" : active.readOnly ? " · Unsaved draft" : ""}
+              : ""}{active.doc.locked
+              ? t("find.findReplaceDialog.locked")
+              : active.readOnly
+                ? t("find.findReplaceDialog.unsavedDraft")
+                : ""}
           </p>
           <p class="find-excerpt">
             {active.match.from > 100 ? "…" : ""}{active.text.slice(
@@ -348,32 +370,36 @@
           {#if onOpenScene}<button
               type="button"
               class="ka-button ka-button--ghost find-open"
-              onclick={openScene}>Open scene</button
+              onclick={openScene}>{t("find.findReplaceDialog.openScene")}</button
             >{/if}
         </div>
       {:else if query && !busy && !error}
         <p class="ka-help">
           {results.length
-            ? "No more matches ahead. Use Next or Previous to continue."
-            : "No matches found."}
+            ? t("find.findReplaceDialog.noMoreMatches")
+            : t("find.findReplaceDialog.noMatches")}
         </p>
       {/if}
       {#if replacing && confirming}
         <div class="ka-notice ka-notice--warning" role="status">
           <p>
-            Replace {editableCount} matches in {scope === "project"
-              ? "the entire project"
-              : "the current scene"}? {results.length - editableCount} locked or unsaved matches will
-            be skipped.
+            {t("find.findReplaceDialog.confirmReplace", {
+              count: editableCount,
+              scope:
+                scope === "project"
+                  ? t("find.findReplaceDialog.scopeEntireProject")
+                  : t("find.findReplaceDialog.scopeCurrentScene"),
+              skipped: results.length - editableCount,
+            })}
           </p>
           <div class="ka-row">
             <button type="button" class="ka-button" onclick={() => replace(true)}
-              >Confirm replace all</button
+              >{t("find.findReplaceDialog.confirmReplaceAll")}</button
             >
             <button
               type="button"
               class="ka-button ka-button--secondary"
-              onclick={() => (confirming = false)}>Cancel</button
+              onclick={() => (confirming = false)}>{t("common.cancel")}</button
             >
           </div>
         </div>
@@ -387,21 +413,24 @@
           type="button"
           class="ka-button ka-button--secondary"
           disabled={busy}
-          onclick={() => load(true)}>{loadFailed ? "Retry loading" : "Retry saving drafts"}</button
+          onclick={() => load(true)}
+          >{loadFailed
+            ? t("find.findReplaceDialog.retryLoading")
+            : t("find.findReplaceDialog.retrySavingDrafts")}</button
         >
         {#if pendingDrafts.length}
           <p>
-            Unsaved drafts are retained for this session, including after closing the project.
-            Locked or missing documents and unrecognized save errors are not retried automatically
-            and do not block other scenes. You can retry after resolving the save error, or copy
-            these drafts before discarding them. Matches in documents with unsaved drafts cannot be
-            replaced.
+            {t("find.findReplaceDialog.draftsHelp")}
           </p>
           {#each pendingDrafts as draft, index}
             <details class="ka-disclosure">
-              <summary>Unsaved {draft.kind === "beat" ? "beat" : "scene"} {index + 1}</summary>
+              <summary
+                >{draft.kind === "beat"
+                  ? t("find.findReplaceDialog.unsavedBeat", { index: index + 1 })
+                  : t("find.findReplaceDialog.unsavedScene", { index: index + 1 })}</summary
+              >
               <div class="ka-field od-field">
-                <label for={`find-draft-${index}`}>Draft text (select to copy)</label>
+                <label for={`find-draft-${index}`}>{t("find.findReplaceDialog.draftText")}</label>
                 <textarea
                   id={`find-draft-${index}`}
                   readonly
@@ -414,21 +443,21 @@
           {#if onDiscardDrafts}
             {#if confirmingDiscard}
               <p>
-                Discard these unsaved drafts? Their changes will be lost. Copy any text you want to
-                keep first.
+                {t("find.findReplaceDialog.discardQuestion")}
               </p>
               <div class="ka-row">
                 <button
                   type="button"
                   class="ka-button ka-button--danger"
                   disabled={busy}
-                  onclick={discardDrafts}>Confirm discard drafts</button
+                  onclick={discardDrafts}>{t("find.findReplaceDialog.confirmDiscardDrafts")}</button
                 >
                 <button
                   type="button"
                   class="ka-button ka-button--secondary"
                   disabled={busy}
-                  onclick={() => (confirmingDiscard = false)}>Keep drafts</button
+                  onclick={() => (confirmingDiscard = false)}
+                  >{t("find.findReplaceDialog.keepDrafts")}</button
                 >
               </div>
             {:else}
@@ -436,7 +465,8 @@
                 type="button"
                 class="ka-button ka-button--ghost"
                 disabled={busy}
-                onclick={() => (confirmingDiscard = true)}>Discard unsaved drafts…</button
+                onclick={() => (confirmingDiscard = true)}
+                >{t("find.findReplaceDialog.discardDrafts")}</button
               >
             {/if}
           {/if}
@@ -450,19 +480,20 @@
         type="button"
         class="ka-button ka-button--ghost ka-dialog-footer-start"
         disabled={busy || !undo.length}
-        onclick={() => apply(undo[undo.length - 1], true)}>Undo replacement</button
+        onclick={() => apply(undo[undo.length - 1], true)}
+        >{t("find.findReplaceDialog.undoReplacement")}</button
       >
       <button
         type="button"
         class="ka-button ka-button--secondary"
         disabled={busy || !editableCount || confirming}
-        onclick={() => (confirming = true)}>Replace all</button
+        onclick={() => (confirming = true)}>{t("find.findReplaceDialog.replaceAll")}</button
       >
       <button
         type="button"
         class="ka-button"
         disabled={busy || !active || active.readOnly || confirming}
-        onclick={() => replace(false)}>Replace match</button
+        onclick={() => replace(false)}>{t("find.findReplaceDialog.replaceMatch")}</button
       >
     </footer>
   {/if}

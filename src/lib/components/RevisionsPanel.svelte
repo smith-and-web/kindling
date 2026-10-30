@@ -4,6 +4,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { History, Info, Loader2, Lock, Plus, RotateCcw, TriangleAlert } from "lucide-svelte";
   import { proseText } from "../utils/proseSearch";
+  import { t } from "../i18n";
   import {
     activeDocuments,
     diffText,
@@ -125,10 +126,21 @@
       before = nextBefore;
       after = nextAfter;
       const label = (index: number) =>
-        index < 0 ? "the current prose" : `“${drafts[index].name}”`;
+        index < 0 ? t("editorial.revisionsPanel.currentProseLabel") : `“${drafts[index].name}”`;
       prunedNotice = removed.length
-        ? `${removed.join(" and ")} ${removed.length > 1 ? "were" : "was"} removed because only the newest automatic drafts are kept.` +
-          (drafts[before] ? ` Now comparing ${label(before)} with ${label(after)}.` : "")
+        ? t(
+            removed.length > 1
+              ? "editorial.revisionsPanel.prunedRemoved.many"
+              : "editorial.revisionsPanel.prunedRemoved.one",
+            { names: removed.join(t("editorial.revisionsPanel.prunedJoin")) }
+          ) +
+          (drafts[before]
+            ? " " +
+              t("editorial.revisionsPanel.prunedComparing", {
+                before: label(before),
+                after: label(after),
+              })
+            : "")
         : "";
       if (next) {
         onApplied(review);
@@ -164,7 +176,9 @@
     if (!review || restoreIndex === null) return;
     const next = review.data.drafts[restoreIndex];
     const data = window.structuredClone(review.data);
-    data.drafts.push(draftOf(review, "Before restoring " + next.name, true));
+    data.drafts.push(
+      draftOf(review, t("editorial.revisionsPanel.beforeRestoring", { name: next.name }), true)
+    );
     action = "restore";
     const saved = await save(data, next);
     action = null;
@@ -186,14 +200,16 @@
   onkeydown={(e) => e.stopPropagation()}
 >
   <DialogHeader
-    title="Draft history"
+    title={t("editorial.revisionsPanel.title")}
     titleId="revisions-title"
     subtitle={title}
     {onClose}
     disabled={busy}
   >
     {#if review}<fieldset disabled={busy || locked} class="status-field">
-        <label class="status-label" for="revision-status">Revision status</label>
+        <label class="status-label" for="revision-status"
+          >{t("editorial.revisionsPanel.revisionStatus")}</label
+        >
         <select
           id="revision-status"
           value={review.data.status}
@@ -203,12 +219,12 @@
         >
       </fieldset>{/if}
   </DialogHeader>
-  <nav aria-label="Revision views" class="ka-tablist history-tabs">
+  <nav aria-label={t("editorial.revisionsPanel.viewsAria")} class="ka-tablist history-tabs">
     <button type="button" aria-pressed={tab === "history"} onclick={() => (tab = "history")}
-      >Draft history</button
+      >{t("editorial.revisionsPanel.tabHistory")}</button
     >
     <button type="button" aria-pressed={tab === "overview"} onclick={() => (tab = "overview")}
-      >All scenes</button
+      >{t("editorial.revisionsPanel.tabOverview")}</button
     >
   </nav>
   {#if error}<p role="alert" class="ka-error history-error">{error}</p>{/if}
@@ -216,18 +232,22 @@
     <div class="ka-empty od-stack history-empty">
       {#if busy}
         <p class="history-loading">
-          <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />Loading revisions…
+          <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />{t(
+            "editorial.revisionsPanel.loading"
+          )}
         </p>
       {:else}
-        <p>Could not load revisions.</p>
-        <button type="button" class="ka-button ka-button--secondary" onclick={load}>Retry</button>
+        <p>{t("editorial.revisionsPanel.loadFailed")}</p>
+        <button type="button" class="ka-button ka-button--secondary" onclick={load}
+          >{t("editorial.revisionsPanel.retry")}</button
+        >
       {/if}
     </div>
   {:else}
     {#if locked}
       <div class="ka-notice ka-notice--warning od-row-top locked-notice" role="status">
         <Lock class="w-5 h-5" aria-hidden="true" />
-        <p>This scene is locked. History is read-only.</p>
+        <p>{t("editorial.revisionsPanel.lockedReadOnly")}</p>
       </div>
     {/if}
     {#if prunedNotice}
@@ -238,14 +258,19 @@
     {/if}
     {#if tab === "history"}
       <div class="history-layout">
-        <aside class="draft-list" aria-label="Saved drafts">
+        <aside class="draft-list" aria-label={t("editorial.revisionsPanel.savedDrafts")}>
           <h3 class="draft-list-title">
-            Saved drafts <span class="ka-badge">{review.data.drafts.length}</span>
+            {t("editorial.revisionsPanel.savedDrafts")}
+            <span class="ka-badge">{review.data.drafts.length}</span>
           </h3>
           <fieldset disabled={busy || locked} class="save-draft">
             <div class="ka-field od-field">
-              <label for="revision-draft-name">Draft name</label>
-              <input id="revision-draft-name" bind:value={name} placeholder="Post-editor pass" />
+              <label for="revision-draft-name">{t("editorial.revisionsPanel.draftName")}</label>
+              <input
+                id="revision-draft-name"
+                bind:value={name}
+                placeholder={t("editorial.revisionsPanel.draftNamePlaceholder")}
+              />
             </div>
             <button
               type="button"
@@ -256,7 +281,9 @@
               >{#if action === "draft"}<Loader2
                   class="w-5 h-5 animate-spin"
                   aria-hidden="true"
-                />{:else}<Plus class="w-5 h-5" aria-hidden="true" />{/if}Save named draft</button
+                />{:else}<Plus class="w-5 h-5" aria-hidden="true" />{/if}{t(
+                "editorial.revisionsPanel.saveNamedDraft"
+              )}</button
             >
           </fieldset>
           <div class="draft-entries">
@@ -269,29 +296,33 @@
                   before = item.index;
                   restoreIndex = null;
                 }}
-                ><span class="draft-number">Draft {item.index + 1}</span><strong
-                  >{item.draft.name}</strong
-                ><time datetime={item.draft.created_at}>{dateLabel(item.draft.created_at)}</time
+                ><span class="draft-number"
+                  >{t("editorial.revisionsPanel.draftNumber", { number: item.index + 1 })}</span
+                ><strong>{item.draft.name}</strong><time datetime={item.draft.created_at}
+                  >{dateLabel(item.draft.created_at)}</time
                 ></button
               >
             {/each}
           </div>
         </aside>
-        <section class="draft-detail" aria-label="Draft comparison">
+        <section class="draft-detail" aria-label={t("editorial.revisionsPanel.comparisonAria")}>
           {#if !review.data.drafts.length}
             <div class="ka-empty od-stack history-empty">
               <History class="w-7 h-7" aria-hidden="true" />
-              <h3>Keep a version of this scene</h3>
-              <p>No saved drafts yet. Save a named draft to keep this scene’s current prose.</p>
+              <h3>{t("editorial.revisionsPanel.keepVersionTitle")}</h3>
+              <p>{t("editorial.revisionsPanel.keepVersionBody")}</p>
             </div>
           {:else if oldDraft && newDraft}
             <div class="comparison-toolbar">
               <div class="ka-field od-field compare-field">
-                <label for="revision-compare">Compare with</label>
+                <label for="revision-compare">{t("editorial.revisionsPanel.compareWith")}</label>
                 <select id="revision-compare" bind:value={after}
-                  ><option value={-1}>Current prose</option
+                  ><option value={-1}>{t("editorial.revisionsPanel.currentProse")}</option
                   >{#each review.data.drafts as d, i}<option value={i}
-                      >Draft {i + 1} · {d.name}</option
+                      >{t("editorial.revisionsPanel.draftOption", {
+                        number: i + 1,
+                        name: d.name,
+                      })}</option
                     >{/each}</select
                 >
               </div>
@@ -301,28 +332,34 @@
                 disabled={busy || locked}
                 aria-expanded={restoreIndex !== null}
                 onclick={() => (restoreIndex = before)}
-                ><RotateCcw class="w-5 h-5" aria-hidden="true" />Restore selected draft</button
+                ><RotateCcw class="w-5 h-5" aria-hidden="true" />{t(
+                  "editorial.revisionsPanel.restoreSelected"
+                )}</button
               >
             </div>
             {#if restoreIndex !== null}
               <div
                 class="ka-notice ka-notice--warning od-row-top restore-confirm"
                 role="region"
-                aria-label="Confirm draft restore"
+                aria-label={t("editorial.revisionsPanel.restoreConfirmAria")}
               >
                 <TriangleAlert class="w-5 h-5" aria-hidden="true" />
                 <div class="od-field od-fill restore-confirm-body">
-                  <strong>Restore “{review.data.drafts[restoreIndex].name}”?</strong>
+                  <strong
+                    >{t("editorial.revisionsPanel.restoreConfirmTitle", {
+                      name: review.data.drafts[restoreIndex].name,
+                    })}</strong
+                  >
                   <p>
-                    Current prose will be preserved as another draft. Beat structure must still
-                    match.
+                    {t("editorial.revisionsPanel.restoreConfirmBody")}
                   </p>
                   <div class="restore-actions">
                     <button
                       type="button"
                       class="ka-button ka-button--ghost"
                       disabled={busy}
-                      onclick={() => (restoreIndex = null)}>Cancel restore</button
+                      onclick={() => (restoreIndex = null)}
+                      >{t("editorial.revisionsPanel.cancelRestore")}</button
                     ><button
                       type="button"
                       class="ka-button ka-button--danger"
@@ -332,7 +369,7 @@
                       >{#if action === "restore"}<Loader2
                           class="w-5 h-5 animate-spin"
                           aria-hidden="true"
-                        />{/if}Restore and preserve current prose</button
+                        />{/if}{t("editorial.revisionsPanel.restoreAndPreserve")}</button
                     >
                   </div>
                 </div>
@@ -340,14 +377,20 @@
             {/if}
             <p class="ka-help comparison-note">
               {hasChanges
-                ? "Removed text is marked on the left; added text is marked on the right."
-                : "No prose text changes between these versions."} Formatting is not compared.
+                ? t("editorial.revisionsPanel.comparisonChanged")
+                : t("editorial.revisionsPanel.comparisonUnchanged")}
+              {t("editorial.revisionsPanel.formattingNotCompared")}
             </p>
             <div class="comparison-pages">
-              <section class="comparison-version" aria-label="Saved draft">
+              <section
+                class="comparison-version"
+                aria-label={t("editorial.revisionsPanel.savedDraft")}
+              >
                 <header>
                   <span class="version-kind"
-                    >Saved draft · {oldDraft.mode === "page" ? "Page prose" : "Beat prose"}</span
+                    >{t("editorial.revisionsPanel.savedDraft")} · {oldDraft.mode === "page"
+                      ? t("editorial.revisionsPanel.pageProse")
+                      : t("editorial.revisionsPanel.beatProse")}</span
                   >
                   <h3>{oldDraft.name}</h3>
                   <time datetime={oldDraft.created_at}>{dateLabel(oldDraft.created_at)}</time>
@@ -359,14 +402,23 @@
                   </div>
                 </div>
               </section>
-              <section class="comparison-version" aria-label="Comparison version">
+              <section
+                class="comparison-version"
+                aria-label={t("editorial.revisionsPanel.comparisonVersionAria")}
+              >
                 <header>
                   <span class="version-kind"
-                    >{after < 0 ? "Working manuscript" : "Saved draft"} · {newDraft.mode === "page"
-                      ? "Page prose"
-                      : "Beat prose"}</span
+                    >{after < 0
+                      ? t("editorial.revisionsPanel.workingManuscript")
+                      : t("editorial.revisionsPanel.savedDraft")} · {newDraft.mode === "page"
+                      ? t("editorial.revisionsPanel.pageProse")
+                      : t("editorial.revisionsPanel.beatProse")}</span
                   >
-                  <h3>{after < 0 ? "Current prose" : review.data.drafts[after].name}</h3>
+                  <h3>
+                    {after < 0
+                      ? t("editorial.revisionsPanel.currentProse")
+                      : review.data.drafts[after].name}
+                  </h3>
                   {#if after >= 0}<time datetime={review.data.drafts[after].created_at}
                       >{dateLabel(review.data.drafts[after].created_at)}</time
                     >{/if}
@@ -386,7 +438,12 @@
       <div class="overview-scroll">
         <table>
           <thead
-            ><tr><th>Chapter</th><th>Scene</th><th>Revision status</th><th>Saved drafts</th></tr
+            ><tr
+              ><th>{t("editorial.revisionsPanel.chapterHeader")}</th><th
+                >{t("editorial.revisionsPanel.sceneHeader")}</th
+              ><th>{t("editorial.revisionsPanel.revisionStatusHeader")}</th><th
+                >{t("editorial.revisionsPanel.savedDrafts")}</th
+              ></tr
             ></thead
           ><tbody
             >{#each overview as row}<tr
@@ -399,7 +456,9 @@
       </div>
     {/if}
   {/if}
-  {#if busy}<p role="status" class="ka-help busy-notice">Saving or loading…</p>{/if}
+  {#if busy}<p role="status" class="ka-help busy-notice">
+      {t("editorial.revisionsPanel.savingOrLoading")}
+    </p>{/if}
 </dialog>
 
 <style>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ExternalLink } from "lucide-svelte";
   import type { FieldDefinition } from "../types";
+  import { t } from "../i18n";
 
   let {
     definition,
@@ -92,7 +93,7 @@
       {#if definition.required}<span class="field-required" aria-hidden="true">*</span>{/if}
     </div>
     {#if definition.required}<span id={`${fieldId}-required`} class="sr-only"
-        >Choose at least one option (required).</span
+        >{t("references.fieldRenderer.multiselectRequired")}</span
       >{/if}
   {:else}
     <div class="field-label">
@@ -151,8 +152,8 @@
           target="_blank"
           rel="noopener noreferrer"
           class="ka-button ka-button--ghost ka-icon-button"
-          aria-label="Open URL"
-          title="Open URL"
+          aria-label={t("references.fieldRenderer.openUrl")}
+          title={t("references.fieldRenderer.openUrl")}
         >
           <ExternalLink class="w-5 h-5" aria-hidden="true" />
         </a>
@@ -167,7 +168,7 @@
       class={inputClass}
       {disabled}
     >
-      <option value="">— Select —</option>
+      <option value="">{t("references.fieldRenderer.selectPlaceholder")}</option>
       {#each selectOptions as option}
         <option value={option}>{option}</option>
       {/each}

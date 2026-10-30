@@ -8,10 +8,11 @@
   import { invoke } from "@tauri-apps/api/core";
   import { CheckCheck, CircleAlert, Loader2 } from "lucide-svelte";
   import { SvelteSet } from "svelte/reactivity";
-  import type { SyncPreview, ReimportSummary, SyncChange } from "../types";
+  import type { SyncPreview, SyncAddition, ReimportSummary, SyncChange } from "../types";
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
   import { saveProseBefore } from "../utils/proseFlush";
+  import { t } from "../i18n";
 
   interface Props {
     projectId: string;
@@ -86,15 +87,40 @@
   );
 
   const FIELD_LABELS: Record<SyncChange["field"], string> = {
-    title: "Title",
-    synopsis: "Synopsis",
-    content: "Content",
-    prose: "Prose",
+    title: "fieldTitle",
+    synopsis: "fieldSynopsis",
+    content: "fieldContent",
+    prose: "fieldProse",
   };
 
-  function kindLabel(itemType: string): string {
-    return itemType.charAt(0).toUpperCase() + itemType.slice(1);
+  const KIND_LABELS: Record<SyncAddition["item_type"], string> = {
+    chapter: "kindChapter",
+    scene: "kindScene",
+    beat: "kindBeat",
+  };
+
+  function fieldLabel(field: SyncChange["field"]): string {
+    return t(`references.syncDialog.${FIELD_LABELS[field] ?? field}`);
   }
+
+  function kindLabel(itemType: SyncAddition["item_type"]): string {
+    return t(`references.syncDialog.${KIND_LABELS[itemType] ?? itemType}`);
+  }
+
+  const selectionSummary = $derived.by(() => {
+    const selected = t(
+      selectedCount === 1
+        ? "references.syncDialog.selectionOne"
+        : "references.syncDialog.selectionMany",
+      { count: selectedCount }
+    );
+    if (keptCount === 0) return selected;
+    const kept = t(
+      keptCount === 1 ? "references.syncDialog.keptOne" : "references.syncDialog.keptMany",
+      { count: keptCount }
+    );
+    return `${selected}, ${kept}`;
+  });
 
   async function applySync() {
     syncing = true;
@@ -131,11 +157,11 @@
 >
   <div class="app-dialog-surface ka-dialog-default dialog-shell sync">
     <DialogHeader
-      title="Sync with outline"
+      title={t("references.syncDialog.title")}
       titleId="sync-dialog-title"
-      subtitle="Review and select items to import"
+      subtitle={t("references.syncDialog.subtitle")}
       {onClose}
-      closeLabel="Close"
+      closeLabel={t("references.syncDialog.close")}
       closeTestId="sync-dialog-close"
       disabled={syncing}
     />
@@ -144,57 +170,74 @@
       {#if hasNothingToSync}
         <div class="ka-empty od-stack">
           <CheckCheck class="w-7 h-7" aria-hidden="true" />
-          <h4>All synced</h4>
-          <p>Your project already matches the outline file.</p>
+          <h4>{t("references.syncDialog.allSynced")}</h4>
+          <p>{t("references.syncDialog.allSyncedMessage")}</p>
         </div>
       {:else}
         <p class="sync-intro">
-          kindling compared your project with the outline file. New items are selected; changes to
-          existing items are opt-in so your own edits are not overwritten.
+          {t("references.syncDialog.intro")}
         </p>
 
-        <div class="sync-summary" aria-label="Summary of changes">
+        <div class="sync-summary" aria-label={t("references.syncDialog.summaryLabel")}>
           {#if syncPreview.additions.length > 0}
-            <span class="ka-badge ka-badge--success">{syncPreview.additions.length} added</span>
+            <span class="ka-badge ka-badge--success"
+              >{t("references.syncDialog.addedCount", {
+                count: syncPreview.additions.length,
+              })}</span
+            >
           {/if}
           {#if syncPreview.changes.length > 0}
-            <span class="ka-badge">{syncPreview.changes.length} changed</span>
+            <span class="ka-badge"
+              >{t("references.syncDialog.changedCount", {
+                count: syncPreview.changes.length,
+              })}</span
+            >
           {/if}
           {#if conflictCount > 0}
             <span class="ka-badge ka-badge--warning" data-testid="sync-conflict-count"
-              >{conflictCount} conflict{conflictCount !== 1 ? "s" : ""}</span
+              >{t(
+                conflictCount === 1
+                  ? "references.syncDialog.conflictOne"
+                  : "references.syncDialog.conflictMany",
+                { count: conflictCount }
+              )}</span
             >
           {/if}
         </div>
         {#if conflictCount > 0}
           <p class="ka-help" data-testid="sync-conflict-note">
-            A conflict changed in kindling as well as in the outline file, or kindling can't tell
-            which side changed. Leave it unticked to keep the kindling version; it won't be offered
-            again unless the outline file changes it. All skips conflicts.
+            {t("references.syncDialog.conflictNote")}
           </p>
         {/if}
 
         {#if syncPreview.additions.length > 0}
           <section class="ka-group sync-group" aria-labelledby="sync-additions-title">
             <div class="sync-group-head">
-              <h3 class="ka-group-title" id="sync-additions-title">New items</h3>
+              <h3 class="ka-group-title" id="sync-additions-title">
+                {t("references.syncDialog.newItems")}
+              </h3>
               <span class="sync-count"
-                >{selectedAdditions.size} of {syncPreview.additions.length} selected</span
+                >{t("references.syncDialog.selectedOf", {
+                  selected: selectedAdditions.size,
+                  total: syncPreview.additions.length,
+                })}</span
               >
               <span class="sync-bulk">
                 <button
                   type="button"
                   onclick={selectAllAdditions}
                   class="ka-button ka-button--ghost"
-                  aria-label="Select all new items"
-                  title="Select all">All</button
+                  aria-label={t("references.syncDialog.selectAllNewItems")}
+                  title={t("references.syncDialog.selectAll")}
+                  >{t("references.syncDialog.allButton")}</button
                 >
                 <button
                   type="button"
                   onclick={deselectAllAdditions}
                   class="ka-button ka-button--ghost"
-                  aria-label="Deselect all new items"
-                  title="Deselect all">None</button
+                  aria-label={t("references.syncDialog.deselectAllNewItems")}
+                  title={t("references.syncDialog.deselectAll")}
+                  >{t("references.syncDialog.noneButton")}</button
                 >
               </span>
             </div>
@@ -209,14 +252,23 @@
                       disabled={syncing}
                     />
                     <span class="sync-type"
-                      ><span class="ka-badge ka-badge--success">Added</span></span
+                      ><span class="ka-badge ka-badge--success"
+                        >{t("references.syncDialog.addedBadge")}</span
+                      ></span
                     >
                     <span class="sync-text">
                       <span class="ka-label sync-name"
-                        >{kindLabel(addition.item_type)} · {addition.title}</span
+                        >{t("references.syncDialog.kindTitle", {
+                          kind: kindLabel(addition.item_type),
+                          title: addition.title,
+                        })}</span
                       >
                       {#if addition.parent_title}
-                        <span class="sync-meta">in {addition.parent_title}</span>
+                        <span class="sync-meta"
+                          >{t("references.syncDialog.parentIn", {
+                            parent: addition.parent_title,
+                          })}</span
+                        >
                       {/if}
                     </span>
                   </label>
@@ -229,24 +281,31 @@
         {#if syncPreview.changes.length > 0}
           <section class="ka-group sync-group" aria-labelledby="sync-changes-title">
             <div class="sync-group-head">
-              <h3 class="ka-group-title" id="sync-changes-title">Changes</h3>
+              <h3 class="ka-group-title" id="sync-changes-title">
+                {t("references.syncDialog.changesTitle")}
+              </h3>
               <span class="sync-count"
-                >{selectedChanges.size} of {syncPreview.changes.length} selected</span
+                >{t("references.syncDialog.selectedOf", {
+                  selected: selectedChanges.size,
+                  total: syncPreview.changes.length,
+                })}</span
               >
               <span class="sync-bulk">
                 <button
                   type="button"
                   onclick={selectAllChanges}
                   class="ka-button ka-button--ghost"
-                  aria-label="Select all changes except conflicts"
-                  title="Select all except conflicts">All</button
+                  aria-label={t("references.syncDialog.selectAllChangesLabel")}
+                  title={t("references.syncDialog.selectAllExceptConflicts")}
+                  >{t("references.syncDialog.allButton")}</button
                 >
                 <button
                   type="button"
                   onclick={deselectAllChanges}
                   class="ka-button ka-button--ghost"
-                  aria-label="Deselect all changes"
-                  title="Deselect all">None</button
+                  aria-label={t("references.syncDialog.deselectAllChangesLabel")}
+                  title={t("references.syncDialog.deselectAll")}
+                  >{t("references.syncDialog.noneButton")}</button
                 >
               </span>
             </div>
@@ -264,48 +323,64 @@
                     />
                     <span class="sync-type">
                       {#if change.conflict}
-                        <span class="ka-badge ka-badge--warning">Conflict</span>
+                        <span class="ka-badge ka-badge--warning"
+                          >{t("references.syncDialog.conflictBadge")}</span
+                        >
                       {:else}
-                        <span class="ka-badge">Changed</span>
+                        <span class="ka-badge">{t("references.syncDialog.changedBadge")}</span>
                       {/if}
                     </span>
                     <span class="sync-text">
                       <span class="ka-label sync-name"
-                        >{kindLabel(change.item_type)} · {change.item_title}</span
+                        >{t("references.syncDialog.kindTitle", {
+                          kind: kindLabel(change.item_type),
+                          title: change.item_title,
+                        })}</span
                       >
-                      <span class="sync-meta">{FIELD_LABELS[change.field] ?? change.field}</span>
+                      <span class="sync-meta">{fieldLabel(change.field)}</span>
                       {#if change.conflict}
                         <span class="ka-help" data-testid="sync-conflict-help">
                           {selectedChanges.has(change.id)
-                            ? "Ticked: the incoming version will replace the kindling version."
-                            : "Unticked: the kindling version is kept. Tick to use the incoming version instead."}
+                            ? t("references.syncDialog.conflictTicked")
+                            : t("references.syncDialog.conflictUnticked")}
                         </span>
                       {/if}
                       {#if change.field === "prose"}
                         <span class="sync-prose" data-testid="sync-prose-diff">
                           <span class="ka-help">
-                            Accepting replaces the prose shown below. Scene replacements without
-                            beat comments keep planning beats and put the incoming text in the first
-                            beat.
+                            {t("references.syncDialog.proseNote")}
                           </span>
                           <span class="sync-version">
-                            <span class="sync-meta">Current prose</span>
-                            <span class="prose-review">{change.current_value || "(empty)"}</span>
+                            <span class="sync-meta">{t("references.syncDialog.currentProse")}</span>
+                            <span class="prose-review"
+                              >{change.current_value || t("references.syncDialog.emptyValue")}</span
+                            >
                           </span>
                           <span class="sync-version">
-                            <span class="sync-meta">Incoming prose</span>
-                            <span class="prose-review">{change.new_value || "(empty)"}</span>
+                            <span class="sync-meta">{t("references.syncDialog.incomingProse")}</span
+                            >
+                            <span class="prose-review"
+                              >{change.new_value || t("references.syncDialog.emptyValue")}</span
+                            >
                           </span>
                         </span>
                       {:else}
                         <span class="sync-values">
                           <span class="sync-value">
-                            <span class="sync-value-label">Current</span>
-                            <span class="sync-value-text">{change.current_value || "(empty)"}</span>
+                            <span class="sync-value-label"
+                              >{t("references.syncDialog.current")}</span
+                            >
+                            <span class="sync-value-text"
+                              >{change.current_value || t("references.syncDialog.emptyValue")}</span
+                            >
                           </span>
                           <span class="sync-value">
-                            <span class="sync-value-label">Incoming</span>
-                            <span class="sync-value-text">{change.new_value || "(empty)"}</span>
+                            <span class="sync-value-label"
+                              >{t("references.syncDialog.incoming")}</span
+                            >
+                            <span class="sync-value-text"
+                              >{change.new_value || t("references.syncDialog.emptyValue")}</span
+                            >
                           </span>
                         </span>
                       {/if}
@@ -324,9 +399,9 @@
         <div class="ka-notice ka-notice--error od-row-top" role="alert">
           <CircleAlert class="w-5 h-5" aria-hidden="true" />
           <div class="od-field od-fill">
-            <strong>Sync failed: {error}</strong>
+            <strong>{t("references.syncDialog.syncFailed", { error: String(error) })}</strong>
             <p>
-              Nothing was changed. Check that the outline file is still available, then try again.
+              {t("references.syncDialog.syncFailedNote")}
             </p>
           </div>
         </div>
@@ -336,12 +411,11 @@
     <footer class="ka-dialog-footer">
       {#if hasNothingToSync}
         <button type="button" onclick={onClose} class="ka-button ka-button--secondary">
-          Close
+          {t("references.syncDialog.close")}
         </button>
       {:else}
         <p class="ka-help ka-dialog-footer-start">
-          {selectedCount} item{selectedCount !== 1 ? "s" : ""} selected{#if keptCount > 0}, {keptCount}
-            kindling version{keptCount !== 1 ? "s" : ""} kept{/if}
+          {selectionSummary}
         </p>
         <button
           type="button"
@@ -349,7 +423,7 @@
           class="ka-button ka-button--secondary"
           disabled={syncing}
         >
-          Cancel
+          {t("references.syncDialog.cancel")}
         </button>
         <button
           type="button"
@@ -361,13 +435,22 @@
         >
           {#if syncing}
             <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-            Applying…
+            {t("references.syncDialog.applying")}
           {:else if selectedCount === 0 && keptCount > 0}
-            Keep kindling version{keptCount !== 1 ? "s" : ""}
+            {t(
+              keptCount === 1
+                ? "references.syncDialog.keepKindling"
+                : "references.syncDialog.keepKindlingPlural"
+            )}
           {:else if selectedCount === 0}
-            Apply changes
+            {t("references.syncDialog.applyChanges")}
           {:else}
-            Apply {selectedCount} change{selectedCount !== 1 ? "s" : ""}
+            {t(
+              selectedCount === 1
+                ? "references.syncDialog.applyOne"
+                : "references.syncDialog.applyMany",
+              { count: selectedCount }
+            )}
           {/if}
         </button>
       {/if}

@@ -7,6 +7,7 @@
   import FieldRenderer from "./FieldRenderer.svelte";
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
+  import { t } from "../i18n";
 
   let {
     referenceType,
@@ -30,6 +31,19 @@
   type AttributeRow = { id: string; key: string; value: string };
 
   const entityTypeMap = REFERENCE_FIELD_TYPES;
+
+  const TYPE_LABEL_KEYS: Record<string, string> = {
+    characters: "typeCharacter",
+    locations: "typeLocation",
+    items: "typeItem",
+    objectives: "typeObjective",
+    organizations: "typeOrganization",
+    timelines: "typeTimeline",
+    custom: "typeNote",
+  };
+  const typeLabel = $derived(
+    t(`references.referenceEditDialog.${TYPE_LABEL_KEYS[referenceType.id] ?? "typeReference"}`)
+  );
 
   let name = $state("");
   let description = $state("");
@@ -114,7 +128,7 @@
   async function handleSave() {
     const trimmedName = name.trim();
     if (!trimmedName) {
-      nameError = "Enter a name to continue.";
+      nameError = t("references.referenceEditDialog.nameRequired");
       nameInput?.focus();
       return;
     }
@@ -142,7 +156,7 @@
       });
       onClose();
     } catch (e) {
-      error = e instanceof Error ? e.message : "Failed to save reference";
+      error = e instanceof Error ? e.message : t("references.referenceEditDialog.saveFailed");
     } finally {
       saving = false;
     }
@@ -177,23 +191,25 @@
 >
   <div class="app-dialog-surface ka-dialog-default dialog-shell">
     <DialogHeader
-      title={`${reference ? "Edit" : "Add"} ${referenceType.singular}`}
+      title={reference
+        ? t("references.referenceEditDialog.titleEdit", { type: typeLabel })
+        : t("references.referenceEditDialog.titleAdd", { type: typeLabel })}
       titleId="reference-dialog-title"
       {onClose}
-      closeLabel="Close"
+      closeLabel={t("references.referenceEditDialog.close")}
       closeTestId="reference-close"
     />
 
     <div class="ka-dialog-body reference-form">
       <div class="ka-group">
         <div class="ka-field od-field">
-          <label for="reference-name">Name</label>
+          <label for="reference-name">{t("references.referenceEditDialog.name")}</label>
           <input
             id="reference-name"
             bind:this={nameInput}
             bind:value={name}
             type="text"
-            placeholder="Enter name…"
+            placeholder={t("references.referenceEditDialog.namePlaceholder")}
             disabled={saving}
             aria-invalid={nameError ? true : undefined}
             aria-describedby={nameError ? "ref-name-error" : undefined}
@@ -206,24 +222,28 @@
 
         <div class="ka-field od-field">
           <label for="reference-description">
-            Description <span class="ka-optional">(optional)</span>
+            {t("references.referenceEditDialog.description")}
+            <span class="ka-optional">{t("references.referenceEditDialog.optional")}</span>
           </label>
           <textarea
             id="reference-description"
             rows="4"
             bind:value={description}
-            placeholder="Optional description"
+            placeholder={t("references.referenceEditDialog.descriptionPlaceholder")}
             disabled={saving}
           ></textarea>
         </div>
 
         <div class="ka-field od-field">
-          <label for="reference-notes">Notes <span class="ka-optional">(optional)</span></label>
+          <label for="reference-notes"
+            >{t("references.referenceEditDialog.notes")}
+            <span class="ka-optional">{t("references.referenceEditDialog.optional")}</span></label
+          >
           <textarea
             id="reference-notes"
             rows="3"
             bind:value={notes}
-            placeholder="Optional notes"
+            placeholder={t("references.referenceEditDialog.notesPlaceholder")}
             disabled={saving}
           ></textarea>
         </div>
@@ -231,7 +251,9 @@
 
       {#if !fieldsLoading && visibleFieldDefs.length > 0}
         <section class="ka-group" aria-labelledby="reference-custom-fields">
-          <h3 id="reference-custom-fields" class="ka-group-title">Custom fields</h3>
+          <h3 id="reference-custom-fields" class="ka-group-title">
+            {t("references.referenceEditDialog.customFields")}
+          </h3>
           <div class="reference-fields">
             {#each visibleFieldDefs as def (def.id)}
               <FieldRenderer
@@ -247,7 +269,9 @@
 
       <section class="ka-group" aria-labelledby="reference-legacy">
         <div class="ka-group-title">
-          <h3 id="reference-legacy" class="reference-legacy-title">Legacy attributes</h3>
+          <h3 id="reference-legacy" class="reference-legacy-title">
+            {t("references.referenceEditDialog.legacyAttributes")}
+          </h3>
           <button
             type="button"
             onclick={addAttributeRow}
@@ -255,34 +279,38 @@
             disabled={saving}
           >
             <Plus class="w-5 h-5" aria-hidden="true" />
-            Add attribute
+            {t("references.referenceEditDialog.addAttribute")}
           </button>
         </div>
         {#if attributeRows.length === 0}
-          <p class="ka-help">No attributes yet.</p>
+          <p class="ka-help">{t("references.referenceEditDialog.noAttributes")}</p>
         {:else}
           {#each attributeRows as row, index (row.id)}
             <div class="reference-attribute">
               <input
                 type="text"
                 bind:value={row.key}
-                placeholder="Key"
-                aria-label={`Attribute ${index + 1} key`}
+                placeholder={t("references.referenceEditDialog.keyPlaceholder")}
+                aria-label={t("references.referenceEditDialog.attributeKeyLabel", {
+                  index: index + 1,
+                })}
                 disabled={saving}
               />
               <input
                 type="text"
                 bind:value={row.value}
-                placeholder="Value"
-                aria-label={`Attribute ${index + 1} value`}
+                placeholder={t("references.referenceEditDialog.valuePlaceholder")}
+                aria-label={t("references.referenceEditDialog.attributeValueLabel", {
+                  index: index + 1,
+                })}
                 disabled={saving}
               />
               <button
                 type="button"
                 onclick={() => removeAttributeRow(row.id)}
                 class="ka-button ka-button--ghost ka-icon-button reference-remove"
-                aria-label="Remove attribute"
-                title="Remove attribute"
+                aria-label={t("references.referenceEditDialog.removeAttribute")}
+                title={t("references.referenceEditDialog.removeAttribute")}
                 disabled={saving}
               >
                 <Trash2 class="w-5 h-5" aria-hidden="true" />
@@ -304,7 +332,7 @@
         class="ka-button ka-button--secondary"
         disabled={saving}
       >
-        Cancel
+        {t("references.referenceEditDialog.cancel")}
       </button>
       <button
         data-testid="reference-save"
@@ -316,9 +344,9 @@
       >
         {#if saving}
           <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-          Saving…
+          {t("references.referenceEditDialog.saving")}
         {:else}
-          Save
+          {t("references.referenceEditDialog.save")}
         {/if}
       </button>
     </footer>

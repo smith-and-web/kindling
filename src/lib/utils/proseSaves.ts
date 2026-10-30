@@ -1,6 +1,7 @@
 import { writing as writingStats } from "../stores/writing.svelte";
 import { invoke } from "@tauri-apps/api/core";
 import { createSubscriber } from "svelte/reactivity";
+import { t } from "../i18n";
 
 export type ProseSave = { projectId: string; kind: "beat" | "page"; id: string; prose: string };
 
@@ -108,7 +109,7 @@ export class ProseSaveQueue {
         (draft) => (this.pending.get(draft.id) ?? this.recovery.get(draft.id)?.draft) !== draft
       )
     ) {
-      throw new Error("Unsaved drafts changed. Retry loading before discarding them.");
+      throw new Error(t("logic.proseSaves.draftsChanged"));
     }
     for (const draft of drafts) {
       this.pending.delete(draft.id);
@@ -135,9 +136,7 @@ export class ProseSaveQueue {
       onSaved?.(save);
     }
     if (this.pendingFor(projectId).length) {
-      throw new Error(
-        `Could not save the latest prose. ${errors.join("; ")} Retry saving or review the unsaved drafts in Find and Replace.`
-      );
+      throw new Error(t("logic.proseSaves.flushFailed", { errors: errors.join("; ") }));
     }
     return saved;
   }

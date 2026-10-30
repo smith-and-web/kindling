@@ -1,5 +1,6 @@
 <script lang="ts">
   import NovelEditor from "./NovelEditor.svelte";
+  import { t } from "../i18n";
 
   let {
     content,
@@ -22,15 +23,17 @@
 
 <section class="page-view" aria-labelledby="scene-prose-title">
   <div class="page-view-head">
-    <h3 id="scene-prose-title">Scene prose</h3>
-    <span class="page-view-count">{wordCount} words</span>
+    <h3 id="scene-prose-title">{t("editor.pageView.title")}</h3>
+    <span class="page-view-count">{t("editor.pageView.words", { count: wordCount })}</span>
   </div>
   <div class="page-view-body">
     <NovelEditor
       {projectId}
       {sceneId}
       {content}
-      placeholder={readonly ? "Scene is locked" : "Write your scene prose here…"}
+      placeholder={readonly
+        ? t("editor.pageView.lockedPlaceholder")
+        : t("editor.pageView.placeholder")}
       {readonly}
       {saveStatus}
       {onUpdate}

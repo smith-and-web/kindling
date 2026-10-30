@@ -10,6 +10,7 @@
   import ProseToolbar from "./ProseToolbar.svelte";
   import { ScreenplayFormatting } from "../utils/screenplayFormatting";
   import { currentProject } from "../stores/project.svelte";
+  import { t } from "../i18n";
 
   interface Props {
     content: string;
@@ -26,7 +27,7 @@
 
   let {
     content,
-    placeholder = "Write your prose…",
+    placeholder = t("editor.novelEditor.placeholder"),
     readonly = false,
     saveStatus = "idle",
     onUpdate,
@@ -91,7 +92,9 @@
           "data-placeholder": placeholder,
           role: "textbox",
           "aria-multiline": "true",
-          "aria-label": beatId ? "Beat prose" : "Scene prose",
+          "aria-label": beatId
+            ? t("editor.novelEditor.beatProse")
+            : t("editor.novelEditor.sceneProse"),
           "aria-readonly": readonly ? "true" : "false",
         }),
       },
@@ -185,11 +188,11 @@
       {#if saveStatus === "saving"}
         <div class="save-status saving" data-testid="save-indicator" role="status">
           <Loader2 class="w-4 h-4 animate-spin" aria-hidden="true" />
-          <span>Saving…</span>
+          <span>{t("editor.novelEditor.saving")}</span>
         </div>
       {:else if saveStatus === "error"}
         <div class="save-status error" role="alert">
-          <span>Couldn’t save — your text is still here</span>
+          <span>{t("editor.novelEditor.saveError")}</span>
         </div>
       {/if}
     </ProseToolbar>

@@ -9,6 +9,7 @@
   import { normalizeReferenceTypes, DEFAULT_REFERENCE_TYPES } from "../referenceTypes";
   import FieldDefinitionManager from "./FieldDefinitionManager.svelte";
   import TagManager from "./TagManager.svelte";
+  import { t } from "../i18n";
 
   let {
     project,
@@ -52,7 +53,7 @@
       savedGoal = dailyGoal;
       goalLoaded = true;
     } catch (e) {
-      error = `Could not load daily goal: ${String(e)}`;
+      error = t("settings.project.loadDailyGoalFailed", { error: String(e) });
     }
   });
   let saving = $state(false);
@@ -94,7 +95,7 @@
         parsedWordTarget !== null &&
         (!Number.isSafeInteger(parsedWordTarget) || parsedWordTarget < 0)
       ) {
-        throw new Error("Word target must be a non-negative whole number");
+        throw new Error(t("settings.project.wordTargetInvalid"));
       }
 
       if (
@@ -104,16 +105,14 @@
           dailyGoal < 0 ||
           dailyGoal > 1000000)
       ) {
-        throw new Error("Daily goal must be a whole number between 0 and 1,000,000");
+        throw new Error(t("settings.project.dailyGoalInvalid"));
       }
 
       const disabledDraft = REFERENCE_TYPE_OPTIONS.find(
         (option) => fieldStates[option.id]?.dirty && !referenceTypes.includes(option.id)
       );
       if (disabledDraft) {
-        throw new Error(
-          `Save or cancel the ${disabledDraft.label} custom field draft before disabling that reference type.`
-        );
+        throw new Error(t("settings.project.disabledDraft", { label: disabledDraft.label }));
       }
 
       // Convert empty strings to null for optional fields
@@ -148,63 +147,67 @@
 
 <div class="settings-pane" aria-busy={busy}>
   <p class="settings-lede">
-    Changes here apply only to <strong>{project.name}</strong>.
+    {t("settings.project.ledePrefix")}<strong>{project.name}</strong>{t(
+      "settings.project.ledeSuffix"
+    )}
     {#if section === "tags"}
-      Tag changes save as you make them.
+      {t("settings.project.tagChanges")}
     {:else if section === "fields"}
-      Custom field changes save as you make them. Fields are listed for saved, enabled reference
-      types.
+      {t("settings.project.fieldChanges")}
     {/if}
   </p>
   <div hidden={section !== "details"} class="settings-fields">
     <!-- Pen Name -->
     <div class="ka-field od-field">
       <label for="author-pen-name">
-        Pen Name <span class="ka-optional">(optional)</span>
+        {t("settings.project.penName")}
+        <span class="ka-optional">{t("settings.project.optional")}</span>
       </label>
       <input
         id="author-pen-name"
         type="text"
         bind:value={authorPenName}
-        placeholder="Leave blank to use your author name"
+        placeholder={t("settings.project.penNamePlaceholder")}
         disabled={saving}
       />
       <p class="ka-help">
-        If provided, this will be used as the byline on title pages instead of your author name.
+        {t("settings.project.penNameHelp")}
       </p>
     </div>
 
     <!-- Genre -->
     <div class="ka-field od-field">
       <label for="genre">
-        Genre <span class="ka-optional">(optional)</span>
+        {t("settings.project.genre")}
+        <span class="ka-optional">{t("settings.project.optional")}</span>
       </label>
       <input
         id="genre"
         type="text"
         bind:value={genre}
-        placeholder="e.g., Literary Fiction, Science Fiction, Mystery"
+        placeholder={t("settings.project.genrePlaceholder")}
         disabled={saving}
       />
-      <p class="ka-help">Genre will be displayed on manuscript title pages.</p>
+      <p class="ka-help">{t("settings.project.genreHelp")}</p>
     </div>
 
     <!-- Description -->
     <div class="ka-field od-field">
       <label for="project-description">
-        Project Description <span class="ka-optional">(optional)</span>
+        {t("settings.project.description")}
+        <span class="ka-optional">{t("settings.project.optional")}</span>
       </label>
       <textarea
         id="project-description"
         rows="4"
         bind:value={description}
-        placeholder="Short summary or notes about this project"
+        placeholder={t("settings.project.descriptionPlaceholder")}
         disabled={saving}
       ></textarea>
     </div>
 
     <div class="ka-field od-field">
-      <label for="daily-writing-goal">Daily writing goal</label>
+      <label for="daily-writing-goal">{t("settings.project.dailyGoal")}</label>
       <input
         id="daily-writing-goal"
         type="number"
@@ -216,15 +219,15 @@
         aria-describedby="daily-goal-help"
       />
       <p id="daily-goal-help" class="ka-help">
-        Net words added per day in this project. Set to 0 to turn off the goal. Changes apply today;
-        earlier streak days keep their original goals.
+        {t("settings.project.dailyGoalHelp")}
       </p>
     </div>
 
     <!-- Word Target -->
     <div class="ka-field od-field">
       <label for="word-target">
-        Word Target <span class="ka-optional">(optional)</span>
+        {t("settings.project.wordTarget")}
+        <span class="ka-optional">{t("settings.project.optional")}</span>
       </label>
       <input
         id="word-target"
@@ -232,15 +235,14 @@
         min="0"
         inputmode="numeric"
         bind:value={wordTarget}
-        placeholder="e.g., 80000"
+        placeholder={t("settings.project.wordTargetPlaceholder")}
         disabled={saving}
       />
     </div>
   </div>
   <div hidden={section !== "references"} class="settings-fields">
     <p class="ka-help">
-      Choose which reference types appear in this project’s References panel. Disabling a type keeps
-      its existing entries.
+      {t("settings.project.referencesHelp")}
     </p>
     {#each REFERENCE_TYPE_OPTIONS as option (option.id)}
       <label class="ka-check">
@@ -269,13 +271,13 @@
             onState={(state) => (fieldStates[refType] = state)}
             onChange={() => onSave({ ...project })}
           />{/if}
-      {:else}<p class="ka-help">Enable reference types to configure custom fields.</p>{/each}
+      {:else}<p class="ka-help">{t("settings.project.enableRefTypes")}</p>{/each}
     {/if}
   </div>
   {#if section === "details" || section === "references"}
     {#if error}<p role="alert" class="ka-error">{error}</p>{/if}
     <div class="settings-actions">
-      {#if saved && !dirty}<p role="status" class="ka-help">Project changes saved.</p>{/if}
+      {#if saved && !dirty}<p role="status" class="ka-help">{t("settings.project.saved")}</p>{/if}
       <button
         type="button"
         onclick={handleSave}
@@ -283,7 +285,7 @@
         aria-busy={saving || undefined}
         class="ka-button"
         >{#if saving}<Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-          Saving…{:else}Save project changes{/if}</button
+          {t("common.saving")}{:else}{t("settings.project.save")}{/if}</button
       >
     </div>
   {/if}

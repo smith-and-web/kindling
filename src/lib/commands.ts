@@ -23,12 +23,14 @@ export interface CommandDef {
 
 import definitions from "./shortcutDefinitions.json";
 import { formatShortcut } from "./utils/keyboardShortcuts";
+import { t } from "./i18n";
 
 export const COMMAND_DEFS: CommandDef[] = definitions
   .filter((def) => def.category !== "Editor")
   .map((def) => ({
     ...def,
-    category: def.category as CommandCategory,
+    label: t(`logic.command.${def.id}.label`),
+    category: t(`logic.commandCategory.${def.category}`) as CommandCategory,
     shortcut: formatShortcut(def.binding),
   }));
 

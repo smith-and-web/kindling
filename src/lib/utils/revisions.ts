@@ -5,6 +5,7 @@ import { DOMParser as ProseParser, DOMSerializer } from "@tiptap/pm/model";
 import { Transform } from "@tiptap/pm/transform";
 import type { EditorMode } from "../types";
 import { inertElement } from "./safeHtml";
+import { t } from "../i18n";
 
 export const reviewExtensions = [
   StarterKit.configure({
@@ -130,17 +131,16 @@ export function acceptSuggestions(
   const targets = ids.map((id) => {
     const a = data.annotations.find((a) => a.id === id);
     if (!a || a.state !== "open" || a.replacement === null)
-      throw new Error("Suggestion is no longer open");
+      throw new Error(t("logic.revisions.suggestionClosed"));
     return a;
   });
   // Fail the whole batch for overlaps or outdated anchors; never partially accept all.
   for (let i = 0; i < targets.length; i++) {
     const a = targets[i];
-    if (!isAnchored(a, next.documents))
-      throw new Error("Prose changed. Re-anchor outdated suggestions before accepting them.");
+    if (!isAnchored(a, next.documents)) throw new Error(t("logic.revisions.proseChanged"));
     for (const b of targets.slice(i + 1)) {
       if (a.document_id === b.document_id && overlaps(a, b))
-        throw new Error("Suggestions overlap. Review and accept them individually.");
+        throw new Error(t("logic.revisions.overlap"));
     }
   }
   for (const a of targets.sort((a, b) => b.from - a.from)) {

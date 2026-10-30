@@ -73,6 +73,7 @@
   import BrandWordmark from "./BrandWordmark.svelte";
   import { menuKeyboard } from "../utils/menuKeyboard";
   import { stepMoveOrder } from "../utils/outlineMove";
+  import { t } from "../i18n";
 
   import type { ComponentType } from "svelte";
 
@@ -149,17 +150,17 @@
   });
 
   const sceneStatusOptions: { value: SceneStatus | "all"; label: string }[] = [
-    { value: "all", label: "All" },
-    { value: "draft", label: "Draft" },
-    { value: "revised", label: "Revised" },
-    { value: "final", label: "Final" },
+    { value: "all", label: t("sidebar.sidebar.all") },
+    { value: "draft", label: t("sidebar.sidebar.statusDraft") },
+    { value: "revised", label: t("sidebar.sidebar.statusRevised") },
+    { value: "final", label: t("sidebar.sidebar.statusFinal") },
   ];
 
   const sceneTypeLabels: Record<SceneType, string> = {
-    normal: "Normal",
-    notes: "Notes",
-    todo: "ToDo",
-    unused: "Unused",
+    normal: t("sidebar.sidebar.typeNormal"),
+    notes: t("sidebar.sidebar.typeNotes"),
+    todo: t("sidebar.sidebar.typeTodo"),
+    unused: t("sidebar.sidebar.typeUnused"),
   };
 
   const sceneTypeFilterOptions: {
@@ -167,15 +168,15 @@
     label: string;
     icon: ComponentType;
   }[] = [
-    { type: "notes", label: "Notes", icon: StickyNote },
-    { type: "todo", label: "ToDo", icon: CheckSquare },
-    { type: "unused", label: "Unused", icon: EyeOff },
+    { type: "notes", label: t("sidebar.sidebar.typeNotes"), icon: StickyNote },
+    { type: "todo", label: t("sidebar.sidebar.typeTodo"), icon: CheckSquare },
+    { type: "unused", label: t("sidebar.sidebar.typeUnused"), icon: EyeOff },
   ];
 
   const sceneStatusLabels: Record<SceneStatus, string> = {
-    draft: "Draft",
-    revised: "Revised",
-    final: "Final",
+    draft: t("sidebar.sidebar.statusDraft"),
+    revised: t("sidebar.sidebar.statusRevised"),
+    final: t("sidebar.sidebar.statusFinal"),
   };
 
   let showNotesScenes = $state(true);
@@ -346,7 +347,7 @@
       await loadSavedFilters();
     } catch (e) {
       console.error("Failed to save filter:", e);
-      ui.showError(`Failed to save filter: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedSaveFilter", { error: String(e) }));
     }
   }
 
@@ -369,14 +370,20 @@
       await loadSavedFilters();
     } catch (e) {
       console.error("Failed to delete saved filter:", e);
-      ui.showError(`Failed to delete saved filter: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedDeleteSavedFilter", { error: String(e) }));
     }
   }
 
   // Labels for Part/Chapter vs Act/Sequence (screenplay projects)
-  const partLabel = $derived(currentProject.value?.project_type === "screenplay" ? "Act" : "Part");
+  const partLabel = $derived(
+    currentProject.value?.project_type === "screenplay"
+      ? t("sidebar.sidebar.actLabel")
+      : t("sidebar.sidebar.partLabel")
+  );
   const chapterLabel = $derived(
-    currentProject.value?.project_type === "screenplay" ? "Sequence" : "Chapter"
+    currentProject.value?.project_type === "screenplay"
+      ? t("sidebar.sidebar.sequenceLabel")
+      : t("sidebar.sidebar.chapterLabel")
   );
 
   // Chapter synopsis editing
@@ -408,7 +415,7 @@
       return null;
     } catch (e) {
       console.error("Failed to save chapter synopsis:", e);
-      return e ?? "Unknown error";
+      return e ?? t("sidebar.sidebar.unknownError");
     }
   }
 
@@ -427,7 +434,12 @@
       return;
     }
     // Keep the field open with the typed text so the writer can retry.
-    ui.showError(`Failed to save ${chapterLabel.toLowerCase()} synopsis: ${String(error)}`);
+    ui.showError(
+      t("sidebar.sidebar.failedSaveSynopsis", {
+        label: chapterLabel.toLowerCase(),
+        error: String(error),
+      })
+    );
   }
 
   // Export dialog state
@@ -533,7 +545,9 @@
     } catch (e) {
       console.error("Failed to load chapters:", e);
       ui.showError(
-        `Failed to load chapters: ${typeof e === "string" ? e : ((e as Error)?.message ?? String(e))}`
+        t("sidebar.sidebar.failedLoadChapters", {
+          error: typeof e === "string" ? e : ((e as Error)?.message ?? String(e)),
+        })
       );
     } finally {
       if (requestId === chaptersRequestId) {
@@ -579,7 +593,7 @@
       }
     } catch (e) {
       console.error("Failed to load scenes:", e);
-      ui.showError(`Failed to load scenes: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedLoadScenes", { error: String(e) }));
     }
   }
 
@@ -593,7 +607,7 @@
       currentProject.setBeats(beats);
     } catch (e) {
       console.error("Failed to load beats:", e);
-      ui.showError(`Failed to load beats: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedLoadBeats", { error: String(e) }));
     }
   }
 
@@ -684,7 +698,12 @@
       cancelCreate();
     } catch (e) {
       console.error("Failed to create chapter:", e);
-      ui.showError(`Failed to create ${chapterLabel.toLowerCase()}: ${String(e)}`);
+      ui.showError(
+        t("sidebar.sidebar.failedCreate", {
+          label: chapterLabel.toLowerCase(),
+          error: String(e),
+        })
+      );
     }
   }
 
@@ -702,7 +721,12 @@
       cancelCreate();
     } catch (e) {
       console.error("Failed to create part:", e);
-      ui.showError(`Failed to create ${partLabel.toLowerCase()}: ${String(e)}`);
+      ui.showError(
+        t("sidebar.sidebar.failedCreate", {
+          label: partLabel.toLowerCase(),
+          error: String(e),
+        })
+      );
     }
   }
 
@@ -718,7 +742,7 @@
       cancelCreate();
     } catch (e) {
       console.error("Failed to create scene:", e);
-      ui.showError(`Failed to create scene: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedCreateScene", { error: String(e) }));
     }
   }
 
@@ -779,11 +803,21 @@
         type: "chapter",
         id: chapter.id,
         title: chapter.title,
-        message: `This will delete “${chapter.title}” with ${counts.scene_count} scene${counts.scene_count !== 1 ? "s" : ""} and ${counts.beat_count} beat${counts.beat_count !== 1 ? "s" : ""}.`,
+        message: t("sidebar.sidebar.deleteChapterMessage", {
+          title: chapter.title,
+          scenes:
+            counts.scene_count !== 1
+              ? t("sidebar.sidebar.sceneCount.many", { count: counts.scene_count })
+              : t("sidebar.sidebar.sceneCount.one", { count: counts.scene_count }),
+          beats:
+            counts.beat_count !== 1
+              ? t("sidebar.sidebar.beatCount.many", { count: counts.beat_count })
+              : t("sidebar.sidebar.beatCount.one", { count: counts.beat_count }),
+        }),
       };
     } catch (e) {
       console.error("Failed to get content counts:", e);
-      ui.showError(`Failed to prepare delete: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedPrepareDelete", { error: String(e) }));
     }
   }
 
@@ -808,11 +842,17 @@
         type: "scene",
         id: scene.id,
         title: scene.title,
-        message: `This will delete “${scene.title}” with ${beatCount} beat${beatCount !== 1 ? "s" : ""}.`,
+        message: t("sidebar.sidebar.deleteSceneMessage", {
+          title: scene.title,
+          beats:
+            beatCount !== 1
+              ? t("sidebar.sidebar.beatCount.many", { count: beatCount })
+              : t("sidebar.sidebar.beatCount.one", { count: beatCount }),
+        }),
       };
     } catch (e) {
       console.error("Failed to get beat count:", e);
-      ui.showError(`Failed to prepare delete: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedPrepareDelete", { error: String(e) }));
     }
   }
 
@@ -841,7 +881,7 @@
       }
     } catch (e) {
       console.error("Failed to delete:", e);
-      ui.showError(`Failed to delete: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedDelete", { error: String(e) }));
     } finally {
       deleteDialog = null;
     }
@@ -855,7 +895,7 @@
       currentProject.removeChapter(partDeleteDialog.partId);
     } catch (e) {
       console.error("Failed to delete part:", e);
-      ui.showError(`Failed to delete Part: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedDeletePart", { error: String(e) }));
     } finally {
       partDeleteDialog = null;
     }
@@ -880,7 +920,7 @@
       }
     } catch (e) {
       console.error("Failed to delete part and chapters:", e);
-      ui.showError(`Failed to delete Part: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedDeletePart", { error: String(e) }));
       await loadChapters();
     } finally {
       partDeleteDialog = null;
@@ -1003,7 +1043,7 @@
       return true;
     } catch (e) {
       console.error("Failed to reorder:", e);
-      ui.showError(`Failed to reorder: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedReorder", { error: String(e) }));
       return false;
     }
   }
@@ -1041,8 +1081,14 @@
     const newIds = oneStepOrder(type, item, step);
     if (!newIds || !(await saveOutlineOrder(type, newIds))) return;
     const shown = newIds.filter((id) => visible.some((v) => v.id === id));
-    const direction = step < 0 ? "up" : "down";
-    moveAnnouncement = `Moved “${item.title}” ${direction}, to position ${shown.indexOf(item.id) + 1} of ${shown.length}.`;
+    const direction =
+      step < 0 ? t("sidebar.sidebar.directionUp") : t("sidebar.sidebar.directionDown");
+    moveAnnouncement = t("sidebar.sidebar.movedAnnouncement", {
+      title: item.title,
+      direction,
+      position: shown.indexOf(item.id) + 1,
+      total: shown.length,
+    });
     await tick();
     document
       .querySelector<HTMLElement>(`[data-outline-row="${item.id}"] [data-testid="menu-button"]`)
@@ -1064,7 +1110,9 @@
     } catch (e) {
       console.error("Failed to get sync preview:", e);
       ui.showError(
-        `Failed to check for sync changes: ${e instanceof Error ? e.message : String(e)}`
+        t("sidebar.sidebar.failedCheckSync", {
+          error: e instanceof Error ? e.message : String(e),
+        })
       );
     } finally {
       loadingSyncPreview = false;
@@ -1158,7 +1206,7 @@
 
     return [
       {
-        label: "Rename",
+        label: t("sidebar.sidebar.rename"),
         icon: Pencil,
         action: () => {
           renameDialog = {
@@ -1170,40 +1218,40 @@
         disabled: isLocked,
       },
       {
-        label: "Planning",
+        label: t("sidebar.sidebar.planning"),
         action: () => {},
         disabled: isLocked,
         children: [
           {
-            label: "Fixed",
+            label: t("sidebar.sidebar.fixed"),
             action: () => setPlanningStatus(type, item, "fixed"),
             disabled: isLocked || (item as Chapter & Scene).planning_status === "fixed",
           },
           {
-            label: "Flexible",
+            label: t("sidebar.sidebar.flexible"),
             action: () => setPlanningStatus(type, item, "flexible"),
             disabled: isLocked || (item as Chapter & Scene).planning_status === "flexible",
           },
           {
-            label: "Undefined",
+            label: t("sidebar.sidebar.undefinedStatus"),
             action: () => setPlanningStatus(type, item, "undefined"),
             disabled: isLocked || (item as Chapter & Scene).planning_status === "undefined",
           },
         ],
       },
       {
-        label: "Duplicate",
+        label: t("sidebar.sidebar.duplicate"),
         icon: Copy,
         action: () => handleDuplicate(type, item.id),
       },
       {
-        label: "Move up",
+        label: t("sidebar.sidebar.moveUp"),
         icon: ArrowUp,
         action: () => moveOneStep(type, item, -1),
         disabled: !oneStepOrder(type, item, -1),
       },
       {
-        label: "Move down",
+        label: t("sidebar.sidebar.moveDown"),
         icon: ArrowDown,
         action: () => moveOneStep(type, item, 1),
         disabled: !oneStepOrder(type, item, 1),
@@ -1212,7 +1260,9 @@
       ...(type === "chapter"
         ? [
             {
-              label: isPart ? `Convert to ${chapterLabel}` : `Convert to ${partLabel}`,
+              label: isPart
+                ? t("sidebar.sidebar.convertTo", { label: chapterLabel })
+                : t("sidebar.sidebar.convertTo", { label: partLabel }),
               icon: BookOpen,
               action: () => handleTogglePart(item.id, !isPart),
               disabled: isLocked,
@@ -1221,18 +1271,18 @@
         : []),
       { divider: true, label: "", action: () => {} },
       {
-        label: ownLock ? "Unlock" : "Lock",
+        label: ownLock ? t("sidebar.sidebar.unlock") : t("sidebar.sidebar.lock"),
         icon: ownLock ? Unlock : Lock,
         action: () => handleToggleLock(type, item.id, ownLock),
       },
       {
-        label: "Archive",
+        label: t("sidebar.sidebar.archiveMenu"),
         icon: Archive,
         action: () => handleArchive(type, item.id),
         disabled: isLocked,
       },
       {
-        label: "Export",
+        label: t("sidebar.sidebar.exportMenu"),
         icon: Download,
         action: () => {
           exportDialog = {
@@ -1244,7 +1294,7 @@
       },
       { divider: true, label: "", action: () => {} },
       {
-        label: "Delete",
+        label: t("sidebar.sidebar.delete"),
         icon: Trash2,
         action: () => {
           if (type === "chapter") {
@@ -1286,7 +1336,7 @@
       }
     } catch (e) {
       console.error("Failed to duplicate:", e);
-      ui.showError(`Failed to duplicate: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedDuplicate", { error: String(e) }));
     }
   }
 
@@ -1296,7 +1346,7 @@
       currentProject.updateChapter(chapterId, { is_part: isPart });
     } catch (e) {
       console.error("Failed to toggle part status:", e);
-      ui.showError(`Failed to convert: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedConvert", { error: String(e) }));
     }
   }
 
@@ -1321,7 +1371,7 @@
       }
     } catch (e) {
       console.error("Failed to update planning status:", e);
-      ui.showError(`Failed to update planning status: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedUpdatePlanning", { error: String(e) }));
     }
   }
 
@@ -1336,7 +1386,7 @@
       }
     } catch (e) {
       console.error("Failed to archive:", e);
-      ui.showError(`Failed to archive: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedArchive", { error: String(e) }));
     }
   }
 
@@ -1361,7 +1411,7 @@
       }
     } catch (e) {
       console.error("Failed to toggle lock:", e);
-      ui.showError(`Failed to change lock: ${String(e)}`);
+      ui.showError(t("sidebar.sidebar.failedChangeLock", { error: String(e) }));
     }
   }
 
@@ -1400,7 +1450,7 @@
   data-testid="sidebar"
   class="sidebar"
   class:is-collapsed={ui.sidebarCollapsed}
-  aria-label="Project outline sidebar"
+  aria-label={t("sidebar.sidebar.sidebarAria")}
 >
   <p class="ka-sr" role="status" aria-live="polite">{moveAnnouncement}</p>
   {#if ui.sidebarCollapsed}
@@ -1409,8 +1459,8 @@
         type="button"
         onclick={toggleSidebar}
         class="ka-button ka-button--ghost ka-icon-button"
-        aria-label="Expand sidebar"
-        title="Expand sidebar"
+        aria-label={t("sidebar.sidebar.expandSidebar")}
+        title={t("sidebar.sidebar.expandSidebar")}
       >
         <PanelLeftOpen class="w-5 h-5" aria-hidden="true" />
       </button>
@@ -1438,8 +1488,8 @@
         type="button"
         onclick={toggleSidebar}
         class="ka-button ka-button--ghost ka-icon-button"
-        aria-label="Collapse sidebar"
-        title="Collapse sidebar"
+        aria-label={t("sidebar.sidebar.collapseSidebar")}
+        title={t("sidebar.sidebar.collapseSidebar")}
       >
         <PanelLeftClose class="w-5 h-5" aria-hidden="true" />
       </button>
@@ -1450,12 +1500,12 @@
         data-testid="sidebar-home"
         onclick={goHome}
         class="ka-button ka-button--ghost sb-home"
-        aria-label="Home — all projects"
-        title="Return home to all projects"
+        aria-label={t("sidebar.sidebar.homeAria")}
+        title={t("sidebar.sidebar.homeTitle")}
       >
         <Home class="w-5 h-5" aria-hidden="true" />
-        <span>Home</span>
-        <small>All projects</small>
+        <span>{t("sidebar.sidebar.home")}</span>
+        <small>{t("sidebar.sidebar.allProjects")}</small>
       </button>
       <!-- Project name with action icons -->
       <div class="sb-project">
@@ -1466,7 +1516,10 @@
           {#if currentProject.value.project_type === "screenplay" && pageCountEstimate}
             <span
               class="ka-badge"
-              title="{pageCountEstimate.words} words · target: {pageCountEstimate.target}"
+              title={t("sidebar.sidebar.pageEstimate", {
+                words: pageCountEstimate.words,
+                target: pageCountEstimate.target,
+              })}
             >
               {pageCountEstimate.pages.toFixed(1)} / {pageCountEstimate.target}
             </span>
@@ -1482,8 +1535,8 @@
               disabled={loadingSyncPreview}
               aria-busy={loadingSyncPreview || undefined}
               class="ka-button ka-button--ghost ka-icon-button"
-              aria-label="Sync from source"
-              title="Sync from source"
+              aria-label={t("sidebar.sidebar.syncFromSource")}
+              title={t("sidebar.sidebar.syncFromSource")}
             >
               <RefreshCw
                 class="w-5 h-5 {loadingSyncPreview ? 'animate-spin' : ''}"
@@ -1497,8 +1550,8 @@
               bind:this={moreMenuTrigger}
               onclick={() => (showMoreMenu = !showMoreMenu)}
               class="ka-button ka-button--ghost ka-icon-button"
-              aria-label="More actions"
-              title="More actions"
+              aria-label={t("sidebar.sidebar.moreActions")}
+              title={t("sidebar.sidebar.moreActions")}
               aria-haspopup="menu"
               aria-expanded={showMoreMenu}
               data-testid="more-actions-button"
@@ -1509,7 +1562,7 @@
               <div
                 class="ka-menu-list app-popover sb-popover"
                 role="menu"
-                aria-label="Project actions"
+                aria-label={t("sidebar.sidebar.projectActions")}
                 use:menuKeyboard={{
                   onClose: () => (showMoreMenu = false),
                   trigger: moreMenuTrigger,
@@ -1531,7 +1584,7 @@
                   class="sb-menuitem"
                 >
                   <Download class="w-5 h-5" aria-hidden="true" />
-                  Export
+                  {t("sidebar.sidebar.exportMenu")}
                 </button>
                 <button
                   data-testid="snapshots-button"
@@ -1543,7 +1596,7 @@
                   class="sb-menuitem"
                 >
                   <Clock class="w-5 h-5" aria-hidden="true" />
-                  Snapshots
+                  {t("sidebar.sidebar.snapshots")}
                 </button>
                 <button
                   data-testid="archive-button"
@@ -1555,7 +1608,7 @@
                   class="sb-menuitem"
                 >
                   <Archive class="w-5 h-5" aria-hidden="true" />
-                  Archive
+                  {t("sidebar.sidebar.archiveMenu")}
                 </button>
               </div>
             {/if}
@@ -1570,13 +1623,13 @@
   <div class="sb-scroll" inert={ui.sidebarCollapsed}>
     {#if loading}
       <div class="ka-progress od-field sb-status" role="status">
-        <span>Opening project…</span>
-        <progress aria-label="Opening project"></progress>
+        <span>{t("sidebar.sidebar.openingProject")}</span>
+        <progress aria-label={t("sidebar.sidebar.openingProjectAria")}></progress>
       </div>
     {:else if currentProject.chapters.length === 0}
-      <p class="sb-status ka-help">No chapters yet. Add one below to start outlining.</p>
+      <p class="sb-status ka-help">{t("sidebar.sidebar.noChapters")}</p>
     {:else}
-      <nav class="sb-tree" aria-label="Project outline">
+      <nav class="sb-tree" aria-label={t("sidebar.sidebar.projectOutline")}>
         {#each partGroups as group}
           <!-- Part header (if this group has a Part) -->
           {#if group.part}
@@ -1599,7 +1652,7 @@
                   onmousedown={(e) => onDragHandleMouseDown(e, "chapter", part.id)}
                   class="sb-grip"
                   aria-hidden="true"
-                  title="Drag to reorder"
+                  title={t("sidebar.sidebar.dragToReorder")}
                 >
                   <GripVertical class="w-4 h-4" aria-hidden="true" />
                 </div>
@@ -1611,11 +1664,17 @@
                 >
                   <ChevronRight class="sb-chev" aria-hidden="true" />
                   {#if part.locked}
-                    <Lock class="sb-glyph is-warning" aria-label="Locked" />
+                    <Lock class="sb-glyph is-warning" aria-label={t("sidebar.sidebar.locked")} />
                   {:else if (part.planning_status ?? "fixed") === "flexible"}
-                    <CircleDot class="sb-glyph is-warning" aria-label="Flexible" />
+                    <CircleDot
+                      class="sb-glyph is-warning"
+                      aria-label={t("sidebar.sidebar.flexible")}
+                    />
                   {:else if (part.planning_status ?? "fixed") === "undefined"}
-                    <CircleDashed class="sb-glyph" aria-label="Undefined" />
+                    <CircleDashed
+                      class="sb-glyph"
+                      aria-label={t("sidebar.sidebar.undefinedStatus")}
+                    />
                   {/if}
                   <span
                     data-testid="part-title"
@@ -1629,7 +1688,7 @@
                   data-testid="menu-button"
                   onclick={(e) => openContextMenu(e, "chapter", part)}
                   class="ka-button ka-button--ghost ka-icon-button sb-row-menu"
-                  aria-label="{partLabel} menu"
+                  aria-label={t("sidebar.sidebar.menuLabel", { label: partLabel })}
                   aria-haspopup="menu"
                 >
                   <MoreVertical class="w-5 h-5" aria-hidden="true" />
@@ -1664,7 +1723,7 @@
                         onmousedown={(e) => onDragHandleMouseDown(e, "chapter", chapter.id)}
                         class="sb-grip"
                         aria-hidden="true"
-                        title="Drag to reorder"
+                        title={t("sidebar.sidebar.dragToReorder")}
                       >
                         <GripVertical class="w-4 h-4" aria-hidden="true" />
                       </div>
@@ -1676,11 +1735,20 @@
                       >
                         <ChevronRight class="sb-chev" aria-hidden="true" />
                         {#if chapter.locked}
-                          <Lock class="sb-glyph is-warning" aria-label="Locked" />
+                          <Lock
+                            class="sb-glyph is-warning"
+                            aria-label={t("sidebar.sidebar.locked")}
+                          />
                         {:else if (chapter.planning_status ?? "fixed") === "flexible"}
-                          <CircleDot class="sb-glyph is-warning" aria-label="Flexible" />
+                          <CircleDot
+                            class="sb-glyph is-warning"
+                            aria-label={t("sidebar.sidebar.flexible")}
+                          />
                         {:else if (chapter.planning_status ?? "fixed") === "undefined"}
-                          <CircleDashed class="sb-glyph" aria-label="Undefined" />
+                          <CircleDashed
+                            class="sb-glyph"
+                            aria-label={t("sidebar.sidebar.undefinedStatus")}
+                          />
                         {/if}
                         <span
                           data-testid="chapter-title"
@@ -1690,7 +1758,9 @@
                         >
                         {#if writing.value?.chapter_words?.[chapter.id] !== undefined}
                           <small class="sb-row-trail"
-                            >{writing.value.chapter_words[chapter.id].toLocaleString()} words</small
+                            >{t("sidebar.sidebar.wordsCount", {
+                              count: writing.value.chapter_words[chapter.id].toLocaleString(),
+                            })}</small
                           >
                         {/if}
                       </button>
@@ -1700,7 +1770,7 @@
                         data-testid="menu-button"
                         onclick={(e) => openContextMenu(e, "chapter", chapter)}
                         class="ka-button ka-button--ghost ka-icon-button sb-row-menu"
-                        aria-label="{chapterLabel} menu"
+                        aria-label={t("sidebar.sidebar.menuLabel", { label: chapterLabel })}
                         aria-haspopup="menu"
                       >
                         <MoreVertical class="w-5 h-5" aria-hidden="true" />
@@ -1719,8 +1789,12 @@
                               bind:value={chapterSynopsisText}
                               oninput={() => handleChapterSynopsisInput(chapter.id)}
                               onblur={() => finishEditingChapterSynopsis(chapter.id)}
-                              placeholder="{chapterLabel} synopsis…"
-                              aria-label="{chapterLabel} synopsis"
+                              placeholder={t("sidebar.sidebar.synopsisPlaceholder", {
+                                label: chapterLabel,
+                              })}
+                              aria-label={t("sidebar.sidebar.synopsisAria", {
+                                label: chapterLabel,
+                              })}
                               rows="3"
                               autofocus
                             ></textarea>
@@ -1730,7 +1804,7 @@
                               class="sb-synopsis-text"
                               class:is-empty={!chapter.synopsis}
                             >
-                              {chapter.synopsis || "Add synopsis…"}
+                              {chapter.synopsis || t("sidebar.sidebar.addSynopsis")}
                             </button>
                           {/if}
                         </div>
@@ -1741,8 +1815,7 @@
                         <div class="sb-children">
                           <div class="sb-undefined">
                             <p class="ka-help">
-                              This chapter is undefined. Add a synopsis and scenes will appear when
-                              you promote it to Flexible or Fixed.
+                              {t("sidebar.sidebar.undefinedChapterHelp")}
                             </p>
                             {#if !chapter.locked}
                               <button
@@ -1750,7 +1823,7 @@
                                 onclick={() => setPlanningStatus("chapter", chapter, "flexible")}
                                 class="ka-button ka-button--secondary sb-small-button"
                               >
-                                Switch to Flexible
+                                {t("sidebar.sidebar.switchToFlexible")}
                               </button>
                             {/if}
                           </div>
@@ -1776,16 +1849,27 @@
                                 aria-current={isSelected ? "page" : undefined}
                               >
                                 {#if scene.locked || chapter.locked}
-                                  <Lock class="sb-glyph is-warning" aria-label="Locked" />
+                                  <Lock
+                                    class="sb-glyph is-warning"
+                                    aria-label={t("sidebar.sidebar.locked")}
+                                  />
                                 {:else if (scene.planning_status ?? "fixed") === "flexible"}
-                                  <CircleDot class="sb-glyph is-warning" aria-label="Flexible" />
+                                  <CircleDot
+                                    class="sb-glyph is-warning"
+                                    aria-label={t("sidebar.sidebar.flexible")}
+                                  />
                                 {:else if (scene.planning_status ?? "fixed") === "undefined"}
-                                  <CircleDashed class="sb-glyph" aria-label="Undefined" />
+                                  <CircleDashed
+                                    class="sb-glyph"
+                                    aria-label={t("sidebar.sidebar.undefinedStatus")}
+                                  />
                                 {/if}
                                 <span class="sb-row-title" title={scene.title}>{scene.title}</span>
                                 {#if writing.value?.scene_words?.[scene.id] !== undefined}
                                   <small class="sb-row-trail"
-                                    >{writing.value.scene_words[scene.id].toLocaleString()} words</small
+                                    >{t("sidebar.sidebar.wordsCount", {
+                                      count: writing.value.scene_words[scene.id].toLocaleString(),
+                                    })}</small
                                   >
                                 {/if}
                               </button>
@@ -1793,7 +1877,7 @@
                                 data-testid="menu-button"
                                 onclick={(e) => openContextMenu(e, "scene", scene)}
                                 class="ka-button ka-button--ghost ka-icon-button sb-row-menu"
-                                aria-label="Scene menu"
+                                aria-label={t("sidebar.sidebar.sceneMenu")}
                                 aria-haspopup="menu"
                               >
                                 <MoreVertical class="w-5 h-5" aria-hidden="true" />
@@ -1810,8 +1894,8 @@
                                 bind:value={newTitle}
                                 onkeydown={handleCreateKeydown}
                                 onblur={cancelCreate}
-                                placeholder="Scene title…"
-                                aria-label="New scene title"
+                                placeholder={t("sidebar.sidebar.sceneTitlePlaceholder")}
+                                aria-label={t("sidebar.sidebar.newSceneTitle")}
                                 autofocus
                               />
                             </div>
@@ -1822,12 +1906,12 @@
                               class="sb-row-main sb-new"
                             >
                               <Plus class="w-4 h-4" aria-hidden="true" />
-                              New scene
+                              {t("sidebar.sidebar.newScene")}
                             </button>
                           {/if}
 
                           {#if currentProject.scenes.length === 0 && !creatingScene}
-                            <span class="sb-empty">No scenes yet</span>
+                            <span class="sb-empty">{t("sidebar.sidebar.noScenes")}</span>
                           {/if}
 
                           {#if !chapter.locked}
@@ -1837,7 +1921,7 @@
                                 onclick={() => setPlanningStatus("chapter", chapter, "fixed")}
                                 class="ka-button ka-button--ghost sb-small-button"
                               >
-                                Define full structure
+                                {t("sidebar.sidebar.defineFullStructure")}
                               </button>
                             </div>
                           {/if}
@@ -1847,9 +1931,9 @@
                       {:else}
                         <div class="sb-filter">
                           <fieldset class="ka-segments sb-filter-segments">
-                            <legend class="ka-sr">Show scenes</legend>
+                            <legend class="ka-sr">{t("sidebar.sidebar.showScenes")}</legend>
                             <div class="ka-segment-track">
-                              {#each [{ value: "all", label: "All", title: "Show all scenes" }, { value: "planned_only", label: "Planned", title: "Show only planned scenes" }, { value: "next_5", label: "Next 5", title: "Show next 5 scenes" }] as option (option.value)}
+                              {#each [{ value: "all", label: t("sidebar.sidebar.all"), title: t("sidebar.sidebar.showAllScenes") }, { value: "planned_only", label: t("sidebar.sidebar.planned"), title: t("sidebar.sidebar.showOnlyPlanned") }, { value: "next_5", label: t("sidebar.sidebar.next5"), title: t("sidebar.sidebar.showNext5Scenes") }] as option (option.value)}
                                 <label
                                   class="ka-segment"
                                   class:ka-selected={outlineViewFilter === option.value}
@@ -1876,9 +1960,9 @@
                               class="ka-button ka-button--ghost ka-icon-button sb-filter-button"
                               class:is-active={hasActiveFilters}
                               aria-label={hasActiveFilters
-                                ? "Filter by type & status (filters on)"
-                                : "Filter by type & status"}
-                              title="Filter by type & status"
+                                ? t("sidebar.sidebar.filterByTypeStatusOn")
+                                : t("sidebar.sidebar.filterByTypeStatus")}
+                              title={t("sidebar.sidebar.filterByTypeStatus")}
                               aria-expanded={showFilterPopover}
                               aria-haspopup="dialog"
                             >
@@ -1888,7 +1972,7 @@
                               <div
                                 class="app-popover sb-filter-popover"
                                 role="dialog"
-                                aria-label="Scene filters"
+                                aria-label={t("sidebar.sidebar.sceneFilters")}
                                 use:menuKeyboard={{
                                   onClose: () => (showFilterPopover = false),
                                   trigger: filterPopoverTrigger,
@@ -1896,7 +1980,9 @@
                                 }}
                               >
                                 <div class="sb-filter-head">
-                                  <span class="sb-filter-heading">Filters</span>
+                                  <span class="sb-filter-heading"
+                                    >{t("sidebar.sidebar.filters")}</span
+                                  >
                                   {#if hasActiveFilters}
                                     <button
                                       type="button"
@@ -1908,14 +1994,16 @@
                                         showUnusedScenes = true;
                                       }}
                                     >
-                                      Reset
+                                      {t("sidebar.sidebar.reset")}
                                     </button>
                                   {/if}
                                 </div>
 
                                 <!-- Type filter -->
                                 <div class="sb-filter-field">
-                                  <span class="sb-filter-label">Scene type</span>
+                                  <span class="sb-filter-label"
+                                    >{t("sidebar.sidebar.sceneType")}</span
+                                  >
                                   <div class="sb-filter-chips">
                                     {#each sceneTypeFilterOptions as option}
                                       {@const TypeIcon = option.icon}
@@ -1935,11 +2023,13 @@
 
                                 <!-- Status filter -->
                                 <div class="ka-field od-field sb-filter-field">
-                                  <label for={`scene-status-filter-${chapter.id}`}>Status</label>
+                                  <label for={`scene-status-filter-${chapter.id}`}
+                                    >{t("sidebar.sidebar.status")}</label
+                                  >
                                   <select
                                     id={`scene-status-filter-${chapter.id}`}
                                     bind:value={sceneStatusFilter}
-                                    aria-label="Scene status filter"
+                                    aria-label={t("sidebar.sidebar.sceneStatusFilter")}
                                   >
                                     {#each sceneStatusOptions as option}
                                       <option value={option.value}>{option.label}</option>
@@ -1950,7 +2040,9 @@
                                 <!-- Saved filters -->
                                 {#if savedFilters.length > 0}
                                   <div class="sb-filter-section">
-                                    <span class="sb-filter-label">Saved filters</span>
+                                    <span class="sb-filter-label"
+                                      >{t("sidebar.sidebar.savedFilters")}</span
+                                    >
                                     {#each savedFilters as filter}
                                       <div class="sb-saved-filter">
                                         <button
@@ -1964,7 +2056,9 @@
                                           type="button"
                                           onclick={() => deleteSavedFilter(filter.id)}
                                           class="ka-button ka-button--ghost ka-icon-button sb-danger-icon"
-                                          aria-label="Delete saved filter {filter.name}"
+                                          aria-label={t("sidebar.sidebar.deleteSavedFilter", {
+                                            name: filter.name,
+                                          })}
                                         >
                                           <Trash2 class="w-5 h-5" aria-hidden="true" />
                                         </button>
@@ -1981,8 +2075,8 @@
                                         <input
                                           type="text"
                                           bind:value={savedFilterName}
-                                          placeholder="Filter name…"
-                                          aria-label="Filter name"
+                                          placeholder={t("sidebar.sidebar.filterNamePlaceholder")}
+                                          aria-label={t("sidebar.sidebar.filterName")}
                                           onkeydown={(e) =>
                                             e.key === "Enter" && saveCurrentFilter()}
                                         />
@@ -1992,7 +2086,7 @@
                                           disabled={!savedFilterName.trim()}
                                           class="ka-button ka-button--secondary"
                                         >
-                                          Save
+                                          {t("common.save")}
                                         </button>
                                       </div>
                                     {:else}
@@ -2001,7 +2095,7 @@
                                         onclick={() => (showSaveFilterInput = true)}
                                         class="ka-button ka-button--ghost sb-small-button"
                                       >
-                                        Save current filter…
+                                        {t("sidebar.sidebar.saveCurrentFilter")}
                                       </button>
                                     {/if}
                                   </div>
@@ -2034,7 +2128,7 @@
                                 onmousedown={(e) => onDragHandleMouseDown(e, "scene", scene.id)}
                                 class="sb-grip"
                                 aria-hidden="true"
-                                title="Drag to reorder"
+                                title={t("sidebar.sidebar.dragToReorder")}
                               >
                                 <GripVertical class="w-4 h-4" aria-hidden="true" />
                               </div>
@@ -2047,11 +2141,20 @@
                               >
                                 <!-- Planning status / lock indicator (single leading icon) -->
                                 {#if isLocked}
-                                  <Lock class="sb-glyph is-warning" aria-label="Locked" />
+                                  <Lock
+                                    class="sb-glyph is-warning"
+                                    aria-label={t("sidebar.sidebar.locked")}
+                                  />
                                 {:else if planningStatus === "flexible"}
-                                  <CircleDot class="sb-glyph is-warning" aria-label="Flexible" />
+                                  <CircleDot
+                                    class="sb-glyph is-warning"
+                                    aria-label={t("sidebar.sidebar.flexible")}
+                                  />
                                 {:else if planningStatus === "undefined"}
-                                  <CircleDashed class="sb-glyph" aria-label="Undefined" />
+                                  <CircleDashed
+                                    class="sb-glyph"
+                                    aria-label={t("sidebar.sidebar.undefinedStatus")}
+                                  />
                                 {/if}
                                 <span
                                   data-testid="scene-title"
@@ -2063,7 +2166,9 @@
                                 <span class="sb-row-trail">
                                   {#if writing.value?.scene_words?.[scene.id] !== undefined}
                                     <small
-                                      >{writing.value.scene_words[scene.id].toLocaleString()} words</small
+                                      >{t("sidebar.sidebar.wordsCount", {
+                                        count: writing.value.scene_words[scene.id].toLocaleString(),
+                                      })}</small
                                     >
                                   {/if}
                                   {#if sceneType !== "normal"}
@@ -2081,7 +2186,10 @@
                                     class="sb-status-dot is-{sceneStatus}"
                                     title={sceneStatusLabels[sceneStatus]}
                                   ></span>
-                                  <span class="ka-sr">Status: {sceneStatusLabels[sceneStatus]}</span
+                                  <span class="ka-sr"
+                                    >{t("sidebar.sidebar.statusLine", {
+                                      status: sceneStatusLabels[sceneStatus],
+                                    })}</span
                                   >
                                 </span>
                               </button>
@@ -2091,7 +2199,7 @@
                                 data-testid="menu-button"
                                 onclick={(e) => openContextMenu(e, "scene", scene)}
                                 class="ka-button ka-button--ghost ka-icon-button sb-row-menu"
-                                aria-label="Scene menu"
+                                aria-label={t("sidebar.sidebar.sceneMenu")}
                                 aria-haspopup="menu"
                               >
                                 <MoreVertical class="w-5 h-5" aria-hidden="true" />
@@ -2109,8 +2217,8 @@
                                 bind:value={newTitle}
                                 onkeydown={handleCreateKeydown}
                                 onblur={cancelCreate}
-                                placeholder="Scene title…"
-                                aria-label="New scene title"
+                                placeholder={t("sidebar.sidebar.sceneTitlePlaceholder")}
+                                aria-label={t("sidebar.sidebar.newSceneTitle")}
                                 autofocus
                               />
                             </div>
@@ -2121,14 +2229,14 @@
                               class="sb-row-main sb-new"
                             >
                               <Plus class="w-4 h-4" aria-hidden="true" />
-                              New scene
+                              {t("sidebar.sidebar.newScene")}
                             </button>
                           {/if}
 
                           {#if currentProject.scenes.length === 0 && !creatingScene}
-                            <span class="sb-empty">No scenes yet</span>
+                            <span class="sb-empty">{t("sidebar.sidebar.noScenes")}</span>
                           {:else if filteredScenes.length === 0 && !creatingScene}
-                            <span class="sb-empty">No scenes match these filters</span>
+                            <span class="sb-empty">{t("sidebar.sidebar.noScenesMatching")}</span>
                           {/if}
                         </div>
                       {/if}
@@ -2149,8 +2257,12 @@
               bind:value={newTitle}
               onkeydown={handleCreateKeydown}
               onblur={cancelCreate}
-              placeholder={creatingPart ? `${partLabel} title…` : `${chapterLabel} title…`}
-              aria-label={creatingPart ? `New ${partLabel} title` : `New ${chapterLabel} title`}
+              placeholder={t("sidebar.sidebar.titlePlaceholder", {
+                label: creatingPart ? partLabel : chapterLabel,
+              })}
+              aria-label={creatingPart
+                ? t("sidebar.sidebar.newTitle", { label: partLabel })
+                : t("sidebar.sidebar.newTitle", { label: chapterLabel })}
               autofocus
             />
           </div>
@@ -2172,7 +2284,7 @@
               class="ka-button ka-button--secondary"
             >
               <Plus class="w-5 h-5" aria-hidden="true" />
-              New {chapterLabel.toLowerCase()}
+              {t("sidebar.sidebar.newLabel", { label: chapterLabel.toLowerCase() })}
             </button>
             <!-- Dropdown trigger -->
             <button
@@ -2181,7 +2293,7 @@
               bind:this={newDropdownTrigger}
               onclick={() => (showNewDropdown = !showNewDropdown)}
               class="ka-button ka-button--secondary ka-icon-button"
-              aria-label="More options"
+              aria-label={t("sidebar.sidebar.moreOptions")}
               aria-haspopup="menu"
               aria-expanded={showNewDropdown}
             >
@@ -2194,7 +2306,7 @@
             <div
               class="ka-menu-list app-popover sb-popover sb-popover-up"
               role="menu"
-              aria-label="Create"
+              aria-label={t("sidebar.sidebar.createMenu")}
               use:menuKeyboard={{
                 onClose: () => (showNewDropdown = false),
                 trigger: newDropdownTrigger,
@@ -2207,7 +2319,7 @@
                 class="sb-menuitem"
               >
                 <Folder class="w-5 h-5" aria-hidden="true" />
-                New {chapterLabel.toLowerCase()}
+                {t("sidebar.sidebar.newLabel", { label: chapterLabel.toLowerCase() })}
               </button>
               <button
                 data-testid="dropdown-new-part"
@@ -2216,7 +2328,7 @@
                 class="sb-menuitem"
               >
                 <BookOpen class="w-5 h-5" aria-hidden="true" />
-                New {partLabel.toLowerCase()}
+                {t("sidebar.sidebar.newLabel", { label: partLabel.toLowerCase() })}
               </button>
             </div>
           {/if}
@@ -2230,7 +2342,7 @@
           class="ka-button ka-button--ghost sb-settings"
         >
           <Settings class="w-5 h-5" aria-hidden="true" />
-          Settings
+          {t("sidebar.sidebar.settings")}
         </button>
       {/if}
     </footer>
@@ -2243,7 +2355,7 @@
         class="ka-button ka-button--ghost sb-settings"
       >
         <Settings class="w-5 h-5" aria-hidden="true" />
-        Settings
+        {t("sidebar.sidebar.settings")}
       </button>
     </footer>
   {/if}
@@ -2262,7 +2374,9 @@
 <!-- Delete Confirmation Dialog -->
 {#if deleteDialog}
   <ConfirmDialog
-    title="Delete {deleteDialog.type === 'chapter' ? 'chapter' : 'scene'}"
+    title={deleteDialog.type === "chapter"
+      ? t("sidebar.sidebar.deleteChapterTitle")
+      : t("sidebar.sidebar.deleteSceneTitle")}
     message={deleteDialog.message}
     onConfirm={executeDelete}
     onCancel={() => (deleteDialog = null)}
@@ -2300,7 +2414,9 @@
 <!-- Rename Dialog -->
 {#if renameDialog}
   <RenameDialog
-    title="Rename {renameDialog.type === 'chapter' ? chapterLabel : 'Scene'}"
+    title={renameDialog.type === "chapter"
+      ? t("sidebar.sidebar.renameChapterTitle", { label: chapterLabel })
+      : t("sidebar.sidebar.renameSceneTitle")}
     currentName={renameDialog.title}
     onSave={(newName) => handleRename(renameDialog!.type, renameDialog!.id, newName)}
     onClose={() => (renameDialog = null)}

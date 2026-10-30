@@ -6,6 +6,7 @@
   import { currentProject } from "../stores/project.svelte";
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
+  import { t } from "../i18n";
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -47,7 +48,7 @@
       archivedChapters = items.chapters;
       archivedScenes = items.scenes;
     } catch (e) {
-      error = messageOf(e, "Failed to load archived items");
+      error = messageOf(e, t("sidebar.archivePanel.loadFailed"));
     } finally {
       loading = false;
     }
@@ -63,7 +64,10 @@
       archivedChapters = archivedChapters.filter((c) => c.id !== chapter.id);
       currentProject.insertChapterByPosition(restored);
     } catch (e) {
-      rowError = { id: chapter.id, message: messageOf(e, "Could not restore this chapter.") };
+      rowError = {
+        id: chapter.id,
+        message: messageOf(e, t("sidebar.archivePanel.restoreFailedChapter")),
+      };
     } finally {
       restoringId = null;
     }
@@ -82,7 +86,10 @@
         currentProject.addScene(restored);
       }
     } catch (e) {
-      rowError = { id: scene.id, message: messageOf(e, "Could not restore this scene.") };
+      rowError = {
+        id: scene.id,
+        message: messageOf(e, t("sidebar.archivePanel.restoreFailedScene")),
+      };
     } finally {
       restoringId = null;
     }
@@ -114,7 +121,10 @@
       archivedChapters = archivedChapters.filter((c) => c.id !== chapter.id);
       confirmingId = null;
     } catch (e) {
-      rowError = { id: chapter.id, message: messageOf(e, "Could not delete this chapter.") };
+      rowError = {
+        id: chapter.id,
+        message: messageOf(e, t("sidebar.archivePanel.deleteFailedChapter")),
+      };
     } finally {
       deletingId = null;
     }
@@ -131,7 +141,10 @@
       archivedScenes = archivedScenes.filter((s) => s.id !== scene.id);
       confirmingId = null;
     } catch (e) {
-      rowError = { id: scene.id, message: messageOf(e, "Could not delete this scene.") };
+      rowError = {
+        id: scene.id,
+        message: messageOf(e, t("sidebar.archivePanel.deleteFailedScene")),
+      };
     } finally {
       deletingId = null;
     }
@@ -153,7 +166,7 @@
   // Get parent chapter title for a scene
   function getParentChapterTitle(scene: Scene): string {
     const chapter = currentProject.chapters.find((c) => c.id === scene.chapter_id);
-    return chapter?.title || "Unknown Chapter";
+    return chapter?.title || t("sidebar.archivePanel.unknownChapter");
   }
 </script>
 
@@ -184,9 +197,9 @@
         >
           {#if restoringId === id}
             <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-            Restoring…
+            {t("sidebar.archivePanel.restoring")}
           {:else}
-            Restore
+            {t("sidebar.archivePanel.restore")}
           {/if}
         </button>
         <button
@@ -199,7 +212,7 @@
           aria-controls={confirmingId === id ? `archive-${id}-confirm` : undefined}
           class="ka-button ka-button--danger"
         >
-          Delete
+          {t("sidebar.archivePanel.delete")}
         </button>
       </div>
     </div>
@@ -213,9 +226,16 @@
       >
         <TriangleAlert class="w-5 h-5" aria-hidden="true" />
         <div class="od-field od-fill archive-confirm-body">
-          <strong id={`archive-${id}-confirm-title`}>Permanently delete “{title}”?</strong>
+          <strong id={`archive-${id}-confirm-title`}
+            >{t("sidebar.archivePanel.permanentDeleteTitle", { title })}</strong
+          >
           <p id={`archive-${id}-confirm-body`}>
-            This permanently deletes the {kind}. It cannot be undone.
+            {t("sidebar.archivePanel.permanentDeleteMessage", {
+              kind:
+                kind === "chapter"
+                  ? t("sidebar.archivePanel.kindChapter")
+                  : t("sidebar.archivePanel.kindScene"),
+            })}
           </p>
           {#if rowError?.id === id}<p class="ka-error" role="alert">{rowError.message}</p>{/if}
           <div class="archive-actions-end">
@@ -226,7 +246,7 @@
               class="ka-button ka-button--ghost"
               use:focusOnMount
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -237,9 +257,9 @@
             >
               {#if deletingId === id}
                 <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-                Deleting…
+                {t("sidebar.archivePanel.deleting")}
               {:else}
-                Delete permanently
+                {t("sidebar.archivePanel.deletePermanently")}
               {/if}
             </button>
           </div>
@@ -264,7 +284,7 @@
 >
   <div class="app-dialog-surface ka-dialog-default dialog-shell">
     <DialogHeader
-      title="Archive"
+      title={t("sidebar.archivePanel.title")}
       titleId="archive-panel-title"
       subtitle={currentProject.value?.name}
       {onClose}
@@ -275,37 +295,37 @@
       {#if loading}
         <p class="ka-help archive-loading" role="status">
           <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-          Loading archived items…
+          {t("sidebar.archivePanel.loading")}
         </p>
       {:else if error}
         <div class="ka-notice ka-notice--error od-row-top" role="alert">
           <CircleAlert class="w-5 h-5" aria-hidden="true" />
           <div class="od-field od-fill">
-            <strong>Could not load the archive</strong>
+            <strong>{t("sidebar.archivePanel.loadFailedHeading")}</strong>
             <p>{error}</p>
           </div>
         </div>
       {:else if archivedChapters.length === 0 && archivedScenes.length === 0}
         <div class="ka-empty od-stack archive-empty">
           <Archive class="w-7 h-7" aria-hidden="true" />
-          <h4>No archived items</h4>
-          <p>Archived chapters and scenes will appear here.</p>
+          <h4>{t("sidebar.archivePanel.noItems")}</h4>
+          <p>{t("sidebar.archivePanel.emptyHint")}</p>
         </div>
       {:else}
         <p class="ka-help archive-intro">
-          Restore puts an item back where it was. Delete removes it for good.
+          {t("sidebar.archivePanel.intro")}
         </p>
         {#if archivedChapters.length > 0}
           <section class="ka-group archive-group" aria-labelledby="archive-chapters-title">
             <h3 id="archive-chapters-title" class="ka-group-title">
-              Archived chapters ({archivedChapters.length})
+              {t("sidebar.archivePanel.archivedChapters", { count: archivedChapters.length })}
             </h3>
             <ul class="archive-list">
               {#each archivedChapters as chapter (chapter.id)}
                 {@render itemRow(
                   chapter.id,
                   chapter.title,
-                  "Chapter",
+                  t("sidebar.archivePanel.originChapter"),
                   "chapter",
                   () => restoreChapter(chapter),
                   () => permanentDeleteChapter(chapter)
@@ -318,14 +338,16 @@
         {#if archivedScenes.length > 0}
           <section class="ka-group archive-group" aria-labelledby="archive-scenes-title">
             <h3 id="archive-scenes-title" class="ka-group-title">
-              Archived scenes ({archivedScenes.length})
+              {t("sidebar.archivePanel.archivedScenes", { count: archivedScenes.length })}
             </h3>
             <ul class="archive-list">
               {#each archivedScenes as scene (scene.id)}
                 {@render itemRow(
                   scene.id,
                   scene.title,
-                  `Scene in ${getParentChapterTitle(scene)}`,
+                  t("sidebar.archivePanel.originScene", {
+                    chapter: getParentChapterTitle(scene),
+                  }),
                   "scene",
                   () => restoreScene(scene),
                   () => permanentDeleteScene(scene)

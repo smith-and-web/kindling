@@ -10,6 +10,7 @@
   import AppearanceSettings from "./AppearanceSettings.svelte";
   import AuthorSettings from "./AuthorSettings.svelte";
   import ProjectSettings from "./ProjectSettings.svelte";
+  import { t } from "../i18n";
 
   let { onClose }: { onClose: () => void } = $props();
   const groups = [
@@ -19,31 +20,31 @@
       sections: [
         {
           id: "preferences",
-          label: "Preferences",
+          label: t("settings.dialog.groupPreferences"),
           areas: [
-            { id: "appearance", label: "Appearance & Guidance" },
-            { id: "author", label: "Author & Contact" },
-            { id: "keyboard", label: "Keyboard Shortcuts" },
+            { id: "appearance", label: t("settings.dialog.areaAppearance") },
+            { id: "author", label: t("settings.dialog.areaAuthor") },
+            { id: "keyboard", label: t("settings.dialog.areaKeyboard") },
           ],
         },
       ],
     },
     {
       id: "projects",
-      label: "Projects",
+      label: t("settings.dialog.groupProjects"),
       sections: [
         {
           id: "manuscript",
-          label: "Manuscript",
-          areas: [{ id: "details", label: "Project Details" }],
+          label: t("settings.dialog.sectionManuscript"),
+          areas: [{ id: "details", label: t("settings.dialog.areaDetails") }],
         },
         {
           id: "reference-library",
-          label: "Reference Library",
+          label: t("settings.dialog.sectionReferenceLibrary"),
           areas: [
-            { id: "references", label: "Reference Types" },
-            { id: "tags", label: "Tags" },
-            { id: "fields", label: "Custom Fields" },
+            { id: "references", label: t("settings.dialog.areaReferences") },
+            { id: "tags", label: t("settings.dialog.areaTags") },
+            { id: "fields", label: t("settings.dialog.areaFields") },
           ],
         },
       ],
@@ -99,7 +100,7 @@
       if (!projects.some((project) => project.id === selectedId))
         selectedId = projects[0]?.id ?? "";
     } catch (e) {
-      error = `Could not load projects: ${String(e)}`;
+      error = t("settings.dialog.loadProjectsFailed", { error: String(e) });
     } finally {
       loading = false;
     }
@@ -204,10 +205,10 @@
   onkeydown={handleKeydown}
 >
   <DialogHeader
-    title="Settings"
+    title={t("settings.dialog.title")}
     titleId="settings-dialog-title"
     onClose={requestClose}
-    closeLabel="Close settings"
+    closeLabel={t("settings.dialog.closeLabel")}
     closeTestId="settings-close"
     disabled={busy}
   />
@@ -216,24 +217,24 @@
       <TriangleAlert class="w-5 h-5 ka-icon" aria-hidden="true" />
       <p>
         {"close" in pending
-          ? "Discard unsaved settings changes?"
-          : "Discard unsaved changes for this project before switching?"}
+          ? t("settings.dialog.discardSettings")
+          : t("settings.dialog.discardProjectSwitch")}
       </p>
       <div class="ka-row">
         <button
           type="button"
           onclick={keepEditing}
           class="ka-button ka-button--secondary"
-          use:focusOnMount>Keep editing</button
+          use:focusOnMount>{t("settings.dialog.keepEditing")}</button
         >
         <button type="button" onclick={discard} class="ka-button ka-button--danger"
-          >Discard changes</button
+          >{t("settings.dialog.discard")}</button
         >
       </div>
     </div>
   {/if}
   <div class="ka-settings" inert={pending !== null}>
-    <nav aria-label="Settings areas" class="ka-settings-nav">
+    <nav aria-label={t("settings.dialog.areasAria")} class="ka-settings-nav">
       {#each groups as group (group.id)}
         <section aria-labelledby={`settings-${group.id}-heading`}>
           <h3 id={`settings-${group.id}-heading`} class="settings-group">
@@ -241,17 +242,19 @@
           </h3>
           {#if group.id === "projects"}
             {#if loading}
-              <p role="status" class="ka-help">Loading projects…</p>
+              <p role="status" class="ka-help">{t("settings.dialog.loadingProjects")}</p>
             {:else if error}
               <p role="alert" class="ka-error">{error}</p>
               <button type="button" onclick={loadProjects} class="ka-button ka-button--secondary"
-                >Retry loading projects</button
+                >{t("settings.dialog.retryLoadProjects")}</button
               >
             {:else if projects.length === 0}
-              <p class="ka-help">No projects available.</p>
+              <p class="ka-help">{t("settings.dialog.noProjects")}</p>
             {:else}
               <div class="ka-field od-field">
-                <label for="settings-project" class="ka-sr">Project</label>
+                <label for="settings-project" class="ka-sr"
+                  >{t("settings.dialog.projectLabel")}</label
+                >
                 <select
                   id="settings-project"
                   value={selectedId}
@@ -265,12 +268,12 @@
                     >{/each}
                 </select>
                 <p id="settings-project-help" class="ka-help">
-                  Settings for this project. Your open manuscript stays in place.
+                  {t("settings.dialog.projectHelp")}
                 </p>
               </div>
             {/if}
           {:else}
-            <p class="ka-help">Applies to all projects.</p>
+            <p class="ka-help">{t("settings.dialog.appliesToAll")}</p>
           {/if}
           {#each group.sections as section (section.id)}
             <div class="settings-section">
@@ -307,7 +310,7 @@
         <div hidden={!isProjectArea}>
           {#if !loading && !error && projects.length === 0}
             <p class="ka-help">
-              No projects yet. Create or import a project to configure its settings.
+              {t("settings.dialog.noProjectsHelp")}
             </p>
           {:else if selected}
             {#key selected.id}<ProjectSettings
