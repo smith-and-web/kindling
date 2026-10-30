@@ -29,7 +29,10 @@ env:
 jobs:
   e2e:
     name: E2E Tests (Linux)
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04 on 2026-10-30, where
+    # webkit2gtk-driver is replaced by webkitgtk-webdriver and the WebKitGTK
+    # line is newer than tauri-driver was validated against. Move deliberately.
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       checks: write
