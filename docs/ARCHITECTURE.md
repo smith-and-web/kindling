@@ -120,7 +120,8 @@ Interface copy lives in catalogs rather than inside components. `src/lib/i18n/in
 - Other locales (currently `locales/zh-CN/`) translate the same keys; a missing entry falls back
   to English, then to the key itself.
 - The locale follows the system language: `navigator.language` in the webview and
-  `tauri_plugin_os::locale()` for native menus. The test runner forces English so existing
+  `tauri_plugin_os::locale()` for native menus. Every `zh` locale resolves to `zh-CN`, including
+  Traditional Chinese until a `zh-Hant` catalog exists. The test runner forces English so existing
   assertions keep matching the original copy.
 - `countLabel()` in `src/lib/utils/plural.ts` routes nouns through `nounLabel()`, so counted
   items read correctly in languages without plural forms (`3 scenes` → `3 个场景`).

@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { t } from "./i18n";
 import type { ReferenceCopyPreview, ReferenceCopyRequest, ReferenceCopyResult } from "./types";
 
 export function previewReferenceCopy(request: ReferenceCopyRequest) {
@@ -18,5 +19,5 @@ export function copyErrorMessage(error: unknown): string {
     typeof error.message === "string"
   )
     return error.message;
-  return typeof error === "string" ? error : "Could not copy references. Please try again.";
+  return typeof error === "string" ? error : t("logic.referenceCopy.failed");
 }

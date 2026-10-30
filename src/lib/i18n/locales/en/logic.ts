@@ -76,6 +76,23 @@ const catalog: Catalog = {
   "revisions.proseChanged": "Prose changed. Re-anchor outdated suggestions before accepting them.",
   "revisions.overlap": "Suggestions overlap. Review and accept them individually.",
 
+  // --- Utility errors ---
+  "referenceCopy.failed": "Could not copy references. Please try again.",
+  "synopsisSaves.changed": "Synopsis drafts changed. Review the latest changes before discarding.",
+  "exportPrototype.nameRequired": "Give this profile a name before saving.",
+  "exportPrototype.startNumberInteger": "Chapter start number must be a whole number.",
+  "exportPrototype.unsupportedFormat": "Saved prototype profiles have an unsupported format.",
+  "exportPrototype.invalidProfile": "A saved prototype profile is invalid.",
+  "exportPrototype.unsupportedOption": "A saved prototype option is unsupported.",
+  "exportPrototype.duplicateIds": "Saved prototype profiles have duplicate IDs.",
+  "exportPrototype.fontSize": "Font size",
+  "exportPrototype.lineSpacing": "Line spacing",
+  "exportPrototype.paragraphSpacing": "Paragraph spacing",
+  "exportPrototype.indent": "First-line indent",
+  "exportPrototype.margin": "Margins",
+  "exportPrototype.startNumber": "Chapter start number",
+  "exportPrototype.rangeError": "{label} must be between {min} and {max}.",
+
   // --- Command categories ---
   "commandCategory.File": "File",
   "commandCategory.View": "View",

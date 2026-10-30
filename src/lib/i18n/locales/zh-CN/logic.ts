@@ -72,6 +72,23 @@ const catalog: Catalog = {
   "revisions.proseChanged": "文稿已更改。接受前请重新锚定过时的建议。",
   "revisions.overlap": "建议有重叠。请逐一审阅并接受。",
 
+  // --- Utility errors ---
+  "referenceCopy.failed": "无法复制引用。请重试。",
+  "synopsisSaves.changed": "梗概草稿已发生变化。放弃前请检查最新修改。",
+  "exportPrototype.nameRequired": "请先为这个配置命名再保存。",
+  "exportPrototype.startNumberInteger": "章节起始编号必须是整数。",
+  "exportPrototype.unsupportedFormat": "已保存的导出配置格式不受支持。",
+  "exportPrototype.invalidProfile": "某个已保存的导出配置无效。",
+  "exportPrototype.unsupportedOption": "某个已保存的导出选项不受支持。",
+  "exportPrototype.duplicateIds": "已保存的导出配置中有重复的 ID。",
+  "exportPrototype.fontSize": "字号",
+  "exportPrototype.lineSpacing": "行距",
+  "exportPrototype.paragraphSpacing": "段间距",
+  "exportPrototype.indent": "首行缩进",
+  "exportPrototype.margin": "页边距",
+  "exportPrototype.startNumber": "章节起始编号",
+  "exportPrototype.rangeError": "{label}必须在 {min} 到 {max} 之间。",
+
   // --- Command categories ---
   "commandCategory.File": "文件",
   "commandCategory.View": "视图",

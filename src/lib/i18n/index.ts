@@ -31,14 +31,20 @@ const catalogFor = (locale: Locale): Catalog => (locale === "zh-CN" ? ZH : EN);
 
 /**
  * Follow the system language: Chinese systems get the translated catalog, everything
- * else keeps the original English copy.
+ * else keeps the original English copy. Traditional Chinese locales (`zh-TW`, `zh-HK`,
+ * `zh-Hant`) match too, so they read the Simplified copy — the closest translation
+ * available until a `zh-Hant` catalog exists.
  */
 function detectedLocale(): Locale {
   const tag = typeof navigator === "undefined" ? "en" : navigator.language;
   return tag.toLowerCase().startsWith("zh") ? "zh-CN" : "en";
 }
 
-/** Scripted tests assert the original English copy, so they run in English. */
+/**
+ * Resolved once at module load. Module-level copy (command labels, reference types, import
+ * formats) is translated when it is imported, so a future in-app language switch has to
+ * re-render those rather than only calling `setLocale()`.
+ */
 const DEFAULT_LOCALE: Locale =
   import.meta.env.MODE === "test" || import.meta.env.VITEST ? "en" : detectedLocale();
 
