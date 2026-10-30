@@ -459,6 +459,10 @@ export const suites = [
         "Revision overview lists manuscript scenes and statuses without clipping."
       );
       await r.dismiss();
+      // Closing draft history reloads the local scenes under the workspace's
+      // busy flag (ceaff78); a menu action clicked before that settles is
+      // dropped by action(). The mode select is disabled while busy.
+      await r.wait(`${el('[aria-label="Editor mode"]')}?.disabled === false`);
       await r.click('[aria-label="Manuscript actions"]');
       await r.wait(el('[data-testid="context-menu"]'));
       await r.text("Review packages and rounds…");
@@ -555,6 +559,9 @@ export const suites = [
       await r.text("HTML structure and styling");
       await r.fill("#export-html-mode", "fragment");
       await r.text("HTML", 'document.querySelector(".preview-tabs")');
+      // The source pane regenerates asynchronously after the mode and tab
+      // change; the textarea is absent until it does.
+      await r.wait(`${el(".source-preview")}?.value.includes('<main')`);
       await r.shot(
         "19-03-export-html",
         "HTML fragment settings, filename tokens and generated source are inspectable.",

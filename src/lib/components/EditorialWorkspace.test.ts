@@ -779,6 +779,44 @@ describe("editorial workspace", () => {
     await waitFor(() => expect(view.queryByRole("dialog")).toBeNull());
     await waitFor(() => expect(view.queryByRole("alert")).toBeNull());
   });
+  it("disables manuscript actions while closing draft history reloads, rather than dropping a click", async () => {
+    const original = vi.mocked(invoke).getMockImplementation()!;
+    let hold = false;
+    let release!: () => void;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === "editorial_sources" && hold) {
+        hold = false;
+        await new Promise<void>((resolve) => (release = resolve));
+      }
+      return original(cmd, args);
+    });
+    const suggestions = () =>
+      vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === "open_local_editorial_review").length;
+    const view = render(EditorialWorkspace, { prepareWriting, onManuscriptChanged });
+    await view.component.openLocal("project", "s");
+    await fireEvent.click(view.getByLabelText("Manuscript actions"));
+    await fireEvent.click(view.getByRole("menuitem", { name: "Draft history" }));
+    hold = true;
+    await fireEvent.click(await view.findByRole("button", { name: "Close Draft history" }));
+    // Closing reloads the scenes; that reload is in flight, so the workspace is busy.
+    await waitFor(() => expect(release).toBeTypeOf("function"));
+    await fireEvent.click(view.getByLabelText("Manuscript actions"));
+    const item = (name: string) => view.getByRole("menuitem", { name }) as HTMLButtonElement;
+    for (const name of [
+      "Start suggestions from current prose",
+      "Review packages and rounds…",
+      "Open review or feedback file…",
+    ])
+      expect(item(name).disabled).toBe(true);
+    const before = suggestions();
+    await fireEvent.click(item("Start suggestions from current prose"));
+    expect(suggestions()).toBe(before);
+    release();
+    // Once the reload settles the same item is offered again and runs.
+    await waitFor(() => expect(item("Start suggestions from current prose").disabled).toBe(false));
+    await fireEvent.click(item("Start suggestions from current prose"));
+    await waitFor(() => expect(suggestions()).toBe(before + 1));
+  });
   it("resumes separate saved suggestions in a substantial scene without changing their identities", async () => {
     const bookSource = {
       ...source,

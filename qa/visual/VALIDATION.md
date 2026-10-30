@@ -1,5 +1,60 @@
 # Background visual QA validation — 2026-09-11
 
+## Baseline refresh after macOS 27.2 and suite 17/19 repairs — 2026-10-30 UTC
+
+All **147 masters were re-accepted** from run
+`2026-10-30T16-30-59-153Z-socket` at `29fc776` (main). Before the refresh every
+capture differed from its baseline by 0.6–3% of pixels (one outlier at 14%), and
+suite 17 aborted in every variant.
+
+- **The drift is environmental.** The baselines were captured on macOS 26.6.2;
+  this machine runs macOS 27.2 (WebKit 22625.2.8.11.9), which renders Inter and
+  Fraunces about 2 CSS px taller per line, so every card, row and dialog sits a
+  few pixels lower. The previous acceptance commit (`72266be`, checked out in a
+  scratch worktree) renders pixel-identically to `main` on this OS, so no app
+  source change is involved. Bisecting the six source commits since acceptance
+  was therefore unnecessary.
+- **Suite 17 failed on `main`, not only on feature branches.** Since `ceaff78`
+  (#402), closing Draft history reloads the local scenes under the workspace's
+  `busy` flag, and `action()` silently drops any manuscript-menu action started
+  while it is set. The suite clicked "Review packages and rounds…" before the
+  reload settled, so `#package-title` never appeared. The suite now waits for the
+  Editor mode select to re-enable (it is `disabled={busy}`) before reopening the
+  menu. The dropped click is also reachable by a fast user, since the menu items
+  are not disabled while busy; that is reported, not papered over here.
+- **Suite 19 raced the export source pane.** `19-03-export-html` asserted on
+  `.source-preview` before the pane had regenerated after the mode and tab change;
+  it passed in light and failed in dark by timing alone. The suite now waits for
+  the pane's `<main` content before capturing.
+- **The planning callout was profile-dependent.** The scene view's "Rolling
+  outline" callout is gated only by `kindling:tooltipSeen:planningStatus`, which
+  `setVisualPreferences({guidanceEnabled:false})` does not touch, so the old
+  baselines (captured in a profile that had dismissed it) lacked the callout and a
+  fresh profile shows it. The runner now removes that key when it switches
+  variants, pinning the fresh-profile state; the localStorage guard restores the
+  user's value afterwards.
+- **Intended source changes accepted** (all committed on `main` before this
+  refresh): the scene planning callout in scene views; the feedback dialog's
+  privacy sentence (#402); the outline opening the first act with its filter row;
+  the About dialog reporting 1.3.1; the export layout preview rendering the
+  Standard Manuscript Format running head (#402). Fixture dates, project ids and
+  snapshot timestamps vary by run as before.
+- **The References `aria-required-parent` finding is resolved**: `08-02` now
+  passes axe with zero violations in all three variants, so its `knownFindings`
+  entries were removed from the manifest.
+
+Review method: a contact sheet of every capture beside its previous master with a
+pixel-diff overlay (ImageMagick `compare`), then full-size pairs for the largest
+differences. A fresh full comparison against the refreshed set completed in
+**248 seconds**: **147/147 images matched, 147 checkpoints passed, exit 0**, all
+42 suite executions completed, owned fixtures deleted, no assertions, console
+errors, serious/critical axe findings, document overflow or cleanup failures.
+
+[Acceptance run](results/2026-10-30T16-30-59-153Z-socket/report.md) ·
+[Verification run](results/2026-10-30T16-40-42-220Z-socket/report.md) ·
+[Control at the previous acceptance commit: `--only 00 --variants light`, same
+0.0158 / 0.0118 mismatches as `main`]
+
 ## Baseline refresh and preflight context — 2026-09-12 UTC
 
 The accepted set now contains **147 reviewed PNG masters**, covering all 14

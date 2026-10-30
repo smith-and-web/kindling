@@ -105,12 +105,16 @@
     screen: "review" | "feedback";
     view: ReturnType<NonNullable<typeof prose>["captureView"]> | undefined;
   } | null>(null);
+  // Every item that runs through action() is disabled while another action is
+  // under way, because action() drops a click made while busy.
   const manuscriptMenu = $derived<MenuItem[]>([
     ...(local
       ? [
           {
             label: t("editorial.editorialWorkspace.menuDraftHistory"),
             icon: History,
+            // Opening checks pending decisions through action(), so it waits too.
+            disabled: !!session && busy,
             action: async () => {
               if (!session || (await reviewDecisions())) showHistory = true;
             },
@@ -118,6 +122,7 @@
           {
             label: t("editorial.editorialWorkspace.menuStartSuggestions"),
             icon: RotateCcw,
+            disabled: busy,
             action: async () => {
               await suggest(true);
             },
@@ -126,6 +131,7 @@
           {
             label: t("editorial.editorialWorkspace.menuReviewPackages"),
             icon: FileOutput,
+            disabled: busy,
             action: () => openProject(projectId),
           },
         ]
@@ -141,6 +147,7 @@
           {
             label: t("editorial.editorialWorkspace.exportRecoveryCopy"),
             icon: Download,
+            disabled: busy,
             action: () => returnFeedback(true),
           },
         ]
@@ -148,6 +155,7 @@
     {
       label: t("editorial.editorialWorkspace.openReviewFile"),
       icon: FolderOpen,
+      disabled: busy,
       action: () => openFile(),
     },
   ]);
