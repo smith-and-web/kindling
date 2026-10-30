@@ -111,6 +111,11 @@ export class Runner {
     await this.js(
       `window.__KINDLING_TEST__.setVisualPreferences({guidanceEnabled:false,referencesPanelWidth:288,sidebarCollapsed:false,referencesPanelCollapsed:false});`
     );
+    // The scene view's planning callout is gated only by this per-profile
+    // flag, not by guidanceEnabled. Pin the fresh-profile state (callout shown)
+    // so captures do not depend on whether the profile has dismissed it; the
+    // saveLocal/restoreLocal guard puts the user's value back afterwards.
+    await this.js(`localStorage.removeItem('kindling:tooltipSeen:planningStatus');`);
     await this.js(`q.setTheme(${quote(v.theme)});`);
     await this.wait(`document.getElementById('qa-settled-theme')`);
   }
