@@ -104,12 +104,16 @@
     screen: "review" | "feedback";
     view: ReturnType<NonNullable<typeof prose>["captureView"]> | undefined;
   } | null>(null);
+  // Every item that runs through action() is disabled while another action is
+  // under way, because action() drops a click made while busy.
   const manuscriptMenu = $derived<MenuItem[]>([
     ...(local
       ? [
           {
             label: "Draft history",
             icon: History,
+            // Opening checks pending decisions through action(), so it waits too.
+            disabled: !!session && busy,
             action: async () => {
               if (!session || (await reviewDecisions())) showHistory = true;
             },
@@ -117,6 +121,7 @@
           {
             label: "Start suggestions from current prose",
             icon: RotateCcw,
+            disabled: busy,
             action: async () => {
               await suggest(true);
             },
@@ -125,6 +130,7 @@
           {
             label: "Review packages and rounds…",
             icon: FileOutput,
+            disabled: busy,
             action: () => openProject(projectId),
           },
         ]
@@ -137,10 +143,20 @@
             disabled: !session.name.trim() || busy,
             action: () => returnFeedback(),
           },
-          { label: "Export recovery copy", icon: Download, action: () => returnFeedback(true) },
+          {
+            label: "Export recovery copy",
+            icon: Download,
+            disabled: busy,
+            action: () => returnFeedback(true),
+          },
         ]
       : []),
-    { label: "Open review or feedback file…", icon: FolderOpen, action: () => openFile() },
+    {
+      label: "Open review or feedback file…",
+      icon: FolderOpen,
+      disabled: busy,
+      action: () => openFile(),
+    },
   ]);
   function dismissManuscriptMenu(event: MouseEvent) {
     if (!menuPosition || !(event.target instanceof Element)) return;
