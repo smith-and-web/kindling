@@ -55,6 +55,7 @@
   } from "../types";
   import ScrivenerMatchDialog from "./ScrivenerMatchDialog.svelte";
   import { modalFocus, ownsEnterKey } from "../utils/modalFocus";
+  import { t } from "../i18n";
 
   const LAST_EXPORT_PATH_KEY = "kindling:lastExportPath";
 
@@ -75,14 +76,54 @@
   } = $props();
 
   const exportFormats = [
-    { id: "novelwriter", label: "novelWriter", detail: "Project folder", icon: BookOpen },
-    { id: "docx", label: "Word", detail: ".docx", icon: FileText },
-    { id: "markdown", label: "Markdown", detail: ".md files", icon: BookOpen },
-    { id: "longform", label: "Longform", detail: "Index + scenes", icon: AlignLeft },
-    { id: "epub", label: "ePub", detail: ".epub", icon: Book },
-    { id: "treatment", label: "Treatment", detail: ".docx / .txt", icon: ScrollText },
-    { id: "scrivener", label: "Scrivener", detail: ".scriv", icon: PenTool },
-    { id: "custom", label: "Custom", detail: "Your saved export profiles", icon: Settings2 },
+    {
+      id: "novelwriter",
+      label: t("export.classicExportDialog.formatNovelwriter"),
+      detail: t("export.classicExportDialog.detailProjectFolder"),
+      icon: BookOpen,
+    },
+    {
+      id: "docx",
+      label: t("export.classicExportDialog.formatWord"),
+      detail: t("export.classicExportDialog.detailDocx"),
+      icon: FileText,
+    },
+    {
+      id: "markdown",
+      label: t("export.classicExportDialog.formatMarkdown"),
+      detail: t("export.classicExportDialog.detailMdFiles"),
+      icon: BookOpen,
+    },
+    {
+      id: "longform",
+      label: t("export.classicExportDialog.formatLongform"),
+      detail: t("export.classicExportDialog.detailIndexScenes"),
+      icon: AlignLeft,
+    },
+    {
+      id: "epub",
+      label: t("export.classicExportDialog.formatEpub"),
+      detail: t("export.classicExportDialog.detailEpub"),
+      icon: Book,
+    },
+    {
+      id: "treatment",
+      label: t("export.classicExportDialog.formatTreatment"),
+      detail: t("export.classicExportDialog.detailDocxTxt"),
+      icon: ScrollText,
+    },
+    {
+      id: "scrivener",
+      label: t("export.classicExportDialog.formatScrivener"),
+      detail: t("export.classicExportDialog.detailScriv"),
+      icon: PenTool,
+    },
+    {
+      id: "custom",
+      label: t("export.classicExportDialog.formatCustom"),
+      detail: t("export.classicExportDialog.detailSavedProfiles"),
+      icon: Settings2,
+    },
   ] as const;
 
   // Formats grouped by what the writer is doing with the export.
@@ -94,12 +135,12 @@
   const formatGroups = $derived([
     {
       id: "share",
-      label: "Share a document",
+      label: t("export.classicExportDialog.groupShare"),
       formats: [formatById("docx"), formatById("epub"), formatById("treatment")],
     },
     {
       id: "apps",
-      label: "Continue in another app",
+      label: t("export.classicExportDialog.groupApps"),
       formats: [
         formatById("scrivener"),
         ...(showNovelWriter ? [formatById("novelwriter")] : []),
@@ -127,34 +168,43 @@
   }
 
   const HEADING_LABELS: Record<ExportProfile["chapterHeading"], string> = {
-    number_title: "Number and title",
-    number: "Number only",
-    title: "Title only",
-    none: "No chapter headings",
+    number_title: t("export.classicExportDialog.headingNumberAndTitle"),
+    number: t("export.classicExportDialog.headingNumberOnly"),
+    title: t("export.classicExportDialog.headingTitleOnly"),
+    none: t("export.classicExportDialog.headingNone"),
   };
 
   /** What the profile will produce, in the terms the workspace uses. */
   function profileSummary(p: ExportProfile): [string, string][] {
-    const rows: [string, string][] = [["Output", formatLabels[p.format]]];
+    const rows: [string, string][] = [
+      [t("export.classicExportDialog.summaryOutput"), formatLabels[p.format]],
+    ];
     if (p.format === "docx" || p.format === "epub" || p.format === "html" || p.format === "txt") {
       const spacing =
-        p.lineSpacing === 1 ? "single" : p.lineSpacing === 2 ? "double" : `${p.lineSpacing}×`;
+        p.lineSpacing === 1
+          ? t("export.classicExportDialog.summarySpacingSingle")
+          : p.lineSpacing === 2
+            ? t("export.classicExportDialog.summarySpacingDouble")
+            : `${p.lineSpacing}×`;
       if (p.format !== "txt")
-        rows.push(["Text & page", `${p.font} · ${p.fontSize} pt · ${spacing}`]);
+        rows.push([
+          t("export.classicExportDialog.summaryTextPage"),
+          `${p.font} · ${p.fontSize} pt · ${spacing}`,
+        ]);
       rows.push([
-        "Headings & breaks",
-        `${HEADING_LABELS[p.chapterHeading]}${p.chapterHeading.startsWith("number") && p.numberStyle === "roman" ? " (roman)" : ""} · break “${p.separator || "blank line"}”`,
+        t("export.classicExportDialog.summaryHeadings"),
+        `${HEADING_LABELS[p.chapterHeading]}${p.chapterHeading.startsWith("number") && p.numberStyle === "roman" ? ` ${t("export.classicExportDialog.summaryRomanNote")}` : ""} · ${t("export.classicExportDialog.summaryBreak", { separator: p.separator || t("export.classicExportDialog.summaryBlankLine") })}`,
       ]);
     }
     const extras = [
-      p.titlePage && "title page",
-      p.contents && "contents",
-      p.synopses && "synopses",
-      p.beatHeadings && "beat headings",
+      p.titlePage && t("export.classicExportDialog.summaryTitlePage"),
+      p.contents && t("export.classicExportDialog.summaryContents"),
+      p.synopses && t("export.classicExportDialog.summarySynopses"),
+      p.beatHeadings && t("export.classicExportDialog.summaryBeatHeadings"),
     ].filter(Boolean);
     rows.push([
-      "Content",
-      `${p.selection === "all" ? "Whole manuscript" : "Selected chapters"}${extras.length ? ` · ${extras.join(", ")}` : ""}`,
+      t("export.classicExportDialog.summaryContent"),
+      `${p.selection === "all" ? t("export.classicExportDialog.summaryWholeManuscript") : t("export.classicExportDialog.summarySelectedChapters")}${extras.length ? ` · ${extras.join(", ")}` : ""}`,
     ]);
     return rows;
   }
@@ -199,7 +249,7 @@
       localStorage.setItem(customPreferenceKey(), "true");
       error = null;
     } catch (e) {
-      error = `Could not remember the selected profile: ${String(e)}`;
+      error = t("export.classicExportDialog.profileRememberFailed", { error: String(e) });
     }
   }
 
@@ -242,23 +292,47 @@
 
   // Chapter heading style options for the dropdown
   const chapterHeadingStyles: { value: ChapterHeadingStyle; label: string; example: string }[] = [
-    { value: "number_only", label: "Number only", example: "CHAPTER ONE" },
-    { value: "number_and_title", label: "Number and title", example: "CHAPTER ONE: THE BEGINNING" },
-    { value: "title_only", label: "Title only", example: "THE BEGINNING" },
-    { value: "number_arabic", label: "Arabic numeral", example: "CHAPTER 1" },
+    {
+      value: "number_only",
+      label: t("export.classicExportDialog.headingNumberOnly"),
+      example: "CHAPTER ONE",
+    },
+    {
+      value: "number_and_title",
+      label: t("export.classicExportDialog.headingNumberAndTitle"),
+      example: "CHAPTER ONE: THE BEGINNING",
+    },
+    {
+      value: "title_only",
+      label: t("export.classicExportDialog.headingTitleOnly"),
+      example: "THE BEGINNING",
+    },
+    {
+      value: "number_arabic",
+      label: t("export.classicExportDialog.headingArabic"),
+      example: "CHAPTER 1",
+    },
     {
       value: "number_arabic_and_title",
-      label: "Arabic and title",
+      label: t("export.classicExportDialog.headingArabicAndTitle"),
       example: "CHAPTER 1: THE BEGINNING",
     },
   ];
 
   // Scene break style options
   const sceneBreakStyles: { value: SceneBreakStyle; label: string; example: string }[] = [
-    { value: "hash", label: "Hash mark", example: "#" },
-    { value: "asterisks", label: "Three asterisks", example: "* * *" },
-    { value: "asterism", label: "Asterism", example: "⁂" },
-    { value: "blank_line", label: "Blank line", example: "(blank)" },
+    { value: "hash", label: t("export.classicExportDialog.sceneHash"), example: "#" },
+    {
+      value: "asterisks",
+      label: t("export.classicExportDialog.sceneAsterisks"),
+      example: "* * *",
+    },
+    { value: "asterism", label: t("export.classicExportDialog.sceneAsterism"), example: "⁂" },
+    {
+      value: "blank_line",
+      label: t("export.classicExportDialog.sceneBlankLine"),
+      example: "(blank)",
+    },
   ];
 
   // Font family options
@@ -269,15 +343,15 @@
 
   // Line spacing options
   const lineSpacingOptions: { value: LineSpacingOption; label: string }[] = [
-    { value: "single", label: "Single" },
-    { value: "one_and_half", label: "1.5 lines" },
-    { value: "double", label: "Double" },
+    { value: "single", label: t("export.classicExportDialog.spacingSingle") },
+    { value: "one_and_half", label: t("export.classicExportDialog.spacingOneAndHalf") },
+    { value: "double", label: t("export.classicExportDialog.spacingDouble") },
   ];
 
   const epubThemeOptions: { value: EpubTheme; label: string }[] = [
-    { value: "classic", label: "Classic" },
-    { value: "modern", label: "Modern" },
-    { value: "minimal", label: "Minimal" },
+    { value: "classic", label: t("export.classicExportDialog.themeClassic") },
+    { value: "modern", label: t("export.classicExportDialog.themeModern") },
+    { value: "minimal", label: t("export.classicExportDialog.themeMinimal") },
   ];
 
   // Initialize export name from project name
@@ -344,9 +418,11 @@
   // Format word count for display (rounded to nearest 1000)
   const formattedWordCount = $derived.by(() => {
     if (wordCount === null) return null;
-    if (wordCount < 1000) return `${wordCount} words`;
+    if (wordCount < 1000) return t("export.classicExportDialog.wordCount", { count: wordCount });
     const rounded = Math.round(wordCount / 1000) * 1000;
-    return `~${rounded.toLocaleString()} words`;
+    return t("export.classicExportDialog.wordCountApprox", {
+      count: rounded.toLocaleString(),
+    });
   });
 
   const canExport = $derived(
@@ -370,39 +446,42 @@
     if (canExport) return null;
     if (exportFormat === "custom") {
       return profileLoadFailed
-        ? "Export profiles couldn’t be loaded."
-        : "Choose an export profile.";
+        ? t("export.classicExportDialog.blockedProfileLoadFailed")
+        : t("export.classicExportDialog.blockedChooseProfile");
     }
     if (exportFormat === "novelwriter" && scope !== "project") {
-      return "novelWriter exports the whole project.";
+      return t("export.classicExportDialog.blockedNovelwriterScope");
     }
     if (exportFormat === "epub" && epubFilePath.length > 0 && includeCoverImage) {
-      return "Choose a cover image, or turn off the cover.";
+      return t("export.classicExportDialog.blockedChooseCover");
     }
     return exportFormat === "markdown" ||
       exportFormat === "longform" ||
       exportFormat === "novelwriter"
-      ? "Choose a destination folder before exporting."
-      : "Choose where to save before exporting.";
+      ? t("export.classicExportDialog.blockedChooseFolder")
+      : t("export.classicExportDialog.blockedChooseSaveLocation");
   });
 
   const exportActionLabel = $derived(
     {
-      docx: "Export .docx",
-      epub: "Export .epub",
-      markdown: "Export Markdown",
-      longform: "Export Longform",
-      novelwriter: "Export novelWriter",
-      scrivener: "Export to Scrivener",
-      treatment: treatmentFormat === "txt" ? "Export .txt" : "Export .docx",
-      custom: "Open workspace",
-    }[exportFormat] ?? "Export"
+      docx: t("export.classicExportDialog.actionDocx"),
+      epub: t("export.classicExportDialog.actionEpub"),
+      markdown: t("export.classicExportDialog.actionMarkdown"),
+      longform: t("export.classicExportDialog.actionLongform"),
+      novelwriter: t("export.classicExportDialog.actionNovelwriter"),
+      scrivener: t("export.classicExportDialog.actionScrivener"),
+      treatment:
+        treatmentFormat === "txt"
+          ? t("export.classicExportDialog.actionTxt")
+          : t("export.classicExportDialog.actionDocx"),
+      custom: t("export.classicExportDialog.openWorkspace"),
+    }[exportFormat] ?? t("export.classicExportDialog.actionExport")
   );
 
   async function selectDestination() {
     const path = await open({
       directory: true,
-      title: "Select Export Destination",
+      title: t("export.classicExportDialog.selectDestinationTitle"),
       defaultPath: outputPath || undefined,
     });
 
@@ -415,9 +494,9 @@
   async function selectDocxFile() {
     const defaultName = `${exportName.trim() || currentProject.value?.name || "Export"}.docx`;
     const path = await save({
-      title: "Save Word Document",
+      title: t("export.classicExportDialog.saveDocxTitle"),
       defaultPath: defaultName,
-      filters: [{ name: "Word Document", extensions: ["docx"] }],
+      filters: [{ name: t("export.classicExportDialog.filterWordDocument"), extensions: ["docx"] }],
     });
 
     if (path) {
@@ -429,9 +508,9 @@
   async function selectEpubFile() {
     const defaultName = `${epubTitle.trim() || currentProject.value?.name || "Export"}.epub`;
     const path = await save({
-      title: "Save EPUB",
+      title: t("export.classicExportDialog.saveEpubTitle"),
       defaultPath: defaultName,
-      filters: [{ name: "EPUB", extensions: ["epub"] }],
+      filters: [{ name: t("export.classicExportDialog.filterEpub"), extensions: ["epub"] }],
     });
 
     if (path) {
@@ -442,8 +521,13 @@
 
   async function selectCoverImage() {
     const path = await open({
-      title: "Select Cover Image",
-      filters: [{ name: "Images", extensions: ["jpg", "jpeg", "png", "gif", "webp"] }],
+      title: t("export.classicExportDialog.selectCoverTitle"),
+      filters: [
+        {
+          name: t("export.classicExportDialog.filterImages"),
+          extensions: ["jpg", "jpeg", "png", "gif", "webp"],
+        },
+      ],
     });
 
     if (path) {
@@ -454,10 +538,13 @@
 
   async function selectTreatmentFile() {
     const ext = treatmentFormat === "docx" ? "docx" : "txt";
-    const filterName = treatmentFormat === "docx" ? "Word Document" : "Text File";
+    const filterName =
+      treatmentFormat === "docx"
+        ? t("export.classicExportDialog.filterWordDocument")
+        : t("export.classicExportDialog.filterTextFile");
     const defaultName = `${currentProject.value?.name || "Treatment"} - Treatment.${ext}`;
     const path = await save({
-      title: "Save Treatment",
+      title: t("export.classicExportDialog.saveTreatmentTitle"),
       defaultPath: defaultName,
       filters: [{ name: filterName, extensions: [ext] }],
     });
@@ -473,7 +560,7 @@
       const path = await open({
         directory: true,
         multiple: false,
-        title: "Choose an empty novelWriter destination folder",
+        title: t("export.classicExportDialog.novelwriterFolderTitle"),
       });
       if (path) {
         novelwriterPath = path;
@@ -487,9 +574,11 @@
   async function selectScrivenerPath() {
     if (scrivenerMode === "create_new") {
       const path = await save({
-        title: "Save Scrivener Project",
+        title: t("export.classicExportDialog.saveScrivenerTitle"),
         defaultPath: `${currentProject.value?.name || "Export"}.scriv`,
-        filters: [{ name: "Scrivener Project", extensions: ["scriv"] }],
+        filters: [
+          { name: t("export.classicExportDialog.filterScrivenerProject"), extensions: ["scriv"] },
+        ],
       });
       if (path) {
         scrivenerPath = path;
@@ -498,7 +587,7 @@
     } else {
       const path = await open({
         directory: true,
-        title: "Select Existing .scriv Bundle",
+        title: t("export.classicExportDialog.selectScrivenerBundleTitle"),
         defaultPath: currentProject.value?.source_path || undefined,
       });
       if (path) {
@@ -533,7 +622,7 @@
       }
 
       if (!currentProject.value) {
-        throw new Error("No project selected");
+        throw new Error(t("export.classicExportDialog.noProjectSelected"));
       }
       // Export reads the database: never write a file from stale prose.
       await saveProseBefore(currentProject.value.id, "exporting");
@@ -719,15 +808,19 @@
   <!-- Dialog -->
   <div class="app-dialog-surface ka-dialog-default dialog-shell classic-export">
     <DialogHeader
-      title={`Export ${scopeTitle}`}
+      title={t("export.classicExportDialog.dialogTitle", { scopeTitle })}
       titleId="export-dialog-title"
-      subtitle="Choose a format and configure its options"
+      subtitle={t("export.classicExportDialog.dialogSubtitle")}
       {onClose}
-      closeLabel="Close"
+      closeLabel={t("export.classicExportDialog.close")}
       closeTestId="export-close"
     >
       {#if scope === "project" && (loadingWordCount || formattedWordCount)}
-        <span class="ka-badge">{loadingWordCount ? "Counting words…" : formattedWordCount}</span>
+        <span class="ka-badge"
+          >{loadingWordCount
+            ? t("export.classicExportDialog.countingWords")
+            : formattedWordCount}</span
+        >
       {/if}
     </DialogHeader>
 
@@ -735,7 +828,7 @@
     <div class="ka-dialog-body classic-export-body">
       <!-- Format Selection - Card Style -->
       <fieldset class="export-picker">
-        <legend class="ka-group-title">Format</legend>
+        <legend class="ka-group-title">{t("export.classicExportDialog.formatLegend")}</legend>
         <div class="export-picker-groups">
           {#each formatGroups as group (group.id)}
             <div
@@ -751,7 +844,7 @@
           {/each}
         </div>
         <div class="ka-field od-field export-profile">
-          <label for="custom-export-profile">Export profile</label>
+          <label for="custom-export-profile">{t("export.classicExportDialog.profileLabel")}</label>
           <select
             id="custom-export-profile"
             value={exportFormat === "custom" ? customProfileId : ""}
@@ -759,13 +852,13 @@
             disabled={profileLoadFailed}
             aria-describedby="custom-export-profile-help"
           >
-            <option value="">None</option>
+            <option value="">{t("export.classicExportDialog.profileNone")}</option>
             {#each customProfiles as profile (profile.id)}<option value={profile.id}
                 >{profile.name}</option
               >{/each}
           </select>
           {#if profileLoadFailed}<p class="ka-error" role="alert">
-              Saved profiles could not be loaded. Close and reopen Export to try again.
+              {t("export.classicExportDialog.profileLoadFailed")}
             </p>
           {:else if exportFormat === "custom" && selectedCustomProfile}
             {@const summary = profileSummary(selectedCustomProfile)}
@@ -781,11 +874,11 @@
                   </div>
                 {/each}
               </dl>
-              <p class="ka-help">This project remembers your chosen profile.</p>
+              <p class="ka-help">{t("export.classicExportDialog.profileRemembered")}</p>
             </div>
           {:else}
             <p id="custom-export-profile-help" class="ka-help">
-              Or use one of your saved export profiles, set up in the export workspace.
+              {t("export.classicExportDialog.profileHint")}
             </p>
           {/if}
         </div>
@@ -794,25 +887,32 @@
       {#if exportFormat === "docx"}
         <!-- DOCX Options Section -->
         <fieldset>
-          <legend class="ka-group-title">Document structure </legend>
+          <legend class="ka-group-title">{t("export.classicExportDialog.docxLegend")}</legend>
 
           <!-- Toggle Options -->
           <div class="export-choices">
             <label class="ka-check"
-              ><input type="checkbox" bind:checked={includeTitlePage} /> Include title page</label
+              ><input type="checkbox" bind:checked={includeTitlePage} />{t(
+                "export.classicExportDialog.includeTitlePage"
+              )}</label
             >
 
             <label class="ka-check"
-              ><input type="checkbox" bind:checked={pageBreaksBetweenChapters} /> Page breaks between
-              chapters</label
+              ><input type="checkbox" bind:checked={pageBreaksBetweenChapters} />{t(
+                "export.classicExportDialog.pageBreaksBetweenChapters"
+              )}</label
             >
 
             <label class="ka-check"
-              ><input type="checkbox" bind:checked={includeBeatMarkers} /> Include beat markers as headings</label
+              ><input type="checkbox" bind:checked={includeBeatMarkers} />{t(
+                "export.classicExportDialog.includeBeatMarkers"
+              )}</label
             >
 
             <label class="ka-check"
-              ><input type="checkbox" bind:checked={includeSynopsis} /> Include scene synopses</label
+              ><input type="checkbox" bind:checked={includeSynopsis} />{t(
+                "export.classicExportDialog.includeSceneSynopses"
+              )}</label
             >
           </div>
 
@@ -820,28 +920,35 @@
           <div class="export-grid">
             <!-- Chapter Heading Style -->
             <div class="ka-field od-field">
-              <label for="chapter-heading-style"> Chapter heading </label>
+              <label for="chapter-heading-style">
+                {t("export.classicExportDialog.chapterHeading")}
+              </label>
               <select id="chapter-heading-style" bind:value={chapterHeadingStyle}>
                 {#each chapterHeadingStyles as style (style.value)}
                   <option value={style.value}>{style.label}</option>
                 {/each}
               </select>
               <p class="ka-help">
-                Appears as: {chapterHeadingStyles.find((s) => s.value === chapterHeadingStyle)
-                  ?.example}
+                {t("export.classicExportDialog.appearsAs", {
+                  example:
+                    chapterHeadingStyles.find((s) => s.value === chapterHeadingStyle)?.example ??
+                    "",
+                })}
               </p>
             </div>
 
             <!-- Scene Break Style -->
             <div class="ka-field od-field">
-              <label for="scene-break-style"> Scene break </label>
+              <label for="scene-break-style"> {t("export.classicExportDialog.sceneBreak")} </label>
               <select id="scene-break-style" bind:value={sceneBreakStyle}>
                 {#each sceneBreakStyles as style (style.value)}
                   <option value={style.value}>{style.label}</option>
                 {/each}
               </select>
               <p class="ka-help">
-                Appears as: {sceneBreakStyles.find((s) => s.value === sceneBreakStyle)?.example}
+                {t("export.classicExportDialog.appearsAs", {
+                  example: sceneBreakStyles.find((s) => s.value === sceneBreakStyle)?.example ?? "",
+                })}
               </p>
             </div>
           </div>
@@ -849,11 +956,11 @@
 
         <!-- Typography Section -->
         <fieldset>
-          <legend class="ka-group-title">Typography </legend>
+          <legend class="ka-group-title">{t("export.classicExportDialog.typographyLegend")}</legend>
           <div class="export-grid">
             <!-- Font Family -->
             <div class="ka-field od-field">
-              <label for="font-family"> Font </label>
+              <label for="font-family"> {t("export.classicExportDialog.font")} </label>
               <select id="font-family" bind:value={fontFamily}>
                 {#each fontFamilies as font (font.value)}
                   <option value={font.value}>{font.label}</option>
@@ -863,7 +970,7 @@
 
             <!-- Line Spacing -->
             <div class="ka-field od-field">
-              <label for="line-spacing"> Line spacing </label>
+              <label for="line-spacing"> {t("export.classicExportDialog.lineSpacing")} </label>
               <select id="line-spacing" bind:value={lineSpacing}>
                 {#each lineSpacingOptions as spacing (spacing.value)}
                   <option value={spacing.value}>{spacing.label}</option>
@@ -875,132 +982,143 @@
 
         <!-- Save Location -->
         <div class="ka-field od-field">
-          <label for="docx-destination"> Save location </label>
+          <label for="docx-destination"> {t("export.classicExportDialog.saveLocation")} </label>
           <div class="export-location">
             <input
               id="docx-destination"
               type="text"
               readonly
               value={docxFilePath}
-              placeholder="No location chosen"
+              placeholder={t("export.classicExportDialog.noLocationChosen")}
               onclick={selectDocxFile}
             />
             <button
               type="button"
               onclick={selectDocxFile}
               class="ka-button ka-button--secondary"
-              aria-label="Choose save location"
+              aria-label={t("export.classicExportDialog.chooseSaveLocation")}
             >
-              Choose…
+              {t("export.classicExportDialog.choose")}
             </button>
           </div>
         </div>
       {:else if exportFormat === "markdown"}
         <!-- Markdown Options -->
         <fieldset>
-          <legend class="ka-group-title">Options </legend>
+          <legend class="ka-group-title">{t("export.classicExportDialog.optionsLegend")}</legend>
 
           <div class="export-choices">
             <label class="ka-check"
-              ><input type="checkbox" bind:checked={includeBeatMarkers} /> Include beat markers as headings</label
+              ><input type="checkbox" bind:checked={includeBeatMarkers} />{t(
+                "export.classicExportDialog.includeBeatMarkers"
+              )}</label
             >
 
             <label class="ka-check"
-              ><input type="checkbox" bind:checked={deleteExisting} /> Delete existing export folder</label
+              ><input type="checkbox" bind:checked={deleteExisting} />{t(
+                "export.classicExportDialog.deleteExistingFolder"
+              )}</label
             >
           </div>
         </fieldset>
 
         <!-- Export Name -->
         <div class="ka-field od-field">
-          <label for="export-name"> Export name </label>
+          <label for="export-name"> {t("export.classicExportDialog.exportName")} </label>
           <input
             id="export-name"
             type="text"
             bind:value={exportName}
-            placeholder="Enter export folder name…"
+            placeholder={t("export.classicExportDialog.exportFolderNamePlaceholder")}
           />
           <p class="ka-help">
-            Folder: <span>{exportName.trim() || currentProject.value?.name || "Project"}</span>
+            {t("export.classicExportDialog.folderLabel")}
+            <span>{exportName.trim() || currentProject.value?.name || "Project"}</span>
           </p>
         </div>
 
         <!-- Destination Folder -->
         <div class="ka-field od-field">
-          <label for="destination"> Destination folder </label>
+          <label for="destination"> {t("export.classicExportDialog.destinationFolder")} </label>
           <div class="export-location">
             <input
               id="destination"
               type="text"
               readonly
               value={outputPath}
-              placeholder="Select a folder…"
+              placeholder={t("export.classicExportDialog.selectFolderPlaceholder")}
               onclick={selectDestination}
             />
             <button
               type="button"
               onclick={selectDestination}
               class="ka-button ka-button--secondary"
-              aria-label="Browse for folder"
+              aria-label={t("export.classicExportDialog.browseForFolder")}
             >
-              Choose…
+              {t("export.classicExportDialog.choose")}
             </button>
           </div>
         </div>
       {:else if exportFormat === "longform"}
         <!-- Longform Options -->
         <fieldset>
-          <legend class="ka-group-title">Options </legend>
+          <legend class="ka-group-title">{t("export.classicExportDialog.optionsLegend")}</legend>
 
           <div class="export-choices">
             <label class="ka-check"
-              ><input type="checkbox" bind:checked={deleteExisting} /> Delete existing export folder</label
+              ><input type="checkbox" bind:checked={deleteExisting} />{t(
+                "export.classicExportDialog.deleteExistingFolder"
+              )}</label
             >
           </div>
         </fieldset>
 
         <!-- Export Name -->
         <div class="ka-field od-field">
-          <label for="export-name-longform"> Export name </label>
+          <label for="export-name-longform"> {t("export.classicExportDialog.exportName")} </label>
           <input
             id="export-name-longform"
             type="text"
             bind:value={exportName}
-            placeholder="Enter project name…"
+            placeholder={t("export.classicExportDialog.projectNamePlaceholder")}
           />
           <p class="ka-help">
-            Folder: <span>{exportName.trim() || currentProject.value?.name || "Project"}</span>
-            · Index:
+            {t("export.classicExportDialog.folderLabel")}
+            <span>{exportName.trim() || currentProject.value?.name || "Project"}</span>
+            · {t("export.classicExportDialog.indexLabel")}
             <span>{exportName.trim() || currentProject.value?.name || "Project"}.md</span>
           </p>
         </div>
 
         <!-- Destination Folder -->
         <div class="ka-field od-field">
-          <label for="destination-longform"> Destination folder </label>
+          <label for="destination-longform">
+            {t("export.classicExportDialog.destinationFolder")}
+          </label>
           <div class="export-location">
             <input
               id="destination-longform"
               type="text"
               readonly
               value={outputPath}
-              placeholder="Select a folder…"
+              placeholder={t("export.classicExportDialog.selectFolderPlaceholder")}
               onclick={selectDestination}
             />
             <button
               type="button"
               onclick={selectDestination}
               class="ka-button ka-button--secondary"
-              aria-label="Browse for folder"
+              aria-label={t("export.classicExportDialog.browseForFolder")}
             >
-              Choose…
+              {t("export.classicExportDialog.choose")}
             </button>
           </div>
         </div>
       {:else if exportFormat === "treatment"}
         <!-- Treatment Options -->
         <fieldset>
-          <legend class="ka-group-title">Detail level </legend>
+          <legend class="ka-group-title">{t("export.classicExportDialog.detailLevelLegend")}</legend
+          >
           <div class="export-choices">
             <label class="ka-check export-check" class:is-selected={treatmentLevel === "one_page"}>
               <input
@@ -1010,7 +1128,8 @@
                 bind:group={treatmentLevel}
               />
               <span class="export-check-text"
-                ><span>One-Page</span><small>Title, logline, and a short synopsis per act</small
+                ><span>{t("export.classicExportDialog.treatmentOnePage")}</span><small
+                  >{t("export.classicExportDialog.treatmentOnePageHelp")}</small
                 ></span
               >
             </label>
@@ -1022,14 +1141,16 @@
                 bind:group={treatmentLevel}
               />
               <span class="export-check-text"
-                ><span>Five-Page</span><small>Act summaries with key scene descriptions</small
+                ><span>{t("export.classicExportDialog.treatmentFivePage")}</span><small
+                  >{t("export.classicExportDialog.treatmentFivePageHelp")}</small
                 ></span
               >
             </label>
             <label class="ka-check export-check" class:is-selected={treatmentLevel === "full"}>
               <input type="radio" name="treatment-level" value="full" bind:group={treatmentLevel} />
               <span class="export-check-text"
-                ><span>Full Treatment</span><small>Every scene synopsis and beat description</small
+                ><span>{t("export.classicExportDialog.treatmentFull")}</span><small
+                  >{t("export.classicExportDialog.treatmentFullHelp")}</small
                 ></span
               >
             </label>
@@ -1038,7 +1159,9 @@
 
         <!-- Output Format -->
         <fieldset class="ka-segments">
-          <legend class="ka-group-title">Output format</legend>
+          <legend class="ka-group-title"
+            >{t("export.classicExportDialog.outputFormatLegend")}</legend
+          >
           <div class="ka-segment-track">
             {#each [{ id: "docx", label: ".docx" }, { id: "txt", label: ".txt" }] as option (option.id)}
               <label class="ka-segment" class:ka-selected={treatmentFormat === option.id}>
@@ -1056,87 +1179,87 @@
 
         <!-- Save Location -->
         <div class="ka-field od-field">
-          <label for="treatment-destination"> Save location </label>
+          <label for="treatment-destination">
+            {t("export.classicExportDialog.saveLocation")}
+          </label>
           <div class="export-location">
             <input
               id="treatment-destination"
               type="text"
               readonly
               value={treatmentFilePath}
-              placeholder="No location chosen"
+              placeholder={t("export.classicExportDialog.noLocationChosen")}
               onclick={selectTreatmentFile}
             />
             <button
               type="button"
               onclick={selectTreatmentFile}
               class="ka-button ka-button--secondary"
-              aria-label="Choose save location"
+              aria-label={t("export.classicExportDialog.chooseSaveLocation")}
             >
-              Choose…
+              {t("export.classicExportDialog.choose")}
             </button>
           </div>
         </div>
       {:else if exportFormat === "novelwriter"}
         <div class="export-section">
           <p class="ka-help">
-            Export a complete project for novelWriter 26.2 or newer. Choose an empty folder.
+            {t("export.classicExportDialog.novelwriterHelp")}
           </p>
           <label class="ka-check"
             ><input
               type="checkbox"
               data-testid="novelwriter-beat-comments"
               bind:checked={novelwriterBeatComments}
-            /> Include beat comments</label
+            />{t("export.classicExportDialog.includeBeatComments")}</label
           >
           <p class="ka-help">
-            Turning off beat comments disables beat-level sync. Page-mode prose syncs as a whole
-            scene.
+            {t("export.classicExportDialog.beatCommentsHelp")}
           </p>
           <label class="ka-check"
             ><input
               type="checkbox"
               data-testid="novelwriter-notes"
               bind:checked={novelwriterNotes}
-            /> Include characters, locations and notes</label
+            />{t("export.classicExportDialog.includeReferenceNotes")}</label
           >
           <div class="ka-field od-field">
-            <label for="novelwriter-destination">Destination folder</label>
+            <label for="novelwriter-destination">
+              {t("export.classicExportDialog.destinationFolder")}
+            </label>
             <div class="export-location">
               <input
                 id="novelwriter-destination"
                 readonly
                 value={novelwriterPath}
-                placeholder="Choose an empty folder"
+                placeholder={t("export.classicExportDialog.emptyFolderPlaceholder")}
               />
               <button
                 type="button"
                 onclick={selectNovelWriterPath}
-                aria-label="Choose novelWriter destination folder"
-                class="ka-button ka-button--secondary">Choose…</button
+                aria-label={t("export.classicExportDialog.chooseNovelwriterFolder")}
+                class="ka-button ka-button--secondary"
+                >{t("export.classicExportDialog.choose")}</button
               >
             </div>
           </div>
           <details class="ka-disclosure export-details">
-            <summary>Round-trip limitations</summary>
+            <summary>{t("export.classicExportDialog.roundTrip")}</summary>
             <p>
-              Export omits underline, planning status, scene type, tags, discovery notes, snapshots
-              and custom fields. Scene status is limited to Draft, Revised and Final.
+              {t("export.classicExportDialog.roundTripExport")}
             </p>
             <p>
-              Import flattens H4 sections and does not preserve shortcodes, footnotes, alignment,
-              indent codes, importance, ignored text, templates, additional novel roots or POV,
-              focus, mention and story references.
+              {t("export.classicExportDialog.roundTripImport")}
             </p>
             <p>
-              Sync covers chapters, scenes, beats and prose. Notes, reference links and project
-              metadata are not synced. Existing source connections are preserved when exporting.
+              {t("export.classicExportDialog.roundTripSync")}
             </p>
           </details>
         </div>
       {:else if exportFormat === "scrivener"}
         <!-- Scrivener Export Options -->
         <fieldset>
-          <legend class="ka-group-title">Export mode </legend>
+          <legend class="ka-group-title">{t("export.classicExportDialog.exportModeLegend")}</legend>
           <div class="export-choices">
             <label class="ka-check export-check" class:is-selected={scrivenerMode === "create_new"}>
               <input
@@ -1146,15 +1269,16 @@
                 bind:group={scrivenerMode}
               />
               <span class="export-check-text"
-                ><span>Create New</span><small>Build a fresh .scriv project from your outline</small
+                ><span>{t("export.classicExportDialog.createNew")}</span><small
+                  >{t("export.classicExportDialog.createNewHelp")}</small
                 ></span
               >
             </label>
             <label class="ka-check export-check" class:is-selected={scrivenerMode === "update"}>
               <input type="radio" name="scrivener-mode" value="update" bind:group={scrivenerMode} />
               <span class="export-check-text"
-                ><span>Update Existing</span><small
-                  >Write prose back into an existing .scriv bundle</small
+                ><span>{t("export.classicExportDialog.updateExisting")}</span><small
+                  >{t("export.classicExportDialog.updateExistingHelp")}</small
                 ></span
               >
             </label>
@@ -1164,13 +1288,15 @@
         {#if scrivenerMode === "update"}
           <!-- Update-mode-specific options -->
           <fieldset>
-            <legend class="ka-group-title">Update options </legend>
+            <legend class="ka-group-title"
+              >{t("export.classicExportDialog.updateOptionsLegend")}</legend
+            >
             <div class="export-choices">
               <label class="ka-check export-check">
                 <input type="checkbox" bind:checked={scrivenerBackup} />
                 <span class="export-check-text"
-                  ><span>Backup before updating</span><small
-                    >Creates a timestamped copy of the .scriv bundle</small
+                  ><span>{t("export.classicExportDialog.backupBeforeUpdating")}</span><small
+                    >{t("export.classicExportDialog.backupHelp")}</small
                   ></span
                 >
               </label>
@@ -1178,8 +1304,8 @@
               <label class="ka-check export-check">
                 <input type="checkbox" bind:checked={scrivenerIncludeUnmatched} />
                 <span class="export-check-text"
-                  ><span>Include unmatched scenes</span><small
-                    >Create new Scrivener documents for scenes without matches</small
+                  ><span>{t("export.classicExportDialog.includeUnmatched")}</span><small
+                    >{t("export.classicExportDialog.includeUnmatchedHelp")}</small
                   ></span
                 >
               </label>
@@ -1188,13 +1314,15 @@
         {/if}
 
         <p class="ka-help">
-          Characters, locations and scene references are not included in Scrivener exports.
+          {t("export.classicExportDialog.scrivenerExclusions")}
         </p>
 
         <!-- Save/Select Location -->
         <div class="ka-field od-field">
           <label for="scrivener-destination">
-            {scrivenerMode === "create_new" ? "Save Location" : "Select .scriv Bundle"}
+            {scrivenerMode === "create_new"
+              ? t("export.classicExportDialog.scrivenerSaveLocation")
+              : t("export.classicExportDialog.scrivenerSelectBundle")}
           </label>
           <div class="export-location">
             <input
@@ -1203,8 +1331,8 @@
               readonly
               value={scrivenerPath}
               placeholder={scrivenerMode === "create_new"
-                ? "Choose where to save…"
-                : "Select existing .scriv folder…"}
+                ? t("export.classicExportDialog.scrivenerSavePlaceholder")
+                : t("export.classicExportDialog.scrivenerBundlePlaceholder")}
               onclick={selectScrivenerPath}
             />
             <button
@@ -1212,64 +1340,73 @@
               onclick={selectScrivenerPath}
               class="ka-button ka-button--secondary"
               aria-label={scrivenerMode === "create_new"
-                ? "Choose save location"
-                : "Select .scriv bundle"}
+                ? t("export.classicExportDialog.chooseSaveLocation")
+                : t("export.classicExportDialog.selectScrivBundle")}
             >
-              Choose…
+              {t("export.classicExportDialog.choose")}
             </button>
           </div>
         </div>
       {:else if exportFormat === "epub"}
         <!-- EPUB Options -->
         <fieldset>
-          <legend class="ka-group-title">Metadata </legend>
+          <legend class="ka-group-title">{t("export.classicExportDialog.metadataLegend")}</legend>
           <div class="export-section">
             <div class="ka-field od-field">
-              <label for="epub-title">Title</label>
-              <input id="epub-title" type="text" bind:value={epubTitle} placeholder="Book title" />
+              <label for="epub-title">{t("export.classicExportDialog.title")}</label>
+              <input
+                id="epub-title"
+                type="text"
+                bind:value={epubTitle}
+                placeholder={t("export.classicExportDialog.titlePlaceholder")}
+              />
             </div>
             <div class="ka-field od-field">
-              <label for="epub-author">Author</label>
+              <label for="epub-author">{t("export.classicExportDialog.author")}</label>
               <input
                 id="epub-author"
                 type="text"
                 bind:value={epubAuthor}
-                placeholder="Author name"
+                placeholder={t("export.classicExportDialog.authorPlaceholder")}
               />
             </div>
             <div class="ka-field od-field">
-              <label for="epub-description">Description</label>
+              <label for="epub-description">{t("export.classicExportDialog.description")}</label>
               <textarea
                 id="epub-description"
                 rows="3"
                 bind:value={epubDescription}
-                placeholder="Short blurb or summary"
+                placeholder={t("export.classicExportDialog.descriptionPlaceholder")}
               ></textarea>
             </div>
             <div class="ka-field od-field">
-              <label for="epub-language">Language</label>
+              <label for="epub-language">{t("export.classicExportDialog.language")}</label>
               <input id="epub-language" type="text" bind:value={epubLanguage} placeholder="en" />
-              <p class="ka-help">Use ISO 639-1 codes (e.g., en, es).</p>
+              <p class="ka-help">{t("export.classicExportDialog.languageHelp")}</p>
             </div>
           </div>
         </fieldset>
 
         <fieldset>
-          <legend class="ka-group-title">Content </legend>
+          <legend class="ka-group-title">{t("export.classicExportDialog.contentLegend")}</legend>
           <div class="export-choices">
             <label class="ka-check"
-              ><input type="checkbox" bind:checked={includeBeatMarkers} /> Include beat markers as headings</label
+              ><input type="checkbox" bind:checked={includeBeatMarkers} />{t(
+                "export.classicExportDialog.includeBeatMarkers"
+              )}</label
             >
             <label class="ka-check"
-              ><input type="checkbox" bind:checked={includeSynopsis} /> Include scene synopses</label
+              ><input type="checkbox" bind:checked={includeSynopsis} />{t(
+                "export.classicExportDialog.includeSceneSynopses"
+              )}</label
             >
           </div>
         </fieldset>
 
         <fieldset>
-          <legend class="ka-group-title">Styling </legend>
+          <legend class="ka-group-title">{t("export.classicExportDialog.stylingLegend")}</legend>
           <div class="ka-field od-field">
-            <label for="epub-theme">Theme</label>
+            <label for="epub-theme">{t("export.classicExportDialog.theme")}</label>
             <select id="epub-theme" bind:value={epubTheme}>
               {#each epubThemeOptions as theme (theme.value)}
                 <option value={theme.value}>{theme.label}</option>
@@ -1279,31 +1416,33 @@
         </fieldset>
 
         <fieldset>
-          <legend class="ka-group-title">Cover </legend>
+          <legend class="ka-group-title">{t("export.classicExportDialog.coverLegend")}</legend>
           <div class="export-section">
             <label class="ka-check"
-              ><input type="checkbox" bind:checked={includeCoverImage} /> Include cover image</label
+              ><input type="checkbox" bind:checked={includeCoverImage} />{t(
+                "export.classicExportDialog.includeCoverImage"
+              )}</label
             >
 
             {#if includeCoverImage}
               <div class="ka-field od-field">
-                <label for="cover-image">Cover image</label>
+                <label for="cover-image">{t("export.classicExportDialog.coverImage")}</label>
                 <div class="export-location">
                   <input
                     id="cover-image"
                     type="text"
                     readonly
                     value={coverImagePath}
-                    placeholder="Select an image…"
+                    placeholder={t("export.classicExportDialog.coverPlaceholder")}
                     onclick={selectCoverImage}
                   />
                   <button
                     type="button"
                     onclick={selectCoverImage}
                     class="ka-button ka-button--secondary"
-                    aria-label="Select cover image"
+                    aria-label={t("export.classicExportDialog.selectCoverImage")}
                   >
-                    Choose…
+                    {t("export.classicExportDialog.choose")}
                   </button>
                 </div>
               </div>
@@ -1313,23 +1452,23 @@
 
         <!-- Save Location -->
         <div class="ka-field od-field">
-          <label for="epub-destination"> Save location </label>
+          <label for="epub-destination"> {t("export.classicExportDialog.saveLocation")} </label>
           <div class="export-location">
             <input
               id="epub-destination"
               type="text"
               readonly
               value={epubFilePath}
-              placeholder="No location chosen"
+              placeholder={t("export.classicExportDialog.noLocationChosen")}
               onclick={selectEpubFile}
             />
             <button
               type="button"
               onclick={selectEpubFile}
               class="ka-button ka-button--secondary"
-              aria-label="Choose save location"
+              aria-label={t("export.classicExportDialog.chooseSaveLocation")}
             >
-              Choose…
+              {t("export.classicExportDialog.choose")}
             </button>
           </div>
         </div>
@@ -1341,8 +1480,8 @@
           <label class="ka-check export-check">
             <input type="checkbox" bind:checked={createSnapshot} />
             <span class="export-check-text"
-              ><span>Create snapshot before exporting</span><small
-                >Save a backup of your current work</small
+              ><span>{t("export.classicExportDialog.createSnapshot")}</span><small
+                >{t("export.classicExportDialog.createSnapshotHelp")}</small
               ></span
             >
           </label>
@@ -1353,7 +1492,7 @@
         <div class="ka-notice ka-notice--error od-row-top" role="alert">
           <TriangleAlert class="w-5 h-5" aria-hidden="true" />
           <div class="od-field od-fill">
-            <strong>Couldn’t export</strong>
+            <strong>{t("export.classicExportDialog.exportFailed")}</strong>
             <p>{error}</p>
           </div>
         </div>
@@ -1365,7 +1504,7 @@
         <p class="ka-help ka-dialog-footer-start" id="export-blocked">{blockedReason}</p>
       {:else if exportFormat === "custom"}
         <p class="ka-help ka-dialog-footer-start">
-          Opens the export workspace with your saved settings.
+          {t("export.classicExportDialog.customFooterHint")}
         </p>
       {/if}
       <button
@@ -1374,7 +1513,7 @@
         class="ka-button ka-button--secondary"
         disabled={exporting}
       >
-        Cancel
+        {t("common.cancel")}
       </button>
       <button
         type="button"
@@ -1387,9 +1526,10 @@
       >
         {#if exporting}
           <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-          Exporting…
+          {t("export.classicExportDialog.exporting")}
         {:else if exportFormat === "custom"}
-          Open workspace <ArrowRight class="w-5 h-5" aria-hidden="true" />
+          {t("export.classicExportDialog.openWorkspace")}
+          <ArrowRight class="w-5 h-5" aria-hidden="true" />
         {:else}
           <Download class="w-5 h-5" aria-hidden="true" />
           {exportActionLabel}

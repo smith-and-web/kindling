@@ -2,6 +2,7 @@
   import { shortcuts } from "../stores/shortcuts.svelte";
   import { KeyboardFormatting } from "../utils/keyboardFormatting";
   import { holdLinkClick } from "../utils/safeHtml";
+  import { t } from "../i18n";
   import { onMount, tick } from "svelte";
   import ProseToolbar from "./ProseToolbar.svelte";
   import { MessageSquare } from "lucide-svelte";
@@ -241,7 +242,9 @@
         },
         attributes: {
           class: "editorial-prose",
-          "aria-label": readonly ? "Current manuscript" : "Manuscript with suggested edits",
+          "aria-label": readonly
+            ? t("editorial.editorialManuscript.currentManuscript")
+            : t("editorial.editorialManuscript.suggestedManuscript"),
           spellcheck: "true",
         },
         handleKeyDown: (_view, event) => {
@@ -279,12 +282,12 @@
           try {
             normalizeOwnership(tr.doc, sources);
             if (protectLocked && lockedProseChanged(tr.before, tr.doc, lockSources ?? sources)) {
-              onError("Unlock this scene before suggesting changes to its prose.");
+              onError(t("editorial.editorialManuscript.unlockBeforeSuggest"));
               return false;
             }
             return true;
           } catch {
-            onError("To move this passage, cut and paste it at the destination.");
+            onError(t("editorial.editorialManuscript.movePassage"));
             return false;
           }
         },
@@ -424,7 +427,9 @@
             marker.type = "button";
             marker.contentEditable = "false";
             marker.textContent = String(annotations.length);
-            marker.title = `${annotations.length} comments or changes in this paragraph`;
+            marker.title = t("editorial.editorialManuscript.marginMarker", {
+              count: annotations.length,
+            });
             marker.setAttribute("aria-label", marker.title);
             marker.setAttribute("aria-pressed", String(annotations.some((c) => c.id === selected)));
             marker.onmousedown = (event) => event.preventDefault();
@@ -456,7 +461,9 @@
     {#if canComment}<button
         type="button"
         class="ka-button ka-button--ghost comment-action"
-        onclick={onComment}><MessageSquare class="w-5 h-5" aria-hidden="true" /> Comment</button
+        onclick={onComment}
+        ><MessageSquare class="w-5 h-5" aria-hidden="true" />
+        {t("editorial.editorialManuscript.comment")}</button
       >{/if}
   </ProseToolbar>
 </div>

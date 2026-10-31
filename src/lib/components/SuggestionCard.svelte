@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Link2, X } from "lucide-svelte";
   import type { ReferenceSuggestion } from "../types";
+  import { t } from "../i18n";
 
   let {
     suggestion,
@@ -13,9 +14,9 @@
   } = $props();
 
   const confidenceLabel = $derived.by(() => {
-    if (suggestion.confidence >= 0.9) return "High";
-    if (suggestion.confidence >= 0.5) return "Medium";
-    return "Low";
+    if (suggestion.confidence >= 0.9) return t("references.suggestionCard.confidenceHigh");
+    if (suggestion.confidence >= 0.5) return t("references.suggestionCard.confidenceMedium");
+    return t("references.suggestionCard.confidenceLow");
   });
 
   // The badge text carries the meaning; tone only reinforces it.
@@ -25,11 +26,23 @@
     return "";
   });
 
+  const TYPE_LABEL_KEYS: Record<string, string> = {
+    character: "typeCharacter",
+    location: "typeLocation",
+    characters: "typeCharacters",
+    locations: "typeLocations",
+    items: "typeItems",
+    objectives: "typeObjectives",
+    organizations: "typeOrganizations",
+    timelines: "typeTimelines",
+    custom: "typeCustom",
+  };
+
   const typeLabel = $derived.by(() => {
-    const t = suggestion.reference_type;
-    if (t === "character") return "Character";
-    if (t === "location") return "Location";
-    return t.charAt(0).toUpperCase() + t.slice(1);
+    const type = suggestion.reference_type;
+    const key = TYPE_LABEL_KEYS[type];
+    if (key) return t(`references.suggestionCard.${key}`);
+    return type.charAt(0).toUpperCase() + type.slice(1);
   });
 </script>
 
@@ -40,25 +53,32 @@
       <span class="ka-badge {confidenceTone}">{confidenceLabel}</span>
     </div>
     <small class="suggestion-match" title={suggestion.match_text}>
-      {typeLabel} · found “{suggestion.match_text}”
+      {t("references.suggestionCard.foundMatch", {
+        type: typeLabel,
+        match: suggestion.match_text,
+      })}
     </small>
   </div>
   <button
     type="button"
     onclick={() => onLink(suggestion)}
     class="ka-button ka-button--secondary suggestion-link"
-    aria-label="Link {suggestion.reference_name} to scene"
-    title="Link to scene"
+    aria-label={t("references.suggestionCard.linkToSceneLabel", {
+      name: suggestion.reference_name,
+    })}
+    title={t("references.suggestionCard.linkToScene")}
   >
     <Link2 class="w-4 h-4" aria-hidden="true" />
-    Link
+    {t("references.suggestionCard.link")}
   </button>
   <button
     type="button"
     onclick={() => onDismiss(suggestion)}
     class="ka-button ka-button--ghost ka-icon-button suggestion-dismiss"
-    aria-label="Dismiss suggestion for {suggestion.reference_name}"
-    title="Dismiss"
+    aria-label={t("references.suggestionCard.dismissLabel", {
+      name: suggestion.reference_name,
+    })}
+    title={t("references.suggestionCard.dismiss")}
   >
     <X class="w-5 h-5" aria-hidden="true" />
   </button>

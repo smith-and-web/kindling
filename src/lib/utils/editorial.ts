@@ -4,6 +4,7 @@ import { DOMParser, DOMSerializer, Fragment, Node, Slice } from "@tiptap/pm/mode
 import { Mapping, StepMap, Transform } from "@tiptap/pm/transform";
 import { reviewExtensions } from "./revisions";
 import { inertElement } from "./safeHtml";
+import { t } from "../i18n";
 import type { EditorMode } from "../types";
 
 export interface EditorialSource {
@@ -83,15 +84,15 @@ export function validateEditorialPackage(packageData: EditorialPackage) {
     node.check();
     const attributes = (child: Node) => {
       if (child.attrs.source && !ids.has(child.attrs.source))
-        throw new Error("The review contains an unknown manuscript source.");
+        throw new Error(t("logic.editorial.unknownSource"));
       if (
         child.attrs.textAlign &&
         !["left", "right", "center", "justify"].includes(child.attrs.textAlign)
       )
-        throw new Error("The review contains unsupported paragraph formatting.");
+        throw new Error(t("logic.editorial.paragraphFormatting"));
       for (const mark of child.marks) {
         if (mark.type.name === "link" && !/^(https?:|mailto:)/i.test(mark.attrs.href ?? ""))
-          throw new Error("The review contains an unsupported link.");
+          throw new Error(t("logic.editorial.unsupportedLink"));
       }
     };
     attributes(node);
@@ -111,10 +112,10 @@ export function validateEditorialPackage(packageData: EditorialPackage) {
       change.to < change.from ||
       change.to > base.content.size
     ) {
-      throw new Error("A feedback annotation refers to a passage outside this manuscript.");
+      throw new Error(t("logic.editorial.outsidePassage"));
     }
     if (!Slice.fromJSON(editorialSchema, change.before).eq(base.slice(change.from, change.to)))
-      throw new Error("A feedback annotation does not match its original passage.");
+      throw new Error(t("logic.editorial.mismatchedPassage"));
     if (
       change.anchor_offset &&
       (change.kind !== "comment" ||
@@ -122,7 +123,7 @@ export function validateEditorialPackage(packageData: EditorialPackage) {
         change.anchor_offset.some((v) => !Number.isSafeInteger(v) || v < 0) ||
         change.anchor_offset[1] < change.anchor_offset[0])
     )
-      throw new Error("A comment has an invalid passage anchor.");
+      throw new Error(t("logic.editorial.invalidAnchor"));
     const after = Slice.fromJSON(editorialSchema, change.after);
     after.content.forEach(validateNode);
   }
@@ -193,15 +194,13 @@ export function normalizeOwnership(doc: Node, sources: EditorialSource[]): Node 
   const blocks: Node[] = [];
   doc.forEach((node) => {
     const source = ids.has(node.attrs.source) ? (node.attrs.source as string) : last;
-    if (!source) throw new Error("The review has no manuscript sources.");
+    if (!source) throw new Error(t("logic.editorial.noSources"));
     blocks.push(own(node, source));
     last = source;
   });
   const order = blocks.map((b) => sources.findIndex((s) => s.id === b.attrs.source));
   if (order.some((v, i) => i > 0 && v < order[i - 1])) {
-    throw new Error(
-      "This edit would reorder manuscript sources. Copy the passage as text instead."
-    );
+    throw new Error(t("logic.editorial.reorderSources"));
   }
   const normalized = doc.type.create(doc.attrs, blocks);
   // Native transaction nodes are immutable. Reuse normalization across change
@@ -232,10 +231,7 @@ export function sourceHtml(doc: Node, sources: EditorialSource[]): Map<string, s
   const groups = new Map(sources.map((s) => [s.id, [] as Node[]]));
   doc.forEach((node) => {
     const group = groups.get(node.attrs.source);
-    if (!group)
-      throw new Error(
-        "A manuscript paragraph has lost its source. Reopen the review before continuing."
-      );
+    if (!group) throw new Error(t("logic.editorial.lostSource"));
     group.push(node);
   });
   return new Map(
@@ -594,24 +590,18 @@ export function prepareAcceptance(
   reanchor?: { from: number; to: number }
 ) {
   const original = manuscript(feedback.round.sources);
-  if (!feedback.sources.length)
-    throw new Error(
-      "There are no current manuscript passages in this review. Restore a scene before applying feedback."
-    );
+  if (!feedback.sources.length) throw new Error(t("logic.editorial.noCurrentPassages"));
   const current = manuscript(feedback.sources);
   const targets = entries.map((entry) => {
     const location =
       reanchor && entries.length === 1
         ? { ...reanchor, conflict: false }
         : locateChange(original, current, entry.change);
-    if (location.conflict)
-      throw new Error(
-        "This passage changed. Compare the original, current, and suggested prose, then select where the change belongs."
-      );
+    if (location.conflict) throw new Error(t("logic.editorial.passageChanged"));
     return { entry, ...location };
   });
   if (targets.some((a, i) => targets.slice(i + 1).some((b) => overlaps(a, b)))) {
-    throw new Error("These suggestions overlap. Review and accept them individually.");
+    throw new Error(t("logic.editorial.overlap"));
   }
   // Apply each affected part in its own source. A normal ProseMirror join across
   // paragraphs otherwise moves the untouched suffix of the last scene into the
@@ -629,7 +619,7 @@ export function prepareAcceptance(
         ? target.from >= part.start && (target.from < part.end || part === parts[parts.length - 1])
         : target.from < part.end && target.to > part.start
     );
-    if (!affected.length) throw new Error("Select a passage within the manuscript.");
+    if (!affected.length) throw new Error(t("logic.editorial.selectPassage"));
     affected.forEach((part, index) => {
       const from = Math.max(0, target.from - part.start),
         to = Math.min(part.end - part.start, target.to - part.start);

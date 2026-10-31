@@ -6,6 +6,7 @@
   import { CircleCheck, Loader2 } from "lucide-svelte";
   import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
   import { copyErrorMessage, copyReferences, previewReferenceCopy } from "../referenceCopy";
+  import { t } from "../i18n";
   import type {
     Project,
     ReferenceCopyKey,
@@ -49,14 +50,14 @@
       ? null
       : !sourceId
         ? projects.length
-          ? "Choose a source project."
+          ? t("references.copyReferencesDialog.chooseSource")
           : null
         : !preview
           ? null
           : selectedCount === 0
-            ? "Choose references to copy."
+            ? t("references.copyReferencesDialog.chooseReferences")
             : preview.copied === 0
-              ? "Every selected reference matches one already here and will be skipped."
+              ? t("references.copyReferencesDialog.allMatchesSkipped")
               : null
   );
   const matches = (name: string) =>
@@ -151,7 +152,9 @@
       await onComplete(result);
     } catch (e) {
       refreshFailed = true;
-      error = `The copy completed, but the panel could not refresh. ${copyErrorMessage(e)}`;
+      error = t("references.copyReferencesDialog.refreshFailed", {
+        error: copyErrorMessage(e),
+      });
     } finally {
       refreshing = false;
     }
@@ -179,8 +182,30 @@
     event.preventDefault();
     close();
   }
+  const TYPE_LABEL_KEYS: Record<ReferenceTypeId, string> = {
+    characters: "typeCharacters",
+    locations: "typeLocations",
+    items: "typeItems",
+    objectives: "typeObjectives",
+    organizations: "typeOrganizations",
+    timelines: "typeTimelines",
+    custom: "typeCustom",
+  };
+  const ENTITY_LABEL_KEYS: Record<string, string> = {
+    character: "entityCharacter",
+    location: "entityLocation",
+    item: "entityItem",
+    objective: "entityObjective",
+    organization: "entityOrganization",
+    timeline: "entityTimeline",
+    custom: "entityCustom",
+  };
   function categoryName(type: ReferenceTypeId) {
-    return REFERENCE_TYPE_OPTIONS.find((t) => t.id === type)?.label ?? type;
+    return t(`references.copyReferencesDialog.${TYPE_LABEL_KEYS[type]}`);
+  }
+  function entityLabel(type: string) {
+    const key = ENTITY_LABEL_KEYS[type];
+    return key ? t(`references.copyReferencesDialog.${key}`) : type;
   }
   onMount(() => {
     const previous = document.activeElement;
@@ -203,7 +228,7 @@
   class="app-dialog-surface ka-dialog-default copy-dialog"
 >
   <DialogHeader
-    title="Copy references from another project"
+    title={t("references.copyReferencesDialog.title")}
     titleId="copy-references-title"
     onClose={close}
     disabled={saving || refreshing}
@@ -211,38 +236,43 @@
   <div class="ka-dialog-body copy-body">
     <dl class="ka-facts copy-facts">
       <div>
-        <dt>Destination</dt>
+        <dt>{t("references.copyReferencesDialog.destination")}</dt>
         <dd>{destination.name}</dd>
       </div>
     </dl>
     <p class="ka-help">
-      These are independent copies. Changes won't update other projects. Scene links are not copied.
+      {t("references.copyReferencesDialog.independentNote")}
     </p>
     {#if result}
       <div role="status" class="ka-notice ka-notice--success od-row-top">
         <CircleCheck class="w-5 h-5" aria-hidden="true" />
         <div class="od-field od-fill">
-          <strong>References copied</strong>
+          <strong>{t("references.copyReferencesDialog.copiedTitle")}</strong>
           <p>
-            Copied {countLabel(result.copied, "reference")} from {source?.name} to {destination.name}.
-            Skipped {result.skipped}
-            possible duplicates.
+            {t("references.copyReferencesDialog.copiedMessage", {
+              copied: countLabel(result.copied, "reference"),
+              source: source?.name ?? "",
+              destination: destination.name,
+              skipped: result.skipped,
+            })}
           </p>
         </div>
       </div>
       {#if refreshing}<p role="status" class="ka-help copy-inline-status">
-          <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />Refreshing references…
+          <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />{t(
+            "references.copyReferencesDialog.refreshing"
+          )}
         </p>{/if}
     {:else}
       <div class="ka-field od-field">
-        <label for="copy-source">Source project</label>
+        <label for="copy-source">{t("references.copyReferencesDialog.sourceProject")}</label>
         <select
           id="copy-source"
           bind:value={sourceId}
           onchange={changeSource}
           disabled={loadingProjects || saving}
         >
-          <option value="">Choose a project</option>
+          <option value="">{t("references.copyReferencesDialog.chooseProject")}</option>
           {#each projects as project (project.id)}
             <option value={project.id}
               >{project.name} · {project.project_type} · {project.created_at.slice(0, 10)} · {project.id.slice(
@@ -254,44 +284,50 @@
         </select>
       </div>
       {#if loadingProjects}<p role="status" class="ka-help copy-inline-status">
-          <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />Loading projects…
+          <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />{t(
+            "references.copyReferencesDialog.loadingProjects"
+          )}
         </p>
       {:else if projects.length === 0 && !error}
         <div class="ka-empty od-stack copy-empty">
-          <h4>No other projects</h4>
-          <p>Create another project first, then copy its references here.</p>
+          <h4>{t("references.copyReferencesDialog.noOtherProjects")}</h4>
+          <p>{t("references.copyReferencesDialog.noOtherProjectsHint")}</p>
         </div>
       {/if}
       {#if preview}
         <div class="ka-field od-field">
-          <label for="copy-search">Search references</label>
+          <label for="copy-search">{t("references.copyReferencesDialog.searchReferences")}</label>
           <input
             id="copy-search"
             type="search"
             bind:value={search}
             disabled={saving}
-            placeholder="Search by name"
+            placeholder={t("references.copyReferencesDialog.searchPlaceholder")}
           />
         </div>
         <div class="copy-selection">
-          <span class="copy-selection-count">{selectedCount} selected across all categories</span>
+          <span class="copy-selection-count"
+            >{t("references.copyReferencesDialog.selectedAcross", { count: selectedCount })}</span
+          >
           <div class="copy-selection-actions">
             <button
               type="button"
               disabled={saving}
               onclick={() => selectRows(preview?.references ?? [], true)}
-              class="ka-button ka-button--ghost">Select all references</button
+              class="ka-button ka-button--ghost"
+              >{t("references.copyReferencesDialog.selectAll")}</button
             >
             <button
               type="button"
               disabled={saving}
               onclick={() => selectRows(preview?.references ?? [], false)}
-              class="ka-button ka-button--ghost">Clear selection</button
+              class="ka-button ka-button--ghost"
+              >{t("references.copyReferencesDialog.clearSelection")}</button
             >
           </div>
         </div>
         {#if preview.references.length === 0}<p class="ka-help">
-            This project has no references to copy.
+            {t("references.copyReferencesDialog.noReferencesToCopy")}
           </p>{/if}
         <div class="copy-categories">
           {#each REFERENCE_TYPE_OPTIONS as category (category.id)}
@@ -300,7 +336,7 @@
             )}
             {#if rows.length}
               <fieldset disabled={saving} class="copy-category">
-                <legend class="ka-group-title">{category.label}</legend>
+                <legend class="ka-group-title">{categoryName(category.id)}</legend>
                 <label class="ka-check copy-all">
                   <input
                     type="checkbox"
@@ -309,8 +345,12 @@
                       !rows.every((r) => selection?.some((s) => same(s, r)))}
                     onchange={(e) => selectRows(rows, e.currentTarget.checked)}
                   />
-                  Select {search.trim() ? "visible" : "all"}
-                  {category.label.toLowerCase()}
+                  {t(
+                    search.trim()
+                      ? "references.copyReferencesDialog.selectModeVisible"
+                      : "references.copyReferencesDialog.selectModeAll",
+                    { type: categoryName(category.id).toLowerCase() }
+                  )}
                 </label>
                 <ul class="copy-rows">
                   {#each rows as row (row.id)}
@@ -328,13 +368,19 @@
                         </p>{/if}
                       {#if selection?.some((s) => same(s, row)) && row.conflict}
                         <label class="copy-duplicate"
-                          >Possible duplicate: {row.name}
+                          >{t("references.copyReferencesDialog.possibleDuplicate", {
+                            name: row.name,
+                          })}
                           <select
-                            aria-label={`Duplicate choice for ${row.name}`}
+                            aria-label={t("references.copyReferencesDialog.duplicateChoiceLabel", {
+                              name: row.name,
+                            })}
                             value={keepBoth.some((k) => same(k, row)) ? "keep" : "skip"}
                             onchange={(e) => chooseDuplicate(row, e.currentTarget.value === "keep")}
                           >
-                            <option value="skip">Skip</option><option value="keep">Keep both</option
+                            <option value="skip">{t("references.copyReferencesDialog.skip")}</option
+                            ><option value="keep"
+                              >{t("references.copyReferencesDialog.keepBoth")}</option
                             >
                           </select>
                         </label>
@@ -342,7 +388,9 @@
                       {#if row.action === "copy" && row.destination_name !== row.name}<p
                           class="copy-meta"
                         >
-                          Copy as: {row.destination_name}
+                          {t("references.copyReferencesDialog.copyAs", {
+                            name: row.destination_name,
+                          })}
                         </p>{/if}
                     </li>
                   {/each}
@@ -353,25 +401,29 @@
           {#if preview.references.length > 0 && !preview.references.some((r) => matches(r.name))}<p
               class="ka-help"
             >
-              No references match your search. Selections are unchanged.
+              {t("references.copyReferencesDialog.noSearchMatches")}
             </p>{/if}
         </div>
         {#if preview.changes.length}
           <details aria-busy={loading} class="ka-disclosure copy-changes">
             <summary
-              >Add {preview.changes.filter((c) => c.kind === "field").length} fields and {preview.changes.filter(
-                (c) => c.kind === "tag"
-              ).length} tags</summary
+              >{t("references.copyReferencesDialog.changesSummary", {
+                fields: preview.changes.filter((c) => c.kind === "field").length,
+                tags: preview.changes.filter((c) => c.kind === "tag").length,
+              })}</summary
             >
             <div>
               <p class="ka-help">
-                New fields are also available on existing references in their category. Existing
-                values stay unchanged.
+                {t("references.copyReferencesDialog.changesHint")}
               </p>
               <ul class="copy-change-list">
                 {#each preview.changes as change}
                   <li>
-                    {change.kind === "field" ? `${change.entity_type} field` : "Tag"}: {change.source_name}{change.source_name !==
+                    {change.kind === "field"
+                      ? t("references.copyReferencesDialog.changeField", {
+                          type: entityLabel(change.entity_type),
+                        })
+                      : t("references.copyReferencesDialog.changeTag")}: {change.source_name}{change.source_name !==
                     change.destination_name
                       ? ` → ${change.destination_name}`
                       : ""}
@@ -382,18 +434,23 @@
           </details>
         {/if}
         {#if preview.enabled_types.length}<p class="ka-help">
-            Enable categories: {preview.enabled_types.map(categoryName).join(", ")}
+            {t("references.copyReferencesDialog.enableCategories", {
+              categories: preview.enabled_types.map(categoryName).join(", "),
+            })}
           </p>{/if}
         {#if preview.skipped}<p class="ka-help">
-            Matches use category and name, not content. Renamed references may be copied again.
+            {t("references.copyReferencesDialog.skipNote")}
           </p>{/if}
       {/if}
       {#if sourceId}
         <p role="status" class="copy-status">
           {#if loading}
-            Updating preview…
+            {t("references.copyReferencesDialog.updatingPreview")}
           {:else if preview}
-            {preview.copied} to copy · {preview.skipped} possible duplicates skipped
+            {t("references.copyReferencesDialog.previewStatus", {
+              copied: preview.copied,
+              skipped: preview.skipped,
+            })}
           {/if}
         </p>
       {/if}
@@ -412,7 +469,7 @@
         onclick={refreshCopied}
         disabled={refreshing}
         aria-busy={refreshing || undefined}
-        class="ka-button">Refresh references</button
+        class="ka-button">{t("references.copyReferencesDialog.refreshReferences")}</button
       >{/if}
     {#if error && !result && !loading}
       <button
@@ -420,7 +477,9 @@
         onclick={() => (sourceId ? loadPreview() : loadProjects())}
         disabled={saving}
         class="ka-button ka-button--secondary"
-        >{sourceId ? "Refresh preview" : "Retry loading projects"}</button
+        >{sourceId
+          ? t("references.copyReferencesDialog.refreshPreview")
+          : t("references.copyReferencesDialog.retryLoadingProjects")}</button
       >
     {/if}
     <button
@@ -428,7 +487,9 @@
       onclick={close}
       disabled={saving || refreshing}
       class={result && !refreshFailed ? "ka-button" : "ka-button ka-button--secondary"}
-      >{result ? "Done" : "Cancel"}</button
+      >{result
+        ? t("references.copyReferencesDialog.done")
+        : t("references.copyReferencesDialog.cancel")}</button
     >
     {#if !result}<button
         type="button"
@@ -439,7 +500,11 @@
         class="ka-button"
       >
         {#if saving}<Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />{/if}
-        {saving ? "Copying…" : `Copy ${countLabel(preview?.copied ?? 0, "reference")}`}
+        {saving
+          ? t("references.copyReferencesDialog.copying")
+          : t("references.copyReferencesDialog.copyCount", {
+              count: countLabel(preview?.copied ?? 0, "reference"),
+            })}
       </button>{/if}
   </footer>
 </dialog>

@@ -4,6 +4,7 @@
   import { Plus, X } from "lucide-svelte";
   import type { Tag } from "../types";
   import { ui } from "../stores/ui.svelte";
+  import { t } from "../i18n";
 
   let {
     projectId,
@@ -38,7 +39,7 @@
       onTagsChanged?.();
     } catch (e) {
       console.error("Failed to add tag:", e);
-      ui.showError(`Failed to add tag: ${String(e)}`);
+      ui.showError(t("sidebar.tagSelector.failedAdd", { error: String(e) }));
     }
   }
 
@@ -48,7 +49,7 @@
       onTagsChanged?.();
     } catch (e) {
       console.error("Failed to remove tag:", e);
-      ui.showError(`Failed to remove tag: ${String(e)}`);
+      ui.showError(t("sidebar.tagSelector.failedRemove", { error: String(e) }));
     }
   }
 
@@ -68,7 +69,7 @@
       onTagsChanged?.();
     } catch (e) {
       console.error("Failed to create tag:", e);
-      ui.showError(`Failed to create tag: ${String(e)}`);
+      ui.showError(t("sidebar.tagSelector.failedCreate", { error: String(e) }));
     } finally {
       creating = false;
     }
@@ -107,8 +108,8 @@
         type="button"
         onclick={() => removeTag(tag.id)}
         class="tag-remove"
-        aria-label="Remove tag {tag.name}"
-        title="Remove tag"
+        aria-label={t("sidebar.tagSelector.removeTagNamed", { name: tag.name })}
+        title={t("sidebar.tagSelector.removeTag")}
       >
         <X class="w-4 h-4" aria-hidden="true" />
       </button>
@@ -120,11 +121,11 @@
       type="button"
       onclick={() => (showDropdown = !showDropdown)}
       class="ka-button ka-button--ghost tag-add"
-      aria-label="Add tag"
+      aria-label={t("sidebar.tagSelector.addTag")}
       aria-expanded={showDropdown}
     >
       <Plus class="w-4 h-4" aria-hidden="true" />
-      Add tag
+      {t("sidebar.tagSelector.addTag")}
     </button>
 
     {#if showDropdown}
@@ -134,8 +135,8 @@
             type="text"
             bind:value={search}
             onkeydown={handleKeydown}
-            placeholder="Search or create…"
-            aria-label="Search or create a tag"
+            placeholder={t("sidebar.tagSelector.searchOrCreate")}
+            aria-label={t("sidebar.tagSelector.searchOrCreateTag")}
           />
         </div>
         <div class="tag-options">
@@ -162,11 +163,11 @@
               aria-busy={creating || undefined}
             >
               <Plus class="w-4 h-4" aria-hidden="true" />
-              Create “{search.trim()}”
+              {t("sidebar.tagSelector.createNamed", { name: search.trim() })}
             </button>
           {/if}
           {#if !search.trim() && availableTags.length === 0}
-            <p class="ka-help tag-none">No more tags available</p>
+            <p class="ka-help tag-none">{t("sidebar.tagSelector.noMoreTags")}</p>
           {/if}
         </div>
       </div>

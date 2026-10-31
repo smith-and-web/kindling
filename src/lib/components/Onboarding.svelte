@@ -17,6 +17,7 @@
   import { pickScrivenerProjectPath } from "$lib/utils/import";
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
+  import { t } from "../i18n";
 
   interface Props {
     onImportLongform?: () => void;
@@ -42,11 +43,20 @@
   ];
 
   const STEP_HEADINGS: Record<OnboardingStep, { title: string; subtitle?: string }> = {
-    welcome: { title: "Welcome to kindling" },
-    "tour-sidebar": { title: "Chapters and scenes", subtitle: "The left sidebar" },
-    "tour-editor": { title: "Synopsis and beats", subtitle: "The main editor" },
-    "tour-references": { title: "References", subtitle: "The right panel" },
-    import: { title: "Import your outline" },
+    welcome: { title: t("onboarding.welcomeTitle") },
+    "tour-sidebar": {
+      title: t("onboarding.tourSidebarTitle"),
+      subtitle: t("onboarding.tourSidebarSubtitle"),
+    },
+    "tour-editor": {
+      title: t("onboarding.tourEditorTitle"),
+      subtitle: t("onboarding.tourEditorSubtitle"),
+    },
+    "tour-references": {
+      title: t("onboarding.tourReferencesTitle"),
+      subtitle: t("onboarding.tourReferencesSubtitle"),
+    },
+    import: { title: t("onboarding.importTitle") },
   };
 
   const IMPORTS: { label: string; hint: string; run: () => void }[] = [
@@ -55,29 +65,33 @@
     { label: "yWriter", hint: ".yw7", run: () => void startGuidedImport("ywriter") },
     {
       label: "novelWriter",
-      hint: "Project folder",
+      hint: t("onboarding.importHintProjectFolder"),
       run: () => void startGuidedImport("novelwriter"),
     },
     { label: "Markdown", hint: ".md", run: () => void startGuidedImport("markdown") },
-    { label: "Longform", hint: "Index or vault", run: () => handleLongformImportClick() },
+    {
+      label: "Longform",
+      hint: t("onboarding.importHintIndexOrVault"),
+      run: () => handleLongformImportClick(),
+    },
   ];
 
   const stepNumber = $derived(Math.max(0, STEP_ORDER.indexOf(ui.onboardingStep)) + 1);
   const progressLabel = $derived(
     ui.onboardingStep === "welcome"
-      ? "Getting started"
+      ? t("onboarding.progressGettingStarted")
       : ui.onboardingStep === "import"
-        ? "Import"
-        : "Tour"
+        ? t("onboarding.progressImport")
+        : t("onboarding.progressTour")
   );
   const heading = $derived(
     ui.onboardingStep === "import" && guidedPreview
-      ? { title: `Ready to import “${guidedPreview.project_name}”` }
+      ? { title: t("onboarding.readyToImport", { name: guidedPreview.project_name }) }
       : STEP_HEADINGS[ui.onboardingStep]
   );
 
   async function trySampleProject() {
-    ui.startImport("Opening sample project", "Creating the sample project…");
+    ui.startImport(t("onboarding.importOpeningTitle"), t("onboarding.importOpeningStatus"));
     try {
       const project = await invoke<Project>("create_sample_project");
       currentProject.setProject(project);
@@ -85,7 +99,7 @@
       ui.setView("editor");
     } catch (e) {
       console.error("Failed to create sample project:", e);
-      ui.showError(`Failed to create sample project: ${e}`);
+      ui.showError(t("onboarding.errorCreateSample", { error: String(e) }));
     } finally {
       ui.finishImport();
     }
@@ -156,7 +170,7 @@
       onImportComplete?.(project, format);
     } catch (e) {
       console.error("Import failed:", e);
-      ui.showError(`Import failed: ${e}`);
+      ui.showError(t("onboarding.errorImportFailed", { error: String(e) }));
     } finally {
       ui.finishImport();
     }
@@ -204,7 +218,7 @@
         subtitle={heading.subtitle}
         titleId="onboarding-title"
         onClose={skipOnboarding}
-        closeLabel="Skip onboarding"
+        closeLabel={t("onboarding.skipOnboarding")}
         closeTestId="skip-onboarding"
       />
 
@@ -213,38 +227,53 @@
           <img class="onboarding-mark mark-light" src="/brand/kindling-mark.svg" alt="" />
           <img class="onboarding-mark mark-dark" src="/brand/kindling-mark-reversed.svg" alt="" />
           <p class="onboarding-lede">
-            Transform your outline into a finished draft. Import your story structure and start
-            writing scene by scene.
+            {t("onboarding.welcomeLede")}
           </p>
         {:else if ui.onboardingStep === "tour-sidebar"}
           <div class="tour-figure" aria-hidden="true">
             <div class="tour-sheet">
               <div class="tour-row">
                 <ChevronDown class="w-4 h-4 ka-icon" />
-                <span class="tour-strong">The Letter</span>
-                <span class="ka-badge">Chapter</span>
+                <span class="tour-strong">{t("onboarding.mockChapterName")}</span>
+                <span class="ka-badge">{t("onboarding.mockChapterBadge")}</span>
               </div>
               <div class="tour-row tour-child is-current">
-                <span>On the Cliff</span>
-                <small>Current scene</small>
+                <span>{t("onboarding.mockSceneOnCliff")}</span>
+                <small>{t("onboarding.mockCurrentScene")}</small>
               </div>
               <div class="tour-row tour-child">
-                <span class="tour-muted">The Seventh Step</span>
-                <span class="ka-badge">Scene</span>
+                <span class="tour-muted">{t("onboarding.mockSceneSeventhStep")}</span>
+                <span class="ka-badge">{t("onboarding.mockSceneBadge")}</span>
               </div>
             </div>
           </div>
           <ul class="tour-points">
-            <li><strong>Click a chapter</strong> to expand or collapse its scenes.</li>
-            <li><strong>Click a scene</strong> to load it in the editor.</li>
-            <li>The <strong>highlighted scene</strong> is your current working scene.</li>
             <li>
-              Imported and template projects may include <strong>Parts</strong> (acts) as collapsible
-              groups above chapters.
+              <strong>{t("onboarding.sidebarPointClickChapter")}</strong>{t(
+                "onboarding.sidebarPointClickChapterRest"
+              )}
             </li>
             <li>
-              Screenplay projects use <strong>Acts → Sequences → Scenes</strong> instead of Chapters
-              → Scenes, with <strong>page count</strong> estimates alongside each act.
+              <strong>{t("onboarding.sidebarPointClickScene")}</strong>{t(
+                "onboarding.sidebarPointClickSceneRest"
+              )}
+            </li>
+            <li>
+              {t("onboarding.sidebarPointHighlightPrefix")}<strong
+                >{t("onboarding.sidebarPointHighlight")}</strong
+              >{t("onboarding.sidebarPointHighlightSuffix")}
+            </li>
+            <li>
+              {t("onboarding.sidebarPointPartsPrefix")}<strong
+                >{t("onboarding.sidebarPointParts")}</strong
+              >{t("onboarding.sidebarPointPartsSuffix")}
+            </li>
+            <li>
+              {t("onboarding.sidebarPointScreenplayPrefix")}<strong
+                >{t("onboarding.sidebarPointScreenplayStructure")}</strong
+              >{t("onboarding.sidebarPointScreenplayMiddle")}<strong
+                >{t("onboarding.sidebarPointPageCount")}</strong
+              >{t("onboarding.sidebarPointScreenplaySuffix")}
             </li>
           </ul>
         {:else if ui.onboardingStep === "tour-editor"}
@@ -252,105 +281,138 @@
             <div class="tour-sheet tour-stack">
               <div class="tour-block">
                 <div class="tour-row-head">
-                  <span class="tour-strong">Synopsis</span>
-                  <span class="ka-badge">Scene synopsis</span>
+                  <span class="tour-strong">{t("onboarding.mockSynopsis")}</span>
+                  <span class="ka-badge">{t("onboarding.mockSceneSynopsisBadge")}</span>
                 </div>
                 <p class="tour-prose">
-                  The hero receives the call to adventure and must decide whether to leave their
-                  ordinary world behind…
+                  {t("onboarding.mockSynopsisProse")}
                 </p>
               </div>
               <div class="tour-beat is-open">
                 <span class="tour-beat-num">1</span>
-                <span class="tour-strong">The messenger arrives</span>
-                <span class="ka-badge ka-badge--accent">Story beat</span>
+                <span class="tour-strong">{t("onboarding.mockBeatMessenger")}</span>
+                <span class="ka-badge ka-badge--accent">{t("onboarding.mockStoryBeatBadge")}</span>
               </div>
               <div class="tour-beat">
                 <span class="tour-beat-num">2</span>
-                <span class="tour-muted">The decision</span>
+                <span class="tour-muted">{t("onboarding.mockBeatDecision")}</span>
               </div>
             </div>
           </div>
           <ul class="tour-points">
-            <li>The <strong>synopsis</strong> gives you the scene overview from your outline.</li>
-            <li><strong>Beats</strong> are the key story moments within each scene.</li>
-            <li>Use beats as your writing prompts to draft each section.</li>
             <li>
-              Switch between <strong>Beats</strong> (outline-guided) and <strong>Page</strong>
-              (free-form writing) at the top of the scene.
+              {t("onboarding.editorPointSynopsisPrefix")}<strong
+                >{t("onboarding.editorPointSynopsis")}</strong
+              >{t("onboarding.editorPointSynopsisSuffix")}
             </li>
             <li>
-              In screenplays, scene titles are <strong>sluglines</strong> (for example,
-              <code>INT. CASTLE - NIGHT</code>). kindling suggests locations from your references.
+              <strong>{t("onboarding.editorPointBeatsStrong")}</strong>{t(
+                "onboarding.editorPointBeatsRest"
+              )}
+            </li>
+            <li>{t("onboarding.editorPointPrompts")}</li>
+            <li>
+              {t("onboarding.editorPointSwitchPrefix")}<strong
+                >{t("onboarding.editorPointSwitchBeats")}</strong
+              >{t("onboarding.editorPointSwitchMiddle")}<strong
+                >{t("onboarding.editorPointSwitchPage")}</strong
+              >{t("onboarding.editorPointSwitchSuffix")}
+            </li>
+            <li>
+              {t("onboarding.editorPointSluglinesPrefix")}<strong
+                >{t("onboarding.editorPointSluglines")}</strong
+              >{t("onboarding.editorPointSluglinesMiddle")}<code>INT. CASTLE - NIGHT</code>{t(
+                "onboarding.editorPointSluglinesSuffix"
+              )}
             </li>
           </ul>
         {:else if ui.onboardingStep === "tour-references"}
           <div class="tour-figure" aria-hidden="true">
             <div class="tour-sheet tour-stack">
               <div class="tour-tabs">
-                <span class="is-selected">Characters</span>
-                <span>Locations</span>
-                <span>Items</span>
+                <span class="is-selected">{t("onboarding.referencesTabCharacters")}</span>
+                <span>{t("onboarding.referencesTabLocations")}</span>
+                <span>{t("onboarding.referencesTabItems")}</span>
               </div>
               <div class="tour-row">
-                <span class="tour-strong">Elena</span>
-                <span class="tour-muted">Protagonist</span>
-                <span class="ka-badge">Linked</span>
+                <span class="tour-strong">{t("onboarding.mockCharacterName")}</span>
+                <span class="tour-muted">{t("onboarding.mockCharacterRole")}</span>
+                <span class="ka-badge">{t("onboarding.mockLinkedBadge")}</span>
               </div>
               <div class="tour-row">
-                <span class="tour-strong">Marcus</span>
-                <span class="tour-muted">Mentor</span>
+                <span class="tour-strong">{t("onboarding.mockMentorName")}</span>
+                <span class="tour-muted">{t("onboarding.mockMentorRole")}</span>
               </div>
               <div class="tour-tools">
-                <span><Plus class="w-4 h-4 ka-icon" /> Add</span>
-                <span><ListChevronsDownUp class="w-4 h-4 ka-icon" /> Collapse all</span>
-                <span><ArrowDownAZ class="w-4 h-4 ka-icon" /> Sort A–Z</span>
-                <span><PanelRightClose class="w-4 h-4 ka-icon" /> Hide panel</span>
+                <span><Plus class="w-4 h-4 ka-icon" /> {t("onboarding.mockAdd")}</span>
+                <span
+                  ><ListChevronsDownUp class="w-4 h-4 ka-icon" />
+                  {t("onboarding.mockCollapseAll")}</span
+                >
+                <span><ArrowDownAZ class="w-4 h-4 ka-icon" /> {t("onboarding.mockSortAZ")}</span>
+                <span
+                  ><PanelRightClose class="w-4 h-4 ka-icon" />
+                  {t("onboarding.mockHidePanel")}</span
+                >
               </div>
             </div>
           </div>
           <ul class="tour-points">
             <li>
-              <strong>Characters</strong> shows who appears in the current scene;
-              <strong>Locations</strong> shows where it takes place.
+              <strong>{t("onboarding.referencesPointCharacters")}</strong>{t(
+                "onboarding.referencesPointCharactersMiddle"
+              )}<strong>{t("onboarding.referencesPointLocations")}</strong>{t(
+                "onboarding.referencesPointLocationsRest"
+              )}
             </li>
-            <li>Use <strong>Add</strong> to search and link references to a scene.</li>
             <li>
-              kindling can <strong>detect</strong> character and location mentions in your prose.
-              Look for the <strong>Suggested</strong> group.
+              {t("onboarding.referencesPointAddPrefix")}<strong
+                >{t("onboarding.referencesPointAdd")}</strong
+              >{t("onboarding.referencesPointAddSuffix")}
             </li>
-            <li><strong>Hide panel</strong> collapses the sidebar so you can focus on writing.</li>
+            <li>
+              {t("onboarding.referencesPointDetectPrefix")}<strong
+                >{t("onboarding.referencesPointDetect")}</strong
+              >{t("onboarding.referencesPointDetectMiddle")}<strong
+                >{t("onboarding.referencesPointSuggested")}</strong
+              >{t("onboarding.referencesPointSuggestedRest")}
+            </li>
+            <li>
+              <strong>{t("onboarding.referencesPointHidePanel")}</strong>{t(
+                "onboarding.referencesPointHidePanelRest"
+              )}
+            </li>
           </ul>
         {:else if ui.onboardingStep === "import"}
           {#if guidedLoading}
             <div class="ka-progress od-field" role="status">
-              <span>Reading your outline…</span>
-              <progress aria-label="Reading your outline"></progress>
+              <span>{t("onboarding.readingOutline")}</span>
+              <progress aria-label={t("onboarding.readingOutline")}></progress>
             </div>
           {:else if guidedPreview}
-            <p class="onboarding-lede">This outline contains the following.</p>
+            <p class="onboarding-lede">{t("onboarding.previewLede")}</p>
             <dl class="ka-facts">
               <div>
-                <dt>Chapters</dt>
+                <dt>{t("onboarding.factChapters")}</dt>
                 <dd>{guidedPreview.chapter_count}</dd>
               </div>
               <div>
-                <dt>Scenes</dt>
+                <dt>{t("onboarding.factScenes")}</dt>
                 <dd>{guidedPreview.scene_count}</dd>
               </div>
               <div>
-                <dt>Beats</dt>
+                <dt>{t("onboarding.factBeats")}</dt>
                 <dd>{guidedPreview.beat_count}</dd>
               </div>
               {#if guidedPreview.character_count > 0}
                 <div>
-                  <dt>Characters</dt>
+                  <dt>{t("onboarding.factCharacters")}</dt>
                   <dd>{guidedPreview.character_count}</dd>
                 </div>
               {/if}
               {#if guidedPreview.location_count > 0}
                 <div>
-                  <dt>Locations</dt>
+                  <dt>{t("onboarding.factLocations")}</dt>
                   <dd>{guidedPreview.location_count}</dd>
                 </div>
               {/if}
@@ -359,13 +421,13 @@
             <div class="ka-notice ka-notice--error od-row-top" role="alert">
               <CircleAlert class="w-5 h-5" aria-hidden="true" />
               <div class="od-field od-fill">
-                <strong>Couldn’t read that outline</strong>
+                <strong>{t("onboarding.outlineUnreadable")}</strong>
                 <p>{guidedError}</p>
               </div>
             </div>
           {:else}
             <p class="onboarding-lede">
-              Choose your outline format. kindling previews it before importing.
+              {t("onboarding.chooseFormatLede")}
             </p>
             <ul class="import-list">
               {#each IMPORTS as format (format.label)}
@@ -387,11 +449,11 @@
                 class="ka-button ka-button--secondary"
                 onclick={trySampleProject}
               >
-                Try the sample project
+                {t("onboarding.trySample")}
               </button>
               <button type="button" class="ka-button ka-button--ghost" onclick={skipOnboarding}>
                 <FilePlus class="w-5 h-5" aria-hidden="true" />
-                Start a new project from scratch
+                {t("onboarding.startFromScratch")}
               </button>
             </div>
           {/if}
@@ -400,10 +462,19 @@
         <div class="ka-progress od-field onboarding-progress">
           <div class="ka-between">
             <span>{progressLabel}</span>
-            <span class="od-nowrap">Step {stepNumber} of {STEP_ORDER.length}</span>
+            <span class="od-nowrap"
+              >{t("onboarding.stepProgress", {
+                current: stepNumber,
+                total: STEP_ORDER.length,
+              })}</span
+            >
           </div>
           <progress
-            aria-label={`${progressLabel}, step ${stepNumber} of ${STEP_ORDER.length}`}
+            aria-label={t("onboarding.progressAria", {
+              label: progressLabel,
+              current: stepNumber,
+              total: STEP_ORDER.length,
+            })}
             value={stepNumber}
             max={STEP_ORDER.length}
           ></progress>
@@ -418,17 +489,17 @@
               class="ka-button ka-button--ghost ka-dialog-footer-start"
               onclick={skipOnboarding}
             >
-              Skip and start importing
+              {t("onboarding.skipAndImport")}
             </button>
             <button
               type="button"
               class="ka-button ka-button--secondary"
               onclick={() => ui.nextStep()}
             >
-              Take the tour
+              {t("onboarding.takeTour")}
             </button>
             <button type="button" class="ka-button" onclick={trySampleProject} use:focusOnMount>
-              Try sample project
+              {t("onboarding.trySampleShort")}
             </button>
           {:else if ui.onboardingStep === "import"}
             {#if guidedPreview}
@@ -437,7 +508,7 @@
                 class="ka-button ka-button--ghost ka-dialog-footer-start"
                 onclick={backFromGuidedPreview}
               >
-                Choose a different file
+                {t("onboarding.chooseDifferentFile")}
               </button>
               <button
                 type="button"
@@ -446,7 +517,7 @@
                 onclick={confirmGuidedImport}
                 use:focusOnMount
               >
-                Import project
+                {t("onboarding.importProject")}
               </button>
             {:else if guidedError}
               <button
@@ -455,7 +526,7 @@
                 onclick={backFromGuidedPreview}
                 use:focusOnMount
               >
-                Try a different file
+                {t("onboarding.tryDifferentFile")}
               </button>
             {:else}
               <button
@@ -464,7 +535,7 @@
                 onclick={() => ui.previousStep()}
                 disabled={guidedLoading}
               >
-                Back to tour
+                {t("onboarding.backToTour")}
               </button>
               <button
                 type="button"
@@ -472,7 +543,7 @@
                 onclick={skipOnboarding}
                 disabled={guidedLoading}
               >
-                I’ll import later
+                {t("onboarding.importLater")}
               </button>
             {/if}
           {:else}
@@ -481,18 +552,18 @@
               class="ka-button ka-button--ghost ka-dialog-footer-start"
               onclick={() => ui.goToStep("import")}
             >
-              Skip tour
+              {t("onboarding.skipTour")}
             </button>
             <button
               type="button"
               class="ka-button ka-button--secondary"
               onclick={() => ui.previousStep()}
             >
-              Back
+              {t("common.back")}
             </button>
             {#if ui.onboardingStep === "tour-references"}
               <button type="button" class="ka-button" onclick={finishTour} use:focusOnMount>
-                Start importing
+                {t("onboarding.startImporting")}
               </button>
             {:else}
               <button
@@ -501,7 +572,7 @@
                 onclick={() => ui.nextStep()}
                 use:focusOnMount
               >
-                Next
+                {t("common.next")}
               </button>
             {/if}
           {/if}

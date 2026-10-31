@@ -1,4 +1,5 @@
 import { proseSaves } from "./proseSaves";
+import { t } from "../i18n";
 
 let flushEditors: (() => Promise<void>) | null = null;
 
@@ -21,7 +22,7 @@ export async function saveProseBefore(projectId: string, action: string): Promis
   await proseSaves.flush(projectId);
   if (proseSaves.draftsForRecovery(projectId).length) {
     throw new Error(
-      `Save or recover unsaved prose before ${action}. Review the unsaved drafts in Find and Replace.`
+      t("logic.proseFlush.message", { action: t(`logic.proseFlush.action.${action}`) })
     );
   }
 }

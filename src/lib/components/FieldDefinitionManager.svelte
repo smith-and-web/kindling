@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { Pencil, Plus, Trash2, X, Loader2 } from "lucide-svelte";
   import type { FieldDefinition, FieldType, FieldEntityType } from "../types";
+  import { t } from "../i18n";
 
   let {
     projectId,
@@ -32,13 +33,13 @@
   onDestroy(() => onState?.({ dirty: false, busy: false }));
 
   const FIELD_TYPES: { value: FieldType; label: string }[] = [
-    { value: "text", label: "Text" },
-    { value: "number", label: "Number" },
-    { value: "date", label: "Date" },
-    { value: "select", label: "Dropdown" },
-    { value: "multiselect", label: "Multi-select" },
-    { value: "checkbox", label: "Checkbox" },
-    { value: "url", label: "URL" },
+    { value: "text", label: t("references.fieldDefinitionManager.fieldTypeText") },
+    { value: "number", label: t("references.fieldDefinitionManager.fieldTypeNumber") },
+    { value: "date", label: t("references.fieldDefinitionManager.fieldTypeDate") },
+    { value: "select", label: t("references.fieldDefinitionManager.fieldTypeSelect") },
+    { value: "multiselect", label: t("references.fieldDefinitionManager.fieldTypeMultiselect") },
+    { value: "checkbox", label: t("references.fieldDefinitionManager.fieldTypeCheckbox") },
+    { value: "url", label: t("references.fieldDefinitionManager.fieldTypeUrl") },
   ];
 
   async function loadDefinitions() {
@@ -182,7 +183,9 @@
 
 <section class="fields" aria-labelledby={`fields-${entityType}`}>
   <div class="fields-head">
-    <h4 id={`fields-${entityType}`} class="ka-group-title fields-title">{entityLabel} fields</h4>
+    <h4 id={`fields-${entityType}`} class="ka-group-title fields-title">
+      {t("references.fieldDefinitionManager.fieldsTitle", { label: entityLabel })}
+    </h4>
     <button
       type="button"
       onclick={openCreateForm}
@@ -190,16 +193,16 @@
       disabled={!!editingDef}
     >
       <Plus class="w-5 h-5" aria-hidden="true" />
-      Add field
+      {t("references.fieldDefinitionManager.addField")}
     </button>
   </div>
 
   {#if loading}
-    <p class="ka-help" role="status">Loading fields…</p>
+    <p class="ka-help" role="status">{t("references.fieldDefinitionManager.loadingFields")}</p>
   {:else if error}
     <p class="ka-error" role="alert">{error}</p>
   {:else if definitions.length === 0 && !editingDef}
-    <p class="ka-help">No custom fields defined yet.</p>
+    <p class="ka-help">{t("references.fieldDefinitionManager.noFields")}</p>
   {:else}
     <ul class="ka-tagtree">
       {#each definitions as def}
@@ -208,15 +211,15 @@
             <span class="ka-name">{def.name}</span>
             <span class="ka-help fields-type">{typeLabel(def.field_type)}</span>
             {#if def.required}
-              <span class="ka-badge">Required</span>
+              <span class="ka-badge">{t("references.fieldDefinitionManager.requiredBadge")}</span>
             {/if}
             <div class="ka-row">
               <button
                 type="button"
                 onclick={() => openEditForm(def)}
                 class="ka-button ka-button--ghost ka-icon-button"
-                aria-label="Edit field"
-                title="Edit field"
+                aria-label={t("references.fieldDefinitionManager.editField")}
+                title={t("references.fieldDefinitionManager.editField")}
               >
                 <Pencil class="w-5 h-5" aria-hidden="true" />
               </button>
@@ -224,8 +227,8 @@
                 type="button"
                 onclick={() => deleteDefinition(def.id)}
                 class="ka-button ka-button--ghost ka-icon-button fields-delete"
-                aria-label="Delete field"
-                title="Delete field"
+                aria-label={t("references.fieldDefinitionManager.deleteField")}
+                title={t("references.fieldDefinitionManager.deleteField")}
               >
                 <Trash2 class="w-5 h-5" aria-hidden="true" />
               </button>
@@ -239,31 +242,35 @@
   {#if editingDef}
     <div class="ka-tagedit">
       <div class="fields-edit-head">
-        <h5>{editMode === "create" ? "New field" : "Edit field"}</h5>
+        <h5>
+          {editMode === "create"
+            ? t("references.fieldDefinitionManager.newField")
+            : t("references.fieldDefinitionManager.editFieldTitle")}
+        </h5>
         <button
           type="button"
           onclick={cancelEdit}
           class="ka-button ka-button--ghost ka-icon-button"
-          aria-label="Close field editor"
-          title="Close field editor"
+          aria-label={t("references.fieldDefinitionManager.closeFieldEditor")}
+          title={t("references.fieldDefinitionManager.closeFieldEditor")}
         >
           <X class="w-5 h-5" aria-hidden="true" />
         </button>
       </div>
 
       <div class="ka-field od-field">
-        <label for="field-name">Name</label>
+        <label for="field-name">{t("references.fieldDefinitionManager.name")}</label>
         <input
           id="field-name"
           type="text"
           bind:value={editingDef.name}
-          placeholder="e.g. Age, Genre, Status…"
+          placeholder={t("references.fieldDefinitionManager.namePlaceholder")}
           disabled={saving}
         />
       </div>
 
       <div class="ka-field od-field">
-        <label for="field-type">Type</label>
+        <label for="field-type">{t("references.fieldDefinitionManager.type")}</label>
         <select id="field-type" bind:value={editingDef.field_type} disabled={saving}>
           {#each FIELD_TYPES as ft}
             <option value={ft.value}>{ft.label}</option>
@@ -273,25 +280,28 @@
 
       {#if needsOptions}
         <div class="ka-field od-field">
-          <label for="field-options">Options (comma-separated)</label>
+          <label for="field-options">{t("references.fieldDefinitionManager.options")}</label>
           <input
             id="field-options"
             type="text"
             value={optionsText}
             oninput={handleOptionsChange}
-            placeholder="Option A, Option B, Option C"
+            placeholder={t("references.fieldDefinitionManager.optionsPlaceholder")}
             disabled={saving}
           />
         </div>
       {/if}
 
       <div class="ka-field od-field">
-        <label for="field-default">Default value <span class="ka-optional">(optional)</span></label>
+        <label for="field-default"
+          >{t("references.fieldDefinitionManager.defaultValue")}
+          <span class="ka-optional">{t("references.fieldDefinitionManager.optional")}</span></label
+        >
         <input
           id="field-default"
           type="text"
           bind:value={editingDef.default_value}
-          placeholder="Optional"
+          placeholder={t("references.fieldDefinitionManager.optionalPlaceholder")}
           disabled={saving}
         />
       </div>
@@ -299,11 +309,11 @@
       <div class="ka-checks">
         <label class="ka-check">
           <input type="checkbox" bind:checked={editingDef.required} disabled={saving} />
-          Required
+          {t("references.fieldDefinitionManager.required")}
         </label>
         <label class="ka-check">
           <input type="checkbox" bind:checked={editingDef.visible} disabled={saving} />
-          Visible
+          {t("references.fieldDefinitionManager.visible")}
         </label>
       </div>
 
@@ -314,7 +324,7 @@
           class="ka-button ka-button--secondary"
           disabled={saving}
         >
-          Cancel
+          {t("references.fieldDefinitionManager.cancel")}
         </button>
         <button
           type="button"
@@ -326,7 +336,9 @@
           {#if saving}
             <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
           {/if}
-          {editMode === "create" ? "Add" : "Save"}
+          {editMode === "create"
+            ? t("references.fieldDefinitionManager.add")
+            : t("references.fieldDefinitionManager.save")}
         </button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ui } from "../stores/ui.svelte";
+  import { t } from "../i18n";
 
   let { onStartTour }: { onStartTour?: () => void } = $props();
 
@@ -13,15 +14,18 @@
 
 <div class="settings-pane">
   <p class="settings-lede">
-    Choose how kindling looks and how much guidance it shows. Changes apply immediately to all
-    projects.
+    {t("settings.appearance.lede")}
   </p>
   <div class="ka-group">
     <fieldset class="settings-fieldset">
-      <legend class="ka-group-title">Appearance</legend>
+      <legend class="ka-group-title">{t("settings.appearance.title")}</legend>
       <div class="ka-segments">
-        <div class="ka-segment-track" role="radiogroup" aria-label="Theme">
-          {#each [{ value: "dark", label: "Dark" }, { value: "light", label: "Light" }, { value: "system", label: "System" }] as opt}
+        <div
+          class="ka-segment-track"
+          role="radiogroup"
+          aria-label={t("settings.appearance.themeAria")}
+        >
+          {#each [{ value: "dark", label: t("settings.appearance.themeDark") }, { value: "light", label: t("settings.appearance.themeLight") }, { value: "system", label: t("settings.appearance.themeSystem") }] as opt}
             <label class="ka-segment" class:ka-selected={ui.theme === opt.value}>
               <input
                 type="radio"
@@ -36,13 +40,13 @@
           {/each}
         </div>
       </div>
-      <p class="ka-help">“System” follows your operating system’s appearance setting.</p>
+      <p class="ka-help">{t("settings.appearance.systemHelp")}</p>
     </fieldset>
   </div>
 
   <div class="ka-group">
     <fieldset class="settings-fieldset">
-      <legend class="ka-group-title">Guidance</legend>
+      <legend class="ka-group-title">{t("settings.appearance.guidance")}</legend>
       <div class="ka-check">
         <input
           id="guidance-enabled"
@@ -51,11 +55,10 @@
           onchange={(e) => ui.setGuidanceEnabled((e.target as HTMLInputElement).checked)}
           aria-describedby="guidance-enabled-help"
         />
-        <label for="guidance-enabled">Show guidance tips</label>
+        <label for="guidance-enabled">{t("settings.appearance.showTips")}</label>
       </div>
       <p id="guidance-enabled-help" class="ka-help">
-        A tip appears the first time you visit the sidebar, scene panel and references. Each tip
-        shows once.
+        {t("settings.appearance.tipsHelp")}
       </p>
       <div class="guidance-actions">
         <button
@@ -65,19 +68,19 @@
           disabled={!ui.guidanceEnabled}
           aria-describedby="guidance-reset-status"
         >
-          Show tips again
+          {t("settings.appearance.showTipsAgain")}
         </button>
         {#if onStartTour}
           <button type="button" class="ka-button ka-button--secondary" onclick={onStartTour}>
-            Take the tour
+            {t("settings.appearance.takeTour")}
           </button>
         {/if}
       </div>
       <p id="guidance-reset-status" class="ka-help" role="status">
         {#if !ui.guidanceEnabled}
-          Turn on guidance tips to show them again.
+          {t("settings.appearance.turnOnTips")}
         {:else if tipsReset}
-          Tips will appear again as you visit each area.
+          {t("settings.appearance.tipsReset")}
         {/if}
       </p>
     </fieldset>

@@ -24,6 +24,7 @@ import {
   setThemePreference,
   initTheme,
 } from "../utils/theme";
+import { t } from "../i18n";
 
 export type View = "start" | "editor";
 export type Panel = "sidebar" | "editor" | "references";
@@ -75,7 +76,7 @@ class UIStore {
   private _isImporting = $state(false);
   private _importProgress = $state(0);
   private _importStatus = $state("");
-  private _importTitle = $state("Importing");
+  private _importTitle = $state(t("logic.ui.importing"));
   private _toast = $state<{ id: number; message: string } | null>(null);
   private _toastIdCounter = 0;
 
@@ -228,7 +229,7 @@ class UIStore {
   }
 
   /** `title` names the work in the progress dialog, e.g. "Opening sample project". */
-  startImport(title = "Importing", status = "Starting import…") {
+  startImport(title = t("logic.ui.importing"), status = t("logic.ui.startingImport")) {
     this._isImporting = true;
     this._importProgress = 0;
     this._importTitle = title;
@@ -243,7 +244,7 @@ class UIStore {
   finishImport() {
     this._isImporting = false;
     this._importProgress = 100;
-    this._importStatus = "Import complete!";
+    this._importStatus = t("logic.ui.importComplete");
   }
 
   showError(message: string) {

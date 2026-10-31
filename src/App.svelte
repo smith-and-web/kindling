@@ -41,6 +41,7 @@
   import { isModalOpen } from "./lib/utils/modalFocus";
   import type { ProseDocument } from "./lib/utils/proseSearch";
   import type { Project, ExportResult, Chapter, Scene, Beat } from "./lib/types";
+  import { t } from "./lib/i18n";
 
   let { onReady }: { onReady?: () => void } = $props();
   let initialProjectsLoaded = $state(false);
@@ -81,7 +82,7 @@
     const chapter = chapters.find((chapter) => chapter.id === doc.chapter_id);
     const scenes = await invoke<Scene[]>("get_scenes", { chapterId: doc.chapter_id });
     const scene = scenes.find((scene) => scene.id === doc.scene_id);
-    if (!chapter || !scene) throw new Error("This scene is no longer available.");
+    if (!chapter || !scene) throw new Error(t("shell.sceneUnavailable"));
     const beats = await invoke<Beat[]>("get_beats", { sceneId: scene.id });
     if (currentProject.value?.id !== projectId) return;
     currentProject.setChapters(chapters);
@@ -275,9 +276,7 @@
     await scenePanel?.prepareForSearch();
     await proseSaves.flush();
     if (proseSaves.draftsForRecovery().length) {
-      throw new Error(
-        "Prose changes could not be saved. Review the unsaved drafts in Find and Replace."
-      );
+      throw new Error(t("shell.proseUnsaved"));
     }
   }
 
@@ -349,7 +348,7 @@
       await exit(0);
     } catch (error) {
       discardQuitDrafts = null;
-      ui.showError(`Could not quit: ${String(error)}`);
+      ui.showError(t("shell.couldNotQuit", { error: String(error) }));
     } finally {
       closePending = false;
     }
@@ -635,17 +634,17 @@
       embedded
       titleId="quit-confirmation-title"
       title={editorialQuitFailed
-        ? "Quit without saving review changes?"
+        ? t("shell.quitReviewTitle")
         : discardQuitProse.length
-          ? "Quit without saving writing changes?"
-          : "Quit without saving synopsis changes?"}
+          ? t("shell.quitWritingTitle")
+          : t("shell.quitSynopsisTitle")}
       message={editorialQuitFailed
-        ? "Your review could not be saved. Keep editing to retry or export a recovery copy. Quitting and discarding removes all unsaved review, prose, and synopsis changes."
+        ? t("shell.quitReviewMessage")
         : discardQuitProse.length
-          ? "Some prose or synopsis changes could not be saved. Quit and discard these unsaved writing changes, or keep editing to retry saving."
-          : "Some synopsis changes could not be saved. Quit and discard these unsaved synopsis changes, or keep editing to retry saving."}
-      confirmLabel="Quit and discard"
-      cancelLabel="Keep editing"
+          ? t("shell.quitWritingMessage")
+          : t("shell.quitSynopsisMessage")}
+      confirmLabel={t("shell.quitAndDiscard")}
+      cancelLabel={t("shell.keepEditing")}
       onConfirm={quitAndDiscard}
       onCancel={keepEditing}
     />
@@ -658,15 +657,15 @@
     <div role="alert" class="ka-toast">
       <CircleAlert class="w-5 h-5 ka-icon" aria-hidden="true" />
       <div>
-        <strong>Your synopsis changes have not been saved.</strong>
+        <strong>{t("shell.synopsisUnsaved")}</strong>
         <button
           type="button"
           onclick={retrySynopses}
           disabled={retryingSynopses || interactionBlocked}
           aria-busy={retryingSynopses || undefined}
-          aria-label="Retry all synopsis saves"
+          aria-label={t("shell.retryAllSynopsisSaves")}
           class="ka-button ka-button--secondary synopsis-retry"
-          >{retryingSynopses ? "Saving…" : "Retry saving"}</button
+          >{retryingSynopses ? t("shell.savingShort") : t("shell.retrySaving")}</button
         >
       </div>
     </div>

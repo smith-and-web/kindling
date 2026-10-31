@@ -8,6 +8,7 @@
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
   import type { ReimportSummary } from "../types";
+  import { t } from "../i18n";
 
   interface Props {
     summary: ReimportSummary;
@@ -43,8 +44,31 @@
     ].filter((row) => row.added > 0 || row.updated > 0)
   );
 
-  function plural(count: number, word: string): string {
-    return `${count} ${word}${count !== 1 ? "s" : ""}`;
+  const KIND_LABEL_KEYS: Record<string, string> = {
+    Chapters: "kindChapters",
+    Scenes: "kindScenes",
+    Beats: "kindBeats",
+  };
+
+  function kindLabel(kind: string): string {
+    return t(`references.syncSummaryDialog.${KIND_LABEL_KEYS[kind]}`);
+  }
+
+  function proseItemLabel(count: number, updated: boolean): string {
+    if (updated) {
+      return t(
+        count === 1
+          ? "references.syncSummaryDialog.proseItemUpdatedOne"
+          : "references.syncSummaryDialog.proseItemUpdatedMany",
+        { count }
+      );
+    }
+    return t(
+      count === 1
+        ? "references.syncSummaryDialog.proseItemPreservedOne"
+        : "references.syncSummaryDialog.proseItemPreservedMany",
+      { count }
+    );
   }
 </script>
 
@@ -59,7 +83,7 @@
 >
   <div class="app-dialog-surface ka-dialog-narrow dialog-shell">
     <DialogHeader
-      title="Sync complete"
+      title={t("references.syncSummaryDialog.title")}
       titleId="sync-summary-title"
       {onClose}
       closeTestId="dialog-close"
@@ -69,37 +93,50 @@
         {#if !hasChanges}
           <div class="ka-empty od-stack">
             <CheckCheck class="w-7 h-7" aria-hidden="true" />
-            <h4>Nothing changed</h4>
-            <p>No changes were applied.</p>
+            <h4>{t("references.syncSummaryDialog.nothingChanged")}</h4>
+            <p>{t("references.syncSummaryDialog.noChangesApplied")}</p>
           </div>
         {:else}
           <div class="summary-badges">
             {#if totalAdded > 0}
-              <span class="ka-badge ka-badge--success">{totalAdded} added</span>
+              <span class="ka-badge ka-badge--success"
+                >{t("references.syncSummaryDialog.addedCount", { count: totalAdded })}</span
+              >
             {/if}
             {#if totalUpdated > 0}
-              <span class="ka-badge">{totalUpdated} updated</span>
+              <span class="ka-badge"
+                >{t("references.syncSummaryDialog.updatedCount", { count: totalUpdated })}</span
+              >
             {/if}
             {#if summary.prose_preserved > 0}
-              <span class="ka-badge">{summary.prose_preserved} preserved</span>
+              <span class="ka-badge"
+                >{t("references.syncSummaryDialog.preservedCount", {
+                  count: summary.prose_preserved,
+                })}</span
+              >
             {/if}
           </div>
           <ul class="summary-list">
             {#each rows as row (row.kind)}
               <li class="summary-row">
-                <span class="ka-label">{row.kind}</span>
-                <span class="summary-meta">{row.added} added, {row.updated} updated</span>
+                <span class="ka-label">{kindLabel(row.kind)}</span>
+                <span class="summary-meta"
+                  >{t("references.syncSummaryDialog.rowMeta", {
+                    added: row.added,
+                    updated: row.updated,
+                  })}</span
+                >
               </li>
             {/each}
             {#if summary.prose_updated > 0 || summary.prose_preserved > 0}
               <li class="summary-row">
-                <span class="ka-label">Prose</span>
+                <span class="ka-label">{t("references.syncSummaryDialog.prose")}</span>
                 <span class="summary-meta">
                   {#if summary.prose_updated > 0}
-                    <span>{plural(summary.prose_updated, "prose item")} updated</span>
+                    <span>{proseItemLabel(summary.prose_updated, true)}</span>
                   {/if}
                   {#if summary.prose_preserved > 0}
-                    <span>{plural(summary.prose_preserved, "prose item")} preserved</span>
+                    <span>{proseItemLabel(summary.prose_preserved, false)}</span>
                   {/if}
                 </span>
               </li>
@@ -109,7 +146,9 @@
       </div>
     </div>
     <footer class="ka-dialog-footer">
-      <button type="button" onclick={onClose} class="ka-button">Done</button>
+      <button type="button" onclick={onClose} class="ka-button"
+        >{t("references.syncSummaryDialog.done")}</button
+      >
     </footer>
   </div>
 </div>

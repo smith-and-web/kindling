@@ -6,6 +6,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
   import { safeProse } from "../utils/safeHtml";
+  import { t } from "../i18n";
   import type {
     Character,
     Location,
@@ -36,9 +37,18 @@
   let error = $state<string | null>(null);
   let references = $state<ReferenceRow[]>([]);
 
+  const TYPE_LABEL_KEYS: Record<ReferenceTypeId, string> = {
+    characters: "typeCharacters",
+    locations: "typeLocations",
+    items: "typeItems",
+    objectives: "typeObjectives",
+    organizations: "typeOrganizations",
+    timelines: "typeTimelines",
+    custom: "typeCustom",
+  };
   const typeOptions = REFERENCE_TYPE_OPTIONS.map((option) => ({
     id: option.id,
-    label: option.label,
+    label: t(`references.referenceClassificationDialog.${TYPE_LABEL_KEYS[option.id]}`),
   }));
 
   /** Returns true when references are empty and the dialog should auto-close. */
@@ -71,7 +81,8 @@
       return references.length === 0;
     } catch (e) {
       console.error("Failed to load reference classifications:", e);
-      error = e instanceof Error ? e.message : "Failed to load references";
+      error =
+        e instanceof Error ? e.message : t("references.referenceClassificationDialog.loadFailed");
       references = [];
       return false;
     } finally {
@@ -111,7 +122,8 @@
       onComplete(project);
     } catch (e) {
       console.error("Failed to save reference classifications:", e);
-      error = e instanceof Error ? e.message : "Failed to save reference classifications";
+      error =
+        e instanceof Error ? e.message : t("references.referenceClassificationDialog.saveFailed");
     } finally {
       saving = false;
     }
@@ -128,21 +140,22 @@
 >
   <div class="app-dialog-surface ka-dialog-default dialog-shell">
     <DialogHeader
-      title="Review reference types"
+      title={t("references.referenceClassificationDialog.title")}
       titleId="reference-classification-title"
       {onClose}
       disabled={saving}
     />
     <div class="ka-dialog-body classify">
       <p class="classify-lede">
-        We found some references during import. Tweak their type now, or skip to keep our best
-        guess.
+        {t("references.referenceClassificationDialog.lede")}
       </p>
 
       {#if loading}
         <div class="ka-progress od-field" role="status">
-          <span>Loading references…</span>
-          <progress aria-label="Loading references"></progress>
+          <span>{t("references.referenceClassificationDialog.loadingReferences")}</span>
+          <progress
+            aria-label={t("references.referenceClassificationDialog.loadingReferencesLabel")}
+          ></progress>
         </div>
       {:else if error}
         <div class="ka-notice ka-notice--error od-row-top" role="alert">
@@ -150,16 +163,16 @@
           <div class="od-field od-fill">
             <strong
               >{references.length === 0
-                ? "Couldn’t load references"
-                : "Couldn’t save reference types"}</strong
+                ? t("references.referenceClassificationDialog.loadFailedHeading")
+                : t("references.referenceClassificationDialog.saveFailedHeading")}</strong
             >
             <p>{error}</p>
           </div>
         </div>
       {:else if references.length === 0}
         <div class="ka-empty od-stack">
-          <h4>No references found</h4>
-          <p>No references detected for this project.</p>
+          <h4>{t("references.referenceClassificationDialog.emptyTitle")}</h4>
+          <p>{t("references.referenceClassificationDialog.emptyMessage")}</p>
         </div>
       {/if}
 
@@ -167,8 +180,10 @@
         <table class="classify-table">
           <thead>
             <tr>
-              <th scope="col">Reference</th>
-              <th scope="col" class="classify-type-col">Type</th>
+              <th scope="col">{t("references.referenceClassificationDialog.columnReference")}</th>
+              <th scope="col" class="classify-type-col"
+                >{t("references.referenceClassificationDialog.columnType")}</th
+              >
             </tr>
           </thead>
           <tbody>
@@ -185,7 +200,9 @@
                 </td>
                 <td>
                   <select
-                    aria-label={`Type for ${reference.name}`}
+                    aria-label={t("references.referenceClassificationDialog.typeForLabel", {
+                      name: reference.name,
+                    })}
                     bind:value={reference.reference_type}
                     disabled={saving}
                     onchange={(event) =>
@@ -213,7 +230,7 @@
         class="ka-button ka-button--secondary"
         disabled={saving}
       >
-        Skip for now
+        {t("references.referenceClassificationDialog.skip")}
       </button>
       <button
         type="button"
@@ -224,9 +241,9 @@
       >
         {#if saving}
           <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-          Saving…
+          {t("references.referenceClassificationDialog.saving")}
         {:else}
-          Apply changes
+          {t("references.referenceClassificationDialog.applyChanges")}
         {/if}
       </button>
     </footer>

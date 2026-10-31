@@ -7,6 +7,7 @@ import {
   type EditorialChange,
 } from "./editorial";
 import { activeDocuments, isAnchored, type SceneReview, type Annotation } from "./revisions";
+import { t } from "../i18n";
 
 export interface LocalAnnotation {
   key: string;
@@ -88,7 +89,5 @@ export function localSelection(sources: EditorialSource[], from: number, to: num
     }
     offset += doc.content.size;
   }
-  throw new Error(
-    "Select a passage within this scene’s original prose to re-anchor its saved annotation."
-  );
+  throw new Error(t("logic.localEditorial.reanchor"));
 }

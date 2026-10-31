@@ -13,6 +13,7 @@
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
   import { Loader2, Send, Star, CheckCircle2, AlertCircle } from "lucide-svelte";
+  import { t } from "../i18n";
 
   type FeedbackType = "bug" | "feature" | "rating";
 
@@ -23,9 +24,9 @@
   const MAX_MESSAGE_LEN = 2000;
 
   const FEEDBACK_TYPES: { value: FeedbackType; label: string }[] = [
-    { value: "bug", label: "Bug" },
-    { value: "feature", label: "Feature" },
-    { value: "rating", label: "Rating" },
+    { value: "bug", label: t("onboarding.feedbackDialog.typeBug") },
+    { value: "feature", label: t("onboarding.feedbackDialog.typeFeature") },
+    { value: "rating", label: t("onboarding.feedbackDialog.typeRating") },
   ];
 
   let feedbackType = $state<FeedbackType>("bug");
@@ -50,20 +51,20 @@
   /** Returns a validation message if the form is invalid, otherwise null. */
   function validate(): string | null {
     if (summary.trim().length > MAX_SUMMARY_LEN) {
-      return `Summary must be ${MAX_SUMMARY_LEN} characters or fewer.`;
+      return t("onboarding.feedbackDialog.validationSummaryTooLong", { count: MAX_SUMMARY_LEN });
     }
     if (feedbackType === "rating") {
       if (rating < 1 || rating > 5) {
-        return "Please select a rating from 1 to 5.";
+        return t("onboarding.feedbackDialog.validationRating");
       }
       return null;
     }
     const trimmed = message.trim();
     if (!trimmed) {
-      return "Please enter a message.";
+      return t("onboarding.feedbackDialog.validationMessageRequired");
     }
     if (trimmed.length > MAX_MESSAGE_LEN) {
-      return `Message must be ${MAX_MESSAGE_LEN} characters or fewer.`;
+      return t("onboarding.feedbackDialog.validationMessageTooLong", { count: MAX_MESSAGE_LEN });
     }
     return null;
   }
@@ -132,25 +133,27 @@
 >
   <div class="app-dialog-surface ka-dialog-narrow dialog-shell" data-testid="feedback-dialog">
     <DialogHeader
-      title="Send feedback"
+      title={t("onboarding.feedbackDialog.title")}
       titleId="feedback-dialog-title"
       {onClose}
-      closeLabel="Close"
+      closeLabel={t("common.close")}
     />
 
     {#if status === "success"}
       <div class="ka-dialog-body feedback-success" data-testid="feedback-success" role="status">
         <CheckCircle2 class="w-7 h-7" aria-hidden="true" />
-        <h3>Thanks for your feedback!</h3>
-        <p>Your message was sent to the kindling team.</p>
+        <h3>{t("onboarding.feedbackDialog.successTitle")}</h3>
+        <p>{t("onboarding.feedbackDialog.successMessage")}</p>
       </div>
       <footer class="ka-dialog-footer">
-        <button type="button" onclick={onClose} class="ka-button" use:focusOnMount>Done</button>
+        <button type="button" onclick={onClose} class="ka-button" use:focusOnMount
+          >{t("common.done")}</button
+        >
       </footer>
     {:else}
       <div class="ka-dialog-body feedback-form">
         <fieldset class="ka-segments">
-          <legend>What kind of feedback?</legend>
+          <legend>{t("onboarding.feedbackDialog.kindsLegend")}</legend>
           <div class="ka-segment-track">
             {#each FEEDBACK_TYPES as type (type.value)}
               <button
@@ -168,13 +171,18 @@
 
         {#if feedbackType === "rating"}
           <fieldset class="feedback-rating">
-            <legend>How would you rate kindling?</legend>
+            <legend>{t("onboarding.feedbackDialog.ratingLegend")}</legend>
             <div class="ka-row">
               {#each [1, 2, 3, 4, 5] as n (n)}
                 <button
                   type="button"
                   onclick={() => (rating = n)}
-                  aria-label={`${n} star${n === 1 ? "" : "s"}`}
+                  aria-label={t(
+                    n === 1
+                      ? "onboarding.feedbackDialog.starOne"
+                      : "onboarding.feedbackDialog.starMany",
+                    { count: n }
+                  )}
                   aria-pressed={rating === n}
                   class="ka-button ka-button--ghost ka-icon-button feedback-star"
                   class:is-on={n <= rating}
@@ -182,20 +190,23 @@
                   <Star class="w-6 h-6" fill={n <= rating ? "currentColor" : "none"} />
                 </button>
               {/each}
-              {#if rating > 0}<span class="ka-help">{rating} of 5</span>{/if}
+              {#if rating > 0}<span class="ka-help"
+                  >{t("onboarding.feedbackDialog.ratingOfFive", { rating })}</span
+                >{/if}
             </div>
           </fieldset>
         {:else}
           <div class="ka-field od-field">
             <label for="feedback-summary">
-              Summary <span class="ka-optional">(optional)</span>
+              {t("onboarding.feedbackDialog.summaryLabel")}
+              <span class="ka-optional">{t("onboarding.feedbackDialog.optional")}</span>
             </label>
             <input
               id="feedback-summary"
               type="text"
               bind:value={summary}
               disabled={sending}
-              placeholder="A short title"
+              placeholder={t("onboarding.feedbackDialog.summaryPlaceholder")}
               aria-invalid={summary.trim().length > MAX_SUMMARY_LEN || undefined}
             />
             <div class="ka-field-meta">
@@ -208,13 +219,13 @@
           </div>
 
           <div class="ka-field od-field">
-            <label for="feedback-message">Message</label>
+            <label for="feedback-message">{t("onboarding.feedbackDialog.messageLabel")}</label>
             <textarea
               id="feedback-message"
               rows="5"
               bind:value={message}
               disabled={sending}
-              placeholder="Tell us what’s on your mind…"
+              placeholder={t("onboarding.feedbackDialog.messagePlaceholder")}
               aria-invalid={message.trim().length > MAX_MESSAGE_LEN || undefined}
             ></textarea>
             <div class="ka-field-meta">
@@ -228,8 +239,7 @@
         {/if}
 
         <p class="ka-help" data-testid="feedback-disclosure">
-          Sending includes what you enter here plus your kindling version, operating system and
-          language. Nothing from your manuscript is attached.
+          {t("onboarding.feedbackDialog.disclosure")}
         </p>
 
         {#if validationError}
@@ -247,16 +257,16 @@
           >
             <AlertCircle class="w-5 h-5 shrink-0" aria-hidden="true" />
             <div class="od-field od-fill">
-              <strong>Couldn’t send your feedback.</strong>
+              <strong>{t("onboarding.feedbackDialog.errorTitle")}</strong>
               {#if error}<p>{error}</p>{/if}
-              <p>Your form is kept as you left it.</p>
+              <p>{t("onboarding.feedbackDialog.formKept")}</p>
               <button
                 type="button"
                 onclick={handleSubmit}
                 disabled={sending}
                 class="ka-button ka-button--secondary feedback-retry"
               >
-                Try again
+                {t("onboarding.feedbackDialog.tryAgain")}
               </button>
             </div>
           </div>
@@ -270,7 +280,7 @@
           disabled={sending}
           class="ka-button ka-button--secondary"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
         <button
           type="button"
@@ -282,10 +292,10 @@
         >
           {#if sending}
             <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-            Sending…
+            {t("onboarding.feedbackDialog.sending")}
           {:else}
             <Send class="w-5 h-5" aria-hidden="true" />
-            Send feedback
+            {t("onboarding.feedbackDialog.send")}
           {/if}
         </button>
       </footer>

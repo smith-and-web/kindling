@@ -109,6 +109,26 @@ ui.showOnboarding; // boolean
 ui.isImporting; // boolean
 ```
 
+### Internationalization (`src/lib/i18n/`)
+
+Interface copy lives in catalogs rather than inside components. `src/lib/i18n/index.ts` exposes
+`t(key, params?)`; catalogs are plain `{ key: text }` records grouped by feature area under
+`src/lib/i18n/locales/<locale>/`, and the file name becomes the key namespace — an entry
+`newScene` in `locales/en/sidebar.ts` is `sidebar.newScene`.
+
+- `locales/en/` keeps the original English wording and is the source of truth.
+- Other locales (currently `locales/zh-CN/`) translate the same keys; a missing entry falls back
+  to English, then to the key itself.
+- The locale follows the system language: `navigator.language` in the webview and
+  `tauri_plugin_os::locale()` for native menus. Every `zh` locale resolves to `zh-CN`, including
+  Traditional Chinese until a `zh-Hant` catalog exists. The test runner forces English so existing
+  assertions keep matching the original copy.
+- `countLabel()` in `src/lib/utils/plural.ts` routes nouns through `nounLabel()`, so counted
+  items read correctly in languages without plural forms (`3 scenes` → `3 个场景`).
+
+To add a language, create `locales/<tag>/` with one file per English group and translate the
+values; components do not change.
+
 ### Data Flow
 
 1. User interacts with a component

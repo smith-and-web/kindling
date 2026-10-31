@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { t } from "../i18n";
 import {
   defaultBindings,
   formatShortcut,
@@ -25,7 +26,7 @@ export class Shortcuts {
         this.ready = true;
       })
       .catch((error) => {
-        this.error = `Could not load keyboard shortcuts: ${String(error)}`;
+        this.error = t("logic.shortcuts.loadFailed", { error: String(error) });
       })
       .finally(() => {
         this.loading = null;
@@ -40,7 +41,7 @@ export class Shortcuts {
         this.suspended = suspended;
         if (this.ready) this.error = null;
       } catch (error) {
-        this.error = `Could not update native keyboard shortcuts: ${String(error)}`;
+        this.error = t("logic.shortcuts.updateFailed", { error: String(error) });
       }
     });
     return this.suspension;

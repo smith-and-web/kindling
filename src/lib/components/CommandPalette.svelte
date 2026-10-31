@@ -8,6 +8,7 @@
   import { shortcuts } from "../stores/shortcuts.svelte";
   import { Search } from "lucide-svelte";
   import { fuzzyMatch, fuzzyScore, type CommandDef } from "../commands";
+  import { t } from "../i18n";
 
   interface CommandWithAction extends CommandDef {
     action: () => void;
@@ -123,7 +124,7 @@
     class="ka-dialog palette"
     open
     aria-modal="true"
-    aria-label="Command palette"
+    aria-label={t("onboarding.commandPalette.dialogLabel")}
     data-testid="command-palette"
   >
     <div class="palette-search">
@@ -131,8 +132,8 @@
       <!-- svelte-ignore a11y_autofocus -->
       <input
         type="text"
-        placeholder="Type a command or search…"
-        aria-label="Search commands"
+        placeholder={t("onboarding.commandPalette.placeholder")}
+        aria-label={t("onboarding.commandPalette.searchLabel")}
         aria-controls="command-palette-list"
         aria-activedescendant={filteredCommands.length
           ? `command-palette-item-${selectedIndex}`
@@ -147,12 +148,12 @@
       class="ka-command-list palette-list"
       id="command-palette-list"
       role="listbox"
-      aria-label="Commands"
+      aria-label={t("onboarding.commandPalette.listLabel")}
     >
       {#if filteredCommands.length === 0}
         <div class="ka-empty od-stack palette-empty">
-          <h4>No matching commands</h4>
-          <p>Check the spelling, or try a shorter word.</p>
+          <h4>{t("onboarding.commandPalette.emptyTitle")}</h4>
+          <p>{t("onboarding.commandPalette.emptyMessage")}</p>
         </div>
       {:else}
         {#each filteredCommands as cmd, i}
@@ -175,9 +176,9 @@
     </div>
 
     <p class="palette-hints">
-      <span><kbd>↑</kbd> <kbd>↓</kbd> to navigate</span>
-      <span><kbd>Enter</kbd> to run</span>
-      <span><kbd>Esc</kbd> to close</span>
+      <span><kbd>↑</kbd> <kbd>↓</kbd> {t("onboarding.commandPalette.navigate")}</span>
+      <span><kbd>Enter</kbd> {t("onboarding.commandPalette.run")}</span>
+      <span><kbd>Esc</kbd> {t("onboarding.commandPalette.close")}</span>
     </p>
   </dialog>
 {/if}

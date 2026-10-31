@@ -3,6 +3,7 @@ import { open } from "./nativeDialog";
 import { platform } from "@tauri-apps/plugin-os";
 import { ui } from "$lib/stores/ui.svelte";
 import type { Project } from "$lib/types";
+import { t } from "../i18n";
 
 import { IMPORT_FORMATS } from "../importFormats";
 import type { ImportType } from "../importFormats";
@@ -27,14 +28,14 @@ export async function pickScrivenerProjectPath(): Promise<string | null> {
   const isMacos = platform() === "macos";
   const path = await open({
     multiple: false,
-    title: isMacos ? undefined : "Select Scrivener project folder (.scriv)",
+    title: isMacos ? undefined : t("logic.import.selectScrivenerFolder"),
     ...(isMacos ? { filters: IMPORT_FORMATS.scrivener.filters } : { directory: true }),
   });
   if (!path) return null;
   if (!isMacos) {
     const name = basename(path).toLowerCase();
     if (!name.endsWith(".scriv")) {
-      ui.showError("Please select a folder whose name ends with .scriv");
+      ui.showError(t("logic.import.scrivenerFolderOnly"));
       return null;
     }
   }
@@ -43,7 +44,7 @@ export async function pickScrivenerProjectPath(): Promise<string | null> {
 
 export async function runImport(type: ImportType): Promise<Project | null> {
   const config = IMPORT_FORMATS[type];
-  if (!config) throw new Error(`Unknown import type: ${type}`);
+  if (!config) throw new Error(t("logic.import.unknownType", { type }));
 
   const path =
     type === "scrivener"
@@ -60,7 +61,7 @@ export async function runImport(type: ImportType): Promise<Project | null> {
     return await invoke<Project>(config.command, { path });
   } catch (e) {
     console.error(`Failed to import ${config.label}:`, e);
-    ui.showError(`Import failed: ${e}`);
+    ui.showError(t("logic.import.failed", { error: String(e) }));
     return null;
   } finally {
     ui.finishImport();

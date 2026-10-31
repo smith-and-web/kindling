@@ -3,6 +3,7 @@
   import { currentProject } from "../stores/project.svelte";
   import { writing } from "../stores/writing.svelte";
   import { proseSaves } from "../utils/proseSaves";
+  import { t } from "../i18n";
 
   let { prepareReset }: { prepareReset?: () => Promise<void> } = $props();
   let resetting = $state(false);
@@ -33,7 +34,7 @@
       await writing.reset(projectId);
     } catch (error) {
       if (currentProject.value?.id === projectId)
-        resetError = `Save your pending prose before resetting: ${String(error)}`;
+        resetError = t("editor.writingProgress.resetError", { error: String(error) });
     } finally {
       resetting = false;
     }
@@ -43,24 +44,35 @@
 {#if writing.value && writing.value.project_id === currentProject.value?.id}
   {@const stats = writing.value}
   <div class="progress" data-testid="writing-progress">
-    <p>{stats.project_words.toLocaleString()} project words</p>
+    <p>
+      {t("editor.writingProgress.projectWords", { count: stats.project_words.toLocaleString() })}
+    </p>
     <div class="ka-progress progress-goal">
-      <p title="Net words added through saved edits today. Deletions reduce this total.">
-        Today: {stats.today_words.toLocaleString()}{#if stats.daily_goal > 0}&nbsp;/ {stats.daily_goal.toLocaleString()}
-          words{:else}
-          words · goal off{/if}
+      <p title={t("editor.writingProgress.todayTooltip")}>
+        {#if stats.daily_goal > 0}
+          {t("editor.writingProgress.todayWithGoal", {
+            today: stats.today_words.toLocaleString(),
+            goal: stats.daily_goal.toLocaleString(),
+          })}
+        {:else}
+          {t("editor.writingProgress.todayWithoutGoal", {
+            today: stats.today_words.toLocaleString(),
+          })}
+        {/if}
       </p>
       {#if stats.daily_goal > 0}
         <progress
-          aria-label="Daily writing goal"
+          aria-label={t("editor.writingProgress.dailyGoal")}
           max={stats.daily_goal}
           value={Math.max(0, stats.today_words)}
         ></progress>
       {/if}
     </div>
     <div class="ka-between progress-session">
-      <span title="Net words saved in this project since opening the app or resetting."
-        >Session: {stats.session_words.toLocaleString()} words</span
+      <span title={t("editor.writingProgress.sessionTooltip")}
+        >{t("editor.writingProgress.sessionWords", {
+          count: stats.session_words.toLocaleString(),
+        })}</span
       >
       <button
         type="button"
@@ -68,10 +80,15 @@
         onclick={reset}
         disabled={resetting}
         aria-busy={resetting || undefined}
-        aria-label="Reset writing session">Reset</button
+        aria-label={t("editor.writingProgress.resetSession")}
+        >{t("editor.writingProgress.reset")}</button
       >
     </div>
-    <p>{stats.streak} day{stats.streak === 1 ? "" : "s"} writing streak</p>
+    <p>
+      {stats.streak === 1
+        ? t("editor.writingProgress.streak.one", { count: stats.streak })
+        : t("editor.writingProgress.streak.many", { count: stats.streak })}
+    </p>
   </div>
 {/if}
 {#if resetError}

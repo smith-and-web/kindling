@@ -5,6 +5,7 @@
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
   import type { ScrivenerMatchPreview } from "../types";
+  import { t } from "../i18n";
 
   let {
     projectId,
@@ -60,38 +61,42 @@
     tabindex="-1"
   >
     <DialogHeader
-      title="Scrivener match preview"
+      title={t("references.scrivenerMatchDialog.title")}
       titleId="scrivener-match-title"
-      subtitle="Review how scenes will map to Scrivener documents"
+      subtitle={t("references.scrivenerMatchDialog.subtitle")}
       onClose={onCancel}
-      closeLabel="Close"
+      closeLabel={t("references.scrivenerMatchDialog.close")}
     />
 
     <div class="ka-dialog-body match">
       {#if loading}
         <div class="ka-progress od-field" role="status">
-          <span>Analyzing matches…</span>
-          <progress aria-label="Analyzing matches"></progress>
+          <span>{t("references.scrivenerMatchDialog.analyzing")}</span>
+          <progress aria-label={t("references.scrivenerMatchDialog.analyzingLabel")}></progress>
         </div>
       {:else if loadError}
         <div class="ka-notice ka-notice--error od-row-top" role="alert">
           <CircleAlert class="w-5 h-5" aria-hidden="true" />
           <div class="od-field od-fill">
-            <strong>Couldn’t preview the Scrivener matches</strong>
+            <strong>{t("references.scrivenerMatchDialog.previewFailed")}</strong>
             <p>{loadError}</p>
           </div>
         </div>
       {:else if matches.length === 0}
         <div class="ka-empty od-stack">
-          <h4>No scenes to match</h4>
-          <p>There are no scenes in this export to map to Scrivener documents.</p>
+          <h4>{t("references.scrivenerMatchDialog.noScenes")}</h4>
+          <p>{t("references.scrivenerMatchDialog.noScenesMessage")}</p>
         </div>
       {:else}
         <div class="match-summary">
-          <span class="ka-badge ka-badge--success">{matchedCount} matched</span>
+          <span class="ka-badge ka-badge--success"
+            >{t("references.scrivenerMatchDialog.matchedCount", { count: matchedCount })}</span
+          >
           {#if unmatchedCount > 0}
             <span class="ka-badge ka-badge--warning"
-              >{unmatchedCount} unmatched (will be created)</span
+              >{t("references.scrivenerMatchDialog.unmatchedCount", {
+                count: unmatchedCount,
+              })}</span
             >
           {/if}
         </div>
@@ -102,17 +107,27 @@
             <li class="match-row">
               <span class="match-type">
                 {#if isMatched}
-                  <span class="ka-badge ka-badge--success">Matched</span>
+                  <span class="ka-badge ka-badge--success"
+                    >{t("references.scrivenerMatchDialog.matchedBadge")}</span
+                  >
                 {:else}
-                  <span class="ka-badge ka-badge--warning">New</span>
+                  <span class="ka-badge ka-badge--warning"
+                    >{t("references.scrivenerMatchDialog.newBadge")}</span
+                  >
                 {/if}
               </span>
               <span class="match-text">
                 <span class="ka-label match-name">{m.chapter_title} · {m.scene_title}</span>
                 <span class="match-meta">
                   {isMatched
-                    ? `→ ${m.matched_scriv_title} (via ${m.match_method === "source_id" ? "ID" : "title"})`
-                    : "New document"}
+                    ? t("references.scrivenerMatchDialog.via", {
+                        title: m.matched_scriv_title ?? "",
+                        method:
+                          m.match_method === "source_id"
+                            ? t("references.scrivenerMatchDialog.methodId")
+                            : t("references.scrivenerMatchDialog.methodTitle"),
+                      })
+                    : t("references.scrivenerMatchDialog.newDocument")}
                 </span>
               </span>
             </li>
@@ -123,10 +138,10 @@
 
     <footer class="ka-dialog-footer">
       <button type="button" onclick={onCancel} class="ka-button ka-button--secondary">
-        Cancel
+        {t("references.scrivenerMatchDialog.cancel")}
       </button>
       <button type="button" onclick={onConfirm} disabled={loading || !!loadError} class="ka-button">
-        Proceed with export
+        {t("references.scrivenerMatchDialog.proceed")}
       </button>
     </footer>
   </div>

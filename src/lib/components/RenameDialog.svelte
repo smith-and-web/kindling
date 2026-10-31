@@ -2,6 +2,7 @@
   import { Loader2 } from "lucide-svelte";
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus, ownsEnterKey } from "../utils/modalFocus";
+  import { t } from "../i18n";
 
   let {
     title,
@@ -31,7 +32,7 @@
   async function handleSave() {
     const trimmedName = newName.trim();
     if (!trimmedName) {
-      error = "Name cannot be empty";
+      error = t("sidebar.renameDialog.nameCannotBeEmpty");
       return;
     }
 
@@ -42,7 +43,7 @@
       await onSave(trimmedName);
       onClose();
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e || "Failed to rename");
+      error = e instanceof Error ? e.message : String(e || t("sidebar.renameDialog.failed"));
     } finally {
       saving = false;
     }
@@ -79,19 +80,19 @@
       {title}
       titleId="rename-dialog-title"
       {onClose}
-      closeLabel="Close"
+      closeLabel={t("common.close")}
       closeTestId="rename-close"
     />
 
     <div class="ka-dialog-body">
       <div class="ka-field od-field">
-        <label for="rename-input">Name</label>
+        <label for="rename-input">{t("sidebar.renameDialog.name")}</label>
         <input
           id="rename-input"
           bind:this={inputRef}
           bind:value={newName}
           type="text"
-          placeholder="Enter name…"
+          placeholder={t("sidebar.renameDialog.enterName")}
           disabled={saving}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? "rename-error" : undefined}
@@ -109,7 +110,7 @@
         class="ka-button ka-button--secondary"
         disabled={saving}
       >
-        Cancel
+        {t("common.cancel")}
       </button>
       <button
         data-testid="rename-save"
@@ -121,9 +122,9 @@
       >
         {#if saving}
           <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-          Saving…
+          {t("common.saving")}
         {:else}
-          Save
+          {t("common.save")}
         {/if}
       </button>
     </footer>

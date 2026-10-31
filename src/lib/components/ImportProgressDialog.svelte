@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import { ui } from "../stores/ui.svelte";
+  import { t } from "../i18n";
 
   function modal(dialog: HTMLDialogElement) {
     const restore = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -33,7 +34,7 @@
     <div class="ka-dialog-body ka-progress od-field">
       <div class="ka-between">
         <span id="import-progress-status" role="status" aria-live="polite">
-          {ui.importStatus || "Reading your outline…"}
+          {ui.importStatus || t("onboarding.importProgressDialog.statusFallback")}
         </span>
         <span class="od-nowrap">{Math.round(ui.importProgress)}%</span>
       </div>

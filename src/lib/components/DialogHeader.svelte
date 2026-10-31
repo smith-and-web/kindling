@@ -1,12 +1,13 @@
 <script lang="ts">
   import { X } from "lucide-svelte";
   import type { Snippet } from "svelte";
+  import { t } from "../i18n";
 
   let {
     title,
     titleId,
     onClose,
-    closeLabel = `Close ${title}`,
+    closeLabel = t("common.closeNamed", { name: title }),
     closeTestId,
     disabled = false,
     subtitle,

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { shortcuts } from "../stores/shortcuts.svelte";
+  import { t } from "../i18n";
   import type { Snippet } from "svelte";
   import type { Editor } from "@tiptap/core";
   import {
@@ -49,44 +50,44 @@
   });
 </script>
 
-<div class="prose-toolbar" role="toolbar" aria-label="Text formatting">
+<div class="prose-toolbar" role="toolbar" aria-label={t("editor.proseToolbar.label")}>
   {#if !readonly}
     <div class="group">
       <button
-        title={`Bold ${shortcuts.label("bold")}`.trim()}
-        aria-label="Bold"
+        title={`${t("editor.proseToolbar.bold")} ${shortcuts.label("bold")}`.trim()}
+        aria-label={t("editor.proseToolbar.bold")}
         aria-pressed={!!active.bold}
         onmousedown={(e) => e.preventDefault()}
         onclick={() => editor?.chain().focus().toggleBold().run()}><Bold size={20} /></button
       >
       <button
-        title={`Italic ${shortcuts.label("italic")}`.trim()}
-        aria-label="Italic"
+        title={`${t("editor.proseToolbar.italic")} ${shortcuts.label("italic")}`.trim()}
+        aria-label={t("editor.proseToolbar.italic")}
         aria-pressed={!!active.italic}
         onmousedown={(e) => e.preventDefault()}
         onclick={() => editor?.chain().focus().toggleItalic().run()}><Italic size={20} /></button
       >
       <button
-        title={`Underline ${shortcuts.label("underline")}`.trim()}
-        aria-label="Underline"
+        title={`${t("editor.proseToolbar.underline")} ${shortcuts.label("underline")}`.trim()}
+        aria-label={t("editor.proseToolbar.underline")}
         aria-pressed={!!active.underline}
         onmousedown={(e) => e.preventDefault()}
         onclick={() => editor?.chain().focus().toggleUnderline().run()}
         ><Underline size={20} /></button
       >
       <button
-        title={`Monospace ${shortcuts.label("code")}`.trim()}
-        aria-label="Monospace"
+        title={`${t("editor.proseToolbar.monospace")} ${shortcuts.label("code")}`.trim()}
+        aria-label={t("editor.proseToolbar.monospace")}
         aria-pressed={!!active.code}
         onmousedown={(e) => e.preventDefault()}
         onclick={() => editor?.chain().focus().toggleCode().run()}><Code size={20} /></button
       >
     </div>
     <div class="group separated">
-      {#each [{ id: "left", icon: AlignLeft }, { id: "center", icon: AlignCenter }, { id: "right", icon: AlignRight }, { id: "justify", icon: AlignJustify }] as alignment}
+      {#each [{ id: "left", icon: AlignLeft, labelKey: "editor.proseToolbar.alignLeft" }, { id: "center", icon: AlignCenter, labelKey: "editor.proseToolbar.alignCenter" }, { id: "right", icon: AlignRight, labelKey: "editor.proseToolbar.alignRight" }, { id: "justify", icon: AlignJustify, labelKey: "editor.proseToolbar.alignJustify" }] as alignment}
         <button
-          title={`Align ${alignment.id} ${shortcuts.label(`align_${alignment.id}`)}`.trim()}
-          aria-label={`Align ${alignment.id}`}
+          title={`${t(alignment.labelKey)} ${shortcuts.label(`align_${alignment.id}`)}`.trim()}
+          aria-label={t(alignment.labelKey)}
           aria-pressed={!!active[alignment.id as "left" | "center" | "right" | "justify"]}
           onmousedown={(e) => e.preventDefault()}
           onclick={() => editor?.chain().focus().setTextAlign(alignment.id).run()}
@@ -94,15 +95,15 @@
         >
       {/each}
       <button
-        title={`Blockquote ${shortcuts.label("blockquote")}`.trim()}
-        aria-label="Blockquote"
+        title={`${t("editor.proseToolbar.blockquote")} ${shortcuts.label("blockquote")}`.trim()}
+        aria-label={t("editor.proseToolbar.blockquote")}
         aria-pressed={!!active.blockquote}
         onmousedown={(e) => e.preventDefault()}
         onclick={() => editor?.chain().focus().toggleBlockquote().run()}><Quote size={20} /></button
       >
       <button
-        title="Indent"
-        aria-label="Indent"
+        title={t("editor.proseToolbar.indent")}
+        aria-label={t("editor.proseToolbar.indent")}
         onmousedown={(e) => e.preventDefault()}
         onclick={() => editor?.chain().focus().insertContent("\t").run()}
         ><IndentIncrease size={20} /></button
@@ -110,15 +111,15 @@
     </div>
     <div class="group separated">
       <button
-        title="Undo"
-        aria-label="Undo"
+        title={t("editor.proseToolbar.undo")}
+        aria-label={t("editor.proseToolbar.undo")}
         disabled={!history.undo}
         onmousedown={(e) => e.preventDefault()}
         onclick={() => editor?.chain().focus().undo().run()}><Undo2 size={20} /></button
       >
       <button
-        title="Redo"
-        aria-label="Redo"
+        title={t("editor.proseToolbar.redo")}
+        aria-label={t("editor.proseToolbar.redo")}
         disabled={!history.redo}
         onmousedown={(e) => e.preventDefault()}
         onclick={() => editor?.chain().focus().redo().run()}><Redo2 size={20} /></button

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { currentProject } from "../stores/project.svelte";
   import { writing } from "../stores/writing.svelte";
+  import { t } from "../i18n";
 
   let expanded = $state(false);
   const stats = $derived(
@@ -43,39 +44,39 @@
           class="statistics-panel"
           tabindex="0"
         >
-          <h2 id="writing-statistics-title">Writing statistics</h2>
+          <h2 id="writing-statistics-title">{t("editor.writingStatusBar.statisticsTitle")}</h2>
           <dl class="ka-stats statistics-figures">
             <div>
-              <dt>Total words</dt>
+              <dt>{t("editor.writingStatusBar.totalWords")}</dt>
               <dd>{stats.project_words.toLocaleString()}</dd>
             </div>
             <div>
-              <dt>Scenes with prose</dt>
+              <dt>{t("editor.writingStatusBar.scenesWithProse")}</dt>
               <dd>{scenesWithProse.toLocaleString()}</dd>
             </div>
             <div>
-              <dt>Empty scenes</dt>
+              <dt>{t("editor.writingStatusBar.emptyScenes")}</dt>
               <dd>
                 {(sceneCounts.length - scenesWithProse).toLocaleString()}
               </dd>
             </div>
             <div>
-              <dt>Average words per scene</dt>
+              <dt>{t("editor.writingStatusBar.averageWordsPerScene")}</dt>
               <dd>
                 {averageWords.toLocaleString(undefined, { maximumFractionDigits: 1 })}
               </dd>
             </div>
           </dl>
           <p class="ka-help statistics-note">
-            Saved prose only. Archived content is excluded; the average includes empty scenes.
+            {t("editor.writingStatusBar.savedProseNote")}
           </p>
           {#if chapters.length}
             <table class="statistics-table">
-              <caption>Words per chapter</caption>
+              <caption>{t("editor.writingStatusBar.wordsPerChapter")}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Chapter</th>
-                  <th scope="col">Words</th>
+                  <th scope="col">{t("editor.writingStatusBar.chapterColumn")}</th>
+                  <th scope="col">{t("editor.writingStatusBar.wordsColumn")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -92,27 +93,40 @@
               </tbody>
             </table>
           {:else}
-            <p class="ka-help">No chapters yet.</p>
+            <p class="ka-help">{t("editor.writingStatusBar.noChapters")}</p>
           {/if}
         </section>
       {/if}
       <div class="statusbar-row">
         <span
-          >Scene: {sceneId ? (stats.scene_words[sceneId]?.toLocaleString() ?? "—") : "—"} words</span
+          >{t("editor.writingStatusBar.sceneWords", {
+            count: sceneId ? (stats.scene_words[sceneId]?.toLocaleString() ?? "—") : "—",
+          })}</span
         >
         <span class="statusbar-chapter"
-          >Chapter: {chapterId ? (stats.chapter_words[chapterId]?.toLocaleString() ?? "—") : "—"} words</span
+          >{t("editor.writingStatusBar.chapterWords", {
+            count: chapterId ? (stats.chapter_words[chapterId]?.toLocaleString() ?? "—") : "—",
+          })}</span
         >
-        <span class="statusbar-project">Project: {stats.project_words.toLocaleString()} words</span>
-        <span title="Net words saved since opening the app or resetting the session.">
-          Session: {stats.session_words.toLocaleString()} words
+        <span class="statusbar-project"
+          >{t("editor.writingStatusBar.projectWords", {
+            count: stats.project_words.toLocaleString(),
+          })}</span
+        >
+        <span title={t("editor.writingStatusBar.sessionTooltip")}>
+          {t("editor.writingStatusBar.sessionWords", {
+            count: stats.session_words.toLocaleString(),
+          })}
         </span>
         <button
           type="button"
           class="ka-button ka-button--ghost statusbar-toggle"
           aria-expanded={expanded}
           aria-controls="writing-statistics-panel"
-          onclick={toggleStatistics}>{expanded ? "Hide statistics" : "Writing statistics"}</button
+          onclick={toggleStatistics}
+          >{expanded
+            ? t("editor.writingStatusBar.hideStatistics")
+            : t("editor.writingStatusBar.statisticsTitle")}</button
         >
       </div>
     {/if}

@@ -3,6 +3,7 @@
   import { tick } from "svelte";
   import { Download, Loader2, X } from "lucide-svelte";
   import { ui } from "../stores/ui.svelte";
+  import { t } from "../i18n";
 
   let {
     disabled = false,
@@ -47,7 +48,7 @@
 {#if state}
   <div class="ka-banner update-banner" role="status">
     <Download class="w-5 h-5 ka-icon" aria-hidden="true" />
-    <span>kindling v{state.version} is ready — Restart to update</span>
+    <span>{t("onboarding.updateBanner.ready", { version: state.version })}</span>
     <div class="ka-row">
       <button
         type="button"
@@ -59,9 +60,9 @@
       >
         {#if restarting}
           <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-          Restarting…
+          {t("onboarding.updateBanner.restarting")}
         {:else}
-          Restart
+          {t("onboarding.updateBanner.restart")}
         {/if}
       </button>
       <button
@@ -69,8 +70,8 @@
         onclick={dismissUpdate}
         disabled={disabled || restarting}
         class="ka-button ka-button--ghost ka-icon-button"
-        aria-label="Dismiss"
-        title="Dismiss"
+        aria-label={t("onboarding.updateBanner.dismiss")}
+        title={t("onboarding.updateBanner.dismiss")}
       >
         <X class="w-5 h-5" aria-hidden="true" />
       </button>

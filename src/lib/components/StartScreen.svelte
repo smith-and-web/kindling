@@ -15,6 +15,7 @@
   import { ui } from "../stores/ui.svelte";
   import type { Project } from "../types";
   import ConfirmDialog from "./ConfirmDialog.svelte";
+  import { t } from "../i18n";
 
   interface Props {
     recentProjects: Project[];
@@ -71,14 +72,17 @@
 
   async function trySampleProject() {
     startingSample = true;
-    ui.startImport("Opening sample project", "Creating the sample project…");
+    ui.startImport(
+      t("onboarding.startScreen.importOpeningTitle"),
+      t("onboarding.startScreen.importOpeningStatus")
+    );
     try {
       const project = await invoke<Project>("create_sample_project");
       currentProject.setProject(project);
       ui.setView("editor");
     } catch (e) {
       console.error("Failed to create sample project:", e);
-      ui.showError(`Failed to create sample project: ${e}`);
+      ui.showError(t("onboarding.startScreen.errorCreateSample", { error: String(e) }));
     } finally {
       ui.finishImport();
       startingSample = false;
@@ -104,7 +108,7 @@
 
   // The importer id reads as plain metadata, spelled as each tool spells itself.
   const SOURCE_LABELS: Record<string, string> = {
-    blank: "Blank",
+    blank: t("onboarding.startScreen.blankSource"),
     markdown: "Markdown",
     plottr: "Plottr",
     ywriter: "yWriter",
@@ -132,9 +136,17 @@
     { label: "Plottr", hint: ".pltr", run: () => importPlottr() },
     { label: "yWriter", hint: ".yw7", run: () => importYWriter() },
     { label: "Markdown", hint: ".md", run: () => importMarkdown() },
-    { label: "Longform", hint: "Index or vault", run: () => handleLongformImport() },
+    {
+      label: "Longform",
+      hint: t("onboarding.startScreen.importIndexOrVault"),
+      run: () => handleLongformImport(),
+    },
     { label: "Scrivener", hint: ".scriv", run: () => importScrivener() },
-    { label: "novelWriter", hint: "Project folder", run: () => importNovelWriter() },
+    {
+      label: "novelWriter",
+      hint: t("onboarding.startScreen.importProjectFolder"),
+      run: () => importNovelWriter(),
+    },
   ];
 
   let loadingProjectList = $state(false);
@@ -152,7 +164,7 @@
       showAllProjects = true;
     } catch (e) {
       console.error("Failed to load projects:", e);
-      ui.showError(`Failed to load projects: ${e}`);
+      ui.showError(t("onboarding.startScreen.errorLoadProjects", { error: String(e) }));
     } finally {
       loadingProjectList = false;
     }
@@ -176,7 +188,7 @@
       allProjects = allProjects?.filter((p) => p.id !== project.id) ?? null;
     } catch (e) {
       console.error("Failed to delete project:", e);
-      ui.showError(`Failed to delete project: ${e}`);
+      ui.showError(t("onboarding.startScreen.errorDeleteProject", { error: String(e) }));
     } finally {
       deletingProjectId = null;
     }
@@ -192,7 +204,7 @@
     {#if onOpenQuickStart}
       <button type="button" class="ka-button ka-button--ghost" onclick={onOpenQuickStart}>
         <CircleHelp class="w-5 h-5" aria-hidden="true" />
-        Quick start
+        {t("onboarding.startScreen.quickStart")}
       </button>
     {/if}
   </div>
@@ -217,11 +229,15 @@
             height="132"
           />
         </figure>
-        <p class="tagline">Spark your draft</p>
+        <p class="tagline">{t("onboarding.startScreen.tagline")}</p>
       </div>
 
       {#if onNewProject || onOpenEditorial}
-        <div class="start-actions" role="group" aria-label="Start">
+        <div
+          class="start-actions"
+          role="group"
+          aria-label={t("onboarding.startScreen.startGroupLabel")}
+        >
           {#if onNewProject}
             <button
               type="button"
@@ -230,7 +246,10 @@
               class="ka-button start-action"
             >
               <Plus class="w-5 h-5" aria-hidden="true" />
-              <span>New project <small>Start from scratch</small></span>
+              <span
+                >{t("onboarding.startScreen.newProject")}
+                <small>{t("onboarding.startScreen.startFromScratch")}</small></span
+              >
             </button>
             <button
               type="button"
@@ -241,8 +260,10 @@
             >
               <BookOpen class="w-5 h-5" aria-hidden="true" />
               <span>
-                {startingSample ? "Opening sample…" : "Sample project"}
-                <small>Explore kindling first</small>
+                {startingSample
+                  ? t("onboarding.startScreen.openingSample")
+                  : t("onboarding.startScreen.sampleProject")}
+                <small>{t("onboarding.startScreen.exploreKindling")}</small>
               </span>
             </button>
           {/if}
@@ -253,7 +274,10 @@
               class="ka-button ka-button--secondary start-action"
             >
               <FolderOpen class="w-5 h-5" aria-hidden="true" />
-              <span>Open review package <small>Open a review or feedback file</small></span>
+              <span
+                >{t("onboarding.startScreen.openReviewPackage")}
+                <small>{t("onboarding.startScreen.openReviewPackageHint")}</small></span
+              >
             </button>
           {/if}
         </div>
@@ -265,7 +289,9 @@
         <section data-testid="recent-projects" aria-labelledby="recent-projects-heading">
           <div class="section-head">
             <h2 id="recent-projects-heading" class="section-title">
-              {showAllProjects ? "All projects" : "Recent projects"}
+              {showAllProjects
+                ? t("onboarding.startScreen.allProjects")
+                : t("onboarding.startScreen.recentProjects")}
             </h2>
             {#if hasMoreProjects || showAllProjects}
               <button
@@ -275,7 +301,9 @@
                 aria-busy={loadingProjectList || undefined}
                 onclick={toggleProjectList}
               >
-                {showAllProjects ? "Show recent" : "View all"}
+                {showAllProjects
+                  ? t("onboarding.startScreen.showRecent")
+                  : t("onboarding.startScreen.viewAll")}
               </button>
             {/if}
           </div>
@@ -283,7 +311,9 @@
             <div class="ka-notice ka-notice--error od-row-top open-error" role="alert">
               <TriangleAlert class="w-5 h-5 shrink-0" aria-hidden="true" />
               <div class="od-field od-fill">
-                <strong>Couldn’t open “{openError.name}”</strong>
+                <strong
+                  >{t("onboarding.startScreen.openFailedTitle", { name: openError.name })}</strong
+                >
                 <p>{openError.message}</p>
               </div>
             </div>
@@ -303,12 +333,14 @@
                     <span class="recent-type">{sourceLabel(project.source_type)}</span>
                   </span>
                   {#if openingProjectId === project.id}
-                    <span class="recent-date">Opening…</span>
+                    <span class="recent-date">{t("onboarding.startScreen.opening")}</span>
                   {:else}
                     <time
                       class="recent-date"
                       datetime={project.modified_at}
-                      aria-label={`Modified ${modified.long}`}>{modified.short}</time
+                      aria-label={t("onboarding.startScreen.modifiedLabel", {
+                        date: modified.long,
+                      })}>{modified.short}</time
                     >
                   {/if}
                 </button>
@@ -318,8 +350,8 @@
                   disabled={deletingProjectId === project.id || openingProjectId === project.id}
                   class="ka-button ka-button--ghost ka-icon-button recent-delete"
                   class:is-busy={deletingProjectId === project.id}
-                  aria-label={`Delete ${project.name}`}
-                  title="Delete project"
+                  aria-label={t("onboarding.startScreen.deleteNamed", { name: project.name })}
+                  title={t("onboarding.startScreen.deleteProject")}
                 >
                   {#if deletingProjectId === project.id}
                     <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
@@ -332,19 +364,21 @@
           </ul>
         </section>
       {:else}
-        <section aria-label="Projects">
+        <section aria-label={t("onboarding.startScreen.projectsLabel")}>
           <div class="ka-empty od-stack">
             <FileText class="w-7 h-7" aria-hidden="true" />
-            <h2 class="section-title">Your projects will appear here</h2>
-            <p>Start a new project, try the sample, or import an outline you already have.</p>
+            <h2 class="section-title">{t("onboarding.startScreen.emptyTitle")}</h2>
+            <p>{t("onboarding.startScreen.emptyMessage")}</p>
           </div>
         </section>
       {/if}
 
       <section data-testid="import-section" class="import" aria-labelledby="import-heading">
-        <h2 id="import-heading" class="section-title">Import an outline</h2>
+        <h2 id="import-heading" class="section-title">
+          {t("onboarding.startScreen.importOutline")}
+        </h2>
         <p class="ka-help section-help">
-          Chapters, scenes and beats from your outline become prompts in the writing view.
+          {t("onboarding.startScreen.importHelp")}
         </p>
         <ul class="import-list">
           {#each IMPORTS as format (format.label)}
@@ -368,9 +402,9 @@
 <!-- Delete Project Confirmation -->
 {#if projectToDelete}
   <ConfirmDialog
-    title={`Delete “${projectToDelete.name}”?`}
-    message="This permanently deletes the project and all its chapters, scenes, beats and snapshots. It can’t be undone."
-    confirmLabel="Delete project"
+    title={t("onboarding.startScreen.deleteTitle", { name: projectToDelete.name })}
+    message={t("onboarding.startScreen.deleteMessage")}
+    confirmLabel={t("onboarding.startScreen.deleteProject")}
     onConfirm={confirmDeleteProject}
     onCancel={cancelDeleteProject}
   />

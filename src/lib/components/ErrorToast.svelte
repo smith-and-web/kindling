@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
   import { CircleAlert, X } from "lucide-svelte";
+  import { t } from "../i18n";
 
   interface Props {
     message: string;
@@ -45,8 +46,8 @@
         type="button"
         class="ka-button ka-button--ghost ka-icon-button"
         onclick={onDismiss}
-        aria-label="Dismiss error"
-        title="Dismiss"
+        aria-label={t("shell.dismissError")}
+        title={t("shell.dismiss")}
       >
         <X class="w-5 h-5" aria-hidden="true" />
       </button>

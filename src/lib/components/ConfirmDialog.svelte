@@ -1,6 +1,7 @@
 <script lang="ts">
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus, type ModalFocusOptions } from "../utils/modalFocus";
+  import { t } from "../i18n";
   interface Props {
     title: string;
     titleId?: string;
@@ -17,8 +18,8 @@
     titleId = "dialog-title",
     embedded = false,
     message,
-    confirmLabel = "Delete",
-    cancelLabel = "Cancel",
+    confirmLabel = t("common.delete"),
+    cancelLabel = t("common.cancel"),
     onConfirm,
     onCancel,
   }: Props = $props();
@@ -45,7 +46,7 @@
   tabindex="-1"
 >
   <div class="app-dialog-surface ka-dialog-narrow confirm">
-    <DialogHeader {title} {titleId} onClose={onCancel} closeLabel="Close confirmation" />
+    <DialogHeader {title} {titleId} onClose={onCancel} closeLabel={t("shell.closeConfirmation")} />
     <div class="ka-dialog-body">
       <p id={`${titleId}-message`} data-testid="dialog-message" class="confirm-message">
         {message}

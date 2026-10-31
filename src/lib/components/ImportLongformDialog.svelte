@@ -2,6 +2,7 @@
   import { FileText, FolderOpen } from "lucide-svelte";
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
+  import { t } from "../i18n";
   interface Props {
     onSelectIndex: () => void;
     onSelectVault: () => void;
@@ -20,11 +21,14 @@
   tabindex="-1"
 >
   <div class="app-dialog-surface ka-dialog-narrow dialog-shell">
-    <DialogHeader title="Import Longform project" titleId="longform-import-title" {onClose} />
+    <DialogHeader
+      title={t("onboarding.importLongformDialog.title")}
+      titleId="longform-import-title"
+      {onClose}
+    />
     <div class="ka-dialog-body longform">
       <p class="longform-lede">
-        Choose how to import your Longform project. Use the index file if you already have a
-        Longform project note, or select a vault folder to auto-detect the project.
+        {t("onboarding.importLongformDialog.lede")}
       </p>
       <button
         type="button"
@@ -33,8 +37,8 @@
       >
         <FileText class="w-5 h-5" aria-hidden="true" />
         <span class="longform-choice-text">
-          <span>Choose Longform index file</span>
-          <small>Select the .md index note with Longform frontmatter</small>
+          <span>{t("onboarding.importLongformDialog.indexTitle")}</span>
+          <small>{t("onboarding.importLongformDialog.indexHint")}</small>
         </span>
       </button>
       <button
@@ -44,14 +48,14 @@
       >
         <FolderOpen class="w-5 h-5" aria-hidden="true" />
         <span class="longform-choice-text">
-          <span>Choose Obsidian vault folder</span>
-          <small>Scan the vault to find Longform projects</small>
+          <span>{t("onboarding.importLongformDialog.vaultTitle")}</span>
+          <small>{t("onboarding.importLongformDialog.vaultHint")}</small>
         </span>
       </button>
     </div>
     <footer class="ka-dialog-footer">
       <button type="button" onclick={onClose} class="ka-button ka-button--secondary">
-        Cancel
+        {t("common.cancel")}
       </button>
     </footer>
   </div>

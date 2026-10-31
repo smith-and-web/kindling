@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { repairSplitCharacters, type EditorialRound, type EditorialSession } from "./editorial";
+import { t } from "../i18n";
 
 /** One writer per review; each committed generation is based on the last ack.
  * A synchronous recovery journal covers the debounce and interrupted IPC window. */
@@ -27,9 +28,7 @@ export class EditorialSaves {
     if (!text) return saved;
     const draft = JSON.parse(text) as { round: EditorialRound; session: EditorialSession };
     if (JSON.stringify(draft.round) !== JSON.stringify(this.round))
-      throw new Error(
-        "The recovered review has a different manuscript. Keep this window open and export a recovery copy."
-      );
+      throw new Error(t("logic.editorialSaves.recoveredMismatch"));
     draft.session.changes = repairSplitCharacters(this.round, draft.session);
     if (saved && saved.reviewer_id !== draft.session.reviewer_id) return saved;
     const selected = saved && saved.generation > draft.session.generation ? saved : draft.session;

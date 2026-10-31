@@ -6,6 +6,7 @@
    * Provides INT/EXT prefix, location suggestions from project, time-of-day options.
    */
   import type { Location } from "../types";
+  import { t } from "../i18n";
 
   const TIME_OPTIONS = [
     "DAY",
@@ -126,8 +127,12 @@
   );
 </script>
 
-<div class="slugline {className}" role="group" aria-label="Scene heading">
-  <div class="ka-segment-track slugline-prefix" role="group" aria-label="Interior or exterior">
+<div class="slugline {className}" role="group" aria-label={t("editor.sluglineInput.sceneHeading")}>
+  <div
+    class="ka-segment-track slugline-prefix"
+    role="group"
+    aria-label={t("editor.sluglineInput.interiorOrExterior")}
+  >
     {#each ["INT", "EXT"] as const as option (option)}
       <button
         type="button"
@@ -148,8 +153,8 @@
     onblur={handleLocationBlur}
     type="text"
     list="slugline-locations"
-    placeholder="Location"
-    aria-label="Location"
+    placeholder={t("editor.sluglineInput.locationPlaceholder")}
+    aria-label={t("editor.sluglineInput.location")}
     {disabled}
     class="slugline-location"
   />
@@ -161,7 +166,7 @@
 
   <select
     class="slugline-time"
-    aria-label="Time of day"
+    aria-label={t("editor.sluglineInput.timeOfDay")}
     value={timeOfDay}
     onchange={(event) => setTime((event.currentTarget as HTMLSelectElement).value)}
     {disabled}

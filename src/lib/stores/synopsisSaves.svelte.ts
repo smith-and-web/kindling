@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
+import { t } from "../i18n";
 import { currentProject } from "./project.svelte";
 
 export type SynopsisDraft = { projectId: string; sceneId: string; synopsis: string | null };
@@ -57,7 +58,7 @@ export class SynopsisSaveQueue {
     const discarding = this.queue.then(() => {
       const approved = new SvelteSet(expected);
       if ([...this.drafts.values()].some((draft) => !approved.has(draft))) {
-        throw new Error("Synopsis drafts changed. Review the latest changes before discarding.");
+        throw new Error(t("logic.synopsisSaves.changed"));
       }
       for (const key of this.drafts.keys()) this.retire(key);
     });

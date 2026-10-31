@@ -1,5 +1,6 @@
 /** Local-only UI prototype. This is deliberately not a public exporter contract. */
 import { escapeHtml, safeProse } from "./safeHtml";
+import { t } from "../i18n";
 
 export type PreviewFormat =
   | "docx"
@@ -173,12 +174,12 @@ export function starterProfiles(title: string, author: string): ExportProfile[] 
 export const profileStorageKey = (projectId: string) => `kindling:export-prototype:v1:${projectId}`;
 
 const numericSettings = [
-  ["fontSize", "Font size", 8, 24],
-  ["lineSpacing", "Line spacing", 1, 3],
-  ["paragraphSpacing", "Paragraph spacing", 0, 36],
-  ["indent", "First-line indent", 0, 1],
-  ["margin", "Margins", 0.25, 2],
-  ["startNumber", "Chapter start number", 1, 999],
+  ["fontSize", "logic.exportPrototype.fontSize", 8, 24],
+  ["lineSpacing", "logic.exportPrototype.lineSpacing", 1, 3],
+  ["paragraphSpacing", "logic.exportPrototype.paragraphSpacing", 0, 36],
+  ["indent", "logic.exportPrototype.indent", 0, 1],
+  ["margin", "logic.exportPrototype.margin", 0.25, 2],
+  ["startNumber", "logic.exportPrototype.startNumber", 1, 999],
 ] as const;
 type NumericSetting = (typeof numericSettings)[number][0];
 
@@ -190,14 +191,14 @@ function numericSettingVisible(profile: ExportProfile, key: NumericSetting): boo
 }
 
 export function profileValidation(profile: ExportProfile): string {
-  if (!profile.name.trim()) return "Give this profile a name before saving.";
-  for (const [key, label, min, max] of numericSettings) {
+  if (!profile.name.trim()) return t("logic.exportPrototype.nameRequired");
+  for (const [key, labelKey, min, max] of numericSettings) {
     if (!numericSettingVisible(profile, key)) continue;
     const value = profile[key];
     if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max)
-      return `${label} must be between ${min} and ${max}.`;
+      return t("logic.exportPrototype.rangeError", { label: t(labelKey), min, max });
     if (key === "startNumber" && !Number.isInteger(value))
-      return "Chapter start number must be a whole number.";
+      return t("logic.exportPrototype.startNumberInteger");
   }
   return "";
 }
@@ -226,7 +227,7 @@ export function profileForStorage(profile: ExportProfile): ExportProfile {
 export function decodeProfiles(raw: string): { profiles: ExportProfile[]; activeId: string } {
   const value = JSON.parse(raw);
   if (![1, 2].includes(value?.version) || !Array.isArray(value.profiles) || !value.profiles.length)
-    throw new Error("Saved prototype profiles have an unsupported format.");
+    throw new Error(t("logic.exportPrototype.unsupportedFormat"));
   const shape = starterProfiles("", "")[0];
   const enums: Partial<Record<keyof ExportProfile, unknown[]>> = {
     format: Object.keys(formatLabels),
@@ -265,13 +266,13 @@ export function decodeProfiles(raw: string): { profiles: ExportProfile[]; active
             ? !Array.isArray(v) || !v.every((id: unknown) => typeof id === "string")
             : typeof v !== typeof defaultValue || (typeof v === "number" && !Number.isFinite(v))
       )
-        throw new Error("A saved prototype profile is invalid.");
+        throw new Error(t("logic.exportPrototype.invalidProfile"));
       if (enums[key as keyof ExportProfile] && !enums[key as keyof ExportProfile]!.includes(v))
-        throw new Error("A saved prototype option is unsupported.");
+        throw new Error(t("logic.exportPrototype.unsupportedOption"));
     }
   }
   if (new Set(value.profiles.map((p: ExportProfile) => p.id)).size !== value.profiles.length)
-    throw new Error("Saved prototype profiles have duplicate IDs.");
+    throw new Error(t("logic.exportPrototype.duplicateIds"));
   return { profiles: value.profiles, activeId: value.activeId };
 }
 

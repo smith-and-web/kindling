@@ -7,6 +7,7 @@
   import TemplateBrowser from "./TemplateBrowser.svelte";
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
+  import { t } from "../i18n";
 
   let {
     onClose,
@@ -17,7 +18,7 @@
   } = $props();
 
   let projectType = $state<ProjectType>("novel");
-  let name = $state("My Project");
+  let name = $state(t("onboarding.newProjectDialog.defaultName"));
   let targetLength = $state<"short" | "feature" | "long_feature">("feature");
   let selectedTemplate = $state<StoryTemplate | null>(null);
   let showTemplateBrowser = $state(false);
@@ -40,7 +41,7 @@
   async function handleCreate() {
     const trimmedName = name.trim();
     if (!trimmedName) {
-      error = "Name cannot be empty";
+      error = t("onboarding.newProjectDialog.nameEmpty");
       return;
     }
 
@@ -78,7 +79,7 @@
       onComplete?.(project);
       onClose();
     } catch (e) {
-      error = e instanceof Error ? e.message : "Failed to create project";
+      error = e instanceof Error ? e.message : t("onboarding.newProjectDialog.createFailed");
     } finally {
       saving = false;
     }
@@ -111,38 +112,38 @@
 >
   <div class="app-dialog-surface ka-dialog-narrow dialog-shell">
     <DialogHeader
-      title="New project"
+      title={t("onboarding.newProjectDialog.title")}
       titleId="new-project-dialog-title"
       {onClose}
-      closeLabel="Close"
+      closeLabel={t("common.close")}
       closeTestId="new-project-close"
     />
 
     <div class="ka-dialog-body new-project">
       <fieldset class="ka-segments">
-        <legend>Project type</legend>
+        <legend>{t("onboarding.newProjectDialog.projectTypeLegend")}</legend>
         <div class="ka-segment-track">
           <label class="ka-segment" class:ka-selected={projectType === "novel"}>
             <input type="radio" name="project-type" value="novel" bind:group={projectType} />
             <BookOpen class="w-5 h-5" aria-hidden="true" />
-            <span>Novel</span>
+            <span>{t("onboarding.newProjectDialog.novel")}</span>
           </label>
           <label class="ka-segment" class:ka-selected={projectType === "screenplay"}>
             <input type="radio" name="project-type" value="screenplay" bind:group={projectType} />
             <Film class="w-5 h-5" aria-hidden="true" />
-            <span>Screenplay</span>
+            <span>{t("onboarding.newProjectDialog.screenplay")}</span>
           </label>
         </div>
       </fieldset>
 
       <div class="ka-field od-field">
-        <label for="new-project-name">Name</label>
+        <label for="new-project-name">{t("onboarding.newProjectDialog.nameLabel")}</label>
         <input
           id="new-project-name"
           bind:this={inputRef}
           bind:value={name}
           type="text"
-          placeholder="Enter project name…"
+          placeholder={t("onboarding.newProjectDialog.namePlaceholder")}
           disabled={saving}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? "new-project-error" : undefined}
@@ -151,17 +152,22 @@
 
       {#if projectType === "screenplay"}
         <div class="ka-field od-field">
-          <label for="target-length">Target length</label>
+          <label for="target-length">{t("onboarding.newProjectDialog.targetLengthLabel")}</label>
           <select id="target-length" bind:value={targetLength} disabled={saving}>
-            <option value="short">Short (&lt;30 pages)</option>
-            <option value="feature">Feature (90–120 pages)</option>
-            <option value="long_feature">Long feature (120–180 pages)</option>
+            <option value="short">{t("onboarding.newProjectDialog.lengthShort")}</option>
+            <option value="feature">{t("onboarding.newProjectDialog.lengthFeature")}</option>
+            <option value="long_feature"
+              >{t("onboarding.newProjectDialog.lengthLongFeature")}</option
+            >
           </select>
         </div>
       {/if}
 
       <fieldset class="new-project-template">
-        <legend>Structure template <span class="ka-optional">(optional)</span></legend>
+        <legend>
+          {t("onboarding.newProjectDialog.templateLegend")}
+          <span class="ka-optional">{t("onboarding.newProjectDialog.optional")}</span>
+        </legend>
         {#if selectedTemplate}
           <div class="new-project-chosen">
             <Layout class="w-5 h-5" aria-hidden="true" />
@@ -170,8 +176,8 @@
               type="button"
               onclick={() => (selectedTemplate = null)}
               class="ka-button ka-button--ghost ka-icon-button"
-              aria-label="Remove template"
-              title="Remove template"
+              aria-label={t("onboarding.newProjectDialog.removeTemplate")}
+              title={t("onboarding.newProjectDialog.removeTemplate")}
             >
               <X class="w-5 h-5" aria-hidden="true" />
             </button>
@@ -184,7 +190,7 @@
             disabled={saving}
           >
             <Layout class="w-5 h-5" aria-hidden="true" />
-            <span>Browse templates…</span>
+            <span>{t("onboarding.newProjectDialog.browseTemplates")}</span>
             <ChevronRight class="w-5 h-5 ka-icon" aria-hidden="true" />
           </button>
         {/if}
@@ -202,7 +208,7 @@
         class="ka-button ka-button--secondary"
         disabled={saving}
       >
-        Cancel
+        {t("common.cancel")}
       </button>
       <button
         data-testid="new-project-create"
@@ -214,9 +220,9 @@
       >
         {#if saving}
           <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-          Creating…
+          {t("onboarding.newProjectDialog.creating")}
         {:else}
-          Create
+          {t("onboarding.newProjectDialog.create")}
         {/if}
       </button>
     </footer>

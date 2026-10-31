@@ -30,6 +30,8 @@
   import { modalFocus } from "../utils/modalFocus";
   import { proseSaves } from "../utils/proseSaves";
   import { synopsisSaves } from "../stores/synopsisSaves.svelte";
+  import { t } from "../i18n";
+  import { countLabel } from "../utils/plural";
 
   let {
     onClose,
@@ -89,14 +91,20 @@
       });
       snapshots = items;
     } catch (e) {
-      error = messageOf(e, "Failed to load snapshots");
+      error = messageOf(e, t("editorial.snapshotsPanel.loadFailed"));
     } finally {
       loading = false;
     }
   }
 
   function openCreateDialog() {
-    newSnapshotName = `Snapshot ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
+    newSnapshotName = t("editorial.snapshotsPanel.defaultName", {
+      date: new Date().toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+    });
     newSnapshotDescription = "";
     createError = null;
     createdName = null;
@@ -134,7 +142,7 @@
       createdName = snapshot.name;
       showCreateDialog = false;
     } catch (e) {
-      createError = messageOf(e, "Failed to create snapshot");
+      createError = messageOf(e, t("editorial.snapshotsPanel.createFailed"));
     } finally {
       creating = false;
     }
@@ -146,7 +154,9 @@
       return;
     }
     restoreMode = "replace_current";
-    newProjectName = `${currentProject.value?.name || "Project"} (Restored)`;
+    newProjectName = t("editorial.snapshotsPanel.restoredName", {
+      name: currentProject.value?.name || t("editorial.snapshotsPanel.projectFallback"),
+    });
     rowError = null;
     createdName = null;
     confirming = { id: snapshot.id, kind: "restore" };
@@ -187,7 +197,7 @@
       await synopsisSaves.flush(currentProject.value?.id);
       await proseSaves.flush(currentProject.value?.id);
       if (proseSaves.draftsForRecovery(currentProject.value?.id).length) {
-        throw new Error("Save or recover unsaved prose before restoring a snapshot.");
+        throw new Error(t("editorial.snapshotsPanel.unsavedProse"));
       }
       const project = await invoke<Project>("restore_snapshot", {
         snapshotId,
@@ -221,7 +231,7 @@
       // Close the panel after successful restore
       onClose();
     } catch (e) {
-      rowError = messageOf(e, "Failed to restore snapshot");
+      rowError = messageOf(e, t("editorial.snapshotsPanel.restoreFailed"));
     } finally {
       restoringId = null;
     }
@@ -237,7 +247,7 @@
       snapshots = snapshots.filter((s) => s.id !== snapshot.id);
       confirming = null;
     } catch (e) {
-      rowError = messageOf(e, "Failed to delete snapshot");
+      rowError = messageOf(e, t("editorial.snapshotsPanel.deleteFailed"));
     } finally {
       deletingId = null;
     }
@@ -288,19 +298,18 @@
   }
 
   function plural(count: number | undefined, noun: string): string {
-    const n = count ?? 0;
-    return `${n} ${noun}${n === 1 ? "" : "s"}`;
+    return countLabel(count ?? 0, noun);
   }
 
   // Get trigger type display
   function getTriggerLabel(trigger: string): string {
     switch (trigger) {
       case "manual":
-        return "Manual";
+        return t("editorial.snapshotsPanel.triggerManual");
       case "export":
-        return "Export";
+        return t("editorial.snapshotsPanel.triggerExport");
       case "auto":
-        return "Auto";
+        return t("editorial.snapshotsPanel.triggerAuto");
       default:
         return trigger;
     }
@@ -320,7 +329,7 @@
 >
   <div class="app-dialog-surface ka-dialog-default dialog-shell">
     <DialogHeader
-      title="Snapshots"
+      title={t("editorial.snapshotsPanel.title")}
       titleId="snapshots-panel-title"
       subtitle={currentProject.value?.name}
       {onClose}
@@ -331,7 +340,7 @@
     <div class="ka-dialog-body snapshots">
       <div class="snapshots-intro">
         <p class="ka-help">
-          A snapshot is a restore point for the whole project. Create one before making big changes.
+          {t("editorial.snapshotsPanel.intro")}
         </p>
         {#if !showCreateDialog}
           <button
@@ -343,16 +352,18 @@
             class="ka-button"
           >
             <Plus class="w-5 h-5" aria-hidden="true" />
-            Create snapshot
+            {t("editorial.snapshotsPanel.create")}
           </button>
         {/if}
       </div>
 
       {#if showCreateDialog}
         <section class="ka-tagedit snapshot-create" aria-labelledby="snapshot-create-title">
-          <h3 id="snapshot-create-title" class="ka-group-title">New snapshot</h3>
+          <h3 id="snapshot-create-title" class="ka-group-title">
+            {t("editorial.snapshotsPanel.newSnapshot")}
+          </h3>
           <div class="ka-field od-field">
-            <label for="snapshot-name">Name</label>
+            <label for="snapshot-name">{t("editorial.snapshotsPanel.name")}</label>
             <input
               id="snapshot-name"
               type="text"
@@ -364,18 +375,19 @@
                   void createSnapshot();
                 }
               }}
-              placeholder="e.g. Before the second-act rewrite"
+              placeholder={t("editorial.snapshotsPanel.namePlaceholder")}
               disabled={creating}
             />
           </div>
           <div class="ka-field od-field">
             <label for="snapshot-description"
-              >Description <span class="ka-optional">(optional)</span></label
+              >{t("editorial.snapshotsPanel.description")}
+              <span class="ka-optional">{t("editorial.snapshotsPanel.optional")}</span></label
             >
             <textarea
               id="snapshot-description"
               bind:value={newSnapshotDescription}
-              placeholder="What changed, or why you're saving this point"
+              placeholder={t("editorial.snapshotsPanel.descriptionPlaceholder")}
               rows="2"
               disabled={creating}
             ></textarea>
@@ -388,7 +400,7 @@
               disabled={creating}
               class="ka-button ka-button--secondary"
             >
-              Cancel
+              {t("editorial.snapshotsPanel.cancel")}
             </button>
             <button
               data-testid="snapshot-confirm-create"
@@ -400,9 +412,9 @@
             >
               {#if creating}
                 <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-                Creating snapshot…
+                {t("editorial.snapshotsPanel.creating")}
               {:else}
-                Create snapshot
+                {t("editorial.snapshotsPanel.create")}
               {/if}
             </button>
           </div>
@@ -413,8 +425,8 @@
         <div class="ka-notice ka-notice--success od-row-top" role="status">
           <CheckCircle2 class="w-5 h-5" aria-hidden="true" />
           <div class="od-field od-fill">
-            <strong>Snapshot created</strong>
-            <p>“{createdName}” is now the newest restore point.</p>
+            <strong>{t("editorial.snapshotsPanel.created")}</strong>
+            <p>{t("editorial.snapshotsPanel.createdBody", { name: createdName })}</p>
           </div>
         </div>
       {/if}
@@ -422,24 +434,24 @@
       {#if loading}
         <p class="ka-help snapshots-loading" role="status">
           <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-          Loading snapshots…
+          {t("editorial.snapshotsPanel.loading")}
         </p>
       {:else if error}
         <div class="ka-notice ka-notice--error od-row-top" role="alert">
           <CircleAlert class="w-5 h-5" aria-hidden="true" />
           <div class="od-field od-fill">
-            <strong>Could not load snapshots</strong>
+            <strong>{t("editorial.snapshotsPanel.loadErrorTitle")}</strong>
             <p>{error}</p>
           </div>
         </div>
       {:else if snapshots.length === 0 && !showCreateDialog}
         <div class="ka-empty od-stack snapshots-empty">
           <History class="w-7 h-7" aria-hidden="true" />
-          <h4>No snapshots yet</h4>
-          <p>Your first snapshot will appear here, with its date and what it contains.</p>
+          <h4>{t("editorial.snapshotsPanel.emptyTitle")}</h4>
+          <p>{t("editorial.snapshotsPanel.emptyBody")}</p>
         </div>
       {:else}
-        <ul class="snapshot-list" aria-label="Snapshots">
+        <ul class="snapshot-list" aria-label={t("editorial.snapshotsPanel.listAria")}>
           {#each snapshots as snapshot (snapshot.id)}
             {@const date = formatDate(snapshot.created_at)}
             {@const isRestoring = confirming?.id === snapshot.id && confirming.kind === "restore"}
@@ -472,12 +484,12 @@
                     onclick={() => openRestoreDialog(snapshot)}
                     disabled={restoringId !== null || deletingId === snapshot.id}
                     class="ka-button ka-button--secondary"
-                    aria-label="Restore snapshot"
+                    aria-label={t("editorial.snapshotsPanel.restoreAria")}
                     aria-describedby={`snapshot-${snapshot.id}-name`}
                     aria-expanded={isRestoring}
                     aria-controls={isRestoring ? `snapshot-${snapshot.id}-confirm` : undefined}
                   >
-                    Restore
+                    {t("editorial.snapshotsPanel.restore")}
                   </button>
                   <button
                     bind:this={deleteTriggers[snapshot.id]}
@@ -485,8 +497,8 @@
                     onclick={() => openDeleteConfirm(snapshot)}
                     disabled={restoringId !== null || deletingId === snapshot.id}
                     class="ka-button ka-button--ghost ka-icon-button snapshot-delete"
-                    aria-label={`Delete snapshot from ${date}`}
-                    title={`Delete snapshot from ${date}`}
+                    aria-label={t("editorial.snapshotsPanel.deleteAria", { date })}
+                    title={t("editorial.snapshotsPanel.deleteAria", { date })}
                     aria-expanded={isDeleting}
                     aria-controls={isDeleting ? `snapshot-${snapshot.id}-confirm` : undefined}
                   >
@@ -505,10 +517,10 @@
                   <TriangleAlert class="w-5 h-5" aria-hidden="true" />
                   <div class="od-field od-fill snapshot-confirm-body">
                     <strong id={`snapshot-${snapshot.id}-confirm-title`}
-                      >Restore this snapshot?</strong
+                      >{t("editorial.snapshotsPanel.restoreTitle")}</strong
                     >
                     <fieldset class="snapshot-modes" disabled={restoringId !== null}>
-                      <legend class="ka-sr">Restore mode</legend>
+                      <legend class="ka-sr">{t("editorial.snapshotsPanel.restoreMode")}</legend>
                       <label class="ka-check snapshot-mode">
                         <input
                           type="radio"
@@ -518,12 +530,8 @@
                           use:focusOnMount
                         />
                         <span class="od-field">
-                          <span>Replace current project</span>
-                          <span class="ka-help"
-                            >Overwrites this project. Scenes in the snapshot keep their draft
-                            history; scenes it doesn't contain are removed with theirs. Create a
-                            snapshot first if you want to keep the current state.</span
-                          >
+                          <span>{t("editorial.snapshotsPanel.replaceProject")}</span>
+                          <span class="ka-help">{t("editorial.snapshotsPanel.replaceHelp")}</span>
                         </span>
                       </label>
                       <label class="ka-check snapshot-mode">
@@ -534,16 +542,16 @@
                           bind:group={restoreMode}
                         />
                         <span class="od-field">
-                          <span>Create new project</span>
-                          <span class="ka-help"
-                            >Create a copy of the project from this snapshot.</span
-                          >
+                          <span>{t("editorial.snapshotsPanel.createNewProject")}</span>
+                          <span class="ka-help">{t("editorial.snapshotsPanel.createNewHelp")}</span>
                         </span>
                       </label>
                     </fieldset>
                     {#if restoreMode === "create_new"}
                       <div class="ka-field od-field">
-                        <label for="snapshot-restore-project-name">New project name</label>
+                        <label for="snapshot-restore-project-name"
+                          >{t("editorial.snapshotsPanel.newProjectName")}</label
+                        >
                         <input
                           id="snapshot-restore-project-name"
                           type="text"
@@ -555,7 +563,7 @@
                         />
                         {#if !newProjectName.trim()}
                           <p id="snapshot-restore-project-name-help" class="ka-help">
-                            Enter a name for the new project.
+                            {t("editorial.snapshotsPanel.newProjectNameHelp")}
                           </p>
                         {/if}
                       </div>
@@ -568,7 +576,7 @@
                         disabled={restoringId !== null}
                         class="ka-button ka-button--ghost"
                       >
-                        Cancel
+                        {t("editorial.snapshotsPanel.cancel")}
                       </button>
                       <button
                         type="button"
@@ -580,9 +588,9 @@
                       >
                         {#if restoringId}
                           <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-                          Restoring…
+                          {t("editorial.snapshotsPanel.restoring")}
                         {:else}
-                          Restore
+                          {t("editorial.snapshotsPanel.restore")}
                         {/if}
                       </button>
                     </div>
@@ -599,10 +607,10 @@
                   <TriangleAlert class="w-5 h-5" aria-hidden="true" />
                   <div class="od-field od-fill snapshot-confirm-body">
                     <strong id={`snapshot-${snapshot.id}-confirm-title`}
-                      >Delete this snapshot?</strong
+                      >{t("editorial.snapshotsPanel.deleteTitle")}</strong
                     >
                     <p id={`snapshot-${snapshot.id}-confirm-body`}>
-                      This restore point will be removed. Your project is not changed.
+                      {t("editorial.snapshotsPanel.deleteBody")}
                     </p>
                     {#if rowError}<p class="ka-error" role="alert">{rowError}</p>{/if}
                     <div class="snapshot-actions-end">
@@ -613,7 +621,7 @@
                         class="ka-button ka-button--ghost"
                         use:focusOnMount
                       >
-                        Cancel
+                        {t("editorial.snapshotsPanel.cancel")}
                       </button>
                       <button
                         type="button"
@@ -624,9 +632,9 @@
                       >
                         {#if deletingId === snapshot.id}
                           <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-                          Deleting…
+                          {t("editorial.snapshotsPanel.deleting")}
                         {:else}
-                          Delete
+                          {t("editorial.snapshotsPanel.delete")}
                         {/if}
                       </button>
                     </div>

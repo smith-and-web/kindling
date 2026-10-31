@@ -22,6 +22,7 @@
   import ContextMenu from "./ContextMenu.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import NovelEditor from "./NovelEditor.svelte";
+  import { t } from "../i18n";
 
   let {
     beats,
@@ -293,7 +294,7 @@
       ui.setExpandedBeat(beat.id);
     } catch (e) {
       console.error("Failed to create beat:", e);
-      ui.showError(`Failed to create beat: ${String(e)}`);
+      ui.showError(t("editor.beatView.createError", { error: String(e) }));
     } finally {
       creatingBeat = false;
     }
@@ -330,7 +331,7 @@
     } catch (e) {
       // Keep the field open with the typed title so the writer can retry.
       console.error("Failed to rename beat:", e);
-      ui.showError(`Failed to rename beat: ${String(e)}`);
+      ui.showError(t("editor.beatView.renameError", { error: String(e) }));
       return;
     }
     currentProject.setBeats(
@@ -363,19 +364,19 @@
 
     return [
       {
-        label: "Rename",
+        label: t("editor.beatView.menuRename"),
         icon: Pencil,
         action: () => startRenamingBeat(beat),
         disabled: false,
       },
       {
-        label: "Split at cursor",
+        label: t("editor.beatView.menuSplit"),
         icon: ChevronRight,
         action: () => executeSplitBeat(beat),
         disabled: !canSplit,
       },
       {
-        label: "Merge with next",
+        label: t("editor.beatView.menuMerge"),
         icon: ChevronDown,
         action: () => {
           if (nextBeat) executeMergeBeats(beat, nextBeat);
@@ -383,20 +384,20 @@
         disabled: !nextBeat,
       },
       {
-        label: "Move up",
+        label: t("editor.beatView.menuMoveUp"),
         icon: ArrowUp,
         action: () => moveBeatOneStep(beat, -1),
         disabled: beatIndex <= 0,
       },
       {
-        label: "Move down",
+        label: t("editor.beatView.menuMoveDown"),
         icon: ArrowDown,
         action: () => moveBeatOneStep(beat, 1),
         disabled: !nextBeat,
       },
       { label: "", divider: true, action: () => {} },
       {
-        label: "Delete",
+        label: t("editor.beatView.menuDelete"),
         icon: Trash2,
         action: () => {
           deleteBeatDialog = beat;
@@ -418,7 +419,7 @@
       }
     } catch (e) {
       console.error("Failed to delete beat:", e);
-      ui.showError(`Failed to delete beat: ${String(e)}`);
+      ui.showError(t("editor.beatView.deleteError", { error: String(e) }));
     } finally {
       deletingBeat = false;
       deleteBeatDialog = null;
@@ -456,7 +457,7 @@
       ui.setExpandedBeat(newBeat.id);
     } catch (e) {
       console.error("Failed to split beat:", e);
-      ui.showError(`Failed to split beat: ${String(e)}`);
+      ui.showError(t("editor.beatView.splitError", { error: String(e) }));
     } finally {
       changingBeats = false;
     }
@@ -492,7 +493,7 @@
       ui.setExpandedBeat(first.id);
     } catch (e) {
       console.error("Failed to merge beats:", e);
-      ui.showError(`Failed to merge beats: ${String(e)}`);
+      ui.showError(t("editor.beatView.mergeError", { error: String(e) }));
     } finally {
       changingBeats = false;
     }
@@ -502,9 +503,7 @@
     for (const id of ids) await flushPendingSave(id);
     // A caught/terminal save failure must also prevent transforming stale database prose.
     if (proseSaves.draftsForRecovery(projectId).some((draft) => ids.includes(draft.id))) {
-      throw new Error(
-        "Save the affected beats or recover their unsaved drafts in Find and Replace first."
-      );
+      throw new Error(t("editor.beatView.transformUnsavedError"));
     }
   }
 
@@ -588,7 +587,7 @@
       return true;
     } catch (e) {
       console.error("Failed to reorder beats:", e);
-      ui.showError(`Failed to reorder beats: ${String(e)}`);
+      ui.showError(t("editor.beatView.reorderError", { error: String(e) }));
       return false;
     }
   }
@@ -598,7 +597,18 @@
     const toIndex = beats.findIndex((b) => b.id === beat.id) + step;
     const total = beats.length;
     if (!(await moveBeat(beat.id, toIndex))) return;
-    moveAnnouncement = `Moved beat “${beat.content}” ${step < 0 ? "up" : "down"}, to position ${toIndex + 1} of ${total}.`;
+    moveAnnouncement =
+      step < 0
+        ? t("editor.beatView.moveUpAnnouncement", {
+            title: beat.content,
+            position: toIndex + 1,
+            total,
+          })
+        : t("editor.beatView.moveDownAnnouncement", {
+            title: beat.content,
+            position: toIndex + 1,
+            total,
+          });
     await tick();
     document
       .querySelector<HTMLElement>(`[data-drag-beat="${beat.id}"] [data-testid="beat-menu-button"]`)
@@ -635,7 +645,7 @@
 <section class="beats" aria-labelledby="beats-title">
   <p class="ka-sr" role="status" aria-live="polite">{moveAnnouncement}</p>
   <div class="beats-head">
-    <h3 id="beats-title">Beats</h3>
+    <h3 id="beats-title">{t("editor.beatView.beatsTitle")}</h3>
     {#if beats.length > 0 && !addingBeat && !isLocked}
       <button
         type="button"
@@ -643,7 +653,7 @@
         class="ka-button ka-button--ghost beats-add-top"
       >
         <Plus class="w-5 h-5" aria-hidden="true" />
-        Add beat
+        {t("editor.beatView.addBeat")}
       </button>
     {/if}
   </div>
@@ -677,7 +687,7 @@
                 onmousedown={(e) => onBeatDragHandleMouseDown(e, beat.id)}
                 class="beat-grip"
                 aria-hidden="true"
-                title="Drag to reorder"
+                title={t("editor.beatView.dragToReorder")}
               >
                 <GripVertical class="w-4 h-4" aria-hidden="true" />
               </div>
@@ -692,7 +702,7 @@
                   bind:value={editingBeatContent}
                   onkeydown={handleRenameKeydown}
                   onblur={saveRenameBeat}
-                  aria-label="Beat title"
+                  aria-label={t("editor.beatView.beatTitleLabel")}
                   class="beat-rename"
                 />
               </div>
@@ -707,7 +717,9 @@
                 <span class="ka-beat-number">{index + 1}</span>
                 <span class="beat-title" title={beat.content}>{beat.content}</span>
                 {#if prose}
-                  <small class="beat-count">{getBeatWordCount(prose)} words</small>
+                  <small class="beat-count"
+                    >{t("editor.beatView.beatWords", { count: getBeatWordCount(prose) })}</small
+                  >
                 {/if}
               </button>
             {/if}
@@ -719,7 +731,7 @@
                   openBeatMenu(e, beat);
                 }}
                 class="ka-button ka-button--ghost ka-icon-button beat-menu"
-                aria-label="Beat menu"
+                aria-label={t("editor.beatView.beatMenu")}
                 aria-haspopup="menu"
               >
                 <MoreVertical class="w-5 h-5" aria-hidden="true" />
@@ -736,7 +748,9 @@
                 sceneId={beat.scene_id}
                 beatId={beat.id}
                 content={editorProse(beat)}
-                placeholder={isLocked ? "Scene is locked" : "Write your prose for this beat…"}
+                placeholder={isLocked
+                  ? t("editor.beatView.sceneLocked")
+                  : t("editor.beatView.prosePlaceholder")}
                 readonly={isLocked || changingBeats}
                 saveStatus={localSaveStatus}
                 onUpdate={handleEditorUpdate(beat.id)}
@@ -754,7 +768,7 @@
               }}
               role="button"
               tabindex="0"
-              aria-label={`Open beat ${index + 1} prose`}
+              aria-label={t("editor.beatView.openBeatProse", { number: index + 1 })}
             >
               <p>{stripHtml(prose)}</p>
             </div>
@@ -768,41 +782,41 @@
           class="ka-button ka-button--secondary beats-add"
         >
           <Plus class="w-5 h-5" aria-hidden="true" />
-          Add beat
+          {t("editor.beatView.addBeat")}
         </button>
       {/if}
     </div>
   {:else if !addingBeat && !isLocked}
     <div class="ka-empty od-stack beats-empty">
-      <h4>No beats yet</h4>
-      <p>Beats come from an imported outline, or you can add them here one moment at a time.</p>
+      <h4>{t("editor.beatView.emptyTitle")}</h4>
+      <p>{t("editor.beatView.emptyBody")}</p>
       <button type="button" onclick={startAddingBeat} class="ka-button">
         <Plus class="w-5 h-5" aria-hidden="true" />
-        Add your first beat
+        {t("editor.beatView.addFirstBeat")}
       </button>
     </div>
   {:else if !addingBeat && isLocked}
     <p class="ka-help beats-locked">
       <Lock class="w-4 h-4" aria-hidden="true" />
-      Scene is locked
+      {t("editor.beatView.sceneLocked")}
     </p>
   {/if}
 
   <!-- Add Beat Input -->
   {#if addingBeat && !isLocked}
     <div class="ka-field od-field beats-new">
-      <label for="new-beat-content">New beat</label>
+      <label for="new-beat-content">{t("editor.beatView.newBeatLabel")}</label>
       <input
         id="new-beat-content"
         type="text"
         aria-describedby="new-beat-help"
-        placeholder="Describe what happens in this beat…"
+        placeholder={t("editor.beatView.newBeatPlaceholder")}
         bind:value={newBeatContent}
         onkeydown={handleNewBeatKeydown}
         disabled={creatingBeat}
       />
       <div class="ka-between">
-        <p id="new-beat-help" class="ka-help">Press Enter to create, Escape to cancel.</p>
+        <p id="new-beat-help" class="ka-help">{t("editor.beatView.newBeatHelp")}</p>
         <div class="ka-row">
           <button
             type="button"
@@ -813,7 +827,7 @@
             class="ka-button ka-button--ghost"
             disabled={creatingBeat}
           >
-            Cancel
+            {t("editor.beatView.cancel")}
           </button>
           <button
             type="button"
@@ -824,9 +838,9 @@
           >
             {#if creatingBeat}
               <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
-              Creating…
+              {t("editor.beatView.creating")}
             {:else}
-              Create beat
+              {t("editor.beatView.createBeat")}
             {/if}
           </button>
         </div>
@@ -846,10 +860,10 @@
 
 {#if deleteBeatDialog}
   <ConfirmDialog
-    title="Delete beat"
+    title={t("editor.beatView.deleteTitle")}
     message={beats[0]?.id === deleteBeatDialog.id
-      ? "Are you sure you want to delete this beat? This is the first beat, so its prose will be permanently deleted."
-      : "Are you sure you want to delete this beat? Any prose will be merged into the previous beat."}
+      ? t("editor.beatView.deleteFirstMessage")
+      : t("editor.beatView.deleteMergeMessage")}
     onConfirm={executeDeleteBeat}
     onCancel={() => (deleteBeatDialog = null)}
   />
