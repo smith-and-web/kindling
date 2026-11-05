@@ -1148,13 +1148,8 @@
                 oninput={(e) => handleSynopsisInput(e.currentTarget.value)}
                 aria-describedby="scene-synopsis-help"
               ></textarea>
-              <p id="scene-synopsis-help" class="ka-help scene-synopsis-help">
-                {#if synopsisSave.saving}
-                  <Loader2 class="w-4 h-4 animate-spin" aria-hidden="true" />
-                  {t("editor.scenePanel.saving")}
-                {:else}
-                  {t("editor.scenePanel.synopsisEditingHelp")}
-                {/if}
+              <p id="scene-synopsis-help" class="ka-help">
+                {t("editor.scenePanel.synopsisEditingHelp")}
               </p>
             </div>
           {:else if synopsis}
@@ -1188,6 +1183,17 @@
                 >{t("editor.scenePanel.retrySaving")}</button
               >
             </div>
+          {:else if editingSynopsis && !isLocked}
+            <!-- Mounted for as long as the field is open, so save state never moves the
+                 sections below it. -->
+            <p role="status" class="ka-help scene-synopsis-status" data-testid="synopsis-status">
+              {#if synopsisSave.saving}
+                <Loader2 class="w-4 h-4 animate-spin" aria-hidden="true" />
+                {t("editor.scenePanel.saving")}
+              {:else if synopsisSave.draft}
+                {t("editor.scenePanel.unsavedChanges")}
+              {/if}
+            </p>
           {:else if synopsisSave.draft && !synopsisSave.saving}
             <p role="status" class="ka-help">{t("editor.scenePanel.unsavedChanges")}</p>
           {/if}
@@ -1690,11 +1696,15 @@
     min-height: 120px;
     font: italic var(--text-body-lg) / var(--leading-relaxed) var(--font-body);
   }
-  .scene-synopsis-help,
+  .scene-synopsis-status,
   .scene-quiet {
     display: flex;
     align-items: center;
     gap: var(--space-3xs);
+  }
+  /* One `.ka-help` line (14px at 1.6), reserved while the field is open. */
+  .scene-synopsis-status {
+    min-height: calc(var(--text-small) * 1.6);
   }
   .scene-inline-notice {
     margin-top: var(--space-2xs);
