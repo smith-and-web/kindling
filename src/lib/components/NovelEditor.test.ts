@@ -26,3 +26,24 @@ it("keeps its name and reports read-only when a scene locks", async () => {
   expect(editor.getAttribute("contenteditable")).toBe("false");
   expect(editor.getAttribute("aria-label")).toBe("Scene prose");
 });
+
+it("keeps the save slot mounted so the indicator never changes the toolbar layout", async () => {
+  const props = { content: "<p>Line.</p>", sceneId: "scene", beatId: "beat" } as const;
+  const view = render(NovelEditor, props);
+  await screen.findByRole("textbox", { name: "Beat prose" });
+
+  const slot = screen.getByTestId("save-slot");
+  expect(screen.queryByTestId("save-indicator")).toBeNull();
+
+  await view.rerender({ ...props, saveStatus: "saving" });
+  expect(screen.getByTestId("save-indicator")).toBeTruthy();
+  expect(screen.getByTestId("save-slot")).toBe(slot);
+
+  await view.rerender({ ...props, saveStatus: "idle" });
+  expect(screen.queryByTestId("save-indicator")).toBeNull();
+  expect(screen.getByTestId("save-slot")).toBe(slot);
+
+  await view.rerender({ ...props, saveStatus: "error" });
+  expect(screen.getByRole("alert")).toBeTruthy();
+  expect(screen.getByTestId("save-slot")).toBe(slot);
+});
