@@ -20,7 +20,6 @@ default_branch = "main"
 plan = "claude-sonnet-4-6"               # planning + decomposition
 implement = "claude-sonnet-4-6"          # first implementation attempt
 implement_escalate = "claude-opus-4-8"   # escalation retry after a gate failure
-triage = "claude-haiku-4-5"              # cheap triage
 
 [checkpointer]
 # SQLite run checkpoints (resumable via `blacksmith resume --thread-id ...`).
@@ -32,7 +31,6 @@ db_path = ".blacksmith/checkpoints.sqlite"
 # .env in the directory you run blacksmith from). This is separate from your
 # interactive Claude Code / subscription auth so its spend stays isolated.
 key_env_var = "BLACKSMITH_ANTHROPIC_API_KEY"
-prompt_caching = true
 
 # [store], [metrics], and [transcripts] use their defaults under .blacksmith/.
 # Override their db_path / dir here if you want them elsewhere.
