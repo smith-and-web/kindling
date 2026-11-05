@@ -14,6 +14,7 @@ type CatalogModule = { default: Catalog };
 
 const enModules = import.meta.glob<CatalogModule>("./locales/en/*.ts", { eager: true });
 const zhModules = import.meta.glob<CatalogModule>("./locales/zh-CN/*.ts", { eager: true });
+const esModules = import.meta.glob<CatalogModule>("./locales/es/*.ts", { eager: true });
 
 function merge(modules: Record<string, CatalogModule>): Catalog {
   const catalog: Catalog = {};
@@ -26,8 +27,10 @@ function merge(modules: Record<string, CatalogModule>): Catalog {
 
 const EN = merge(enModules);
 const ZH = merge(zhModules);
+const ES = merge(esModules);
 
-const catalogFor = (locale: Locale): Catalog => (locale === "zh-CN" ? ZH : EN);
+const catalogFor = (locale: Locale): Catalog =>
+  locale === "zh-CN" ? ZH : locale === "es" ? ES : EN;
 
 /**
  * Follow the system language: Chinese systems get the translated catalog, everything
@@ -37,7 +40,9 @@ const catalogFor = (locale: Locale): Catalog => (locale === "zh-CN" ? ZH : EN);
  */
 function detectedLocale(): Locale {
   const tag = typeof navigator === "undefined" ? "en" : navigator.language;
-  return tag.toLowerCase().startsWith("zh") ? "zh-CN" : "en";
+  if (tag.toLowerCase().startsWith("zh")) return "zh-CN";
+  if (tag.toLowerCase().startsWith("es")) return "es";
+  return "en";
 }
 
 /**

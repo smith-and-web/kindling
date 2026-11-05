@@ -5,6 +5,7 @@ import { countLabel } from "../utils/plural";
 type CatalogModule = { default: Record<string, string> };
 const enModules = import.meta.glob<CatalogModule>("./locales/en/*.ts", { eager: true });
 const zhModules = import.meta.glob<CatalogModule>("./locales/zh-CN/*.ts", { eager: true });
+const esModules = import.meta.glob<CatalogModule>("./locales/es/*.ts", { eager: true });
 
 const groups = (modules: Record<string, CatalogModule>) =>
   Object.fromEntries(
@@ -39,6 +40,12 @@ describe("t()", () => {
     expect(t("common.cancel")).toBe("取消");
     expect(t("common.closeNamed", { name: "Kindling" })).toBe("关闭Kindling");
   });
+
+  it("uses the Spanish catalog after a locale change", () => {
+    setLocale("es");
+    expect(t("common.cancel")).toBe("Cancelar");
+    expect(t("common.closeNamed", { name: "Kindling" })).toBe("Cerrar Kindling");
+  });
 });
 
 describe("locale accessors", () => {
@@ -46,6 +53,8 @@ describe("locale accessors", () => {
     expect(getLocale()).toBe("en");
     setLocale("zh-CN");
     expect(getLocale()).toBe("zh-CN");
+    setLocale("es");
+    expect(getLocale()).toBe("es");
     setLocale("en");
     expect(getLocale()).toBe("en");
   });
@@ -78,14 +87,17 @@ describe("noun labels", () => {
 describe("catalogs", () => {
   const en = groups(enModules);
   const zh = groups(zhModules);
+  const es = groups(esModules);
 
   it("ships the same groups in every locale", () => {
     expect(Object.keys(zh).sort()).toEqual(Object.keys(en).sort());
+    expect(Object.keys(es).sort()).toEqual(Object.keys(en).sort());
   });
 
   it("translates every key of every group", () => {
     for (const group of Object.keys(en)) {
       expect(Object.keys(zh[group]).sort(), group).toEqual(Object.keys(en[group]).sort());
+      expect(Object.keys(es[group]).sort(), group).toEqual(Object.keys(en[group]).sort());
     }
   });
 
@@ -93,6 +105,9 @@ describe("catalogs", () => {
     for (const group of Object.keys(en)) {
       for (const [key, english] of Object.entries(en[group])) {
         expect(placeholders(zh[group][key]).sort(), `${group}.${key}`).toEqual(
+          placeholders(english).sort()
+        );
+        expect(placeholders(es[group][key]).sort(), `${group}.${key}`).toEqual(
           placeholders(english).sort()
         );
       }
