@@ -189,8 +189,7 @@ const catalog: Catalog = {
   "writingProgress.sessionTooltip": "自打开应用或重置以来，本项目净保存的字数。",
   "writingProgress.resetSession": "重置写作会话",
   "writingProgress.reset": "重置",
-  "writingProgress.streak.one": "连续写作 {count} 天",
-  "writingProgress.streak.many": "连续写作 {count} 天",
+  "writingProgress.streak.other": "连续写作 {count} 天",
   "writingProgress.resetError": "重置前请先保存待保存的正文：{error}",
 
   // NovelEditor

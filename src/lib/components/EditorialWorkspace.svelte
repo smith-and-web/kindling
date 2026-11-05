@@ -62,7 +62,7 @@
     type EditorialChange,
     type FeedbackEntry,
   } from "../utils/editorial";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
 
   let {
     prepareWriting,
@@ -1609,19 +1609,22 @@
             aria-label={t("editorial.editorialWorkspace.feedbackInFileAria")}
           >
             <li>
-              <strong>{sceneCount}</strong>{sceneCount === 1
-                ? t("editorial.editorialWorkspace.sceneIncluded.one")
-                : t("editorial.editorialWorkspace.sceneIncluded.many")}
+              <strong>{sceneCount}</strong>{tn(
+                "editorial.editorialWorkspace.sceneIncluded",
+                sceneCount
+              )}
             </li>
             <li>
-              <strong>{suggestionCount}</strong>{suggestionCount === 1
-                ? t("editorial.editorialWorkspace.suggestion.one")
-                : t("editorial.editorialWorkspace.suggestion.many")}
+              <strong>{suggestionCount}</strong>{tn(
+                "editorial.editorialWorkspace.suggestion",
+                suggestionCount
+              )}
             </li>
             <li>
-              <strong>{commentCount}</strong>{commentCount === 1
-                ? t("editorial.editorialWorkspace.comment.one")
-                : t("editorial.editorialWorkspace.comment.many")}
+              <strong>{commentCount}</strong>{tn(
+                "editorial.editorialWorkspace.comment",
+                commentCount
+              )}
             </li>
           </ul>
           <div class="feedback-next">

@@ -1,12 +1,14 @@
 <script lang="ts">
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
-  import { t } from "../i18n";
+  import { countLabel } from "../utils/plural";
+  import { t, tn } from "../i18n";
   interface Props {
     partTitle: string;
     childChapterCount: number;
     partLabel?: string;
-    chapterLabel?: string;
+    /** What the project calls the part's children: screenplays use sequences. */
+    chapterNoun?: "chapter" | "sequence";
     onDeletePartOnly: () => void;
     onDeletePartAndChapters: () => void;
     onCancel: () => void;
@@ -16,11 +18,20 @@
     partTitle,
     childChapterCount,
     partLabel = t("sidebar.partDeleteDialog.partLabel"),
-    chapterLabel = t("sidebar.partDeleteDialog.chapterLabel"),
+    chapterNoun = "chapter",
     onDeletePartOnly,
     onDeletePartAndChapters,
     onCancel,
   }: Props = $props();
+
+  const chapters = $derived(countLabel(childChapterCount, chapterNoun));
+  const allChapters = $derived(
+    t(
+      chapterNoun === "sequence"
+        ? "sidebar.partDeleteDialog.allSequences"
+        : "sidebar.partDeleteDialog.allChapters"
+    )
+  );
 </script>
 
 <div
@@ -40,19 +51,7 @@
     />
     <div class="ka-dialog-body part-delete">
       <p class="part-delete-lede">
-        {#if childChapterCount !== 1}
-          {t("sidebar.partDeleteDialog.lede.many", {
-            title: partTitle,
-            count: childChapterCount,
-            label: chapterLabel.toLowerCase(),
-          })}
-        {:else}
-          {t("sidebar.partDeleteDialog.lede.one", {
-            title: partTitle,
-            count: childChapterCount,
-            label: chapterLabel.toLowerCase(),
-          })}
-        {/if}
+        {tn("sidebar.partDeleteDialog.lede", childChapterCount, { title: partTitle, chapters })}
       </p>
 
       <button
@@ -63,17 +62,7 @@
       >
         <span>{t("sidebar.partDeleteDialog.deleteOnly", { label: partLabel.toLowerCase() })}</span>
         <small>
-          {#if childChapterCount !== 1}
-            {t("sidebar.partDeleteDialog.deleteOnlyHint.many", {
-              count: childChapterCount,
-              label: chapterLabel.toLowerCase(),
-            })}
-          {:else}
-            {t("sidebar.partDeleteDialog.deleteOnlyHint.one", {
-              count: childChapterCount,
-              label: chapterLabel.toLowerCase(),
-            })}
-          {/if}
+          {tn("sidebar.partDeleteDialog.deleteOnlyHint", childChapterCount, { chapters })}
         </small>
       </button>
 
@@ -86,23 +75,14 @@
         <span
           >{t("sidebar.partDeleteDialog.deleteAll", {
             part: partLabel.toLowerCase(),
-            chapter: chapterLabel.toLowerCase(),
+            chapters: allChapters,
           })}</span
         >
         <small>
-          {#if childChapterCount !== 1}
-            {t("sidebar.partDeleteDialog.deleteAllHint.many", {
-              part: partLabel.toLowerCase(),
-              count: childChapterCount,
-              chapter: chapterLabel.toLowerCase(),
-            })}
-          {:else}
-            {t("sidebar.partDeleteDialog.deleteAllHint.one", {
-              part: partLabel.toLowerCase(),
-              count: childChapterCount,
-              chapter: chapterLabel.toLowerCase(),
-            })}
-          {/if}
+          {tn("sidebar.partDeleteDialog.deleteAllHint", childChapterCount, {
+            part: partLabel.toLowerCase(),
+            chapters,
+          })}
         </small>
       </button>
     </div>

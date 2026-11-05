@@ -73,7 +73,7 @@
   import BrandWordmark from "./BrandWordmark.svelte";
   import { menuKeyboard } from "../utils/menuKeyboard";
   import { stepMoveOrder } from "../utils/outlineMove";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
 
   import type { ComponentType } from "svelte";
 
@@ -805,14 +805,8 @@
         title: chapter.title,
         message: t("sidebar.sidebar.deleteChapterMessage", {
           title: chapter.title,
-          scenes:
-            counts.scene_count !== 1
-              ? t("sidebar.sidebar.sceneCount.many", { count: counts.scene_count })
-              : t("sidebar.sidebar.sceneCount.one", { count: counts.scene_count }),
-          beats:
-            counts.beat_count !== 1
-              ? t("sidebar.sidebar.beatCount.many", { count: counts.beat_count })
-              : t("sidebar.sidebar.beatCount.one", { count: counts.beat_count }),
+          scenes: tn("sidebar.sidebar.sceneCount", counts.scene_count),
+          beats: tn("sidebar.sidebar.beatCount", counts.beat_count),
         }),
       };
     } catch (e) {
@@ -844,10 +838,7 @@
         title: scene.title,
         message: t("sidebar.sidebar.deleteSceneMessage", {
           title: scene.title,
-          beats:
-            beatCount !== 1
-              ? t("sidebar.sidebar.beatCount.many", { count: beatCount })
-              : t("sidebar.sidebar.beatCount.one", { count: beatCount }),
+          beats: tn("sidebar.sidebar.beatCount", beatCount),
         }),
       };
     } catch (e) {
@@ -2389,7 +2380,7 @@
     partTitle={partDeleteDialog.partTitle}
     childChapterCount={partDeleteDialog.childChapterIds.length}
     {partLabel}
-    {chapterLabel}
+    chapterNoun={currentProject.value?.project_type === "screenplay" ? "sequence" : "chapter"}
     onDeletePartOnly={executeDeletePartOnly}
     onDeletePartAndChapters={executeDeletePartAndChapters}
     onCancel={() => (partDeleteDialog = null)}

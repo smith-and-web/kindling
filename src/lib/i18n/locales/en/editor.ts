@@ -208,7 +208,7 @@ const catalog: Catalog = {
   "writingProgress.resetSession": "Reset writing session",
   "writingProgress.reset": "Reset",
   "writingProgress.streak.one": "{count} day writing streak",
-  "writingProgress.streak.many": "{count} days writing streak",
+  "writingProgress.streak.other": "{count} days writing streak",
   "writingProgress.resetError": "Save your pending prose before resetting: {error}",
 
   // NovelEditor

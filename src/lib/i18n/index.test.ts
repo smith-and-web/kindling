@@ -1,20 +1,64 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { getLocale, nounLabel, nounPluralLabel, setLocale, t } from "./index";
-import { countLabel } from "../utils/plural";
+import {
+  LOCALES,
+  getLocale,
+  initialLocale,
+  mergeCatalogs,
+  pluralCategory,
+  resolveLocale,
+  setLocale,
+  t,
+  tn,
+} from "./index";
+import type { Catalog, Locale } from "./types";
+import { countLabel, type CountNoun } from "../utils/plural";
+import detection from "./detection.json";
+import pluralOutput from "./plural-output.fixture.json";
 
-type CatalogModule = { default: Record<string, string> };
-const enModules = import.meta.glob<CatalogModule>("./locales/en/*.ts", { eager: true });
-const zhModules = import.meta.glob<CatalogModule>("./locales/zh-CN/*.ts", { eager: true });
+type CatalogModule = { default: Catalog };
+const modules = import.meta.glob<CatalogModule>("./locales/*/*.ts", { eager: true });
 
-const groups = (modules: Record<string, CatalogModule>) =>
-  Object.fromEntries(
-    Object.entries(modules).map(([path, module]) => [
-      path.split("/").pop()!.replace(/\.ts$/, ""),
-      module.default,
-    ])
-  );
+/** `{ locale: { group: catalog } }`, discovered the same way the runtime discovers them. */
+const discovered: Record<string, Record<string, Catalog>> = {};
+for (const [path, module] of Object.entries(modules)) {
+  const [locale, file] = path.split("/").slice(-2);
+  (discovered[locale] ??= {})[file.replace(/\.ts$/, "")] = module.default;
+}
+const locales = Object.keys(discovered).sort();
+const others = locales.filter((locale) => locale !== "en");
 
 const placeholders = (text: string) => [...text.matchAll(/\{([a-zA-Z0-9_]+)\}/g)].map((m) => m[1]);
+
+const CATEGORIES = ["zero", "one", "two", "few", "many", "other"];
+const pluralBase = (key: string) => {
+  const dot = key.lastIndexOf(".");
+  return dot > 0 && CATEGORIES.includes(key.slice(dot + 1)) ? key.slice(0, dot) : null;
+};
+
+/** The plural categories a locale's rules return for whole numbers 0-200. */
+const integerCategories = (tag: string) => {
+  const rules = new Intl.PluralRules(tag);
+  return [...new Set(Array.from({ length: 201 }, (_, n) => rules.select(n)))].sort();
+};
+
+/**
+ * Plural keys a catalog gets wrong against English: a base key with a missing category
+ * the locale needs, or a category it never selects.
+ */
+function pluralProblems(english: Catalog, catalog: Catalog, tag: string): string[] {
+  const needed: string[] = integerCategories(tag);
+  const bases = new Set(Object.keys(english).map(pluralBase).filter(Boolean) as string[]);
+  const problems: string[] = [];
+  for (const base of bases) {
+    const present = CATEGORIES.filter((category) => `${base}.${category}` in catalog);
+    for (const category of needed)
+      if (!present.includes(category)) problems.push(`${base}.${category} missing`);
+    for (const category of present)
+      if (!needed.includes(category) && category !== "other")
+        problems.push(`${base}.${category} unused`);
+  }
+  return problems;
+}
 
 afterEach(() => setLocale("en"));
 
@@ -51,51 +95,206 @@ describe("locale accessors", () => {
   });
 });
 
-describe("noun labels", () => {
-  it("keeps English nouns and their plurals", () => {
-    expect(nounLabel("scene")).toBe("scene");
-    expect(nounPluralLabel("scene", "scenes")).toBe("scenes");
-    expect(countLabel(1, "scene")).toBe("1 scene");
-    expect(countLabel(3, "scene")).toBe("3 scenes");
+describe("locale registry", () => {
+  it("has one entry per catalog directory", () => {
+    expect(Object.keys(LOCALES).sort()).toEqual(locales);
   });
 
-  it("adds the Chinese measure word for known nouns", () => {
-    setLocale("zh-CN");
-    expect(nounLabel("scene")).toBe("个场景");
-    expect(nounPluralLabel("scene", "scenes")).toBe("个场景");
-    expect(countLabel(3, "scene")).toBe("3 个场景");
-    expect(countLabel(1, "match", "matches")).toBe("1 处匹配");
+  it("keys merged catalogs by directory and prefixes keys with the file namespace", () => {
+    const merged = mergeCatalogs({
+      "./locales/xx/common.ts": { default: { ok: "OK" } },
+      "./locales/xx/sidebar.ts": { default: { "scene.one": "{count} scene" } },
+      "./locales/yy/common.ts": { default: { ok: "Bon" } },
+    });
+    expect(merged).toEqual({
+      xx: { "common.ok": "OK", "sidebar.scene.one": "{count} scene" },
+      yy: { "common.ok": "Bon" },
+    });
   });
 
-  it("keeps unknown nouns untouched", () => {
-    setLocale("zh-CN");
-    expect(nounLabel("sausage")).toBe("sausage");
-    expect(nounPluralLabel("sausage", "sausages")).toBe("sausages");
-    expect(countLabel(2, "sausage", "sausages")).toBe("2 sausages");
+  it("maps system language tags to supported locales", () => {
+    // detection.json is shared with the Rust menu tests so both tables agree.
+    for (const [tag, locale] of Object.entries(detection))
+      expect(resolveLocale(tag), tag || "(empty)").toBe(locale);
+    expect(resolveLocale(undefined)).toBe("en");
+    expect(resolveLocale(null)).toBe("en");
+  });
+
+  it("prefers an exact locale over a language match", () => {
+    expect(resolveLocale("ZH-cn")).toBe("zh-CN");
+  });
+
+  /** The `import.meta.env` fields `initialLocale()` reads. */
+  const env = (vars: Record<string, string | boolean>) => vars as unknown as ImportMetaEnv;
+  const dev = { MODE: "development", DEV: true };
+
+  it("reads English in tests whatever the system or override says", () => {
+    expect(
+      initialLocale(env({ MODE: "test", DEV: true, VITE_KINDLING_LOCALE: "zh-CN" }), "zh")
+    ).toBe("en");
+    expect(initialLocale(env({ ...dev, VITEST: "true" }), "zh")).toBe("en");
+  });
+
+  it("follows the system language outside tests", () => {
+    expect(initialLocale(env(dev), "zh-TW")).toBe("zh-CN");
+    expect(initialLocale(env(dev), "fr-FR")).toBe("en");
+    expect(initialLocale(env(dev), undefined)).toBe("en");
+  });
+
+  it("lets VITE_KINDLING_LOCALE override the system language on the dev server", () => {
+    expect(initialLocale(env({ ...dev, VITE_KINDLING_LOCALE: "zh-CN" }), "en-US")).toBe("zh-CN");
+    expect(initialLocale(env({ ...dev, VITE_KINDLING_LOCALE: "en" }), "zh")).toBe("en");
+    expect(initialLocale(env({ ...dev, VITE_KINDLING_LOCALE: "" }), "zh")).toBe("zh-CN");
+  });
+
+  it("ignores the override in production builds", () => {
+    const build = { MODE: "production", DEV: false, VITE_KINDLING_LOCALE: "zh-CN" };
+    expect(initialLocale(env(build), "en-US")).toBe("en");
   });
 });
 
-describe("catalogs", () => {
-  const en = groups(enModules);
-  const zh = groups(zhModules);
-
-  it("ships the same groups in every locale", () => {
-    expect(Object.keys(zh).sort()).toEqual(Object.keys(en).sort());
+describe("tn()", () => {
+  it("picks the English category and injects the count", () => {
+    expect(tn("sidebar.sidebar.sceneCount", 1)).toBe("1 scene");
+    expect(tn("sidebar.sidebar.sceneCount", 0)).toBe("0 scenes");
+    expect(tn("sidebar.sidebar.sceneCount", 2)).toBe("2 scenes");
   });
 
-  it("translates every key of every group", () => {
+  it("passes extra parameters through", () => {
+    expect(tn("editorial.revisionsPanel.prunedRemoved", 2, { names: "“A” and “B”" })).toBe(
+      "“A” and “B” were removed because only the newest automatic drafts are kept."
+    );
+  });
+
+  it("uses the active locale's categories", () => {
+    setLocale("zh-CN");
+    expect(tn("sidebar.sidebar.sceneCount", 1)).toBe("1 个场景");
+    expect(tn("sidebar.sidebar.sceneCount", 5)).toBe("5 个场景");
+  });
+
+  it("falls back to .other, then English, then the key", () => {
+    // zh-CN has only `.other`; a key it lacks entirely falls back to English.
+    setLocale("zh-CN");
+    expect(tn("counts.scene", 1)).toBe("1 个场景");
+    setLocale("missing" as Locale);
+    expect(tn("counts.scene", 1)).toBe("1 scene");
+    expect(tn("counts.scene", 3)).toBe("3 scenes");
+    expect(tn("missing.key", 3)).toBe("missing.key");
+  });
+
+  it("reports CLDR categories per locale", () => {
+    expect(pluralCategory("en", 1)).toBe("one");
+    expect(pluralCategory("en", 0)).toBe("other");
+    expect(pluralCategory("zh-CN", 1)).toBe("other");
+  });
+});
+
+describe("countLabel()", () => {
+  it("renders English and Chinese counted nouns", () => {
+    expect(countLabel(3, "scene")).toBe("3 scenes");
+    expect(countLabel(1, "match")).toBe("1 match");
+    setLocale("zh-CN");
+    expect(countLabel(3, "scene")).toBe("3 个场景");
+    expect(countLabel(1, "match")).toBe("1 处匹配");
+  });
+});
+
+describe("plural output", () => {
+  // plural-output.fixture.json was rendered from the catalogs and `count === 1` logic before
+  // tn() existed. PartDeleteDialog rows are checked in PartDeleteDialog.test.ts.
+  const rendered = (id: string, count: number): string | null => {
+    if (id.startsWith("partDelete.")) return null;
+    if (id.startsWith("countLabel.")) return countLabel(count, id.split(".")[1] as CountNoun);
+    return tn(id, count, { names: "“A”" });
+  };
+
+  for (const [locale, byCount] of Object.entries(pluralOutput)) {
+    it(`matches the pre-tn() strings in ${locale}`, () => {
+      setLocale(locale as Locale);
+      for (const [count, rows] of Object.entries(byCount)) {
+        for (const [id, expected] of Object.entries(rows)) {
+          const actual = rendered(id, Number(count));
+          if (actual !== null) expect(actual, `${id} (${count})`).toBe(expected);
+        }
+      }
+    });
+  }
+});
+
+describe("catalogs", () => {
+  const en = discovered.en;
+
+  it.each(others)("%s ships the same groups as English", (locale) => {
+    expect(Object.keys(discovered[locale]).sort()).toEqual(Object.keys(en).sort());
+  });
+
+  it.each(others)("%s translates every non-plural key of every group", (locale) => {
+    const singular = (catalog: Catalog) =>
+      Object.keys(catalog)
+        .filter((key) => pluralBase(key) === null)
+        .sort();
     for (const group of Object.keys(en)) {
-      expect(Object.keys(zh[group]).sort(), group).toEqual(Object.keys(en[group]).sort());
+      expect(singular(discovered[locale][group]), group).toEqual(singular(en[group]));
     }
   });
 
-  it("keeps placeholders aligned between locales", () => {
+  it.each(locales)("%s has every plural category its rules select", (locale) => {
     for (const group of Object.keys(en)) {
-      for (const [key, english] of Object.entries(en[group])) {
-        expect(placeholders(zh[group][key]).sort(), `${group}.${key}`).toEqual(
-          placeholders(english).sort()
-        );
+      expect(pluralProblems(en[group], discovered[locale][group], locale), group).toEqual([]);
+    }
+  });
+
+  it.each(others)("%s keeps placeholders aligned with English", (locale) => {
+    for (const group of Object.keys(en)) {
+      for (const [key, text] of Object.entries(discovered[locale][group])) {
+        const base = pluralBase(key);
+        const english = en[group][base ? `${base}.other` : key];
+        // tn() always supplies {count}, so a plural form may drop or add it.
+        const names = (s: string) =>
+          placeholders(s)
+            .filter((name) => !base || name !== "count")
+            .sort();
+        expect(names(text), `${group}.${key}`).toEqual(names(english));
       }
     }
+  });
+
+  it("only uses plural categories on keys English pluralizes", () => {
+    for (const locale of others) {
+      for (const group of Object.keys(en)) {
+        for (const key of Object.keys(discovered[locale][group])) {
+          const base = pluralBase(key);
+          if (base) expect(`${base}.other` in en[group], `${locale} ${group}.${key}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  describe("plural coverage check", () => {
+    // A stub Russian catalog: integers need one (1, 21), few (2-4, 22) and many (0, 5-20).
+    const english = { "scene.one": "{count} scene", "scene.other": "{count} scenes" };
+
+    it("passes a catalog with every category", () => {
+      const ru = {
+        "scene.one": "{count} сцена",
+        "scene.few": "{count} сцены",
+        "scene.many": "{count} сцен",
+      };
+      expect(integerCategories("ru")).toEqual(["few", "many", "one"]);
+      expect(pluralProblems(english, ru, "ru")).toEqual([]);
+    });
+
+    it("fails a catalog missing a category", () => {
+      const ru = { "scene.one": "{count} сцена", "scene.other": "{count} сцены" };
+      expect(pluralProblems(english, ru, "ru")).toEqual([
+        "scene.few missing",
+        "scene.many missing",
+      ]);
+    });
+
+    it("fails a catalog with a category its rules never select", () => {
+      const zh = { "scene.one": "{count} 个场景", "scene.other": "{count} 个场景" };
+      expect(pluralProblems(english, zh, "zh-CN")).toEqual(["scene.one unused"]);
+    });
   });
 });
