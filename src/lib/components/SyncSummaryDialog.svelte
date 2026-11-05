@@ -8,7 +8,7 @@
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
   import type { ReimportSummary } from "../types";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
 
   interface Props {
     summary: ReimportSummary;
@@ -55,19 +55,11 @@
   }
 
   function proseItemLabel(count: number, updated: boolean): string {
-    if (updated) {
-      return t(
-        count === 1
-          ? "references.syncSummaryDialog.proseItemUpdatedOne"
-          : "references.syncSummaryDialog.proseItemUpdatedMany",
-        { count }
-      );
-    }
-    return t(
-      count === 1
-        ? "references.syncSummaryDialog.proseItemPreservedOne"
-        : "references.syncSummaryDialog.proseItemPreservedMany",
-      { count }
+    return tn(
+      updated
+        ? "references.syncSummaryDialog.proseItemUpdated"
+        : "references.syncSummaryDialog.proseItemPreserved",
+      count
     );
   }
 </script>

@@ -112,22 +112,56 @@ ui.isImporting; // boolean
 ### Internationalization (`src/lib/i18n/`)
 
 Interface copy lives in catalogs rather than inside components. `src/lib/i18n/index.ts` exposes
-`t(key, params?)`; catalogs are plain `{ key: text }` records grouped by feature area under
-`src/lib/i18n/locales/<locale>/`, and the file name becomes the key namespace — an entry
-`newScene` in `locales/en/sidebar.ts` is `sidebar.newScene`.
+`t(key, params?)` and `tn(key, count, params?)`; catalogs are plain `{ key: text }` records grouped
+by feature area under `src/lib/i18n/locales/<locale>/`, and the file name becomes the key
+namespace — an entry `newScene` in `locales/en/sidebar.ts` is `sidebar.newScene`.
 
 - `locales/en/` keeps the original English wording and is the source of truth.
-- Other locales (currently `locales/zh-CN/`) translate the same keys; a missing entry falls back
-  to English, then to the key itself.
+- Every directory under `locales/` is discovered by one glob and keyed by its name. `LOCALES` in
+  `index.ts` is the registry: each entry lists the system language subtags it serves. Other
+  locales translate the same keys; a missing entry falls back to English, then to the key itself.
 - The locale follows the system language: `navigator.language` in the webview and
-  `tauri_plugin_os::locale()` for native menus. Every `zh` locale resolves to `zh-CN`, including
+  `tauri_plugin_os::locale()` for native menus. An exact tag (`pt-BR`) wins over a language match
+  (`pt`), and anything unmatched reads English. Every `zh` tag resolves to `zh-CN`, including
   Traditional Chinese until a `zh-Hant` catalog exists. The test runner forces English so existing
   assertions keep matching the original copy.
-- `countLabel()` in `src/lib/utils/plural.ts` routes nouns through `nounLabel()`, so counted
-  items read correctly in languages without plural forms (`3 scenes` → `3 个场景`).
+- **Plurals.** `tn()` picks `${key}.${category}` with `Intl.PluralRules` and interpolates the
+  count as `{count}`. A catalog holds one key per CLDR category its language uses for whole
+  numbers: `.one`/`.other` in English, `.other` only in Chinese, `.one`/`.few`/`.many` in Russian.
+  A missing category falls back to `.other`, then to English. Never choose a form with
+  `count === 1` or build a plural by appending `s`. `countLabel(count, noun)` in
+  `src/lib/utils/plural.ts` renders counted nouns from the `counts` group (`3 scenes`,
+  `3 个场景`).
+- **Native menus** read a `MenuStrings` const per locale in `src-tauri/src/menu.rs`. Every field
+  is required, so a locale missing a label does not compile. Rust keeps its own copy of the
+  locale table; `src/lib/i18n/detection.json` holds the tag-to-locale cases both test suites
+  check, and a Rust test fails if a catalog directory has no menu strings.
+- **QA override.** `KINDLING_LOCALE=<tag> npm run tauri dev` sets the menus and, through
+  `vite.config.ts`, the webview (`VITE_KINDLING_LOCALE`). The webview honours it only on the dev
+  server, so it can never ship in a release build.
 
-To add a language, create `locales/<tag>/` with one file per English group and translate the
-values; components do not change.
+#### Adding a language
+
+1. **Catalog.** Copy `src/lib/i18n/locales/en/` to `locales/<tag>/` (for example `es`, `pt-BR`)
+   and translate the values. Keep every `{placeholder}`; the parity tests fail on a missing group,
+   key or placeholder.
+2. **Plural forms.** For each key ending in `.one`/`.other`, provide exactly the categories
+   `new Intl.PluralRules("<tag>")` returns for whole numbers (Russian: `.one`, `.few`, `.many`;
+   Spanish and Portuguese: `.one`, `.other`). The plural parity test lists any missing or unused
+   category.
+3. **Registry entry.** Add one line to `LOCALES` in `src/lib/i18n/index.ts`:
+   `"<tag>": { languages: ["<language subtag>"] }`.
+4. **Menu strings.** Add a `MenuStrings` const in `src-tauri/src/menu.rs` and a row in its
+   `LOCALES` table.
+5. **Detection cases.** Add the tags the language should catch to
+   `src/lib/i18n/detection.json` (for example `"es-MX": "es"`) and move any existing row that
+   now resolves differently.
+6. **Glossary.** Add a column to `docs/i18n-glossary.md` and use those terms consistently.
+7. **QA.** Check the app with `KINDLING_LOCALE=<tag> npm run tauri dev`, looking for clipped or
+   overflowing labels in the sidebar, dialogs and menus.
+
+Components do not change. If a translation needs a different sentence shape, change the English
+key to take a whole phrase (as `counts.*` does) rather than concatenating fragments.
 
 ### Data Flow
 

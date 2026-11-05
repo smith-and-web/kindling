@@ -95,11 +95,11 @@ const catalog: Catalog = {
     "Bring your editor’s feedback into the original review round, then read it alongside your manuscript.",
   "editorialWorkspace.feedbackInFileAria": "Feedback in this file",
   "editorialWorkspace.sceneIncluded.one": "scene included",
-  "editorialWorkspace.sceneIncluded.many": "scenes included",
+  "editorialWorkspace.sceneIncluded.other": "scenes included",
   "editorialWorkspace.suggestion.one": "suggestion",
-  "editorialWorkspace.suggestion.many": "suggestions",
+  "editorialWorkspace.suggestion.other": "suggestions",
   "editorialWorkspace.comment.one": "comment",
-  "editorialWorkspace.comment.many": "comments",
+  "editorialWorkspace.comment.other": "comments",
   "editorialWorkspace.whatHappensNext": "What happens next",
   "editorialWorkspace.nextBody":
     "Read comments, reply to your editor, and accept or reject suggestions. If you’ve rewritten a passage, kindling helps you place its feedback before applying an edit.",
@@ -254,7 +254,7 @@ const catalog: Catalog = {
   "revisionsPanel.currentProseLabel": "the current prose",
   "revisionsPanel.prunedRemoved.one":
     "{names} was removed because only the newest automatic drafts are kept.",
-  "revisionsPanel.prunedRemoved.many":
+  "revisionsPanel.prunedRemoved.other":
     "{names} were removed because only the newest automatic drafts are kept.",
   "revisionsPanel.prunedJoin": " and ",
   "revisionsPanel.prunedComparing": "Now comparing {before} with {after}.",

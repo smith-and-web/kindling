@@ -6,6 +6,7 @@ describe("countLabel", () => {
     expect(countLabel(1, "scene")).toBe("1 scene");
     expect(countLabel(0, "reference")).toBe("0 references");
     expect(countLabel(3, "chapter")).toBe("3 chapters");
-    expect(countLabel(2, "match", "matches")).toBe("2 matches");
+    expect(countLabel(2, "match")).toBe("2 matches");
+    expect(countLabel(1, "sequence")).toBe("1 sequence");
   });
 });

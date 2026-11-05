@@ -12,7 +12,7 @@
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
   import { saveProseBefore } from "../utils/proseFlush";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
 
   interface Props {
     projectId: string;
@@ -108,17 +108,9 @@
   }
 
   const selectionSummary = $derived.by(() => {
-    const selected = t(
-      selectedCount === 1
-        ? "references.syncDialog.selectionOne"
-        : "references.syncDialog.selectionMany",
-      { count: selectedCount }
-    );
+    const selected = tn("references.syncDialog.selection", selectedCount);
     if (keptCount === 0) return selected;
-    const kept = t(
-      keptCount === 1 ? "references.syncDialog.keptOne" : "references.syncDialog.keptMany",
-      { count: keptCount }
-    );
+    const kept = tn("references.syncDialog.kept", keptCount);
     return `${selected}, ${kept}`;
   });
 
@@ -195,12 +187,7 @@
           {/if}
           {#if conflictCount > 0}
             <span class="ka-badge ka-badge--warning" data-testid="sync-conflict-count"
-              >{t(
-                conflictCount === 1
-                  ? "references.syncDialog.conflictOne"
-                  : "references.syncDialog.conflictMany",
-                { count: conflictCount }
-              )}</span
+              >{tn("references.syncDialog.conflict", conflictCount)}</span
             >
           {/if}
         </div>
@@ -437,20 +424,11 @@
             <Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />
             {t("references.syncDialog.applying")}
           {:else if selectedCount === 0 && keptCount > 0}
-            {t(
-              keptCount === 1
-                ? "references.syncDialog.keepKindling"
-                : "references.syncDialog.keepKindlingPlural"
-            )}
+            {tn("references.syncDialog.keepKindling", keptCount)}
           {:else if selectedCount === 0}
             {t("references.syncDialog.applyChanges")}
           {:else}
-            {t(
-              selectedCount === 1
-                ? "references.syncDialog.applyOne"
-                : "references.syncDialog.applyMany",
-              { count: selectedCount }
-            )}
+            {tn("references.syncDialog.apply", selectedCount)}
           {/if}
         </button>
       {/if}

@@ -31,7 +31,7 @@
   import { proseSaves } from "../utils/proseSaves";
   import { synopsisSaves } from "../stores/synopsisSaves.svelte";
   import { t } from "../i18n";
-  import { countLabel } from "../utils/plural";
+  import { countLabel, type CountNoun } from "../utils/plural";
 
   let {
     onClose,
@@ -297,7 +297,7 @@
     });
   }
 
-  function plural(count: number | undefined, noun: string): string {
+  function plural(count: number | undefined, noun: CountNoun): string {
     return countLabel(count ?? 0, noun);
   }
 
