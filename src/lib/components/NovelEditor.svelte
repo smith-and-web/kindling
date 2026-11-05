@@ -185,16 +185,20 @@
   <!-- Toolbar -->
   {#if !readonly}
     <ProseToolbar {editor} revision={toolbarRevision}>
-      {#if saveStatus === "saving"}
-        <div class="save-status saving" data-testid="save-indicator" role="status">
-          <Loader2 class="w-4 h-4 animate-spin" aria-hidden="true" />
-          <span>{t("editor.novelEditor.saving")}</span>
-        </div>
-      {:else if saveStatus === "error"}
-        <div class="save-status error" role="alert">
-          <span>{t("editor.novelEditor.saveError")}</span>
-        </div>
-      {/if}
+      <!-- The slot is always mounted and keeps the width of "Saving…", so the indicator
+           appearing on each save never changes the toolbar's wrapping. -->
+      <div class="save-slot" data-testid="save-slot">
+        {#if saveStatus === "saving"}
+          <div class="save-status saving" data-testid="save-indicator" role="status">
+            <Loader2 class="w-4 h-4 animate-spin" aria-hidden="true" />
+            <span>{t("editor.novelEditor.saving")}</span>
+          </div>
+        {:else if saveStatus === "error"}
+          <div class="save-status error" role="alert">
+            <span>{t("editor.novelEditor.saveError")}</span>
+          </div>
+        {/if}
+      </div>
     </ProseToolbar>
   {/if}
 
@@ -223,6 +227,16 @@
 
   .novel-editor.readonly {
     cursor: default;
+  }
+
+  /* Reserves the indicator's footprint: spinner (16px) + gap + "Saving…" wide, one
+     small-text line high. The height matters when the toolbar wraps the slot onto its
+     own row, which would otherwise grow from empty to one line on every save. */
+  .save-slot {
+    display: flex;
+    justify-content: flex-end;
+    min-width: 5rem;
+    min-height: calc(var(--text-small) * 1.5);
   }
 
   .save-status {

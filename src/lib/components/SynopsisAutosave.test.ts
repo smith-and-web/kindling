@@ -228,3 +228,34 @@ it("recovers a failed synopsis after leaving the project and remounting the scen
   await vi.advanceTimersByTimeAsync(0);
   expect(currentProject.currentScene?.synopsis).toBe("Still recoverable");
 });
+
+it("shows save state in a status line that stays mounted so the panel never reflows", async () => {
+  render(ScenePanel);
+  await vi.advanceTimersByTimeAsync(0);
+  let finish!: () => void;
+  vi.mocked(invoke).mockImplementation(async (cmd) => {
+    if (cmd === "save_scene_synopsis")
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+    return [];
+  });
+  await fireEvent.click(screen.getByRole("button", { name: "Edit synopsis" }));
+  const status = screen.getByTestId("synopsis-status");
+  const help = screen.getByText(/Press Escape to close/);
+  expect(status.textContent?.trim()).toBe("");
+
+  const textarea = screen.getByPlaceholderText(placeholder);
+  await fireEvent.input(textarea, { target: { value: "Updated synopsis" } });
+  expect(status.textContent?.trim()).toBe("Unsaved changes");
+
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(status.textContent?.trim()).toBe("Saving…");
+  expect(screen.getByText(/Press Escape to close/)).toBe(help);
+
+  finish();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(status.textContent?.trim()).toBe("");
+  expect(screen.getByTestId("synopsis-status")).toBe(status);
+  expect(screen.getByText(/Press Escape to close/)).toBe(help);
+});
