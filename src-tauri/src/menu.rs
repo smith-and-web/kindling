@@ -131,13 +131,44 @@ pub const PT_BR: MenuStrings = MenuStrings {
     quick_start: "Início Rápido",
 };
 
+pub const RU: MenuStrings = MenuStrings {
+    file: "Файл",
+    new_project: "Новый проект",
+    editorial_open: "Открыть файл рецензии или отзыва…",
+    editorial_project: "Редакционная рецензия…",
+    import: "Импортировать",
+    import_longform: "Longform (индекс или Vault…)",
+    import_novelwriter: "novelWriter (папка проекта)",
+    export: "Экспортировать…",
+    close_project: "Закрыть проект",
+    settings: "Настройки…",
+    quit: "Выйти из kindling",
+    edit: "Правка",
+    find: "Найти в сцене…",
+    find_replace: "Найти и заменить…",
+    find_project: "Найти и заменить в проекте…",
+    view: "Вид",
+    toggle_sidebar: "Показать/скрыть боковую панель",
+    toggle_references: "Показать/скрыть панель ссылок",
+    sync: "Синхронизировать из источника",
+    window: "Окно",
+    minimize: "Свернуть",
+    maximize: "Развернуть",
+    help: "Справка",
+    about: "О программе kindling…",
+    send_feedback: "Отправить отзыв…",
+    command_palette: "Палитра команд…",
+    quick_start: "Быстрый старт",
+};
+
 /// Supported locales: the catalog directory name, the system language subtags it serves
 /// and its menu copy. Mirrors `LOCALES` in `src/lib/i18n/index.ts`;
 /// `src/lib/i18n/detection.json` holds the cases both test suites check.
 const LOCALES: &[(&str, &[&str], &MenuStrings)] = &[
     ("en", &["en"], &EN),
-    ("zh-CN", &["zh"], &ZH_CN),
     ("pt-BR", &["pt"], &PT_BR),
+    ("ru", &["ru"], &RU),
+    ("zh-CN", &["zh"], &ZH_CN),
 ];
 
 const FALLBACK_LOCALE: &str = "en";
@@ -382,6 +413,19 @@ mod tests {
             assert_ne!(
                 *label, en_labels[index],
                 "PT_BR label {index} ({label:?}) is identical to the EN label"
+            );
+        }
+    }
+
+    #[test]
+    fn ru_const_is_complete_and_translated() {
+        let ru_labels = RU.labels();
+        let en_labels = EN.labels();
+        for (index, label) in ru_labels.iter().enumerate() {
+            assert!(!label.trim().is_empty(), "RU label {index} is empty");
+            assert_ne!(
+                *label, en_labels[index],
+                "RU label {index} ({label:?}) is identical to the EN label"
             );
         }
     }
