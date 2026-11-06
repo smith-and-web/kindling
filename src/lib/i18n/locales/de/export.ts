@@ -133,11 +133,10 @@ const catalog: Catalog = {
   "exportWorkspace.includeInExport": "In diesen Export einschließen",
   "exportWorkspace.scopeAll": "Gesamtes Manuskript",
   "exportWorkspace.scopeSelected": "Ausgewählte Kapitel",
-  "exportWorkspace.contextNotice":
-    "Für Ihr ausgewähltes {scope} geöffnet. Das Speichern dieses Profils merkt sich diese Auswahl.",
-  "exportWorkspace.scopeProject": "Projekt",
-  "exportWorkspace.scopeChapter": "Kapitel",
-  "exportWorkspace.scopeScene": "Szene",
+  "exportWorkspace.contextNoticeChapter":
+    "Für Ihr ausgewähltes Kapitel geöffnet. Das Speichern dieses Profils merkt sich diese Auswahl.",
+  "exportWorkspace.contextNoticeScene":
+    "Für Ihre ausgewählte Szene geöffnet. Das Speichern dieses Profils merkt sich diese Auswahl.",
   "exportWorkspace.onlySelectedScene": "Nur die ausgewählte Szene ist eingeschlossen.",
   "exportWorkspace.includeRestOfChapter": "Rest des Kapitels einschließen",
   "exportWorkspace.chapterSelection": "Kapitelauswahl",

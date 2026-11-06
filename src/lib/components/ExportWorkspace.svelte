@@ -215,12 +215,12 @@
       ? t("export.exportWorkspace.unsupportedNovelwriter")
       : ""
   );
-  const scopeLabel = $derived(
-    scope === "project"
-      ? t("export.exportWorkspace.scopeProject")
-      : scope === "chapter"
-        ? t("export.exportWorkspace.scopeChapter")
-        : t("export.exportWorkspace.scopeScene")
+  // A whole sentence per scope: slotting a translated noun into one sentence breaks
+  // gender and case agreement in German, Spanish, Portuguese and Russian.
+  const contextNotice = $derived(
+    scope === "scene"
+      ? t("export.exportWorkspace.contextNoticeScene")
+      : t("export.exportWorkspace.contextNoticeChapter")
   );
   const searchResults = $derived(
     settingsIndex.filter(
@@ -896,7 +896,7 @@
               <Info class="w-5 h-5" aria-hidden="true" />
               <div class="od-field od-fill">
                 <p>
-                  {t("export.exportWorkspace.contextNotice", { scope: scopeLabel })}
+                  {contextNotice}
                 </p>
               </div>
             </div>{/if}
