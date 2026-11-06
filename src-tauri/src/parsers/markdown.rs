@@ -64,7 +64,7 @@ pub fn parse_markdown_outline<P: AsRef<Path>>(path: P) -> Result<ParsedMarkdown,
 
     let (frontmatter, body) = match split_frontmatter(&content) {
         Some((frontmatter_str, body)) => {
-            let parsed = serde_yaml::from_str::<MarkdownFrontmatter>(&frontmatter_str).ok();
+            let parsed = serde_norway::from_str::<MarkdownFrontmatter>(&frontmatter_str).ok();
             (parsed, body)
         }
         None => (None, content),

@@ -19,7 +19,7 @@ pub enum LongformError {
     #[error("Failed to read file: {0}")]
     IoError(#[from] std::io::Error),
     #[error("Failed to parse YAML: {0}")]
-    YamlError(#[from] serde_yaml::Error),
+    YamlError(#[from] serde_norway::Error),
     #[error("Invalid Longform structure: {0}")]
     InvalidStructure(String),
 }
@@ -60,7 +60,7 @@ struct LongformIndex {
     workflow: Option<String>,
     #[serde(rename = "sceneFolder")]
     scene_folder: Option<String>,
-    scenes: Option<serde_yaml::Value>,
+    scenes: Option<serde_norway::Value>,
     #[serde(rename = "sceneTemplate")]
     scene_template: Option<String>,
     #[serde(rename = "ignoredFiles")]
@@ -211,7 +211,7 @@ struct NoteFrontmatter {
     category: Option<String>,
     categories: Option<FrontmatterList>,
     #[serde(flatten)]
-    extra: HashMap<String, serde_yaml::Value>,
+    extra: HashMap<String, serde_norway::Value>,
 }
 
 struct SceneBuildContext<'a> {
@@ -265,7 +265,7 @@ fn parse_longform_index_in(
     let (frontmatter_str, _) = split_frontmatter(&content)
         .ok_or_else(|| LongformError::InvalidStructure("Missing YAML frontmatter".to_string()))?;
 
-    let frontmatter: LongformFrontmatter = serde_yaml::from_str(&frontmatter_str)?;
+    let frontmatter: LongformFrontmatter = serde_norway::from_str(&frontmatter_str)?;
     let longform = frontmatter.longform.ok_or_else(|| {
         LongformError::InvalidStructure("Missing longform frontmatter entry".to_string())
     })?;
@@ -447,7 +447,7 @@ fn find_longform_indexes(vault_dir: &Path, vault: &Path) -> Result<Vec<PathBuf>,
             None => continue,
         };
 
-        let frontmatter: LongformFrontmatter = match serde_yaml::from_str(&frontmatter_str) {
+        let frontmatter: LongformFrontmatter = match serde_norway::from_str(&frontmatter_str) {
             Ok(parsed) => parsed,
             Err(_) => continue,
         };
@@ -463,7 +463,7 @@ fn find_longform_indexes(vault_dir: &Path, vault: &Path) -> Result<Vec<PathBuf>,
     Ok(indexes)
 }
 
-fn parse_scene_entries(value: &serde_yaml::Value) -> Result<Vec<SceneEntry>, LongformError> {
+fn parse_scene_entries(value: &serde_norway::Value) -> Result<Vec<SceneEntry>, LongformError> {
     let mut entries = Vec::new();
     let scenes = value.as_sequence().ok_or_else(|| {
         LongformError::InvalidStructure("longform.scenes must be a list".to_string())
@@ -475,24 +475,24 @@ fn parse_scene_entries(value: &serde_yaml::Value) -> Result<Vec<SceneEntry>, Lon
 }
 
 fn collect_scene_entries(
-    scenes: &[serde_yaml::Value],
+    scenes: &[serde_norway::Value],
     depth: usize,
     entries: &mut Vec<SceneEntry>,
 ) -> Result<(), LongformError> {
     for entry in scenes {
         match entry {
-            serde_yaml::Value::Sequence(children) => {
+            serde_norway::Value::Sequence(children) => {
                 collect_scene_entries(children, depth + 1, entries)?;
             }
-            serde_yaml::Value::String(name) => entries.push(SceneEntry {
+            serde_norway::Value::String(name) => entries.push(SceneEntry {
                 name: name.clone(),
                 _depth: depth,
             }),
-            serde_yaml::Value::Number(num) => entries.push(SceneEntry {
+            serde_norway::Value::Number(num) => entries.push(SceneEntry {
                 name: num.to_string(),
                 _depth: depth,
             }),
-            serde_yaml::Value::Bool(value) => entries.push(SceneEntry {
+            serde_norway::Value::Bool(value) => entries.push(SceneEntry {
                 name: value.to_string(),
                 _depth: depth,
             }),
@@ -536,7 +536,7 @@ fn collect_reference_notes(
         let content = fs::read_to_string(entry.path())?;
         let (frontmatter, body) = match split_frontmatter(&content) {
             Some((frontmatter_str, body)) => {
-                let parsed = serde_yaml::from_str::<NoteFrontmatter>(&frontmatter_str).ok();
+                let parsed = serde_norway::from_str::<NoteFrontmatter>(&frontmatter_str).ok();
                 (parsed, body)
             }
             None => (None, content),
@@ -804,13 +804,13 @@ fn normalize_reference_label(value: &str, kind: ReferenceKind) -> Option<String>
     normalize_reference_by_kind(trimmed, kind).map(|(_, name)| name)
 }
 
-fn yaml_value_to_string(value: &serde_yaml::Value) -> Option<String> {
+fn yaml_value_to_string(value: &serde_norway::Value) -> Option<String> {
     match value {
-        serde_yaml::Value::Null => None,
-        serde_yaml::Value::Bool(b) => Some(b.to_string()),
-        serde_yaml::Value::Number(n) => Some(n.to_string()),
-        serde_yaml::Value::String(s) => normalize_block(s),
-        serde_yaml::Value::Sequence(seq) => {
+        serde_norway::Value::Null => None,
+        serde_norway::Value::Bool(b) => Some(b.to_string()),
+        serde_norway::Value::Number(n) => Some(n.to_string()),
+        serde_norway::Value::String(s) => normalize_block(s),
+        serde_norway::Value::Sequence(seq) => {
             let values: Vec<String> = seq.iter().filter_map(yaml_value_to_string).collect();
             if values.is_empty() {
                 None
@@ -818,7 +818,7 @@ fn yaml_value_to_string(value: &serde_yaml::Value) -> Option<String> {
                 Some(values.join(", "))
             }
         }
-        serde_yaml::Value::Mapping(_) => serde_yaml::to_string(value)
+        serde_norway::Value::Mapping(_) => serde_norway::to_string(value)
             .ok()
             .and_then(|s| normalize_block(&s)),
         _ => None,
@@ -1131,7 +1131,7 @@ fn parse_scene_file(path: &Path) -> Result<SceneContent, LongformError> {
     let content = fs::read_to_string(path)?;
     let (frontmatter, body) = match split_frontmatter(&content) {
         Some((frontmatter_str, body)) => {
-            let parsed = serde_yaml::from_str::<SceneFrontmatter>(&frontmatter_str).ok();
+            let parsed = serde_norway::from_str::<SceneFrontmatter>(&frontmatter_str).ok();
             (parsed, body)
         }
         None => (None, content),
@@ -2736,7 +2736,7 @@ This is some prose.
 
     #[test]
     fn test_parse_scene_list_with_numbers() {
-        let yaml = serde_yaml::from_str::<serde_yaml::Value>(
+        let yaml = serde_norway::from_str::<serde_norway::Value>(
             r#"
 - "1"
 - 2
