@@ -6,27 +6,28 @@ and fill it before translating the catalogs.
 
 The zh-CN column is taken from the shipped catalogs in `src/lib/i18n/locales/zh-CN/`.
 The pt-BR column is taken from the shipped catalogs in `src/lib/i18n/locales/pt-BR/`.
+The ru column is taken from the shipped catalogs in `src/lib/i18n/locales/ru/`.
 The es column follows the terms in `src/lib/i18n/locales/es/`; "beat" (tiempo) and "feedback"
 (left in English) are still open for the reviewer.
 
-| Term             | Meaning in kindling                                                  | en               | zh-CN | pt-BR             | es                 |
-| ---------------- | -------------------------------------------------------------------- | ---------------- | ----- | ----------------- | ------------------ |
-| beat             | A single story point inside a scene, imported from the outline       | beat             | 节拍  | beat              | tiempo             |
-| scene            | The unit of prose; holds beats, a synopsis and the draft text        | scene            | 场景  | cena              | escena             |
-| chapter          | A group of scenes (called a sequence in screenplay projects)         | chapter          | 章    | capítulo          | capítulo           |
-| part             | A group of chapters (called an act in screenplay projects)           | part             | 部    | parte             | parte              |
-| act              | Screenplay name for a part                                           | act              | 幕    | ato               | acto               |
-| sequence         | Screenplay name for a chapter                                        | sequence         | 序列  | sequência         | secuencia          |
-| outline          | The plan imported from Plottr, Scrivener and the like                | outline          | 大纲  | estrutura         | esquema            |
-| synopsis         | A short summary of a scene or chapter                                | synopsis         | 梗概  | sinopse           | sinopsis           |
-| manuscript       | The whole draft as a reader or editor sees it                        | manuscript       | 稿件  | manuscrito        | manuscrito         |
-| prose            | The written text of a scene                                          | prose            | 正文  | prosa             | prosa              |
-| reference        | A character, location or other note linked to scenes                 | reference        | 引用  | referência        | referencia         |
-| snapshot         | A saved copy of the whole project that can be restored               | snapshot         | 快照  | instantâneo       | instantánea        |
-| revision         | A saved version of a scene's prose                                   | revision         | 修订  | revisão           | revisión           |
-| draft            | A scene status, and the automatic saved versions in revision history | draft            | 草稿  | rascunho          | borrador           |
-| editorial review | Reading the manuscript and leaving suggestions and comments          | editorial review | 审阅  | revisão editorial | revisión editorial |
-| feedback         | Suggestions and comments from a review, shared as a file             | feedback         | 反馈  | feedback          | feedback           |
+| Term             | Meaning in kindling                                                  | en               | zh-CN | pt-BR             | es                 | ru                    |
+| ---------------- | -------------------------------------------------------------------- | ---------------- | ----- | ----------------- | ------------------ | --------------------- |
+| beat             | A single story point inside a scene, imported from the outline       | beat             | 节拍  | beat              | tiempo             | бит                   |
+| scene            | The unit of prose; holds beats, a synopsis and the draft text        | scene            | 场景  | cena              | escena             | сцена                 |
+| chapter          | A group of scenes (called a sequence in screenplay projects)         | chapter          | 章    | capítulo          | capítulo           | глава                 |
+| part             | A group of chapters (called an act in screenplay projects)           | part             | 部    | parte             | parte              | часть                 |
+| act              | Screenplay name for a part                                           | act              | 幕    | ato               | acto               | акт                   |
+| sequence         | Screenplay name for a chapter                                        | sequence         | 序列  | sequência         | secuencia          | секвенция             |
+| outline          | The plan imported from Plottr, Scrivener and the like                | outline          | 大纲  | estrutura         | esquema            | структура             |
+| synopsis         | A short summary of a scene or chapter                                | synopsis         | 梗概  | sinopse           | sinopsis           | краткое содержание    |
+| manuscript       | The whole draft as a reader or editor sees it                        | manuscript       | 稿件  | manuscrito        | manuscrito         | рукопись              |
+| prose            | The written text of a scene                                          | prose            | 正文  | prosa             | prosa              | проза                 |
+| reference        | A character, location or other note linked to scenes                 | reference        | 引用  | referência        | referencia         | ссылка                |
+| snapshot         | A saved copy of the whole project that can be restored               | snapshot         | 快照  | instantâneo       | instantánea        | снимок                |
+| revision         | A saved version of a scene's prose                                   | revision         | 修订  | revisão           | revisión           | версия                |
+| draft            | A scene status, and the automatic saved versions in revision history | draft            | 草稿  | rascunho          | borrador           | черновик              |
+| editorial review | Reading the manuscript and leaving suggestions and comments          | editorial review | 审阅  | revisão editorial | revisión editorial | редакционная рецензия |
+| feedback         | Suggestions and comments from a review, shared as a file             | feedback         | 反馈  | feedback          | feedback           | обратная связь        |
 
 ## Known inconsistencies
 

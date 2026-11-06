@@ -1,0 +1,241 @@
+import type { Catalog } from "../../types";
+
+/** Scene panel, beat list, prose editors and writing statistics. */
+const catalog: Catalog = {
+  // ScenePanel
+  "scenePanel.revisions": "История черновиков",
+  "scenePanel.openingRevisions": "Открытие истории…",
+  "scenePanel.revisionsUnsavedError":
+    "Сохраните или восстановите несохранённую прозу перед открытием истории черновиков.",
+  "scenePanel.viewGroupLabel": "Вид",
+  "scenePanel.beatsTab": "Биты",
+  "scenePanel.beatsTabTooltip": "Карточки битов",
+  "scenePanel.pageTab": "Страница",
+  "scenePanel.pageTabTooltip": "Проза в полную страницу",
+  "scenePanel.sequence": "Секвенция",
+  "scenePanel.chapter": "Глава",
+  "scenePanel.breadcrumb": "{kind} · {name}",
+  "scenePanel.pageEstimate": "~{pages} стр.",
+  "scenePanel.locked": "Заблокировано",
+  "scenePanel.sceneTypeLabel": "Тип сцены",
+  "scenePanel.sceneTypeNormal": "Обычная",
+  "scenePanel.sceneTypeNotes": "Заметки",
+  "scenePanel.sceneTypeTodo": "К выполнению",
+  "scenePanel.sceneTypeUnused": "Неиспользуемая",
+  "scenePanel.statusLabel": "Статус",
+  "scenePanel.sceneStatusDraft": "Черновик",
+  "scenePanel.sceneStatusRevised": "Пересмотрено",
+  "scenePanel.sceneStatusFinal": "Финал",
+  "scenePanel.planningLabel": "Планирование",
+  "scenePanel.planningFixed": "Фиксированная",
+  "scenePanel.planningFlexible": "Гибкая",
+  "scenePanel.planningUndefined": "Неопределённая",
+  "scenePanel.planningTooltip":
+    "Контролирует степень структурированности сцены: Неопределённая → Гибкая → Фиксированная",
+  "scenePanel.aboutPlanning": "О планировании",
+  "scenePanel.planningHelp":
+    "Контролирует степень структурированности сцены: Неопределённая, Гибкая или Фиксированная.",
+  "scenePanel.tagsLabel": "Теги",
+  "scenePanel.rollingOutline": "Скользящий план",
+  "scenePanel.dismiss": "Закрыть",
+  "scenePanel.guideLedeBefore": "Меню «",
+  "scenePanel.guidePlanning": "Планирование",
+  "scenePanel.guideLedeAfter":
+    "» выше контролирует степень структурированности сцены. Используйте его для постепенной работы над историей:",
+  "scenePanel.guideUndefinedDesc":
+    "Заполнитель — вы знаете, что сцена есть, но ещё не спланировали её.",
+  "scenePanel.guideFlexibleDesc": "Есть идея — краткое содержание и общее направление.",
+  "scenePanel.guideFixedDesc": "Полная структура с битами, ссылками и заметками.",
+  "scenePanel.undefinedSceneTitle": "Неопределённая сцена",
+  "scenePanel.undefinedSceneBody":
+    "Это заполнитель — вы знаете, что сцена есть, но ещё не спланировали её.",
+  "scenePanel.undefinedSceneHelp":
+    "Добавьте краткое содержание ниже, чтобы зафиксировать суть, а затем повысьте статус, когда будете готовы.",
+  "scenePanel.switchToFlexible": "Переключить на Гибкую",
+  "scenePanel.goStraightToFixed": "Сразу перейти к Фиксированной",
+  "scenePanel.flexibleSceneTitle": "Гибкая сцена",
+  "scenePanel.flexibleSceneBody": "Есть идея для этой сцены, но структура ещё не определена.",
+  "scenePanel.flexibleSceneHelp":
+    "Используйте краткое содержание, чтобы зафиксировать замысел. Когда будете готовы разбить сцену на биты, переключитесь на Фиксированную.",
+  "scenePanel.defineBeats": "Определить биты",
+  "scenePanel.sceneLockedTitle": "Эта сцена заблокирована",
+  "scenePanel.chapterLockedHelp":
+    "Родительская глава заблокирована. Разблокируйте главу, чтобы редактировать эту сцену.",
+  "scenePanel.sceneLockedHelp": "Разблокируйте эту сцену в боковой панели, чтобы внести изменения.",
+  "scenePanel.synopsisTitle": "Краткое содержание",
+  "scenePanel.editSynopsis": "Редактировать краткое содержание",
+  "scenePanel.synopsisPlaceholder": "Напишите краткое содержание этой сцены…",
+  "scenePanel.saving": "Сохранение…",
+  "scenePanel.synopsisEditingHelp":
+    "Нажмите Escape для закрытия. Изменения сохраняются автоматически.",
+  "scenePanel.addSynopsis": "Добавить краткое содержание",
+  "scenePanel.sceneLockedShort": "Сцена заблокирована",
+  "scenePanel.synopsisSaveFailed":
+    "Краткое содержание не сохранено: {error}. Черновик сохранён для повторной попытки.",
+  "scenePanel.retrySynopsisSave": "Повторить сохранение краткого содержания",
+  "scenePanel.retrySaving": "Повторить сохранение",
+  "scenePanel.unsavedChanges": "Несохранённые изменения",
+  "scenePanel.referencesTitle": "Ссылки",
+  "scenePanel.loading": "Загрузка…",
+  "scenePanel.noReferences": "Ссылки ещё не привязаны. Привяжите их через панель ссылок.",
+  "scenePanel.discoveryNotesTitle": "Заметки открытий",
+  "scenePanel.hide": "Скрыть",
+  "scenePanel.show": "Показать",
+  "scenePanel.newNoteLabel": "Новая заметка открытия",
+  "scenePanel.newNotePlaceholder": "Что вы открыли?",
+  "scenePanel.addingNote": "Добавление…",
+  "scenePanel.addNote": "Добавить заметку",
+  "scenePanel.cancel": "Отмена",
+  "scenePanel.editNoteLabel": "Редактировать заметку открытия",
+  "scenePanel.save": "Сохранить",
+  "scenePanel.edit": "Редактировать",
+  "scenePanel.promoting": "Повышение…",
+  "scenePanel.promoteToBeat": "Повысить до бита",
+  "scenePanel.delete": "Удалить",
+  "scenePanel.noNotes":
+    "Заметок открытий пока нет. Фиксируйте находки по ходу написания — заметки не входят в рукопись.",
+  "scenePanel.contentTitle": "Содержание",
+  "scenePanel.referenceLoadError": "Не удалось загрузить ссылки сцены",
+  "scenePanel.metadataUpdateError": "Не удалось обновить метаданные сцены",
+  "scenePanel.planningUpdateError": "Не удалось обновить статус планирования",
+  "scenePanel.renameSceneError": "Не удалось переименовать сцену: {error}",
+  "scenePanel.addNoteError": "Не удалось добавить заметку открытия: {error}",
+  "scenePanel.saveNoteError": "Не удалось сохранить заметку открытия: {error}",
+  "scenePanel.deleteNoteError": "Не удалось удалить заметку открытия: {error}",
+  "scenePanel.promoteNoteError": "Не удалось преобразовать заметку в бит: {error}",
+  "scenePanel.modeSwitchUnsavedError":
+    "Сохраните, восстановите или отмените несохранённую прозу в «Поиске и замене» перед переключением режима редактора.",
+  "scenePanel.modeSwitchError": "Не удалось переключить режим редактора: {error}",
+  "scenePanel.sceneChangedError":
+    "Выбранный проект или сцена изменились. Повторно откройте «Поиск и замену».",
+  "scenePanel.emptyTitle": "Выберите сцену для начала работы",
+  "scenePanel.emptyBody": "Выберите сцену в боковой панели для просмотра её содержимого.",
+  "scenePanel.switchToBeatTitle": "Переключиться на вид битов",
+  "scenePanel.switchToBeatMessage":
+    "Все изменения из вида страницы будут синхронизированы с соответствующими битами. Продолжить?",
+  "scenePanel.switchConfirm": "Переключить",
+
+  // BeatView
+  "beatView.beatsTitle": "Биты",
+  "beatView.addBeat": "Добавить бит",
+  "beatView.dragToReorder": "Перетащить для изменения порядка",
+  "beatView.beatTitleLabel": "Заголовок бита",
+  "beatView.beatWords": "{count} слов",
+  "beatView.beatMenu": "Меню бита",
+  "beatView.sceneLocked": "Сцена заблокирована",
+  "beatView.prosePlaceholder": "Напишите прозу для этого бита…",
+  "beatView.openBeatProse": "Открыть прозу бита {number}",
+  "beatView.emptyTitle": "Битов пока нет",
+  "beatView.emptyBody":
+    "Биты берутся из импортированного плана, или вы можете добавить их здесь по одному моменту за раз.",
+  "beatView.addFirstBeat": "Добавить первый бит",
+  "beatView.newBeatLabel": "Новый бит",
+  "beatView.newBeatPlaceholder": "Опишите, что происходит в этом бите…",
+  "beatView.newBeatHelp": "Нажмите Enter для создания, Escape для отмены.",
+  "beatView.cancel": "Отмена",
+  "beatView.creating": "Создание…",
+  "beatView.createBeat": "Создать бит",
+  "beatView.deleteTitle": "Удалить бит",
+  "beatView.deleteFirstMessage":
+    "Вы уверены, что хотите удалить этот бит? Это первый бит, поэтому его проза будет удалена безвозвратно.",
+  "beatView.deleteMergeMessage":
+    "Вы уверены, что хотите удалить этот бит? Любая проза будет объединена с предыдущим битом.",
+  "beatView.menuRename": "Переименовать",
+  "beatView.menuSplit": "Разделить по курсору",
+  "beatView.menuMerge": "Объединить со следующим",
+  "beatView.menuMoveUp": "Переместить вверх",
+  "beatView.menuMoveDown": "Переместить вниз",
+  "beatView.menuDelete": "Удалить",
+  "beatView.createError": "Не удалось создать бит: {error}",
+  "beatView.renameError": "Не удалось переименовать бит: {error}",
+  "beatView.deleteError": "Не удалось удалить бит: {error}",
+  "beatView.splitError": "Не удалось разделить бит: {error}",
+  "beatView.mergeError": "Не удалось объединить биты: {error}",
+  "beatView.transformUnsavedError":
+    "Сначала сохраните затронутые биты или восстановите их несохранённые черновики в «Поиске и замене».",
+  "beatView.reorderError": "Не удалось изменить порядок битов: {error}",
+  "beatView.moveUpAnnouncement": "Бит «{title}» перемещён вверх, на позицию {position} из {total}.",
+  "beatView.moveDownAnnouncement":
+    "Бит «{title}» перемещён вниз, на позицию {position} из {total}.",
+
+  // ProseToolbar
+  "proseToolbar.label": "Форматирование текста",
+  "proseToolbar.bold": "Полужирный",
+  "proseToolbar.italic": "Курсив",
+  "proseToolbar.underline": "Подчёркнутый",
+  "proseToolbar.monospace": "Моноширинный",
+  "proseToolbar.alignLeft": "По левому краю",
+  "proseToolbar.alignCenter": "По центру",
+  "proseToolbar.alignRight": "По правому краю",
+  "proseToolbar.alignJustify": "По ширине",
+  "proseToolbar.blockquote": "Блочная цитата",
+  "proseToolbar.indent": "Отступ",
+  "proseToolbar.undo": "Отменить",
+  "proseToolbar.redo": "Повторить",
+
+  // SluglineInput
+  "sluglineInput.sceneHeading": "Заголовок сцены",
+  "sluglineInput.interiorOrExterior": "Интерьер или экстерьер",
+  "sluglineInput.location": "Место",
+  "sluglineInput.locationPlaceholder": "Место",
+  "sluglineInput.timeOfDay": "Время суток",
+
+  // WritingStatusBar
+  "writingStatusBar.statisticsTitle": "Статистика написания",
+  "writingStatusBar.hideStatistics": "Скрыть статистику",
+  "writingStatusBar.totalWords": "Всего слов",
+  "writingStatusBar.scenesWithProse": "Сцены с прозой",
+  "writingStatusBar.emptyScenes": "Пустые сцены",
+  "writingStatusBar.averageWordsPerScene": "Среднее число слов на сцену",
+  "writingStatusBar.savedProseNote":
+    "Только сохранённая проза. Архивное содержимое исключено; среднее включает пустые сцены.",
+  "writingStatusBar.wordsPerChapter": "Слов на главу",
+  "writingStatusBar.chapterColumn": "Глава",
+  "writingStatusBar.wordsColumn": "Слова",
+  "writingStatusBar.noChapters": "Глав пока нет.",
+  "writingStatusBar.sceneWords": "Сцена: {count} слов",
+  "writingStatusBar.chapterWords": "Глава: {count} слов",
+  "writingStatusBar.projectWords": "Проект: {count} слов",
+  "writingStatusBar.sessionWords": "Сессия: {count} слов",
+  "writingStatusBar.sessionTooltip":
+    "Нетто слов, сохранённых с момента открытия приложения или сброса сессии.",
+
+  // WritingProgress
+  "writingProgress.projectWords": "{count} слов в проекте",
+  "writingProgress.todayTooltip":
+    "Нетто слов, добавленных через сохранённые правки сегодня. Удаления уменьшают этот итог.",
+  "writingProgress.todayWithGoal": "Сегодня: {today} / {goal} слов",
+  "writingProgress.todayWithoutGoal": "Сегодня: {today} слов · цель отключена",
+  "writingProgress.dailyGoal": "Ежедневная цель написания",
+  "writingProgress.sessionWords": "Сессия: {count} слов",
+  "writingProgress.sessionTooltip":
+    "Нетто слов, сохранённых в этом проекте с момента открытия приложения или сброса.",
+  "writingProgress.resetSession": "Сбросить сессию написания",
+  "writingProgress.reset": "Сбросить",
+  "writingProgress.streak.one": "{count} день подряд",
+  "writingProgress.streak.few": "{count} дня подряд",
+  "writingProgress.streak.many": "{count} дней подряд",
+  "writingProgress.resetError": "Сохраните незавершённую прозу перед сбросом: {error}",
+
+  // NovelEditor
+  "novelEditor.placeholder": "Напишите прозу…",
+  "novelEditor.sceneProse": "Проза сцены",
+  "novelEditor.beatProse": "Проза бита",
+  "novelEditor.saving": "Сохранение…",
+  "novelEditor.saveError": "Не удалось сохранить — ваш текст по-прежнему здесь",
+
+  // PageView
+  "pageView.title": "Проза сцены",
+  "pageView.words": "{count} слов",
+  "pageView.lockedPlaceholder": "Сцена заблокирована",
+  "pageView.placeholder": "Напишите прозу сцены здесь…",
+
+  // Previously
+  "previously.toggle": "Ранее",
+  "previously.toolsLabel": "Инструменты сцены",
+  "previously.heading": "Ранее",
+  "previously.loadError": "Не удалось загрузить контекст предыдущей сцены.",
+  "previously.retry": "Повторить",
+};
+
+export default catalog;
