@@ -305,6 +305,35 @@ it("mounts an unstyled HTML preview on manuscript paper and ink, in either theme
   }
 });
 
+it.each([
+  ["chapter", "Für Ihr ausgewähltes Kapitel geöffnet."],
+  ["scene", "Für Ihre ausgewählte Szene geöffnet."],
+] as const)("explains a %s export with a whole translated sentence", async (scope, german) => {
+  await mount(scope);
+  await fireEvent.click(screen.getByRole("button", { name: /Content.*Choose what goes in/ }));
+  expect(screen.getByText(new RegExp(`^Opened for your selected ${scope}\\.`))).toBeTruthy();
+  cleanup();
+  setLocale("de");
+  try {
+    await mount(scope);
+    const content = t("export.exportWorkspace.categoryContent");
+    await fireEvent.click(
+      screen.getByRole("button", {
+        name: new RegExp(`^${content}.*${t("export.exportWorkspace.categoryContentDesc")}`),
+      })
+    );
+    expect(screen.getByText(new RegExp(`^${german}`))).toBeTruthy();
+  } finally {
+    setLocale("en");
+  }
+});
+
+it("shows no selection notice for a whole-project export", async () => {
+  await mount();
+  await fireEvent.click(screen.getByRole("button", { name: /Content.*Choose what goes in/ }));
+  expect(screen.queryByText(/^Opened for your selected/)).toBeNull();
+});
+
 it("finds settings by keyword in the interface language", async () => {
   await mount();
   const search = screen.getByLabelText("Find an export setting");
