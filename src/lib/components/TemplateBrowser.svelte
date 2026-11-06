@@ -6,7 +6,7 @@
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
   import { ui } from "../stores/ui.svelte";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
 
   let {
     projectType = "novel",
@@ -167,15 +167,7 @@
 
     <footer class="ka-dialog-footer">
       <p class="ka-help ka-dialog-footer-start">
-        {#if filteredTemplates.length !== 1}
-          {t("sidebar.templateBrowser.templateCount.many", {
-            count: filteredTemplates.length,
-          })}
-        {:else}
-          {t("sidebar.templateBrowser.templateCount.one", {
-            count: filteredTemplates.length,
-          })}
-        {/if}
+        {tn("sidebar.templateBrowser.templateCount", filteredTemplates.length)}
       </p>
       <button type="button" onclick={onClose} class="ka-button ka-button--secondary">
         {t("common.cancel")}

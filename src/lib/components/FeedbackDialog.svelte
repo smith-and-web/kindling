@@ -13,7 +13,7 @@
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus } from "../utils/modalFocus";
   import { Loader2, Send, Star, CheckCircle2, AlertCircle } from "lucide-svelte";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
 
   type FeedbackType = "bug" | "feature" | "rating";
 
@@ -177,12 +177,7 @@
                 <button
                   type="button"
                   onclick={() => (rating = n)}
-                  aria-label={t(
-                    n === 1
-                      ? "onboarding.feedbackDialog.starOne"
-                      : "onboarding.feedbackDialog.starMany",
-                    { count: n }
-                  )}
+                  aria-label={tn("onboarding.feedbackDialog.star", n)}
                   aria-pressed={rating === n}
                   class="ka-button ka-button--ghost ka-icon-button feedback-star"
                   class:is-on={n <= rating}

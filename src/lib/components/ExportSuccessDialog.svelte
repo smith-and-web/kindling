@@ -11,7 +11,7 @@
   import type { ExportResult } from "../types";
   import DialogHeader from "./DialogHeader.svelte";
   import { modalFocus, ownsEnterKey } from "../utils/modalFocus";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
 
   let {
     result,
@@ -77,31 +77,16 @@
           <ul class="export-counts">
             {#if result.chapters_exported > 0}
               <li>
-                {t(
-                  result.chapters_exported === 1
-                    ? "export.exportSuccessDialog.chaptersOne"
-                    : "export.exportSuccessDialog.chaptersMany",
-                  { count: result.chapters_exported }
-                )}
+                {tn("export.exportSuccessDialog.chapters", result.chapters_exported)}
               </li>
             {/if}
             {#if result.scenes_exported > 0}
               <li>
-                {t(
-                  result.scenes_exported === 1
-                    ? "export.exportSuccessDialog.scenesOne"
-                    : "export.exportSuccessDialog.scenesMany",
-                  { count: result.scenes_exported }
-                )}
+                {tn("export.exportSuccessDialog.scenes", result.scenes_exported)}
               </li>
             {/if}
             <li>
-              {t(
-                result.files_created === 1
-                  ? "export.exportSuccessDialog.filesOne"
-                  : "export.exportSuccessDialog.filesMany",
-                { count: result.files_created }
-              )}
+              {tn("export.exportSuccessDialog.files", result.files_created)}
             </li>
           </ul>
         </div>

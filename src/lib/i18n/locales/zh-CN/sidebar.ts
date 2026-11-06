@@ -90,10 +90,8 @@ const catalog: Catalog = {
   // --- Sidebar: delete messages ---
   "sidebar.deleteChapterMessage": "这会删除“{title}”，其中包含 {scenes}和 {beats}。",
   "sidebar.deleteSceneMessage": "这会删除“{title}”，其中包含 {beats}。",
-  "sidebar.sceneCount.one": "{count} 个场景",
-  "sidebar.sceneCount.many": "{count} 个场景",
-  "sidebar.beatCount.one": "{count} 个节拍",
-  "sidebar.beatCount.many": "{count} 个节拍",
+  "sidebar.sceneCount.other": "{count} 个场景",
+  "sidebar.beatCount.other": "{count} 个节拍",
 
   // --- Sidebar: failures shown as toasts ---
   "sidebar.failedSaveSynopsis": "无法保存{label}梗概：{error}",
@@ -163,16 +161,14 @@ const catalog: Catalog = {
 
   // --- PartDeleteDialog ---
   "partDeleteDialog.partLabel": "部",
-  "partDeleteDialog.chapterLabel": "章",
   "partDeleteDialog.title": "删除{label}",
-  "partDeleteDialog.lede.one": "“{title}”中包含 {count} {label}。你想怎么处理？",
-  "partDeleteDialog.lede.many": "“{title}”中包含 {count} {label}。你想怎么处理？",
+  "partDeleteDialog.lede.other": "“{title}”中包含 {chapters}。你想怎么处理？",
   "partDeleteDialog.deleteOnly": "仅删除该{label}",
-  "partDeleteDialog.deleteOnlyHint.one": "这 {count} {label}将保留在项目中。",
-  "partDeleteDialog.deleteOnlyHint.many": "这 {count} {label}将保留在项目中。",
-  "partDeleteDialog.deleteAll": "删除该{part}及所有{chapter}",
-  "partDeleteDialog.deleteAllHint.one": "这会永久删除该{part}及其 {count} {chapter}。",
-  "partDeleteDialog.deleteAllHint.many": "这会永久删除该{part}及其 {count} {chapter}。",
+  "partDeleteDialog.deleteOnlyHint.other": "这 {chapters}将保留在项目中。",
+  "partDeleteDialog.allChapters": "章",
+  "partDeleteDialog.allSequences": "序列",
+  "partDeleteDialog.deleteAll": "删除该{part}及所有{chapters}",
+  "partDeleteDialog.deleteAllHint.other": "这会永久删除该{part}及其 {chapters}。",
 
   // --- RenameDialog ---
   "renameDialog.name": "名称",
@@ -226,8 +222,7 @@ const catalog: Catalog = {
   "templateBrowser.noTemplates": "没有可用的模板",
   "templateBrowser.noTemplatesHint": "你仍可从空白结构开始，自行添加章。",
   "templateBrowser.beatsCount": "{count} 个节拍",
-  "templateBrowser.templateCount.one": "{count} 个可用模板",
-  "templateBrowser.templateCount.many": "{count} 个可用模板",
+  "templateBrowser.templateCount.other": "{count} 个可用模板",
   "templateBrowser.useTemplate": "使用模板",
 };
 

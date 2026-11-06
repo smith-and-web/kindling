@@ -11,6 +11,15 @@ export default defineConfig(({ command }) => {
   // To re-enable mocks for browser-only testing: set useMocks = command === "serve" && !host
   const useMocks = false;
 
+  // One variable sets the locale for both halves of `npm run tauri dev`: Rust reads
+  // KINDLING_LOCALE for the native menus, the webview reads VITE_KINDLING_LOCALE.
+  // Dev server only, so a stray shell variable can never bake a locale into a release.
+  // @ts-expect-error process is a nodejs global
+  const env = process.env;
+  if (command === "serve" && env.KINDLING_LOCALE && !env.VITE_KINDLING_LOCALE) {
+    env.VITE_KINDLING_LOCALE = env.KINDLING_LOCALE;
+  }
+
   return {
     plugins: [svelte(), tailwindcss()],
     publicDir: "static",

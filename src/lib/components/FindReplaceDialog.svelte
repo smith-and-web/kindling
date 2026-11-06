@@ -299,7 +299,7 @@
           {busy
             ? t("find.findReplaceDialog.loadingProse")
             : query
-              ? countLabel(results.length, "match", "matches")
+              ? countLabel(results.length, "match")
               : t("find.findReplaceDialog.enterQuery")}
         </p>
       </div>

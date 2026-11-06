@@ -3,7 +3,7 @@
   import { currentProject } from "../stores/project.svelte";
   import { writing } from "../stores/writing.svelte";
   import { proseSaves } from "../utils/proseSaves";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
 
   let { prepareReset }: { prepareReset?: () => Promise<void> } = $props();
   let resetting = $state(false);
@@ -85,9 +85,7 @@
       >
     </div>
     <p>
-      {stats.streak === 1
-        ? t("editor.writingProgress.streak.one", { count: stats.streak })
-        : t("editor.writingProgress.streak.many", { count: stats.streak })}
+      {tn("editor.writingProgress.streak", stats.streak)}
     </p>
   </div>
 {/if}

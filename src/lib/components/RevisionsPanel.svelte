@@ -4,7 +4,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { History, Info, Loader2, Lock, Plus, RotateCcw, TriangleAlert } from "lucide-svelte";
   import { proseText } from "../utils/proseSearch";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
   import {
     activeDocuments,
     diffText,
@@ -128,12 +128,9 @@
       const label = (index: number) =>
         index < 0 ? t("editorial.revisionsPanel.currentProseLabel") : `“${drafts[index].name}”`;
       prunedNotice = removed.length
-        ? t(
-            removed.length > 1
-              ? "editorial.revisionsPanel.prunedRemoved.many"
-              : "editorial.revisionsPanel.prunedRemoved.one",
-            { names: removed.join(t("editorial.revisionsPanel.prunedJoin")) }
-          ) +
+        ? tn("editorial.revisionsPanel.prunedRemoved", removed.length, {
+            names: removed.join(t("editorial.revisionsPanel.prunedJoin")),
+          }) +
           (drafts[before]
             ? " " +
               t("editorial.revisionsPanel.prunedComparing", {
