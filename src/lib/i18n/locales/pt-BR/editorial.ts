@@ -316,6 +316,12 @@ const catalog: Catalog = {
     "Este ponto de restauração será removido. Seu projeto não será alterado.",
   "snapshotsPanel.deleting": "Excluindo…",
   "snapshotsPanel.delete": "Excluir",
+  // --- Revision status labels (stored values stay first_draft, editor_review, revised, final) ---
+  "revisionStatus.first_draft": "Primeiro rascunho",
+  "revisionStatus.editor_review": "Revisão editorial",
+  "revisionStatus.revised": "Revisado",
+  "revisionStatus.final": "Final",
+  "editorialWorkspace.localReviewRound": "Revisão local",
 };
 
 export default catalog;

@@ -9,6 +9,7 @@ import { currentProject } from "../stores/project.svelte";
 import { decodeProfiles, profileStorageKey } from "../utils/exportPrototype";
 import ExportWorkspace from "./ExportWorkspace.svelte";
 import ClassicExportDialog from "./ClassicExportDialog.svelte";
+import { setLocale, t } from "../i18n";
 
 const key = profileStorageKey(mockProject.id);
 const values = new Map<string, string>();
@@ -301,5 +302,28 @@ it("mounts an unstyled HTML preview on manuscript paper and ink, in either theme
     expect(srcdoc()).toContain("box-shadow:rgb(0, 0, 0) 0px 8px 24px 0px");
   } finally {
     computed.mockRestore();
+  }
+});
+
+it("finds settings by keyword in the interface language", async () => {
+  await mount();
+  const search = screen.getByLabelText("Find an export setting");
+  await fireEvent.input(search, { target: { value: "Leading" } });
+  expect(screen.getByRole("button", { name: "Line spacing" })).toBeTruthy();
+  cleanup();
+  setLocale("de");
+  try {
+    await mount();
+    const german = screen.getByLabelText(t("export.exportWorkspace.findSetting"));
+    await fireEvent.input(german, { target: { value: "SEITENUMBRUCH" } });
+    expect(
+      screen.getByRole("button", { name: t("export.exportWorkspace.settingChapterBreaks") })
+    ).toBeTruthy();
+    await fireEvent.input(german, { target: { value: "zeilenabstand" } });
+    expect(
+      screen.getByRole("button", { name: t("export.exportWorkspace.settingSpacing") })
+    ).toBeTruthy();
+  } finally {
+    setLocale("en");
   }
 });

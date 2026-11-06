@@ -22,7 +22,7 @@
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { saveProseBefore } from "../utils/proseFlush";
-  import { t } from "../i18n";
+  import { getLocale, t } from "../i18n";
   import { formatNumber } from "../i18n/format";
   import {
     compileWorkspaceDocument,
@@ -31,7 +31,7 @@
     isExchange,
     isPlain,
     decodeProfiles,
-    formatLabels,
+    formatLabel,
     manuscriptWords,
     profileStorageKey,
     profileForStorage,
@@ -117,95 +117,89 @@
   const settingsIndex = [
     {
       label: t("export.exportWorkspace.settingIncludedChapters"),
-      terms: "selection scene manuscript scope",
       section: "content",
       control: "scope",
     },
     {
       label: t("export.exportWorkspace.settingSceneTitles"),
-      terms: "notes summary outline",
       section: "content",
       control: "scene-titles",
     },
     {
       label: t("export.exportWorkspace.settingBeatHeadings"),
-      terms: "outline prompts",
       section: "content",
       control: "beats",
     },
     {
       label: t("export.exportWorkspace.settingChapterHeadings"),
-      terms: "title number roman numbering",
       section: "headings",
       control: "heading",
     },
     {
       label: t("export.exportWorkspace.settingSceneSeparator"),
-      terms: "break marker hash asterisks",
       section: "headings",
       control: "separator",
     },
     {
       label: t("export.exportWorkspace.settingChapterBreaks"),
-      terms: "new page",
       section: "headings",
       control: "chapter-breaks",
     },
     {
       label: t("export.exportWorkspace.settingFont"),
-      terms: "typeface times courier georgia",
       section: "text",
       control: "font",
     },
     {
       label: t("export.exportWorkspace.settingSpacing"),
-      terms: "double spaced single leading",
       section: "text",
       control: "spacing",
     },
     {
       label: t("export.exportWorkspace.settingIndent"),
-      terms: "first line flush",
       section: "text",
       control: "indent",
     },
     {
       label: t("export.exportWorkspace.settingMargin"),
-      terms: "a4 letter gutter page size",
       section: "text",
       control: "margin",
     },
     {
       label: t("export.exportWorkspace.settingTitle"),
-      terms: "author identity subtitle",
       section: "details",
       control: "title",
     },
     {
       label: t("export.exportWorkspace.settingHeader"),
-      terms: "running head author title",
       section: "details",
       control: "header",
     },
     {
       label: t("export.exportWorkspace.settingContents"),
-      terms: "toc navigation",
       section: "details",
       control: "contents",
     },
     {
       label: t("export.exportWorkspace.settingHtml"),
-      terms: "fragment full document css web",
       section: "files",
       control: "html-mode",
     },
     {
       label: t("export.exportWorkspace.settingFilename"),
-      terms: "date destination name tokens",
       section: "files",
       control: "filename",
     },
   ];
+  /**
+   * Search matches the setting's translated label and its catalog keywords, both lowered with the
+   * interface locale's rules, so "seitenumbruch" or "интервал" find settings as "new page" does.
+   */
+  function settingMatches(item: { label: string; control: string }, text: string) {
+    const lower = (value: string) => value.toLocaleLowerCase(getLocale());
+    const terms = t(`export.searchTerms.${item.control}`);
+    return lower(`${item.label} ${terms}`).includes(lower(text.trim()));
+  }
   const exchange = $derived(isExchange(draft.format));
   const plain = $derived(isPlain(draft.format));
   const categories = $derived(
@@ -230,9 +224,7 @@
   );
   const searchResults = $derived(
     settingsIndex.filter(
-      (item) =>
-        categories.some((c) => c.id === item.section) &&
-        `${item.label} ${item.terms}`.toLowerCase().includes(query.toLowerCase().trim())
+      (item) => categories.some((c) => c.id === item.section) && settingMatches(item, query)
     )
   );
   const selected = $derived(selectedChapters(chapters, draft));
@@ -525,10 +517,10 @@
       } else {
         path = await save({
           title: t("export.exportWorkspace.saveDialogTitle", {
-            format: formatLabels[profile.format],
+            format: formatLabel(profile.format),
           }),
           defaultPath: filename,
-          filters: [{ name: formatLabels[profile.format], extensions: [outputExtension(profile)] }],
+          filters: [{ name: formatLabel(profile.format), extensions: [outputExtension(profile)] }],
         });
       }
       if (!path) return;
@@ -561,7 +553,7 @@
         isExchange(profile.format)
           ? "export.exportWorkspace.exportedExchange"
           : "export.exportWorkspace.exportedSelection",
-        { format: formatLabels[profile.format] }
+        { format: formatLabel(profile.format) }
       );
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -763,7 +755,7 @@
       aria-label={t("export.exportWorkspace.exportSettings")}
     >
       <div class="xw-pane-head">
-        <p class="xw-meta">{formatLabels[draft.format]}</p>
+        <p class="xw-meta">{formatLabel(draft.format)}</p>
         <h3>{visibleCategory.label}</h3>
         <p class="ka-help">{visibleCategory.description}.</p>
       </div>
@@ -869,7 +861,7 @@
             <div>
               <dt>{t("export.exportWorkspace.outputFact")}</dt>
               <dd class="ka-between">
-                <span>{formatLabels[draft.format]}</span><button
+                <span>{formatLabel(draft.format)}</span><button
                   type="button"
                   class="ka-button ka-button--ghost"
                   aria-label={t("export.exportWorkspace.changeOutput")}
@@ -1394,7 +1386,7 @@
           <div class="xw-file">
             <FileText class="w-5 h-5" aria-hidden="true" />
             <div class="od-field od-fill">
-              <strong>{formatLabels[draft.format]}</strong><span class="xw-meta"
+              <strong>{formatLabel(draft.format)}</strong><span class="xw-meta"
                 >{exchange
                   ? t("export.exportWorkspace.fileWholeProject")
                   : `${countLabel(selected.length, "chapter")} · ${countLabel(sceneCount, "scene")}`}</span
@@ -1423,7 +1415,7 @@
     >
       {#if exchange}<div class="ka-empty od-stack empty-preview">
           <FileDown class="w-7 h-7" aria-hidden="true" />
-          <h4>{formatLabels[draft.format]}</h4>
+          <h4>{formatLabel(draft.format)}</h4>
           <p>
             {draft.format === "treatment"
               ? t("export.exportWorkspace.treatmentPreview")
@@ -1599,7 +1591,7 @@
       <div>
         {exchange
           ? t("export.exportWorkspace.wholeProject")
-          : t("export.exportWorkspace.footOriginSaved")} → {formatLabels[draft.format]}
+          : t("export.exportWorkspace.footOriginSaved")} → {formatLabel(draft.format)}
       </div>
       <div>{t("export.exportWorkspace.footNote")}</div>
     </div>

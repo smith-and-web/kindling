@@ -423,3 +423,19 @@ it("omits the preview status line until a source is selected", async () => {
   await fireEvent.change(screen.getByLabelText("Source project"), { target: { value: "" } });
   expect(screen.queryByRole("status")).toBeNull();
 });
+
+it("names source project types with the novel and screenplay labels", async () => {
+  const script = { ...source, id: "three", name: "Script", project_type: "screenplay" };
+  mock.mockImplementation(async (command) => {
+    if (command === "get_all_projects") return [destination, source, script];
+    throw new Error(command);
+  });
+  mount();
+  await waitFor(() => expect(screen.getByRole("option", { name: /Script/ })).toBeTruthy());
+  expect(screen.getByRole("option", { name: /Book One/ }).textContent).toContain(
+    "Book One · Novel ·"
+  );
+  expect(screen.getByRole("option", { name: /Script/ }).textContent).toContain(
+    "Script · Screenplay ·"
+  );
+});

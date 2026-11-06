@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
+import { setLocale } from "../i18n";
 import {
   acceptSuggestions,
   activeDocuments,
@@ -6,6 +7,8 @@ import {
   draftOf,
   isAnchored,
   parseReviewHtml,
+  REVISION_STATUSES,
+  revisionStatusLabel,
   type Annotation,
   type SceneReview,
 } from "./revisions";
@@ -225,4 +228,23 @@ it("keeps ordinary editorial passes precise past 256 token edits", () => {
       .trim()
       .split(" ")
   ).toHaveLength(130);
+});
+
+describe("revision status labels", () => {
+  afterEach(() => setLocale("en"));
+
+  it("labels each stored status in the interface language", () => {
+    expect(REVISION_STATUSES.map(revisionStatusLabel)).toEqual([
+      "First Draft",
+      "Editor Review",
+      "Revised",
+      "Final",
+    ]);
+    setLocale("de");
+    expect(revisionStatusLabel("first_draft")).toBe("Erster Entwurf");
+  });
+
+  it("shows an unknown stored status as it is", () => {
+    expect(revisionStatusLabel("legacy")).toBe("legacy");
+  });
 });

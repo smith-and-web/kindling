@@ -313,6 +313,12 @@ const catalog: Catalog = {
   "snapshotsPanel.deleteBody": "This restore point will be removed. Your project is not changed.",
   "snapshotsPanel.deleting": "Deleting…",
   "snapshotsPanel.delete": "Delete",
+  // --- Revision status labels (stored values stay first_draft, editor_review, revised, final) ---
+  "revisionStatus.first_draft": "First Draft",
+  "revisionStatus.editor_review": "Editor Review",
+  "revisionStatus.revised": "Revised",
+  "revisionStatus.final": "Final",
+  "editorialWorkspace.localReviewRound": "Local review",
 };
 
 export default catalog;

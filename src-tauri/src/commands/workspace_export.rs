@@ -23,6 +23,13 @@ pub struct WorkspaceDocument {
     language: String,
     description: String,
     word_count: String,
+    /// The title page's author line in the interface language ("von Jane Writer"). Older
+    /// callers omit it and get the English "by {author}".
+    #[serde(default)]
+    byline: Option<String>,
+    /// The contents heading in the interface language; English when omitted.
+    #[serde(default)]
+    contents_title: Option<String>,
     title_page: bool,
     contents: bool,
     cover_path: String,
@@ -30,6 +37,21 @@ pub struct WorkspaceDocument {
     chapters: Vec<WorkspaceChapter>,
     front_matter: Option<String>,
     text: String,
+}
+impl WorkspaceDocument {
+    fn byline(&self) -> String {
+        match &self.byline {
+            Some(line) => line.clone(),
+            None if self.author.is_empty() => String::new(),
+            None => format!("by {}", self.author),
+        }
+    }
+    fn contents_title(&self) -> &str {
+        self.contents_title
+            .as_deref()
+            .filter(|title| !title.trim().is_empty())
+            .unwrap_or("Contents")
+    }
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -356,14 +378,7 @@ fn docx_document(d: &WorkspaceDocument, contact: &[String]) -> Docx {
                 .line_spacing(LineSpacing::new().before(drop).after(240))
                 .keep_next(true),
         );
-        for text in [
-            d.subtitle.clone(),
-            if d.author.is_empty() {
-                String::new()
-            } else {
-                format!("by {}", d.author)
-            },
-        ] {
+        for text in [d.subtitle.clone(), d.byline()] {
             if !text.is_empty() {
                 doc = doc.add_paragraph(
                     Paragraph::new()
@@ -376,7 +391,7 @@ fn docx_document(d: &WorkspaceDocument, contact: &[String]) -> Docx {
         doc = doc.add_paragraph(page_break());
     }
     if d.contents {
-        doc = doc.add_paragraph(heading("Contents", l, "Heading2"));
+        doc = doc.add_paragraph(heading(d.contents_title(), l, "Heading2"));
         for (i, c) in d.chapters.iter().enumerate() {
             doc = doc.add_paragraph(
                 Paragraph::new().add_hyperlink(
@@ -502,7 +517,7 @@ fn epub(file: &mut fs::File, d: &WorkspaceDocument) -> Result<()> {
         );
         entries.push((format!("OEBPS/chapter-{i}.xhtml"), c.xhtml.clone()));
     }
-    entries.push(("OEBPS/nav.xhtml".into(),format!(r#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="{}"><head><title>Contents</title></head><body><nav epub:type="toc" id="toc"><h1>Contents</h1><ol>{nav}</ol></nav></body></html>"#,xml(&d.language))));
+    entries.push(("OEBPS/nav.xhtml".into(),format!(r#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="{}"><head><title>{contents}</title></head><body><nav epub:type="toc" id="toc"><h1>{contents}</h1><ol>{nav}</ol></nav></body></html>"#,xml(&d.language),contents=xml(d.contents_title()))));
     entries.push(("OEBPS/content.opf".into(),format!(r#"<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">urn:uuid:{}</dc:identifier><dc:title>{}</dc:title><dc:creator>{}</dc:creator><dc:language>{}</dc:language><dc:description>{}</dc:description><meta property="dcterms:modified">{}</meta></metadata><manifest>{manifest}</manifest><spine>{spine}</spine></package>"#,uuid::Uuid::new_v4(),xml(&d.title),xml(&d.author),xml(&d.language),xml(&d.description),chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ"))));
     for (path, body) in entries {
         // Chapter and title pages are rendered by the frontend; clean the whole
@@ -937,6 +952,39 @@ mod tests {
             html: "<p>First prose</p><p>Second prose</p>".into(),
         }];
         d
+    }
+    #[test]
+    fn manuscript_labels_default_to_english_and_follow_the_interface_language() {
+        let mut d = document();
+        assert_eq!(d.byline(), "by A Writer");
+        assert_eq!(d.contents_title(), "Contents");
+        d.byline = Some("von A Writer".into());
+        d.contents_title = Some("Inhalt".into());
+        assert_eq!(d.byline(), "von A Writer");
+        assert_eq!(d.contents_title(), "Inhalt");
+        d.contents_title = Some("  ".into());
+        assert_eq!(d.contents_title(), "Contents");
+        d.author = String::new();
+        d.byline = None;
+        assert_eq!(d.byline(), "");
+    }
+    #[test]
+    fn localized_byline_and_contents_reach_word_and_epub() {
+        let mut d = document();
+        d.byline = Some("von A Writer".into());
+        d.contents_title = Some("Inhalt".into());
+        let dir = tempfile::tempdir().unwrap();
+        let docx = dir.path().join("book.docx");
+        export(docx.to_string_lossy().into(), "docx".into(), d).unwrap();
+        let xml = member(&docx, "word/document.xml");
+        assert!(xml.contains("von A Writer") && !xml.contains("by A Writer"));
+        assert!(xml.contains(">Inhalt<") && !xml.contains(">Contents<"));
+        let mut d = document();
+        d.contents_title = Some("Содержание".into());
+        let epub = dir.path().join("book.epub");
+        export(epub.to_string_lossy().into(), "epub".into(), d).unwrap();
+        let nav = member(&epub, "OEBPS/nav.xhtml");
+        assert!(nav.contains("<title>Содержание</title>") && nav.contains("<h1>Содержание</h1>"));
     }
     fn export_submission(d: WorkspaceDocument, contact: &[String]) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();

@@ -70,12 +70,15 @@ export interface RevisionOverview {
   status: string;
   drafts: number;
 }
-export const revisionStatuses = {
-  first_draft: "First Draft",
-  editor_review: "Editor Review",
-  revised: "Revised",
-  final: "Final",
-};
+/** Stored revision statuses, in workflow order. The values are persisted; only labels translate. */
+export const REVISION_STATUSES = ["first_draft", "editor_review", "revised", "final"] as const;
+
+/** The display label for a stored revision status; an unknown value shows as stored. */
+export function revisionStatusLabel(status: string): string {
+  return (REVISION_STATUSES as readonly string[]).includes(status)
+    ? t(`editorial.revisionStatus.${status}`)
+    : status;
+}
 
 export function parseReviewHtml(html: string) {
   return ProseParser.fromSchema(schema).parse(inertElement(html));

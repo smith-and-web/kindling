@@ -7,6 +7,17 @@ import { inertElement } from "./safeHtml";
 import { t } from "../i18n";
 import type { EditorMode } from "../types";
 
+/**
+ * The name `start_local_review` in `src-tauri/src/commands/editorial.rs` gives a writer's own
+ * review round. It is stored in English, so rounds created before (or after) a language change
+ * all read in the current interface language.
+ */
+export const LOCAL_REVIEW_ROUND_NAME = "Local review";
+
+/** A review round's display name; the backend's default name is translated. */
+export const roundName = (name: string): string =>
+  name === LOCAL_REVIEW_ROUND_NAME ? t("editorial.editorialWorkspace.localReviewRound") : name;
+
 export interface EditorialSource {
   id: string;
   scene_id: string;

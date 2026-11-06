@@ -182,6 +182,11 @@
     event.preventDefault();
     close();
   }
+  const projectTypeLabel = (type: string) =>
+    type === "screenplay"
+      ? t("onboarding.newProjectDialog.screenplay")
+      : t("onboarding.newProjectDialog.novel");
+
   const TYPE_LABEL_KEYS: Record<ReferenceTypeId, string> = {
     characters: "typeCharacters",
     locations: "typeLocations",
@@ -275,10 +280,10 @@
           <option value="">{t("references.copyReferencesDialog.chooseProject")}</option>
           {#each projects as project (project.id)}
             <option value={project.id}
-              >{project.name} · {project.project_type} · {project.created_at.slice(0, 10)} · {project.id.slice(
+              >{project.name} · {projectTypeLabel(project.project_type)} · {project.created_at.slice(
                 0,
-                8
-              )}</option
+                10
+              )} · {project.id.slice(0, 8)}</option
             >
           {/each}
         </select>

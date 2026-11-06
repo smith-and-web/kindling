@@ -14,7 +14,7 @@
     decodeProfiles,
     profileStorageKey,
     starterProfiles,
-    formatLabels,
+    formatLabel,
     type ExportProfile,
   } from "../utils/exportPrototype";
   import { invoke } from "@tauri-apps/api/core";
@@ -178,7 +178,7 @@
   /** What the profile will produce, in the terms the workspace uses. */
   function profileSummary(p: ExportProfile): [string, string][] {
     const rows: [string, string][] = [
-      [t("export.classicExportDialog.summaryOutput"), formatLabels[p.format]],
+      [t("export.classicExportDialog.summaryOutput"), formatLabel(p.format)],
     ];
     if (p.format === "docx" || p.format === "epub" || p.format === "html" || p.format === "txt") {
       const spacing =

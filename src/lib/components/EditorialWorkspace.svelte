@@ -13,7 +13,8 @@
   import {
     acceptSuggestions,
     activeDocuments,
-    revisionStatuses,
+    REVISION_STATUSES,
+    revisionStatusLabel,
     type SceneReview,
   } from "../utils/revisions";
   import type { ReviewItem } from "../utils/reviewItems";
@@ -54,6 +55,7 @@
     locateChange,
     prepareAcceptance,
     withdrawSuggestion,
+    roundName as roundDisplayName,
     type EditorialRound,
     type EditorialPackage,
     type EditorialSession,
@@ -1107,7 +1109,7 @@
         title: recovery
           ? t("editorial.editorialWorkspace.exportRecoveryCopy")
           : t("editorial.editorialWorkspace.returnFeedbackTitle"),
-        defaultPath: `${round.title} — ${round.name} — ${session.name || "review"}${recovery ? " — recovery.kindling-review" : ".kindling-feedback"}`,
+        defaultPath: `${round.title} — ${roundDisplayName(round.name)} — ${session.name || "review"}${recovery ? " — recovery.kindling-review" : ".kindling-feedback"}`,
         filters: [
           {
             name: recovery
@@ -1353,8 +1355,7 @@
             disabled={busy || focusedSource?.locked}
             value={focusedReview.data.status}
             onchange={(e) => setLocalStatus(e.currentTarget.value)}
-            >{#each Object.entries(revisionStatuses) as [value, label]}<option {value}
-                >{label}</option
+            >{#each REVISION_STATUSES as value}<option {value}>{revisionStatusLabel(value)}</option
               >{/each}</select
           >
         </div>{/if}
@@ -1556,11 +1557,11 @@
                     <button
                       type="button"
                       class="round-link"
-                      aria-label={item.name}
+                      aria-label={roundDisplayName(item.name)}
                       disabled={busy}
                       onclick={() => openRound(item.id)}
                       ><span class="round-text"
-                        ><span class="round-title">{item.name}</span><time
+                        ><span class="round-title">{roundDisplayName(item.name)}</span><time
                           datetime={item.created_at}
                           >{formatDate(item.created_at, {
                             month: "short",
@@ -1666,7 +1667,7 @@
               </div>
               <div>
                 <dt>{t("editorial.editorialWorkspace.reviewRound")}</dt>
-                <dd>{received.round.name}</dd>
+                <dd>{roundDisplayName(received.round.name)}</dd>
               </div>
             </dl>
           </section>
@@ -1698,7 +1699,7 @@
           </div>
           <div class="nav-context">
             <h2>{round.title}</h2>
-            <p class="round-name">{round.name}</p>
+            <p class="round-name">{roundDisplayName(round.name)}</p>
           </div>
           {#if round.brief}<details class="ka-disclosure nav-brief">
               <summary>{t("editorial.editorialWorkspace.writerBrief")}</summary>
@@ -1856,7 +1857,7 @@
               >
                 <p class="review-menu-caption">
                   {t("editorial.editorialWorkspace.roundCaption", {
-                    name: feedback.round.name,
+                    name: roundDisplayName(feedback.round.name),
                   })}
                 </p>
                 <button

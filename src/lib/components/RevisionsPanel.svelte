@@ -10,7 +10,8 @@
     activeDocuments,
     diffText,
     draftOf,
-    revisionStatuses,
+    REVISION_STATUSES,
+    revisionStatusLabel,
     type SceneReview,
     type ReviewData,
     type ReviewDraft,
@@ -212,7 +213,7 @@
           id="revision-status"
           value={review.data.status}
           onchange={(e) => setStatus(e.currentTarget.value)}
-          >{#each Object.entries(revisionStatuses) as [value, label]}<option {value}>{label}</option
+          >{#each REVISION_STATUSES as value}<option {value}>{revisionStatusLabel(value)}</option
             >{/each}</select
         >
       </fieldset>{/if}
@@ -445,8 +446,7 @@
             ></thead
           ><tbody
             >{#each overview as row}<tr
-                ><td>{row.chapter}</td><td>{row.title}</td><td
-                  >{revisionStatuses[row.status as keyof typeof revisionStatuses]}</td
+                ><td>{row.chapter}</td><td>{row.title}</td><td>{revisionStatusLabel(row.status)}</td
                 ><td>{row.drafts}</td></tr
               >{/each}</tbody
           >
