@@ -22,6 +22,7 @@ import type { Catalog, Locale, LocaleEntry } from "./types";
 export const LOCALES = {
   en: { languages: ["en"] },
   "zh-CN": { languages: ["zh"] },
+  "pt-BR": { languages: ["pt"] },
 } as const satisfies Record<string, LocaleEntry>;
 
 export const FALLBACK_LOCALE: Locale = "en";
