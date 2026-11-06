@@ -21,6 +21,14 @@ plan = "claude-sonnet-4-6"               # planning + decomposition
 implement = "claude-sonnet-4-6"          # first implementation attempt
 implement_escalate = "claude-opus-4-8"   # escalation retry after a gate failure
 
+[limits]
+# Per-attempt implement turn budget (blacksmith default 40). A full locale catalog is
+# about 1,900 strings across 12 files, which ran out of turns at 40 on pt-BR.
+max_implement_turns = 120
+# Per-model-call cost cap (default $5). Three times the turns needs more headroom; the
+# $50 run cap still bounds the whole run.
+max_call_cost_usd = 15.0
+
 [checkpointer]
 # SQLite run checkpoints (resumable via `blacksmith resume --thread-id ...`).
 # Lives under .blacksmith/, which is gitignored.
