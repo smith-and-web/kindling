@@ -191,10 +191,41 @@ pub const RU: MenuStrings = MenuStrings {
     quick_start: "Быстрый старт",
 };
 
+pub const DE: MenuStrings = MenuStrings {
+    file: "Datei",
+    new_project: "Neues Projekt",
+    editorial_open: "Lektorats- oder Rückmeldungsdatei öffnen…",
+    editorial_project: "Lektorat…",
+    import: "Importieren",
+    import_longform: "Longform (Index oder Vault…)",
+    import_novelwriter: "novelWriter (Projektordner)",
+    export: "Exportieren…",
+    close_project: "Projekt schließen",
+    settings: "Einstellungen…",
+    quit: "kindling beenden",
+    edit: "Bearbeiten",
+    find: "In Szene suchen…",
+    find_replace: "Suchen und ersetzen…",
+    find_project: "Im Projekt suchen und ersetzen…",
+    view: "Ansicht",
+    toggle_sidebar: "Seitenleiste ein-/ausblenden",
+    toggle_references: "Referenzbereich ein-/ausblenden",
+    sync: "Aus Quelle synchronisieren",
+    window: "Fenster",
+    minimize: "Minimieren",
+    maximize: "Maximieren",
+    help: "Hilfe",
+    about: "Über kindling…",
+    send_feedback: "Rückmeldung senden…",
+    command_palette: "Befehlspalette…",
+    quick_start: "Schnellstart",
+};
+
 /// Supported locales: the catalog directory name, the system language subtags it serves
 /// and its menu copy. Mirrors `LOCALES` in `src/lib/i18n/index.ts`;
 /// `src/lib/i18n/detection.json` holds the cases both test suites check.
 const LOCALES: &[(&str, &[&str], &MenuStrings)] = &[
+    ("de", &["de"], &DE),
     ("en", &["en"], &EN),
     ("es", &["es"], &ES),
     ("pt-BR", &["pt"], &PT_BR),
@@ -457,6 +488,19 @@ mod tests {
             assert_ne!(
                 *label, en_labels[index],
                 "RU label {index} ({label:?}) is identical to the EN label"
+            );
+        }
+    }
+
+    #[test]
+    fn de_const_is_complete_and_translated() {
+        let de_labels = DE.labels();
+        let en_labels = EN.labels();
+        for (index, label) in de_labels.iter().enumerate() {
+            assert!(!label.trim().is_empty(), "DE label {index} is empty");
+            assert_ne!(
+                *label, en_labels[index],
+                "DE label {index} ({label:?}) is identical to the EN label"
             );
         }
     }
