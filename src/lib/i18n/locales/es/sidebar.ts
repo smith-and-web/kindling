@@ -91,9 +91,9 @@ const catalog: Catalog = {
   "sidebar.deleteChapterMessage": "Se eliminará “{title}” con {scenes} y {beats}.",
   "sidebar.deleteSceneMessage": "Se eliminará “{title}” con {beats}.",
   "sidebar.sceneCount.one": "{count} escena",
-  "sidebar.sceneCount.many": "{count} escenas",
+  "sidebar.sceneCount.other": "{count} escenas",
   "sidebar.beatCount.one": "{count} tiempo",
-  "sidebar.beatCount.many": "{count} tiempos",
+  "sidebar.beatCount.other": "{count} tiempos",
 
   // --- Sidebar: failures shown as toasts ---
   "sidebar.failedSaveSynopsis": "Error al guardar la sinopsis ({label}): {error}",
@@ -165,18 +165,17 @@ const catalog: Catalog = {
 
   // --- PartDeleteDialog ---
   "partDeleteDialog.partLabel": "Parte",
-  "partDeleteDialog.chapterLabel": "Capítulo",
   "partDeleteDialog.title": "Eliminar {label}",
-  "partDeleteDialog.lede.one": "“{title}” contiene {count} {label}. ¿Qué quieres hacer?",
-  "partDeleteDialog.lede.many": "“{title}” contiene {count} {label}s. ¿Qué quieres hacer?",
+  "partDeleteDialog.lede.one": "“{title}” contiene {chapters}. ¿Qué quieres hacer?",
+  "partDeleteDialog.lede.other": "“{title}” contiene {chapters}. ¿Qué quieres hacer?",
   "partDeleteDialog.deleteOnly": "Eliminar solo {label}",
-  "partDeleteDialog.deleteOnlyHint.one": "{count} {label} permanecerá en el proyecto.",
-  "partDeleteDialog.deleteOnlyHint.many": "{count} {label}s permanecerán en el proyecto.",
-  "partDeleteDialog.deleteAll": "Eliminar {part} con sus {chapter}s",
-  "partDeleteDialog.deleteAllHint.one":
-    "Se eliminarán de forma permanente {part} y su {count} {chapter}.",
-  "partDeleteDialog.deleteAllHint.many":
-    "Se eliminarán de forma permanente {part} y sus {count} {chapter}s.",
+  "partDeleteDialog.deleteOnlyHint.one": "{chapters} permanecerá en el proyecto.",
+  "partDeleteDialog.deleteOnlyHint.other": "{chapters} permanecerán en el proyecto.",
+  "partDeleteDialog.allChapters": "todos los capítulos",
+  "partDeleteDialog.allSequences": "todas las secuencias",
+  "partDeleteDialog.deleteAll": "Eliminar {part} y {chapters}",
+  "partDeleteDialog.deleteAllHint.one": "Se eliminarán de forma permanente {part} y {chapters}.",
+  "partDeleteDialog.deleteAllHint.other": "Se eliminarán de forma permanente {part} y {chapters}.",
 
   // --- RenameDialog ---
   "renameDialog.name": "Nombre",
@@ -232,7 +231,7 @@ const catalog: Catalog = {
     "Aún puedes empezar desde una estructura en blanco y añadir los capítulos por tu cuenta.",
   "templateBrowser.beatsCount": "{count} tiempos",
   "templateBrowser.templateCount.one": "{count} plantilla disponible",
-  "templateBrowser.templateCount.many": "{count} plantillas disponibles",
+  "templateBrowser.templateCount.other": "{count} plantillas disponibles",
   "templateBrowser.useTemplate": "Usar plantilla",
 };
 

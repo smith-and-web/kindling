@@ -216,7 +216,7 @@ const catalog: Catalog = {
   "writingProgress.resetSession": "Restablecer sesión de escritura",
   "writingProgress.reset": "Restablecer",
   "writingProgress.streak.one": "Racha de escritura de {count} día",
-  "writingProgress.streak.many": "Racha de escritura de {count} días",
+  "writingProgress.streak.other": "Racha de escritura de {count} días",
   "writingProgress.resetError": "Guarda tu prosa pendiente antes de restablecer: {error}",
 
   // NovelEditor

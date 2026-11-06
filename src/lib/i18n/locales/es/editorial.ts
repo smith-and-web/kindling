@@ -95,11 +95,11 @@ const catalog: Catalog = {
     "Importa el feedback de tu editor a la ronda de revisión original y léelo junto a tu manuscrito.",
   "editorialWorkspace.feedbackInFileAria": "Feedback en este archivo",
   "editorialWorkspace.sceneIncluded.one": "escena incluida",
-  "editorialWorkspace.sceneIncluded.many": "escenas incluidas",
+  "editorialWorkspace.sceneIncluded.other": "escenas incluidas",
   "editorialWorkspace.suggestion.one": "sugerencia",
-  "editorialWorkspace.suggestion.many": "sugerencias",
+  "editorialWorkspace.suggestion.other": "sugerencias",
   "editorialWorkspace.comment.one": "comentario",
-  "editorialWorkspace.comment.many": "comentarios",
+  "editorialWorkspace.comment.other": "comentarios",
   "editorialWorkspace.whatHappensNext": "Qué pasa a continuación",
   "editorialWorkspace.nextBody":
     "Lee los comentarios, responde a tu editor y acepta o rechaza las sugerencias. Si has reescrito un pasaje, kindling te ayuda a ubicar su feedback antes de aplicar una edición.",
@@ -258,7 +258,7 @@ const catalog: Catalog = {
   "revisionsPanel.currentProseLabel": "la prosa actual",
   "revisionsPanel.prunedRemoved.one":
     "{names} fue eliminado porque solo se guardan los borradores automáticos más recientes.",
-  "revisionsPanel.prunedRemoved.many":
+  "revisionsPanel.prunedRemoved.other":
     "{names} fueron eliminados porque solo se guardan los borradores automáticos más recientes.",
   "revisionsPanel.prunedJoin": " y ",
   "revisionsPanel.prunedComparing": "Ahora comparando {before} con {after}.",
