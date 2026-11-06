@@ -529,7 +529,11 @@ export const suites = [
         "Export profiles, configuration categories, manuscript preview and format options are readable.",
         `${el('iframe[title="Export layout preview"]')}.srcdoc.includes('lantern')`
       );
-      await r.fill('[aria-label="Find an export setting"]', "double spaced");
+      // Search keywords are per locale; other languages find the setting by its own label.
+      await r.fill(
+        '[aria-label="Find an export setting"]',
+        r.locale === "en" ? "double spaced" : r.tr("Line spacing")
+      );
       await r.text("Line spacing");
       await r.wait(el("#export-spacing"));
       await r.fill("#export-font", "Georgia");
@@ -548,14 +552,21 @@ export const suites = [
       await r.js(CHOOSE_SAVED_PROFILE);
       await r.click('[data-testid="export-confirm"]');
       await r.wait(el('[data-testid="export-workspace"]'));
-      await r.fill('[aria-label="Find an export setting"]', "double spaced");
+      // Search keywords are per locale; other languages find the setting by its own label.
+      await r.fill(
+        '[aria-label="Find an export setting"]',
+        r.locale === "en" ? "double spaced" : r.tr("Line spacing")
+      );
       await r.text("Line spacing");
       await r.check(
         `${el("#export-font")}.value === 'Georgia' && ${el("#export-spacing")}.value === '1.5'`,
         "Saved profile must survive closing and reopening"
       );
       await r.fill("#export-format", "html");
-      await r.fill('[aria-label="Find an export setting"]', "fragment");
+      await r.fill(
+        '[aria-label="Find an export setting"]',
+        r.locale === "en" ? "fragment" : r.tr("HTML structure and styling")
+      );
       await r.text("HTML structure and styling");
       await r.fill("#export-html-mode", "fragment");
       await r.text("HTML", 'document.querySelector(".preview-tabs")');
