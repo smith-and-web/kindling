@@ -20,6 +20,7 @@ import type { Catalog, Locale, LocaleEntry } from "./types";
  * Keep `src-tauri/src/menu.rs` in step: `detection.json` holds the cases both test suites check.
  */
 export const LOCALES = {
+  de: { languages: ["de"] },
   en: { languages: ["en"] },
   es: { languages: ["es"] },
   "pt-BR": { languages: ["pt"] },
