@@ -21,6 +21,7 @@ import type { Catalog, Locale, LocaleEntry } from "./types";
  */
 export const LOCALES = {
   en: { languages: ["en"] },
+  es: { languages: ["es"] },
   "pt-BR": { languages: ["pt"] },
   ru: { languages: ["ru"] },
   "zh-CN": { languages: ["zh"] },

@@ -131,6 +131,36 @@ pub const PT_BR: MenuStrings = MenuStrings {
     quick_start: "Início Rápido",
 };
 
+pub const ES: MenuStrings = MenuStrings {
+    file: "Archivo",
+    new_project: "Nuevo proyecto",
+    editorial_open: "Abrir archivo de revisión o feedback…",
+    editorial_project: "Revisión editorial…",
+    import: "Importar",
+    import_longform: "Longform (índice o Vault…)",
+    import_novelwriter: "novelWriter (carpeta del proyecto)",
+    export: "Exportar…",
+    close_project: "Cerrar proyecto",
+    settings: "Ajustes…",
+    quit: "Salir de kindling",
+    edit: "Edición",
+    find: "Buscar en la escena…",
+    find_replace: "Buscar y reemplazar…",
+    find_project: "Buscar y reemplazar en el proyecto…",
+    view: "Visualización",
+    toggle_sidebar: "Mostrar u ocultar la barra lateral",
+    toggle_references: "Mostrar u ocultar el panel de referencias",
+    sync: "Sincronizar desde la fuente",
+    window: "Ventana",
+    minimize: "Minimizar",
+    maximize: "Maximizar",
+    help: "Ayuda",
+    about: "Acerca de kindling…",
+    send_feedback: "Enviar feedback…",
+    command_palette: "Paleta de comandos…",
+    quick_start: "Inicio rápido",
+};
+
 pub const RU: MenuStrings = MenuStrings {
     file: "Файл",
     new_project: "Новый проект",
@@ -166,6 +196,7 @@ pub const RU: MenuStrings = MenuStrings {
 /// `src/lib/i18n/detection.json` holds the cases both test suites check.
 const LOCALES: &[(&str, &[&str], &MenuStrings)] = &[
     ("en", &["en"], &EN),
+    ("es", &["es"], &ES),
     ("pt-BR", &["pt"], &PT_BR),
     ("ru", &["ru"], &RU),
     ("zh-CN", &["zh"], &ZH_CN),
