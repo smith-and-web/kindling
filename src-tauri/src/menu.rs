@@ -101,11 +101,44 @@ pub const ZH_CN: MenuStrings = MenuStrings {
     quick_start: "快速入门",
 };
 
+pub const PT_BR: MenuStrings = MenuStrings {
+    file: "Arquivo",
+    new_project: "Novo Projeto",
+    editorial_open: "Abrir Arquivo de Revisão ou Feedback…",
+    editorial_project: "Revisão Editorial…",
+    import: "Importar",
+    import_longform: "Longform (Índice ou Vault…)",
+    import_novelwriter: "novelWriter (Pasta de Projeto)",
+    export: "Exportar…",
+    close_project: "Fechar Projeto",
+    settings: "Configurações…",
+    quit: "Sair do kindling",
+    edit: "Editar",
+    find: "Buscar na Cena…",
+    find_replace: "Buscar e Substituir…",
+    find_project: "Buscar e Substituir no Projeto…",
+    view: "Visualizar",
+    toggle_sidebar: "Alternar Barra Lateral",
+    toggle_references: "Alternar Painel de Referências",
+    sync: "Sincronizar da Fonte",
+    window: "Janela",
+    minimize: "Minimizar",
+    maximize: "Maximizar",
+    help: "Ajuda",
+    about: "Sobre o kindling…",
+    send_feedback: "Enviar Feedback…",
+    command_palette: "Paleta de Comandos…",
+    quick_start: "Início Rápido",
+};
+
 /// Supported locales: the catalog directory name, the system language subtags it serves
 /// and its menu copy. Mirrors `LOCALES` in `src/lib/i18n/index.ts`;
 /// `src/lib/i18n/detection.json` holds the cases both test suites check.
-const LOCALES: &[(&str, &[&str], &MenuStrings)] =
-    &[("en", &["en"], &EN), ("zh-CN", &["zh"], &ZH_CN)];
+const LOCALES: &[(&str, &[&str], &MenuStrings)] = &[
+    ("en", &["en"], &EN),
+    ("zh-CN", &["zh"], &ZH_CN),
+    ("pt-BR", &["pt"], &PT_BR),
+];
 
 const FALLBACK_LOCALE: &str = "en";
 
@@ -337,6 +370,19 @@ mod tests {
                 command_palette,
                 quick_start,
             ]
+        }
+    }
+
+    #[test]
+    fn pt_br_const_is_complete_and_translated() {
+        let pt_br_labels = PT_BR.labels();
+        let en_labels = EN.labels();
+        for (index, label) in pt_br_labels.iter().enumerate() {
+            assert!(!label.trim().is_empty(), "PT_BR label {index} is empty");
+            assert_ne!(
+                *label, en_labels[index],
+                "PT_BR label {index} ({label:?}) is identical to the EN label"
+            );
         }
     }
 
