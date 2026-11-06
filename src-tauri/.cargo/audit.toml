@@ -49,6 +49,12 @@ ignore = [
     "RUSTSEC-2026-0367",
     "RUSTSEC-2026-0368",
     "RUSTSEC-2026-0369",
+    # zip < 9: `ZipArchive::extract` aborts the process on a symlink entry with a
+    # large declared size. Same two copies, same reachability as above: docx-rs is
+    # write-only here, and the updater's extract path serves only legacy v1 .zip
+    # bundles (tauri.conf.json sets createUpdaterArtifacts=true, not v1Compatible)
+    # and runs after minisign verification. Kindling's own zip 9.x is patched.
+    "RUSTSEC-2026-0429",
 ]
 
 # Don't treat unmaintained crate warnings as errors
