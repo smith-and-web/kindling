@@ -4,9 +4,9 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { CircleCheck, Loader2 } from "lucide-svelte";
-  import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
+  import { REFERENCE_TYPE_OPTIONS, referenceTypeText } from "../referenceTypes";
   import { copyErrorMessage, copyReferences, previewReferenceCopy } from "../referenceCopy";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
   import type {
     Project,
     ReferenceCopyKey,
@@ -312,7 +312,7 @@
         </div>
         <div class="copy-selection">
           <span class="copy-selection-count"
-            >{t("references.copyReferencesDialog.selectedAcross", { count: selectedCount })}</span
+            >{tn("references.copyReferencesDialog.selectedAcross", selectedCount)}</span
           >
           <div class="copy-selection-actions">
             <button
@@ -350,11 +350,11 @@
                       !rows.every((r) => selection?.some((s) => same(s, r)))}
                     onchange={(e) => selectRows(rows, e.currentTarget.checked)}
                   />
-                  {t(
+                  {referenceTypeText(
                     search.trim()
-                      ? "references.copyReferencesDialog.selectModeVisible"
-                      : "references.copyReferencesDialog.selectModeAll",
-                    { type: categoryName(category.id).toLowerCase() }
+                      ? "references.copyReferencesDialog.selectVisibleOfType"
+                      : "references.copyReferencesDialog.selectAllOfType",
+                    category.id
                   )}
                 </label>
                 <ul class="copy-rows">
@@ -507,9 +507,7 @@
         {#if saving}<Loader2 class="w-5 h-5 animate-spin" aria-hidden="true" />{/if}
         {saving
           ? t("references.copyReferencesDialog.copying")
-          : t("references.copyReferencesDialog.copyCount", {
-              count: countLabel(preview?.copied ?? 0, "reference"),
-            })}
+          : tn("references.copyReferencesDialog.copyCount", preview?.copied ?? 0)}
       </button>{/if}
   </footer>
 </dialog>

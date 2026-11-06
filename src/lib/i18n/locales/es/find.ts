@@ -26,10 +26,6 @@ const catalog: Catalog = {
   "findReplaceDialog.noMoreMatches":
     "No hay más coincidencias en adelante. Usa Siguiente o Anterior para continuar.",
   "findReplaceDialog.noMatches": "No se encontraron coincidencias.",
-  "findReplaceDialog.confirmReplace":
-    "¿Reemplazar {count} coincidencias en {scope}? Se omitirán {skipped} coincidencias bloqueadas o sin guardar.",
-  "findReplaceDialog.scopeEntireProject": "todo el proyecto",
-  "findReplaceDialog.scopeCurrentScene": "la escena actual",
   "findReplaceDialog.confirmReplaceAll": "Confirmar reemplazar todo",
   "findReplaceDialog.retryLoading": "Reintentar cargar",
   "findReplaceDialog.retrySavingDrafts": "Reintentar guardar borradores",
@@ -49,6 +45,18 @@ const catalog: Catalog = {
   "findReplaceDialog.replacementUndone": "Reemplazo deshecho.",
   "findReplaceDialog.replacementSaved": "Reemplazo guardado.",
   "findReplaceDialog.noChangesNeeded": "No se necesitan cambios.",
+  "findReplaceDialog.confirmReplaceProject.one":
+    "¿Reemplazar {count} coincidencia en todo el proyecto?",
+  "findReplaceDialog.confirmReplaceProject.other":
+    "¿Reemplazar {count} coincidencias en todo el proyecto?",
+  "findReplaceDialog.confirmReplaceScene.one":
+    "¿Reemplazar {count} coincidencia en la escena actual?",
+  "findReplaceDialog.confirmReplaceScene.other":
+    "¿Reemplazar {count} coincidencias en la escena actual?",
+  "findReplaceDialog.confirmSkipped.one":
+    "Se omitirá {count} coincidencia bloqueada o sin guardar.",
+  "findReplaceDialog.confirmSkipped.other":
+    "Se omitirán {count} coincidencias bloqueadas o sin guardar.",
 };
 
 export default catalog;

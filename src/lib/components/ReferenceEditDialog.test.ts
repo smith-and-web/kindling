@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import { invoke } from "@tauri-apps/api/core";
 import ReferenceEditDialog from "./ReferenceEditDialog.svelte";
 import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
+import { setLocale } from "../i18n";
 import type { FieldDefinition } from "../types";
 
 const characters = REFERENCE_TYPE_OPTIONS[0];
@@ -88,5 +89,26 @@ describe("ReferenceEditDialog", () => {
     const heading = await screen.findByRole("heading", { name: "Custom fields" });
     const grid = heading.parentElement?.querySelector(".reference-fields");
     expect(grid?.querySelectorAll(".field-renderer")).toHaveLength(2);
+  });
+});
+
+describe("ReferenceEditDialog title", () => {
+  afterEach(() => setLocale("en"));
+
+  it.each([
+    ["en", characters, "Add character"],
+    ["ru", characters, "Добавить персонажа"],
+    ["ru", REFERENCE_TYPE_OPTIONS[1], "Добавить место"],
+    ["de", { ...characters, id: "unknown" as never }, "Referenz hinzufügen"],
+  ] as const)("names the %s type with its own key", (locale, referenceType, title) => {
+    setLocale(locale);
+    vi.mocked(invoke).mockResolvedValue([]);
+    render(ReferenceEditDialog, {
+      referenceType,
+      projectId: "p1",
+      onSave: vi.fn(),
+      onClose: vi.fn(),
+    });
+    expect(screen.getByRole("heading", { name: title })).toBeTruthy();
   });
 });

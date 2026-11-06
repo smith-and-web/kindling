@@ -376,16 +376,18 @@
   }
 
   // Labels for Part/Chapter vs Act/Sequence (screenplay projects)
-  const partLabel = $derived(
-    currentProject.value?.project_type === "screenplay"
-      ? t("sidebar.sidebar.actLabel")
-      : t("sidebar.sidebar.partLabel")
+  type StructureKind = "part" | "act" | "chapter" | "sequence";
+  // Copy about a structure item has one key per kind, so each language can agree in gender,
+  // number and case ("Neues Kapitel", "Новая глава") instead of slotting a noun into a template.
+  const partKind = $derived(currentProject.value?.project_type === "screenplay" ? "act" : "part");
+  const chapterKind = $derived(
+    currentProject.value?.project_type === "screenplay" ? "sequence" : "chapter"
   );
-  const chapterLabel = $derived(
-    currentProject.value?.project_type === "screenplay"
-      ? t("sidebar.sidebar.sequenceLabel")
-      : t("sidebar.sidebar.chapterLabel")
-  );
+  const structureText = (
+    kind: StructureKind,
+    template: string,
+    params?: Record<string, string | number>
+  ) => t(`sidebar.structure.${kind}.${template}`, params);
 
   // Chapter synopsis editing
   let editingChapterSynopsisId: string | null = $state(null);
@@ -435,12 +437,7 @@
       return;
     }
     // Keep the field open with the typed text so the writer can retry.
-    ui.showError(
-      t("sidebar.sidebar.failedSaveSynopsis", {
-        label: chapterLabel.toLowerCase(),
-        error: String(error),
-      })
-    );
+    ui.showError(structureText(chapterKind, "failedSaveSynopsis", { error: String(error) }));
   }
 
   // Export dialog state
@@ -699,12 +696,7 @@
       cancelCreate();
     } catch (e) {
       console.error("Failed to create chapter:", e);
-      ui.showError(
-        t("sidebar.sidebar.failedCreate", {
-          label: chapterLabel.toLowerCase(),
-          error: String(e),
-        })
-      );
+      ui.showError(structureText(chapterKind, "failedCreate", { error: String(e) }));
     }
   }
 
@@ -722,12 +714,7 @@
       cancelCreate();
     } catch (e) {
       console.error("Failed to create part:", e);
-      ui.showError(
-        t("sidebar.sidebar.failedCreate", {
-          label: partLabel.toLowerCase(),
-          error: String(e),
-        })
-      );
+      ui.showError(structureText(partKind, "failedCreate", { error: String(e) }));
     }
   }
 
@@ -1253,8 +1240,8 @@
         ? [
             {
               label: isPart
-                ? t("sidebar.sidebar.convertTo", { label: chapterLabel })
-                : t("sidebar.sidebar.convertTo", { label: partLabel }),
+                ? structureText(chapterKind, "convertTo")
+                : structureText(partKind, "convertTo"),
               icon: BookOpen,
               action: () => handleTogglePart(item.id, !isPart),
               disabled: isLocked,
@@ -1513,7 +1500,7 @@
                 target: pageCountEstimate.target,
               })}
             >
-              {formatDecimal(pageCountEstimate.pages)} / {formatNumber(pageCountEstimate.target)}
+              {formatDecimal(pageCountEstimate.pages)} / {pageCountEstimate.target}
             </span>
           {/if}
         </div>
@@ -1680,7 +1667,7 @@
                   data-testid="menu-button"
                   onclick={(e) => openContextMenu(e, "chapter", part)}
                   class="ka-button ka-button--ghost ka-icon-button sb-row-menu"
-                  aria-label={t("sidebar.sidebar.menuLabel", { label: partLabel })}
+                  aria-label={structureText(partKind, "menu")}
                   aria-haspopup="menu"
                 >
                   <MoreVertical class="w-5 h-5" aria-hidden="true" />
@@ -1762,7 +1749,7 @@
                         data-testid="menu-button"
                         onclick={(e) => openContextMenu(e, "chapter", chapter)}
                         class="ka-button ka-button--ghost ka-icon-button sb-row-menu"
-                        aria-label={t("sidebar.sidebar.menuLabel", { label: chapterLabel })}
+                        aria-label={structureText(chapterKind, "menu")}
                         aria-haspopup="menu"
                       >
                         <MoreVertical class="w-5 h-5" aria-hidden="true" />
@@ -1781,12 +1768,8 @@
                               bind:value={chapterSynopsisText}
                               oninput={() => handleChapterSynopsisInput(chapter.id)}
                               onblur={() => finishEditingChapterSynopsis(chapter.id)}
-                              placeholder={t("sidebar.sidebar.synopsisPlaceholder", {
-                                label: chapterLabel,
-                              })}
-                              aria-label={t("sidebar.sidebar.synopsisAria", {
-                                label: chapterLabel,
-                              })}
+                              placeholder={structureText(chapterKind, "synopsisPlaceholder")}
+                              aria-label={structureText(chapterKind, "synopsisAria")}
                               rows="3"
                               autofocus
                             ></textarea>
@@ -2249,12 +2232,10 @@
               bind:value={newTitle}
               onkeydown={handleCreateKeydown}
               onblur={cancelCreate}
-              placeholder={t("sidebar.sidebar.titlePlaceholder", {
-                label: creatingPart ? partLabel : chapterLabel,
-              })}
+              placeholder={structureText(creatingPart ? partKind : chapterKind, "titlePlaceholder")}
               aria-label={creatingPart
-                ? t("sidebar.sidebar.newTitle", { label: partLabel })
-                : t("sidebar.sidebar.newTitle", { label: chapterLabel })}
+                ? structureText(partKind, "newTitle")
+                : structureText(chapterKind, "newTitle")}
               autofocus
             />
           </div>
@@ -2276,7 +2257,7 @@
               class="ka-button ka-button--secondary"
             >
               <Plus class="w-5 h-5" aria-hidden="true" />
-              {t("sidebar.sidebar.newLabel", { label: chapterLabel.toLowerCase() })}
+              {structureText(chapterKind, "new")}
             </button>
             <!-- Dropdown trigger -->
             <button
@@ -2311,7 +2292,7 @@
                 class="sb-menuitem"
               >
                 <Folder class="w-5 h-5" aria-hidden="true" />
-                {t("sidebar.sidebar.newLabel", { label: chapterLabel.toLowerCase() })}
+                {structureText(chapterKind, "new")}
               </button>
               <button
                 data-testid="dropdown-new-part"
@@ -2320,7 +2301,7 @@
                 class="sb-menuitem"
               >
                 <BookOpen class="w-5 h-5" aria-hidden="true" />
-                {t("sidebar.sidebar.newLabel", { label: partLabel.toLowerCase() })}
+                {structureText(partKind, "new")}
               </button>
             </div>
           {/if}
@@ -2380,7 +2361,7 @@
   <PartDeleteDialog
     partTitle={partDeleteDialog.partTitle}
     childChapterCount={partDeleteDialog.childChapterIds.length}
-    {partLabel}
+    {partKind}
     chapterNoun={currentProject.value?.project_type === "screenplay" ? "sequence" : "chapter"}
     onDeletePartOnly={executeDeletePartOnly}
     onDeletePartAndChapters={executeDeletePartAndChapters}
@@ -2407,7 +2388,7 @@
 {#if renameDialog}
   <RenameDialog
     title={renameDialog.type === "chapter"
-      ? t("sidebar.sidebar.renameChapterTitle", { label: chapterLabel })
+      ? structureText(chapterKind, "rename")
       : t("sidebar.sidebar.renameSceneTitle")}
     currentName={renameDialog.title}
     onSave={(newName) => handleRename(renameDialog!.type, renameDialog!.id, newName)}

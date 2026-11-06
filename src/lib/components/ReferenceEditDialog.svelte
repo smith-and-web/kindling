@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { REFERENCE_FIELD_TYPES } from "../referenceTypes";
+  import { REFERENCE_FIELD_TYPES, referenceTypeText } from "../referenceTypes";
   import { invoke } from "@tauri-apps/api/core";
   import { Loader2, Plus, Trash2 } from "lucide-svelte";
   import type { ReferenceItem, FieldDefinition, FieldValue } from "../types";
@@ -31,19 +31,6 @@
   type AttributeRow = { id: string; key: string; value: string };
 
   const entityTypeMap = REFERENCE_FIELD_TYPES;
-
-  const TYPE_LABEL_KEYS: Record<string, string> = {
-    characters: "typeCharacter",
-    locations: "typeLocation",
-    items: "typeItem",
-    objectives: "typeObjective",
-    organizations: "typeOrganization",
-    timelines: "typeTimeline",
-    custom: "typeNote",
-  };
-  const typeLabel = $derived(
-    t(`references.referenceEditDialog.${TYPE_LABEL_KEYS[referenceType.id] ?? "typeReference"}`)
-  );
 
   let name = $state("");
   let description = $state("");
@@ -191,9 +178,12 @@
 >
   <div class="app-dialog-surface ka-dialog-default dialog-shell">
     <DialogHeader
-      title={reference
-        ? t("references.referenceEditDialog.titleEdit", { type: typeLabel })
-        : t("references.referenceEditDialog.titleAdd", { type: typeLabel })}
+      title={referenceTypeText(
+        reference
+          ? "references.referenceEditDialog.titleEdit"
+          : "references.referenceEditDialog.titleAdd",
+        referenceType.id
+      )}
       titleId="reference-dialog-title"
       {onClose}
       closeLabel={t("references.referenceEditDialog.close")}

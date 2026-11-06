@@ -26,10 +26,6 @@ const catalog: Catalog = {
   "findReplaceDialog.noMoreMatches":
     "Sem mais correspondências à frente. Use Próximo ou Anterior para continuar.",
   "findReplaceDialog.noMatches": "Nenhuma correspondência encontrada.",
-  "findReplaceDialog.confirmReplace":
-    "Substituir {count} correspondências em {scope}? {skipped} correspondências bloqueadas ou não salvas serão ignoradas.",
-  "findReplaceDialog.scopeEntireProject": "o projeto inteiro",
-  "findReplaceDialog.scopeCurrentScene": "a cena atual",
   "findReplaceDialog.confirmReplaceAll": "Confirmar substituição em massa",
   "findReplaceDialog.retryLoading": "Tentar carregar novamente",
   "findReplaceDialog.retrySavingDrafts": "Tentar salvar rascunhos novamente",
@@ -49,6 +45,17 @@ const catalog: Catalog = {
   "findReplaceDialog.replacementUndone": "Substituição desfeita.",
   "findReplaceDialog.replacementSaved": "Substituição salva.",
   "findReplaceDialog.noChangesNeeded": "Nenhuma alteração necessária.",
+  "findReplaceDialog.confirmReplaceProject.one":
+    "Substituir {count} correspondência em todo o projeto?",
+  "findReplaceDialog.confirmReplaceProject.other":
+    "Substituir {count} correspondências em todo o projeto?",
+  "findReplaceDialog.confirmReplaceScene.one": "Substituir {count} correspondência na cena atual?",
+  "findReplaceDialog.confirmReplaceScene.other":
+    "Substituir {count} correspondências na cena atual?",
+  "findReplaceDialog.confirmSkipped.one":
+    "{count} correspondência bloqueada ou não salva será ignorada.",
+  "findReplaceDialog.confirmSkipped.other":
+    "{count} correspondências bloqueadas ou não salvas serão ignoradas.",
 };
 
 export default catalog;

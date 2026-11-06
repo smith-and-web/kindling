@@ -6,7 +6,8 @@
   interface Props {
     partTitle: string;
     childChapterCount: number;
-    partLabel?: string;
+    /** Screenplays group sequences into acts; novels group chapters into parts. */
+    partKind?: "part" | "act";
     /** What the project calls the part's children: screenplays use sequences. */
     chapterNoun?: "chapter" | "sequence";
     onDeletePartOnly: () => void;
@@ -17,7 +18,7 @@
   let {
     partTitle,
     childChapterCount,
-    partLabel = t("sidebar.partDeleteDialog.partLabel"),
+    partKind = "part",
     chapterNoun = "chapter",
     onDeletePartOnly,
     onDeletePartAndChapters,
@@ -25,13 +26,8 @@
   }: Props = $props();
 
   const chapters = $derived(countLabel(childChapterCount, chapterNoun));
-  const allChapters = $derived(
-    t(
-      chapterNoun === "sequence"
-        ? "sidebar.partDeleteDialog.allSequences"
-        : "sidebar.partDeleteDialog.allChapters"
-    )
-  );
+  // One key per kind, so each language can agree in gender, number and case.
+  const text = (template: string) => `sidebar.structure.${partKind}.${template}`;
 </script>
 
 <div
@@ -44,11 +40,7 @@
   tabindex="-1"
 >
   <div class="app-dialog-surface ka-dialog-narrow dialog-shell">
-    <DialogHeader
-      title={t("sidebar.partDeleteDialog.title", { label: partLabel })}
-      titleId="dialog-title"
-      onClose={onCancel}
-    />
+    <DialogHeader title={t(text("deleteTitle"))} titleId="dialog-title" onClose={onCancel} />
     <div class="ka-dialog-body part-delete">
       <p class="part-delete-lede">
         {tn("sidebar.partDeleteDialog.lede", childChapterCount, { title: partTitle, chapters })}
@@ -60,7 +52,7 @@
         onclick={onDeletePartOnly}
         class="ka-button ka-button--secondary part-delete-choice"
       >
-        <span>{t("sidebar.partDeleteDialog.deleteOnly", { label: partLabel.toLowerCase() })}</span>
+        <span>{t(text("deleteOnly"))}</span>
         <small>
           {tn("sidebar.partDeleteDialog.deleteOnlyHint", childChapterCount, { chapters })}
         </small>
@@ -72,17 +64,9 @@
         onclick={onDeletePartAndChapters}
         class="ka-button ka-button--danger part-delete-choice"
       >
-        <span
-          >{t("sidebar.partDeleteDialog.deleteAll", {
-            part: partLabel.toLowerCase(),
-            chapters: allChapters,
-          })}</span
-        >
+        <span>{t(text("deleteAll"))}</span>
         <small>
-          {tn("sidebar.partDeleteDialog.deleteAllHint", childChapterCount, {
-            part: partLabel.toLowerCase(),
-            chapters,
-          })}
+          {tn(text("deleteAllHint"), childChapterCount, { chapters })}
         </small>
       </button>
     </div>
