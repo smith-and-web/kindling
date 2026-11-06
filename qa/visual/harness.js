@@ -29,6 +29,91 @@
     return els.find((e) => e.textContent.trim().includes(text)) || null;
   };
   qa.nth = (testid, n) => all(testid)[n] || null;
+
+  // ---------------------------------------------------------------- locale
+  // Suites are written against English copy. Resolve that copy to the running
+  // interface locale through the app's own i18n module, so the same suites run
+  // under KINDLING_LOCALE=<tag>. English text with no catalog entry (fixture
+  // data, product names) resolves to itself.
+  const GROUPS = [
+    "common",
+    "counts",
+    "editor",
+    "editorial",
+    "export",
+    "find",
+    "logic",
+    "onboarding",
+    "references",
+    "settings",
+    "shell",
+    "sidebar",
+  ];
+  qa.loadI18n = async () => {
+    // Same URL as the app's own import, so this is the app's module instance and locale.
+    // Vite warns about these dynamic imports; leave them unannotated, because a
+    // @vite-ignore makes it inject a module import that breaks this classic script.
+    const i18n = await import("/src/lib/i18n/index.ts");
+    const byText = new Map();
+    const templates = [];
+    for (const group of GROUPS) {
+      const { default: catalog } = await import(`/src/lib/i18n/locales/en/${group}.ts`);
+      for (const [key, value] of Object.entries(catalog)) {
+        const keys = byText.get(value) || [];
+        keys.push(`${group}.${key}`);
+        byText.set(value, keys);
+        // One-placeholder copy such as "Close {name}" or "Export {format}", for
+        // labels a component fills in at runtime.
+        const parts = value.split(/\{(\w+)\}/);
+        if (parts.length === 3 && (parts[0] + parts[2]).trim().length >= 3)
+          templates.push({
+            key: `${group}.${key}`,
+            before: parts[0],
+            name: parts[1],
+            after: parts[2],
+          });
+      }
+    }
+    qa.i18n = { t: i18n.t, tn: i18n.tn, locale: i18n.getLocale(), byText, templates };
+    return qa.i18n.locale;
+  };
+  /** Every rendering of this English string in the running locale (several keys can share it). */
+  qa.Ls = (en) => {
+    if (!qa.i18n) return [en];
+    const keys = qa.i18n.byText.get(en);
+    if (keys) return [...new Set(keys.map((key) => qa.i18n.t(key)))];
+    // A filled-in template: translate the template and, recursively, the value.
+    const forms = qa.i18n.templates.flatMap(({ key, before, name, after }) => {
+      if (
+        !en.startsWith(before) ||
+        !en.endsWith(after) ||
+        en.length <= before.length + after.length
+      )
+        return [];
+      const value = en.slice(before.length, en.length - after.length);
+      return qa.Ls(value).map((v) => qa.i18n.t(key, { [name]: v }));
+    });
+    return forms.length ? [...new Set(forms)] : [en];
+  };
+  qa.L = (en) => qa.Ls(en)[0];
+  /** True when `text` contains any rendering of the English string. */
+  qa.has = (text, en) => qa.Ls(en).some((s) => (text ?? "").includes(s));
+  /** True when `text` (whitespace-normalised) equals a rendering of the English string. */
+  qa.is = (text, en) => qa.Ls(en).includes((text ?? "").replace(/\s+/g, " ").trim());
+  /**
+   * Attribute selector for a templated catalog string, e.g. "Shortcut for {label}"
+   * with any label: matches the text before and after the placeholder.
+   */
+  qa.template = (attr, key, name) => {
+    const [before, after = ""] = qa.i18n.t(key).split(`{${name}}`);
+    return `${before ? `[${attr}^=${JSON.stringify(before)}]` : ""}${after ? `[${attr}$=${JSON.stringify(after)}]` : ""}`;
+  };
+  /** Localise English values in [aria-label="…"], [title="…"] and [placeholder="…"] selectors. */
+  qa.sel = (css) =>
+    css.replace(/\[(aria-label|title|placeholder)="([^"]*)"\]/g, (_, attr, en) => {
+      const forms = qa.Ls(en).map((s) => `[${attr}=${JSON.stringify(s)}]`);
+      return forms.length === 1 ? forms[0] : `:is(${forms.join(",")})`;
+    });
   qa.titles = (testid) => all(testid).map((e) => e.textContent.trim());
 
   // ---------------------------------------------------------------- actions
@@ -473,7 +558,7 @@
       theme: document.documentElement.dataset.theme,
       body: probe("body", document.body),
       sidebar: probe("sidebar", $('[data-testid="sidebar"]')),
-      references: probe("references", $('aside[aria-label="References"]')),
+      references: probe("references", $(qa.sel('aside[aria-label="References"]'))),
       select: probe("select", $('[data-testid="scene-panel"] select')),
       prose: probe("prose", $(".novel-editor-content")),
       chapterTitle: probe("chapterTitle", $('[data-testid="chapter-title"]')),
