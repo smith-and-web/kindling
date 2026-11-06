@@ -12,6 +12,8 @@ import { collectContext, contextMarkdown } from "./context.mjs";
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const quote = JSON.stringify;
+// [aria-label="…"], [title="…"] or [placeholder="…"], with plain or escaped quotes.
+const ATTR = /\[(aria-label|title|placeholder)(\^?)=(\\?["'])(.*?)\3\]/g;
 export const variants = {
   light: { theme: "light", width: 1600, height: 968 },
   dark: { theme: "dark", width: 1600, height: 968 },
@@ -51,11 +53,40 @@ export class Runner {
     this.owned = [];
     this.native = new SocketCapture(app, output);
   }
-  js(code) {
-    return this.app.evaluate(`const q = window.__qa; ${code}`);
+  async js(code) {
+    return this.app.evaluate(`const q = window.__qa; ${await this.localize(code)}`);
   }
-  wait(expression) {
-    return this.app.wait(expression);
+  async wait(expression) {
+    return this.app.wait(await this.localize(expression));
+  }
+  /**
+   * Suites name controls by their English aria-label, title or placeholder. Rewrite
+   * those attribute selectors to the running locale's copy (see harness `qa.Ls`).
+   * Quotes may be plain or escaped, because the selectors sit inside JS source.
+   */
+  async localize(code) {
+    if (!this.strings) return code;
+    // Resolve labels that are not plain catalog strings ("Close Find and Replace")
+    // through the page's template lookup once, then cache them.
+    const unknown = [...code.matchAll(ATTR)].map((m) => m[4]).filter((en) => !(en in this.strings));
+    if (unknown.length) {
+      const resolved = await this.app.evaluate(
+        `return Object.fromEntries(${quote([...new Set(unknown)])}.map((en) => [en, window.__qa.Ls(en)]));`
+      );
+      Object.assign(this.strings, resolved);
+    }
+    return code.replace(ATTR, (match, attr, op, q, en) => {
+      const forms = this.strings[en];
+      if (!forms || (forms.length === 1 && forms[0] === en)) return match;
+      // Escape apostrophes too: the selector may sit inside a single-quoted JS string.
+      const esc = (s) => s.replaceAll("'", "\\'").replaceAll(q.at(-1), `\\${q.at(-1)}`);
+      const sel = (s) => `[${attr}${op}=${q}${esc(s)}${q}]`;
+      return forms.length === 1 ? sel(forms[0]) : `:is(${forms.map(sel).join(",")})`;
+    });
+  }
+  /** The running locale's rendering of an English string (itself when it has no catalog entry). */
+  tr(en) {
+    return this.strings?.[en]?.[0] ?? en;
   }
   async check(expression, message = expression) {
     if (this.interrupted) throw new Error("Run interrupted; cleaning up owned fixtures");
@@ -69,7 +100,7 @@ export class Runner {
   async text(text, root = "document") {
     await this.js(`const root = ${root};
       const el = [...root.querySelectorAll('button,[role=button]')].find(e =>
-        e.textContent.replace(/\\s+/g,' ').trim() === ${quote(text)} && !e.disabled && e.getClientRects().length);
+        q.is(e.textContent, ${quote(text)}) && !e.disabled && e.getClientRects().length);
       if (!el) throw new Error('Missing button: ' + ${quote(text)});
       el.scrollIntoView({block:'nearest'}); el.click();`);
   }
@@ -123,7 +154,12 @@ export class Runner {
     await this.app.evaluate(`if(!window.__qa) { const s=document.createElement('script');
       s.src=${quote(`/@fs${repo}/qa/visual/harness.js`)} + '?t=' + Date.now();document.head.append(s); }`);
     await this.wait("window.__qa?.importFixture && window.__qa?.diff");
-    await this.js(`q.repoRoot = ${quote(repo)};`);
+    await this.js(`q.repoRoot = ${quote(repo)}; q.loadI18n();`);
+    await this.wait("window.__qa.i18n");
+    this.locale = await this.js("return q.i18n.locale;");
+    // English strings whose rendering differs in this locale, for localize().
+    this.strings = await this.js(`return Object.fromEntries([...q.i18n.byText.keys()]
+      .map((en) => [en, q.Ls(en)]).filter(([en, forms]) => forms.length > 1 || forms[0] !== en));`);
   }
   async fixture() {
     await this.js(`q.importFixture(${quote(join(repo, "test-data/simple-story.pltr"))});`);
@@ -173,7 +209,7 @@ export class Runner {
     const stats = await this.app.invoke("get_writing_stats", { projectId: this.project.id });
     await this.click('[aria-controls="writing-statistics-panel"]');
     await this.wait(
-      `document.querySelector('[aria-controls="writing-statistics-panel"]')?.closest('footer').textContent.includes(${quote(`Project: ${stats.project_words.toLocaleString("en-US")} words`)})`
+      `document.querySelector('[aria-controls="writing-statistics-panel"]')?.closest('footer').textContent.includes(window.__qa.i18n.t("editor.writingStatusBar.projectWords", {count: (${stats.project_words}).toLocaleString()}))`
     );
     await this.click('[aria-controls="writing-statistics-panel"]');
   }

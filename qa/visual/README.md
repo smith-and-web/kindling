@@ -60,6 +60,34 @@ The latest 147-checkpoint comparison (after the macOS 27.2 baseline refresh) too
 **248 seconds**; all images matched and every checkpoint passed. The earlier
 240-capture calibration took **379 seconds**. See VALIDATION.md for measured evidence.
 
+### Other interface languages
+
+The suites are written against English copy and also run in every shipped locale.
+Start the QA app with the locale override, which reaches both the webview (through
+Vite) and the native menus:
+
+```bash
+KINDLING_LOCALE=ru npm run tauri:qa   # or zh-CN, es, pt-BR, de
+npm run qa:visual
+```
+
+Vite reads the override when it starts, so stop the QA app and any Vite server on
+port 1420 before switching language. At install the harness loads the app's own
+i18n module and maps each English string the suites use (button text, messages,
+`aria-label`, `title` and `placeholder` values, including one-placeholder
+templates such as "Close {name}") to the running locale's copy, via
+`q.L`/`q.Ls`/`q.has`/`q.is` in the page and `localize()`/`tr()` in the runner.
+Fixture content stays English. When adding a step, name controls by their English
+copy or a test id as usual; compare visible text with `window.__qa.has/is` rather
+than `textContent.includes('…')`.
+
+Accepted baselines are English, so a non-English pass reports every image as
+changed (exit 2). Its value is the audits (axe, Press, overflow, console) and a
+visual review of the captures for clipped text, untranslated copy and font
+fallback. The overflow audit only sees scroll overflow, not text cut off inside
+a fixed-size control. Native menus are not part of the WebKit captures; check
+them by hand in each locale.
+
 Baselines are tied to the OS/WebKit build that captured them (the manifest's
 `environment.os`): a macOS update can shift text metrics by a pixel or two on
 every screen and flag every image as changed. Before bisecting source commits,

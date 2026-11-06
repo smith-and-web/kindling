@@ -27,6 +27,10 @@ npm run qa:visual -- --only 09,15,17 --variants light
 npm run qa:visual -- --only 07 --variants narrow --calibrate
 ```
 
+For another interface language, start the app with `KINDLING_LOCALE=<tag> npm run tauri:qa`
+(restarting Vite first) and follow the README's "Other interface languages": every image
+differs from the English baselines, so judge the audits and review the captures instead.
+
 Translate requested IDs such as `09 15 17` into `--only 09,15,17`. Unsupported IDs
 remain manual/unexecuted unless actually performed. Use `--calibrate` only for
 requested repeatability work or diagnosing capture instability, not every pass.

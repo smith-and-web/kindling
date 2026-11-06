@@ -87,7 +87,7 @@ export const suites = [
       await r.shot(
         "00-03-start-screen",
         "Aligned project/review entry points and empty-library placeholder; six import formats are available in the scrollable start screen.",
-        `${el('[data-testid="import-section"]')}.textContent.includes('novelWriter') && document.body.textContent.includes('review')`
+        `${el('[data-testid="import-section"]')}.textContent.includes('novelWriter') && window.__qa.has(document.body.textContent, 'Open review package')`
       );
       await r.click('[data-testid="new-project-button"]');
       await r.wait(el("#new-project-dialog-title"));
@@ -182,7 +182,7 @@ export const suites = [
       );
       await r.click('[data-testid="reference-save"]');
       await r.check(
-        "document.body.textContent.includes('Enter a name to continue.') && document.querySelector('#reference-name').getAttribute('aria-invalid') === 'true'",
+        "window.__qa.has(document.body.textContent, 'Enter a name to continue.') && document.querySelector('#reference-name').getAttribute('aria-invalid') === 'true'",
         "An empty name is explained at the field instead of silently disabling Save"
       );
       await r.fill('[placeholder="Enter name…"]', "QA Mara");
@@ -236,7 +236,7 @@ export const suites = [
       for (const [index, area] of areas.entries()) {
         await r.text(area, `${el(settings)}.querySelector('nav')`);
         await r.wait(
-          `${el(settings)}.querySelector('button[aria-current="page"]')?.textContent.trim() === ${JSON.stringify(area)}`
+          `window.__qa.is(${el(settings)}.querySelector('button[aria-current="page"]')?.textContent, ${JSON.stringify(area)})`
         );
         if (area === "Appearance & Guidance") {
           await r.click(`[data-testid="theme-option-${r.variant === "dark" ? "dark" : "light"}"]`);
@@ -300,11 +300,11 @@ export const suites = [
       await r.wait(el('[data-testid="snapshots-button"]'));
       await r.click('[data-testid="snapshots-button"]');
       await r.wait(el("#snapshots-panel-title"));
-      await r.wait("document.body.textContent.includes('No snapshots yet')");
+      await r.wait("window.__qa.has(document.body.textContent, 'No snapshots yet')");
       await r.shot(
         "10-02-snapshots-empty",
         "Snapshots empty state and Create Snapshot action are visible.",
-        "document.body.textContent.includes('No snapshots yet')"
+        "window.__qa.has(document.body.textContent, 'No snapshots yet')"
       );
       await r.click('[data-testid="snapshot-create-button"]');
       await r.wait(el("#snapshot-name"));
@@ -349,7 +349,7 @@ export const suites = [
         `${el(find)}.querySelector('select').value === 'project'`
       );
       await r.fill(`${find} input[type="text"]`, "NoSuchQAText");
-      await r.wait(`${el(find)}.textContent.includes('No matches found.')`);
+      await r.wait(`window.__qa.has(${el(find)}.textContent, 'No matches found.')`);
       await r.shot(
         "15-02-no-results",
         "No-match message is legible and replacement buttons are disabled."
@@ -358,9 +358,9 @@ export const suites = [
       await r.js(`const input=[...${el(find)}.querySelectorAll('input[type=text]')][1];
         if(!input) throw new Error('Missing replacement input');input.value='beacon'; input.dispatchEvent(new Event('input',{bubbles:true}));`);
       await r.text("Replace all", el(find));
-      await r.wait(`${el(find)}.textContent.includes('Confirm replace all')`);
+      await r.wait(`window.__qa.has(${el(find)}.textContent, 'Confirm replace all')`);
       await r.js(
-        `[...${el(find)}.querySelectorAll('button')].find(b=>b.textContent.trim()==='Confirm replace all').scrollIntoView({block:'end'});`
+        `[...${el(find)}.querySelectorAll('button')].find(b=>window.__qa.is(b.textContent, 'Confirm replace all')).scrollIntoView({block:'end'});`
       );
       await r.shot(
         "15-03-replace-confirm",
@@ -368,12 +368,12 @@ export const suites = [
       );
       await r.text("Confirm replace all", el(find));
       await r.wait(
-        `!${el(find)}.querySelector('fieldset').disabled && [...${el(find)}.querySelectorAll('button')].some(b=>b.textContent.trim()==='Undo replacement' && !b.disabled)`
+        `!${el(find)}.querySelector('fieldset').disabled && [...${el(find)}.querySelectorAll('button')].some(b=>window.__qa.is(b.textContent, 'Undo replacement') && !b.disabled)`
       );
       await r.text("Undo replacement", el(find));
       await r.wait(`${el(find)}.querySelector('mark')?.textContent === 'lantern'`);
       await r.js(
-        `[...${el(find)}.querySelectorAll('p')].find(e=>e.textContent.trim()==='Replacement undone.')?.scrollIntoView({block:'end'});`
+        `[...${el(find)}.querySelectorAll('p')].find(e=>window.__qa.is(e.textContent, 'Replacement undone.'))?.scrollIntoView({block:'end'});`
       );
       await r.shot(
         "15-04-undo",
@@ -412,7 +412,7 @@ export const suites = [
       await r.shot(
         "16-03-writing-statistics",
         "Scene/chapter/project/session totals, chapter breakdown and empty/prose scene counts fit the panel.",
-        `${el("#writing-statistics-panel")}.textContent.includes('Words per chapter')`
+        `window.__qa.has(${el("#writing-statistics-panel")}.textContent, 'Words per chapter')`
       );
       await r.command("toggle_sidebar");
       await r.shot(
@@ -567,7 +567,7 @@ export const suites = [
         "HTML fragment settings, filename tokens and generated source are inspectable.",
         `${el(".source-preview")}.value.includes('<main') && !${el(".source-preview")}.value.includes('<!doctype')`
       );
-      await r.fill('[aria-label="Find an export setting"]', "Included chapters");
+      await r.fill('[aria-label="Find an export setting"]', r.tr("Included chapters"));
       await r.text("Included chapters");
       await r.fill("#export-scope", "selected");
       await r.js(
@@ -575,7 +575,7 @@ export const suites = [
       );
       await r.wait(`document.querySelector('.empty-preview')`);
       await r.check(
-        `[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Export HTML')).disabled`,
+        `[...document.querySelectorAll('button')].find(b=>b.textContent.includes(window.__qa.i18n.t('export.exportWorkspace.exportButton', {format: 'HTML'}))).disabled`,
         "Empty selection must disable preview export"
       );
       await r.shot(
@@ -607,7 +607,7 @@ export const suites = [
         "EPUB preview must not expose HTML source"
       );
       await r.js(
-        `document.querySelectorAll('nav[aria-label="Export settings"] button').forEach(b => { if(b.textContent.includes('Book details')) b.click(); });`
+        `document.querySelectorAll('nav[aria-label="Export settings"] button').forEach(b => { if(window.__qa.has(b.textContent, 'Book details')) b.click(); });`
       );
       await r.wait(el("#export-description"));
       await r.fill("#export-description", "A journey through the city & beyond.");
@@ -626,10 +626,10 @@ export const suites = [
       }
       await r.fill("#export-format", "novelwriter");
       await r.js(
-        `document.querySelectorAll('nav[aria-label="Export settings"] button').forEach(b => { if(b.textContent.includes('Files & format')) b.click(); });`
+        `document.querySelectorAll('nav[aria-label="Export settings"] button').forEach(b => { if(window.__qa.has(b.textContent, 'Files & format')) b.click(); });`
       );
       await r.wait(
-        `document.querySelector('.settings-panel')?.textContent.includes('Reference notes')`
+        `window.__qa.has(document.querySelector('.settings-panel')?.textContent, 'Reference notes')`
       );
       await r.shot(
         "22-02-export-project",
@@ -708,12 +708,12 @@ export const suites = [
       await r.wait(el(settings));
       await r.text("Keyboard Shortcuts", `${el(settings)}.querySelector('nav')`);
       await r.wait(`${el(settings)}.querySelector('input[type="search"]')`);
-      await r.fill(`${settings} input[type="search"]`, "Find");
+      await r.fill(`${settings} input[type="search"]`, r.tr("Find"));
       await r.shot(
         "20-01-shortcut-filter",
         "Filtered command bindings, Clear controls and reset action align and wrap cleanly."
       );
-      const binding = `${settings} button[aria-label^="Shortcut for "]`;
+      const binding = `${settings} button${await r.js("return q.template('aria-label', 'settings.keyboard.shortcutFor', 'label');")}`;
       await r.click(binding);
       await r.shot(
         "20-02-shortcut-recording",
@@ -722,7 +722,7 @@ export const suites = [
       await r.js(`const mac=/Mac|iPhone|iPad/.test(navigator.platform);
       ${el(binding)}.dispatchEvent(new KeyboardEvent('keydown',{key:'c',code:'KeyC',metaKey:mac,ctrlKey:!mac,bubbles:true,cancelable:true}));`);
       await r.wait(
-        `${el(settings)}.querySelector('[role="alert"]')?.textContent.includes('reserved')`
+        `${el(settings)}.querySelector('[role="alert"]')?.textContent.includes(window.__qa.i18n.t('logic.shortcuts.reserved'))`
       );
       await r.shot(
         "20-03-shortcut-reserved",

@@ -385,3 +385,51 @@ test("PNG masters use explicit baseline paths and deterministic pixel thresholds
     close();
   }
 });
+
+// Fake the app's i18n module: German copy, with two keys sharing one English string.
+function withGerman(w) {
+  const de = {
+    "export.saveProfile": "Profil speichern",
+    "export.lineSpacing": "Zeilenabstand",
+    "logic.lineSpacing": "Zeilenabst.",
+    "settings.keyboard.shortcutFor": "Kürzel für {label}",
+    "zh.shortcutFor": "{label} 的快捷键",
+  };
+  const byText = new Map([
+    ["Save profile", ["export.saveProfile"]],
+    ["Line spacing", ["export.lineSpacing", "logic.lineSpacing"]],
+  ]);
+  de["common.closeNamed"] = "{name} schließen";
+  de["find.title"] = "Suchen und ersetzen";
+  byText.set("Find and Replace", ["find.title"]);
+  const t = (key, params = {}) =>
+    Object.entries(params).reduce((s, [k, v]) => s.replaceAll(`{${k}}`, v), de[key] ?? key);
+  const templates = [{ key: "common.closeNamed", before: "Close ", name: "name", after: "" }];
+  w.__qa.i18n = { t, locale: "de", byText, templates };
+}
+
+test("locale helpers resolve English suite copy to the running locale", () => {
+  const { w, close } = setup();
+  const q = w.__qa;
+  assert.deepEqual([...q.Ls("Save profile")], ["Save profile"], "English before i18n loads");
+  withGerman(w);
+  assert.equal(q.L("Save profile"), "Profil speichern");
+  assert.deepEqual([...q.Ls("Line spacing")], ["Zeilenabstand", "Zeilenabst."]);
+  assert.deepEqual([...q.Ls("QA Mara")], ["QA Mara"], "fixture text has no catalog entry");
+  assert.ok(q.has("Bitte Zeilenabst. wählen", "Line spacing"));
+  assert.ok(!q.has("Line spacing", "Line spacing"), "English copy no longer matches");
+  assert.ok(q.is("  Profil \n speichern ", "Save profile"));
+  assert.equal(q.sel('button[aria-label="Save profile"]'), 'button[aria-label="Profil speichern"]');
+  assert.equal(
+    q.sel('[title="Line spacing"]'),
+    ':is([title="Zeilenabstand"],[title="Zeilenabst."])'
+  );
+  assert.equal(
+    q.template("aria-label", "settings.keyboard.shortcutFor", "label"),
+    '[aria-label^="Kürzel für "]'
+  );
+  assert.equal(q.template("aria-label", "zh.shortcutFor", "label"), '[aria-label$=" 的快捷键"]');
+  assert.deepEqual([...q.Ls("Close Find and Replace")], ["Suchen und ersetzen schließen"]);
+  assert.deepEqual([...q.Ls("Close ")], ["Close "], "a template needs a non-empty value");
+  close();
+});
