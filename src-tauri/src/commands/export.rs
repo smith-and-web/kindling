@@ -1296,7 +1296,7 @@ fn generate_longform_scene_frontmatter(
             .collect(),
     };
 
-    let mut yaml = serde_yaml::to_string(&frontmatter).map_err(|e| e.to_string())?;
+    let mut yaml = serde_norway::to_string(&frontmatter).map_err(|e| e.to_string())?;
     if yaml.starts_with("---") {
         yaml = yaml.trim_start_matches("---").trim_start().to_string();
     }
@@ -1421,7 +1421,7 @@ fn generate_reference_note_markdown(note: ReferenceNoteContent<'_>) -> Result<St
         attributes: extra,
     };
 
-    let mut yaml = serde_yaml::to_string(&frontmatter).map_err(|e| e.to_string())?;
+    let mut yaml = serde_norway::to_string(&frontmatter).map_err(|e| e.to_string())?;
     if yaml.starts_with("---") {
         yaml = yaml.trim_start_matches("---").trim_start().to_string();
     }
@@ -1492,7 +1492,7 @@ fn generate_longform_frontmatter(
         },
     };
 
-    let mut yaml = serde_yaml::to_string(&frontmatter).map_err(|e| e.to_string())?;
+    let mut yaml = serde_norway::to_string(&frontmatter).map_err(|e| e.to_string())?;
     if yaml.starts_with("---") {
         yaml = yaml.trim_start_matches("---").trim_start().to_string();
     }
