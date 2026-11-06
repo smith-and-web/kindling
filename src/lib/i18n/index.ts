@@ -23,6 +23,7 @@ export const LOCALES = {
   en: { languages: ["en"] },
   "zh-CN": { languages: ["zh"] },
   es: { languages: ["es"] },
+  "pt-BR": { languages: ["pt"] },
 } as const satisfies Record<string, LocaleEntry>;
 
 export const FALLBACK_LOCALE: Locale = "en";
