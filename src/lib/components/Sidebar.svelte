@@ -2819,15 +2819,16 @@
     flex: 1;
     min-width: 0;
   }
+  /* Segments are sized to their labels (Press segments share width equally,
+     which crowds "Planned" in the compact sidebar) and never narrower than
+     them: when a language's labels don't fit on one row ("Запланированные",
+     "Planificadas"), the track wraps instead of letting the labels overlap. */
   .sb-filter-segments .ka-segment-track {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
   }
-  /* Sized to their labels (Press segments share width equally, which
-     crowds "Planned" in the compact sidebar). */
   .sb-filter-segments .ka-segment {
     flex: 1 1 auto;
-    min-width: 0;
-    padding: var(--space-2xs) 6px;
+    padding: var(--space-2xs) var(--space-3xs);
     font-size: var(--text-small);
     white-space: nowrap;
   }

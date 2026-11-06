@@ -100,8 +100,7 @@ it.each([
     await fireEvent.click(screen.getByTestId("dropdown-new-chapter"));
     await tick();
     expect(screen.getByPlaceholderText(placeholder)).toBeTruthy();
-    if (type === "screenplay")
-      expect(screen.getByText(locale === "en" ? "1.5 / 90" : "1,5 / 90")).toBeTruthy();
+    if (type === "screenplay") expect(screen.getByText("1,5 / 90")).toBeTruthy();
   }
 );
 
@@ -124,4 +123,19 @@ it("reports a failed chapter creation without lowercasing the noun in code", asy
   await waitFor(() =>
     expect(showError).toHaveBeenCalledWith("Kapitel konnte nicht erstellt werden: Error: disk full")
   );
+});
+
+it("lets the scene filter segments wrap rather than overlap in long languages", async () => {
+  const source = (await import("./Sidebar.svelte?raw")).default;
+  const rule = (selector: string) =>
+    source.slice(
+      source.indexOf(`${selector} {`),
+      source.indexOf("}", source.indexOf(`${selector} {`))
+    );
+  expect(rule(".sb-filter-segments .ka-segment-track")).toContain("flex-wrap: wrap");
+  const segment = rule(".sb-filter-segments .ka-segment");
+  expect(segment).toContain("white-space: nowrap");
+  // A segment may never shrink below its label, and spacing comes from Press tokens.
+  expect(segment).not.toMatch(/min-width:\s*0/);
+  expect(segment).not.toMatch(/\d+px/);
 });
