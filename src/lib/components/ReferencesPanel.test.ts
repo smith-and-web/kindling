@@ -5,6 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { currentProject } from "../stores/project.svelte";
 import { ui } from "../stores/ui.svelte";
 import { REFERENCE_TYPE_OPTIONS } from "../referenceTypes";
+import { setLocale } from "../i18n";
 import type { FieldDefinition, FieldValue, Project, ReferenceItem, Scene } from "../types";
 import ReferencesPanel from "./ReferencesPanel.svelte";
 import ReferenceEditDialog from "./ReferenceEditDialog.svelte";
@@ -385,3 +386,23 @@ it("renders an imported description as inert formatted prose", async () => {
   expect(prose.querySelector("strong")?.textContent).toBe("Bio:");
   expect(prose.querySelector("em")?.textContent).toBe("brave");
 });
+
+it.each([
+  ["en", "No characters yet", "Add character"],
+  ["de", "Noch keine Figuren", "Figur hinzufügen"],
+  ["pt-BR", "Nenhum personagem ainda", "Adicionar personagem"],
+  ["ru", "Персонажей пока нет", "Добавить персонажа"],
+] as const)(
+  "words the %s empty state for the type, without lowercasing it",
+  async (locale, title, add) => {
+    setLocale(locale);
+    try {
+      vi.mocked(invoke).mockResolvedValue([]);
+      render(ReferencesPanel);
+      expect(await screen.findByRole("heading", { name: title })).toBeTruthy();
+      expect(screen.getAllByRole("button", { name: add })).toHaveLength(2);
+    } finally {
+      setLocale("en");
+    }
+  }
+);

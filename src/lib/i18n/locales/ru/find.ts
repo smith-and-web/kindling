@@ -26,10 +26,6 @@ const catalog: Catalog = {
   "findReplaceDialog.noMoreMatches":
     "Совпадений впереди больше нет. Используйте «Следующее» или «Предыдущее» для продолжения.",
   "findReplaceDialog.noMatches": "Совпадений не найдено.",
-  "findReplaceDialog.confirmReplace":
-    "Заменить {count} совпадений в {scope}? {skipped} заблокированных или несохранённых совпадений будет пропущено.",
-  "findReplaceDialog.scopeEntireProject": "весь проект",
-  "findReplaceDialog.scopeCurrentScene": "текущую сцену",
   "findReplaceDialog.confirmReplaceAll": "Подтвердить замену всех",
   "findReplaceDialog.retryLoading": "Повторить загрузку",
   "findReplaceDialog.retrySavingDrafts": "Повторить сохранение черновиков",
@@ -49,6 +45,18 @@ const catalog: Catalog = {
   "findReplaceDialog.replacementUndone": "Замена отменена.",
   "findReplaceDialog.replacementSaved": "Замена сохранена.",
   "findReplaceDialog.noChangesNeeded": "Изменений не требуется.",
+  "findReplaceDialog.confirmReplaceProject.one": "Заменить {count} совпадение во всём проекте?",
+  "findReplaceDialog.confirmReplaceProject.few": "Заменить {count} совпадения во всём проекте?",
+  "findReplaceDialog.confirmReplaceProject.many": "Заменить {count} совпадений во всём проекте?",
+  "findReplaceDialog.confirmReplaceScene.one": "Заменить {count} совпадение в текущей сцене?",
+  "findReplaceDialog.confirmReplaceScene.few": "Заменить {count} совпадения в текущей сцене?",
+  "findReplaceDialog.confirmReplaceScene.many": "Заменить {count} совпадений в текущей сцене?",
+  "findReplaceDialog.confirmSkipped.one":
+    "{count} заблокированное или несохранённое совпадение будет пропущено.",
+  "findReplaceDialog.confirmSkipped.few":
+    "{count} заблокированных или несохранённых совпадения будут пропущены.",
+  "findReplaceDialog.confirmSkipped.many":
+    "{count} заблокированных или несохранённых совпадений будут пропущены.",
 };
 
 export default catalog;

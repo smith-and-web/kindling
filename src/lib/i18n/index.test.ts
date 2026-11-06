@@ -70,7 +70,7 @@ describe("t()", () => {
 
   it("interpolates parameters", () => {
     expect(t("common.closeNamed", { name: "Kindling" })).toBe("Close Kindling");
-    expect(t("find.findReplaceDialog.scopeEntireProject")).toBe("the entire project");
+    expect(t("find.findReplaceDialog.position", { current: 2, total: 9 })).toBe("2 of 9");
   });
 
   it("returns the key when neither catalog has it", () => {

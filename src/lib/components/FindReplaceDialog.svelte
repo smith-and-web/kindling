@@ -11,7 +11,7 @@
     type ProseReplacement,
   } from "../utils/proseSearch";
   import { countLabel } from "../utils/plural";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
 
   let {
     projectId,
@@ -383,14 +383,13 @@
       {#if replacing && confirming}
         <div class="ka-notice ka-notice--warning" role="status">
           <p>
-            {t("find.findReplaceDialog.confirmReplace", {
-              count: editableCount,
-              scope:
-                scope === "project"
-                  ? t("find.findReplaceDialog.scopeEntireProject")
-                  : t("find.findReplaceDialog.scopeCurrentScene"),
-              skipped: results.length - editableCount,
-            })}
+            {tn(
+              scope === "project"
+                ? "find.findReplaceDialog.confirmReplaceProject"
+                : "find.findReplaceDialog.confirmReplaceScene",
+              editableCount
+            )}
+            {tn("find.findReplaceDialog.confirmSkipped", results.length - editableCount)}
           </p>
           <div class="ka-row">
             <button type="button" class="ka-button" onclick={() => replace(true)}

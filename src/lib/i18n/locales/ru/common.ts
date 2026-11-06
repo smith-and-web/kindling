@@ -12,6 +12,9 @@ const catalog: Catalog = {
   next: "Далее",
   done: "Готово",
   saving: "Сохранение…",
+  sizeBytes: "{size} Б",
+  sizeKilobytes: "{size} КБ",
+  sizeMegabytes: "{size} МБ",
 };
 
 export default catalog;

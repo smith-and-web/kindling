@@ -1,8 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
+import { setLocale } from "../i18n";
 import { Fragment, Slice } from "@tiptap/pm/model";
 import { Transform } from "@tiptap/pm/transform";
 import editorialSource from "./editorial.ts?raw";
+import editorialRs from "../../../src-tauri/src/commands/editorial.rs?raw";
 import {
+  LOCAL_REVIEW_ROUND_NAME,
+  roundName,
   manuscript,
   normalizeOwnership,
   sourceHtml,
@@ -473,5 +477,20 @@ describe("continuous editorial manuscript", () => {
 
   it("parses on WebKit before Safari 16.4, which has no regex lookbehind", () => {
     expect(editorialSource).not.toMatch(/\(\?<[=!]/);
+  });
+});
+
+describe("review round names", () => {
+  afterEach(() => setLocale("en"));
+
+  it("translates the backend's default local round name and keeps writer-named rounds", () => {
+    expect(roundName(LOCAL_REVIEW_ROUND_NAME)).toBe("Local review");
+    setLocale("es");
+    expect(roundName(LOCAL_REVIEW_ROUND_NAME)).toBe("Revisión local");
+    expect(roundName("Second pass")).toBe("Second pass");
+  });
+
+  it("matches the name the Rust command stores", () => {
+    expect(editorialRs).toContain(`name: "${LOCAL_REVIEW_ROUND_NAME}".into()`);
   });
 });

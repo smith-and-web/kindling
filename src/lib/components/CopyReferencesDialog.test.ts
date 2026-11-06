@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Project, ReferenceCopyPreview, ReferenceCopyRequest } from "../types";
 import CopyReferencesDialog from "./CopyReferencesDialog.svelte";
 import { copyErrorMessage } from "../referenceCopy";
+import { setLocale } from "../i18n";
 
 const destination = {
   id: "two",
@@ -422,4 +423,37 @@ it("omits the preview status line until a source is selected", async () => {
   expect(screen.getByRole("status").textContent).toContain("2 to copy");
   await fireEvent.change(screen.getByLabelText("Source project"), { target: { value: "" } });
   expect(screen.queryByRole("status")).toBeNull();
+});
+
+it("names source project types with the novel and screenplay labels", async () => {
+  const script = { ...source, id: "three", name: "Script", project_type: "screenplay" };
+  mock.mockImplementation(async (command) => {
+    if (command === "get_all_projects") return [destination, source, script];
+    throw new Error(command);
+  });
+  mount();
+  await waitFor(() => expect(screen.getByRole("option", { name: /Script/ })).toBeTruthy());
+  expect(screen.getByRole("option", { name: /Book One/ }).textContent).toContain(
+    "Book One · Novel ·"
+  );
+  expect(screen.getByRole("option", { name: /Script/ }).textContent).toContain(
+    "Script · Screenplay ·"
+  );
+});
+
+it("words the selection counts and category toggles for each language", async () => {
+  setLocale("ru");
+  try {
+    mount();
+    await waitFor(() => expect(screen.getByRole("option", { name: /Book One/ })).toBeTruthy());
+    await fireEvent.change(screen.getByLabelText("Исходный проект"), { target: { value: "one" } });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Скопировать 2 ссылки" })).toBeTruthy()
+    );
+    expect(screen.getByText("Выбрано во всех категориях: 2")).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Выбрать всех персонажей" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Выбрать все места" })).toBeTruthy();
+  } finally {
+    setLocale("en");
+  }
 });

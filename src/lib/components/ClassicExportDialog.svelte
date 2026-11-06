@@ -14,7 +14,7 @@
     decodeProfiles,
     profileStorageKey,
     starterProfiles,
-    formatLabels,
+    formatLabel,
     type ExportProfile,
   } from "../utils/exportPrototype";
   import { invoke } from "@tauri-apps/api/core";
@@ -56,6 +56,7 @@
   import ScrivenerMatchDialog from "./ScrivenerMatchDialog.svelte";
   import { modalFocus, ownsEnterKey } from "../utils/modalFocus";
   import { t } from "../i18n";
+  import { formatNumber } from "../i18n/format";
 
   const LAST_EXPORT_PATH_KEY = "kindling:lastExportPath";
 
@@ -177,7 +178,7 @@
   /** What the profile will produce, in the terms the workspace uses. */
   function profileSummary(p: ExportProfile): [string, string][] {
     const rows: [string, string][] = [
-      [t("export.classicExportDialog.summaryOutput"), formatLabels[p.format]],
+      [t("export.classicExportDialog.summaryOutput"), formatLabel(p.format)],
     ];
     if (p.format === "docx" || p.format === "epub" || p.format === "html" || p.format === "txt") {
       const spacing =
@@ -185,11 +186,11 @@
           ? t("export.classicExportDialog.summarySpacingSingle")
           : p.lineSpacing === 2
             ? t("export.classicExportDialog.summarySpacingDouble")
-            : `${p.lineSpacing}×`;
+            : `${formatNumber(p.lineSpacing)}×`;
       if (p.format !== "txt")
         rows.push([
           t("export.classicExportDialog.summaryTextPage"),
-          `${p.font} · ${p.fontSize} pt · ${spacing}`,
+          `${p.font} · ${formatNumber(p.fontSize)} pt · ${spacing}`,
         ]);
       rows.push([
         t("export.classicExportDialog.summaryHeadings"),
@@ -418,10 +419,11 @@
   // Format word count for display (rounded to nearest 1000)
   const formattedWordCount = $derived.by(() => {
     if (wordCount === null) return null;
-    if (wordCount < 1000) return t("export.classicExportDialog.wordCount", { count: wordCount });
+    if (wordCount < 1000)
+      return t("export.classicExportDialog.wordCount", { count: formatNumber(wordCount) });
     const rounded = Math.round(wordCount / 1000) * 1000;
     return t("export.classicExportDialog.wordCountApprox", {
-      count: rounded.toLocaleString(),
+      count: formatNumber(rounded),
     });
   });
 

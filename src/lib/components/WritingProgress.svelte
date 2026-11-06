@@ -4,6 +4,7 @@
   import { writing } from "../stores/writing.svelte";
   import { proseSaves } from "../utils/proseSaves";
   import { t, tn } from "../i18n";
+  import { formatNumber } from "../i18n/format";
 
   let { prepareReset }: { prepareReset?: () => Promise<void> } = $props();
   let resetting = $state(false);
@@ -45,18 +46,18 @@
   {@const stats = writing.value}
   <div class="progress" data-testid="writing-progress">
     <p>
-      {t("editor.writingProgress.projectWords", { count: stats.project_words.toLocaleString() })}
+      {t("editor.writingProgress.projectWords", { count: formatNumber(stats.project_words) })}
     </p>
     <div class="ka-progress progress-goal">
       <p title={t("editor.writingProgress.todayTooltip")}>
         {#if stats.daily_goal > 0}
           {t("editor.writingProgress.todayWithGoal", {
-            today: stats.today_words.toLocaleString(),
-            goal: stats.daily_goal.toLocaleString(),
+            today: formatNumber(stats.today_words),
+            goal: formatNumber(stats.daily_goal),
           })}
         {:else}
           {t("editor.writingProgress.todayWithoutGoal", {
-            today: stats.today_words.toLocaleString(),
+            today: formatNumber(stats.today_words),
           })}
         {/if}
       </p>
@@ -71,7 +72,7 @@
     <div class="ka-between progress-session">
       <span title={t("editor.writingProgress.sessionTooltip")}
         >{t("editor.writingProgress.sessionWords", {
-          count: stats.session_words.toLocaleString(),
+          count: formatNumber(stats.session_words),
         })}</span
       >
       <button

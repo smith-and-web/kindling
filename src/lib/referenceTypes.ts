@@ -79,6 +79,17 @@ export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
   },
 ];
 
+const REFERENCE_TYPE_IDS = new Set<string>(REFERENCE_TYPE_OPTIONS.map((option) => option.id));
+
+/**
+ * Copy that names a reference type ("No characters yet", "Add character") has one catalog key
+ * per type, `<base>.<type>`, so every language can make the words agree in gender, number and
+ * case. A type the catalog doesn't know (or none) reads the neutral `<base>.any` wording.
+ */
+export function referenceTypeText(base: string, type: string | null | undefined): string {
+  return t(`${base}.${type && REFERENCE_TYPE_IDS.has(type) ? type : "any"}`);
+}
+
 export const DEFAULT_REFERENCE_TYPES: ReferenceTypeId[] = REFERENCE_TYPE_OPTIONS.filter(
   (option) => option.isDefault
 ).map((option) => option.id);

@@ -26,10 +26,6 @@ const catalog: Catalog = {
   "findReplaceDialog.noMoreMatches":
     "Keine weiteren Treffer. Weiter oder Zurück verwenden, um fortzufahren.",
   "findReplaceDialog.noMatches": "Keine Treffer gefunden.",
-  "findReplaceDialog.confirmReplace":
-    "{count} Treffer in {scope} ersetzen? {skipped} gesperrte oder nicht gespeicherte Treffer werden übersprungen.",
-  "findReplaceDialog.scopeEntireProject": "dem gesamten Projekt",
-  "findReplaceDialog.scopeCurrentScene": "der aktuellen Szene",
   "findReplaceDialog.confirmReplaceAll": "Alle ersetzen bestätigen",
   "findReplaceDialog.retryLoading": "Laden erneut versuchen",
   "findReplaceDialog.retrySavingDrafts": "Entwürfe speichern erneut versuchen",
@@ -49,6 +45,14 @@ const catalog: Catalog = {
   "findReplaceDialog.replacementUndone": "Ersetzung rückgängig gemacht.",
   "findReplaceDialog.replacementSaved": "Ersetzung gespeichert.",
   "findReplaceDialog.noChangesNeeded": "Keine Änderungen erforderlich.",
+  "findReplaceDialog.confirmReplaceProject.one": "{count} Treffer im gesamten Projekt ersetzen?",
+  "findReplaceDialog.confirmReplaceProject.other": "{count} Treffer im gesamten Projekt ersetzen?",
+  "findReplaceDialog.confirmReplaceScene.one": "{count} Treffer in der aktuellen Szene ersetzen?",
+  "findReplaceDialog.confirmReplaceScene.other": "{count} Treffer in der aktuellen Szene ersetzen?",
+  "findReplaceDialog.confirmSkipped.one":
+    "{count} gesperrter oder nicht gespeicherter Treffer wird übersprungen.",
+  "findReplaceDialog.confirmSkipped.other":
+    "{count} gesperrte oder nicht gespeicherte Treffer werden übersprungen.",
 };
 
 export default catalog;

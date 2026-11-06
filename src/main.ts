@@ -7,6 +7,11 @@ import { currentProject } from "./lib/stores/project.svelte";
 import { ui } from "./lib/stores/ui.svelte";
 import type { Project, Chapter } from "./lib/types";
 import { backgroundQA } from "./lib/qaMode";
+import { getLocale } from "./lib/i18n";
+
+// Native controls (number inputs, date pickers) and assistive tech follow the document language,
+// so it names the interface locale rather than the hard-coded `en` in index.html.
+document.documentElement.lang = getLocale();
 
 let contentReady!: () => void;
 const initialContent = new Promise<void>((resolve) => (contentReady = resolve));

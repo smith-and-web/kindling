@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setLocale } from "../i18n";
 import {
   chapterLabel,
   profileForStorage,
@@ -7,6 +8,8 @@ import {
   compileWorkspaceDocument,
   decodeProfiles,
   exportFilename,
+  formatLabel,
+  PREVIEW_FORMATS,
   manuscriptWords,
   previewFilename,
   profileValidation,
@@ -14,6 +17,7 @@ import {
   runningHead,
   selectedChapters,
   starterProfiles,
+  wordCountLine,
   type PreviewChapter,
 } from "./exportPrototype";
 
@@ -387,4 +391,60 @@ it.each(["title", "none"] as const)("ignores unfinished numbering with %s headin
   expect(profileValidation(p)).toBe("");
   expect(profileForStorage(p).startNumber).toBe(1);
   expect(compileWorkspaceDocument(chapters, p).text).not.toContain("NaN");
+});
+
+describe("manuscript text follows the interface language", () => {
+  afterEach(() => setLocale("en"));
+
+  it("labels every output format", () => {
+    expect(PREVIEW_FORMATS.map(formatLabel)).toContain("Submission manuscript");
+    setLocale("de");
+    expect(formatLabel("docx")).toBe("Einreichungsmanuskript");
+    for (const format of PREVIEW_FORMATS) expect(formatLabel(format)).not.toMatch(/^export\./);
+  });
+
+  it("names starter profiles when they are created and keeps saved names", () => {
+    const english = starterProfiles("Book", "")[0];
+    setLocale("ru");
+    expect(starterProfiles("Book", "").map((p) => p.name)).toEqual([
+      "Подача литагенту",
+      "Писательская группа",
+      "Главы для сайта",
+    ]);
+    // A profile saved in English keeps its name after the interface language changes.
+    const raw = JSON.stringify({ version: 2, activeId: english.id, profiles: [english] });
+    expect(decodeProfiles(raw).profiles[0].name).toBe("Agent submission");
+  });
+
+  it("writes chapter headings, the byline, contents and word counts in that language", () => {
+    setLocale("de");
+    const p = starterProfiles("Buch", "Jana Schreiber")[0];
+    p.contents = true;
+    expect(chapterLabel(chapters[0], 0, p)).toBe("Kapitel 1: Arrival & Departure");
+    p.chapterHeading = "number";
+    p.numberStyle = "roman";
+    expect(chapterLabel(chapters[0], 3, p)).toBe("Kapitel IV");
+    const doc = compileWorkspaceDocument(chapters, p);
+    expect(doc.byline).toBe("von Jana Schreiber");
+    expect(doc.contentsTitle).toBe("Inhalt");
+    expect(doc.text).toContain("von Jana Schreiber");
+    expect(doc.text).toContain("Inhalt");
+    const preview = renderPreview(chapters, p).body;
+    expect(preview).toContain("<p>von Jana Schreiber</p>");
+    expect(preview).toContain('aria-label="Inhalt"><h2>Inhalt</h2>');
+    p.title = "";
+    expect(renderPreview(chapters, p).document).toContain("Unbenanntes Manuskript");
+  });
+
+  it("counts words with the locale's plural forms and digit grouping", () => {
+    const exact = { wordCount: "exact" } as const;
+    const rounded = { wordCount: "rounded" } as const;
+    expect(wordCountLine(exact, 1)).toBe("1 word");
+    expect(wordCountLine(rounded, 85_400)).toBe("85,000 words (approx.)");
+    expect(wordCountLine({ wordCount: "none" }, 10)).toBe("");
+    setLocale("ru");
+    expect(wordCountLine(exact, 3)).toBe("3 слова");
+    expect(wordCountLine(rounded, 85_400)).toBe("примерно 85\u00a0000 слов");
+    expect(wordCountLine(exact, 21)).toBe("21 слово");
+  });
 });

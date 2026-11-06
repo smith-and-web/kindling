@@ -1,6 +1,7 @@
 /** Local-only UI prototype. This is deliberately not a public exporter contract. */
 import { escapeHtml, safeProse } from "./safeHtml";
-import { t } from "../i18n";
+import { t, tn } from "../i18n";
+import { formatNumber } from "../i18n/format";
 
 export type PreviewFormat =
   | "docx"
@@ -72,22 +73,32 @@ export interface ExportProfile {
   treatmentFormat: "docx" | "txt";
 }
 
-export const formatLabels: Record<PreviewFormat, string> = {
-  docx: "Submission manuscript",
-  epub: "Ebook / reader copy",
-  html: "Web / HTML",
-  markdown: "Markdown manuscript",
-  txt: "Plain text manuscript",
-  longform: "Longform / Obsidian",
-  scrivener: "Scrivener project",
-  novelwriter: "novelWriter project",
-  treatment: "Story treatment",
-};
+export const PREVIEW_FORMATS: readonly PreviewFormat[] = [
+  "docx",
+  "epub",
+  "html",
+  "markdown",
+  "txt",
+  "longform",
+  "scrivener",
+  "novelwriter",
+  "treatment",
+];
+
+/** The display name of an output format, also used for the native save dialog's filter. */
+export const formatLabel = (format: PreviewFormat): string => t(`export.format.${format}`);
+
+/**
+ * Starter profile names are written in the interface language when the profiles are created.
+ * Saved profiles keep whatever name they were saved with, so a writer's renamed (or older,
+ * English) profiles are never renamed behind their back.
+ */
+const starterName = (id: "submission" | "readers" | "website") => t(`export.starterProfile.${id}`);
 
 export function starterProfiles(title: string, author: string): ExportProfile[] {
   const base: ExportProfile = {
     id: "submission",
-    name: "Agent submission",
+    name: starterName("submission"),
     format: "docx",
     selection: "all",
     chapterIds: [],
@@ -135,7 +146,7 @@ export function starterProfiles(title: string, author: string): ExportProfile[] 
     {
       ...base,
       id: "readers",
-      name: "Writing group",
+      name: starterName("readers"),
       format: "epub",
       font: "Georgia",
       lineSpacing: 1.5,
@@ -152,7 +163,7 @@ export function starterProfiles(title: string, author: string): ExportProfile[] 
     {
       ...base,
       id: "website",
-      name: "Website chapters",
+      name: starterName("website"),
       format: "html",
       font: "Georgia",
       titlePage: false,
@@ -230,7 +241,7 @@ export function decodeProfiles(raw: string): { profiles: ExportProfile[]; active
     throw new Error(t("logic.exportPrototype.unsupportedFormat"));
   const shape = starterProfiles("", "")[0];
   const enums: Partial<Record<keyof ExportProfile, unknown[]>> = {
-    format: Object.keys(formatLabels),
+    format: [...PREVIEW_FORMATS],
     selection: ["all", "selected"],
     chapterHeading: ["number_title", "number", "title", "none"],
     numberStyle: ["arabic", "roman"],
@@ -332,17 +343,36 @@ function roman(value: number): string {
   }
   return result;
 }
+/**
+ * The chapter heading text. Only the words ("Chapter", the colon) follow the interface language;
+ * where and how the heading is set (SMF in Word) is the exporter's business and unchanged.
+ */
 export function chapterLabel(chapter: PreviewChapter, index: number, p: ExportProfile): string {
   const n = Math.round(bounded(p.startNumber, 1, 999, 1)) + index;
-  const number = `Chapter ${p.numberStyle === "roman" ? roman(n) : n}`;
+  const number = t("export.manuscript.chapterNumber", {
+    number: p.numberStyle === "roman" ? roman(n) : n,
+  });
   return p.chapterHeading === "none"
     ? ""
     : p.chapterHeading === "title"
       ? chapter.title
       : p.chapterHeading === "number"
         ? number
-        : `${number}: ${chapter.title}`;
+        : t("export.manuscript.chapterNumberTitle", { number, title: chapter.title });
 }
+
+/** The title-page word count: exact, or rounded to the nearest thousand as SMF asks. */
+export function wordCountLine(p: Pick<ExportProfile, "wordCount">, words: number): string {
+  if (p.wordCount === "none") return "";
+  if (p.wordCount === "rounded" && words >= 1000) {
+    const rounded = Math.round(words / 1000) * 1000;
+    return tn("export.manuscript.wordCountApprox", rounded, { count: formatNumber(rounded) });
+  }
+  return tn("export.manuscript.wordCount", words, { count: formatNumber(words) });
+}
+
+const untitled = () => t("export.manuscript.untitled");
+const byline = (author: string) => t("export.manuscript.byline", { author });
 
 /**
  * Word output follows Standard Manuscript Format, as the Word exporter writes it:
@@ -354,7 +384,7 @@ const manuscriptHeadingCss =
 
 /** The Word running header: "Surname / SHORT TITLE / " before the page number. */
 export function runningHead(p: Pick<ExportProfile, "header" | "title" | "author">): string {
-  const shortTitle = (p.title || "Untitled manuscript")
+  const shortTitle = (p.title || untitled())
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 3)
@@ -379,24 +409,20 @@ export function renderPreview(
   options: { chapterId?: string; titleOnly?: boolean } = {}
 ): { body: string; document: string; output: string } {
   const selected = selectedChapters(chapters, p);
-  const title = escapeHtml(p.title || "Untitled manuscript");
+  const title = escapeHtml(p.title || untitled());
   let body = "";
   if (p.format === "docx" && p.header !== "none")
     body += `<header class="running-head">${escapeHtml(runningHead(p))}1</header>`;
   if (p.titlePage && (!options.chapterId || options.titleOnly)) {
-    const words = manuscriptWords(selected);
-    const count =
-      p.wordCount === "rounded" && words >= 1000
-        ? `${(Math.round(words / 1000) * 1000).toLocaleString()} words (approx.)`
-        : `${words.toLocaleString()} words`;
+    const count = wordCountLine(p, manuscriptWords(selected));
     // A Word title page carries the word count at the top, as the manuscript does.
     const paged = p.format === "docx";
     const countLine =
       p.wordCount !== "none" ? `<p${paged ? ' class="word-count"' : ""}>${count}</p>` : "";
-    body += `<section class="title-page">${paged ? countLine : ""}<h1>${title}</h1>${p.subtitle ? `<p>${escapeHtml(p.subtitle)}</p>` : ""}${p.author ? `<p>by ${escapeHtml(p.author)}</p>` : ""}${paged ? "" : countLine}</section>`;
+    body += `<section class="title-page">${paged ? countLine : ""}<h1>${title}</h1>${p.subtitle ? `<p>${escapeHtml(p.subtitle)}</p>` : ""}${p.author ? `<p>${escapeHtml(byline(p.author))}</p>` : ""}${paged ? "" : countLine}</section>`;
   }
   if (p.contents && !options.chapterId && !options.titleOnly)
-    body += `<nav class="contents" aria-label="Contents"><h2>Contents</h2><ol>${selected.map((c, i) => `<li><a href="#chapter-${i}">${escapeHtml(chapterLabel(c, i, p) || c.title)}</a></li>`).join("")}</ol></nav>`;
+    body += `<nav class="contents" aria-label="${escapeHtml(t("export.manuscript.contents"))}"><h2>${escapeHtml(t("export.manuscript.contents"))}</h2><ol>${selected.map((c, i) => `<li><a href="#chapter-${i}">${escapeHtml(chapterLabel(c, i, p) || c.title)}</a></li>`).join("")}</ol></nav>`;
   let lastPart: string | null = null;
   if (!options.titleOnly)
     for (const [index, chapter] of selected.entries()) {
@@ -541,6 +567,10 @@ export interface WorkspaceDocument {
   language: string;
   description: string;
   wordCount: string;
+  /** The title page's author line ("by Jane Writer"), in the interface language; "" for none. */
+  byline: string;
+  /** The table of contents heading, in the interface language. */
+  contentsTitle: string;
   titlePage: boolean;
   contents: boolean;
   coverPath: string;
@@ -588,13 +618,7 @@ export function compileWorkspaceDocument(
   // carries neutral typography because those formats do not use page layout.
   const layout = isPlain(p.format) ? starterProfiles(p.title, p.author)[0] : profileForStorage(p);
   const selected = selectedChapters(chapters, p);
-  const words = manuscriptWords(selected);
-  const wordCount =
-    p.wordCount === "none"
-      ? ""
-      : p.wordCount === "rounded" && words >= 1000
-        ? `${(Math.round(words / 1000) * 1000).toLocaleString()} words (approx.)`
-        : `${words.toLocaleString()} words`;
+  const wordCount = wordCountLine(p, manuscriptWords(selected));
   let lastPart: string | null = null;
   const compiled = selected.map((c, i) => {
     const part = p.partTitles && c.part !== lastPart ? c.part : null;
@@ -624,13 +648,13 @@ export function compileWorkspaceDocument(
     text.push(
       `${md ? "# " : ""}${literal(p.title)}`,
       literal(p.subtitle),
-      p.author ? `by ${literal(p.author)}` : "",
+      p.author ? literal(byline(p.author)) : "",
       wordCount,
       ""
     );
   if (p.contents)
     text.push(
-      `${md ? "## " : ""}Contents`,
+      `${md ? "## " : ""}${literal(t("export.manuscript.contents"))}`,
       ...compiled.map((c) => `${md ? "- " : ""}${literal(c.navigationTitle)}`),
       ""
     );
@@ -648,12 +672,14 @@ export function compileWorkspaceDocument(
     }
   }
   return {
-    title: p.title || "Untitled manuscript",
+    title: p.title || untitled(),
     author: p.author,
     subtitle: p.subtitle,
     language: p.language,
     description: p.description,
     wordCount,
+    byline: p.author ? byline(p.author) : "",
+    contentsTitle: t("export.manuscript.contents"),
     titlePage: p.titlePage,
     contents: p.contents,
     coverPath: p.coverPath,

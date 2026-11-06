@@ -31,6 +31,7 @@
   import { proseSaves } from "../utils/proseSaves";
   import { synopsisSaves } from "../stores/synopsisSaves.svelte";
   import { t } from "../i18n";
+  import { formatDate as formatDateIn, formatFileSize } from "../i18n/format";
   import { countLabel, type CountNoun } from "../utils/plural";
 
   let {
@@ -99,7 +100,7 @@
 
   function openCreateDialog() {
     newSnapshotName = t("editorial.snapshotsPanel.defaultName", {
-      date: new Date().toLocaleDateString(undefined, {
+      date: formatDateIn(new Date(), {
         month: "short",
         day: "numeric",
         year: "numeric",
@@ -278,17 +279,9 @@
     }
   }
 
-  // Format file size for display
-  function formatFileSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-
   // Format date for display
   function formatDate(dateStr: string): string {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(undefined, {
+    return formatDateIn(dateStr, {
       month: "short",
       day: "numeric",
       year: "numeric",

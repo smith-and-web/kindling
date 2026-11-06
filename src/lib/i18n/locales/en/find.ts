@@ -25,10 +25,6 @@ const catalog: Catalog = {
   "findReplaceDialog.openScene": "Open scene",
   "findReplaceDialog.noMoreMatches": "No more matches ahead. Use Next or Previous to continue.",
   "findReplaceDialog.noMatches": "No matches found.",
-  "findReplaceDialog.confirmReplace":
-    "Replace {count} matches in {scope}? {skipped} locked or unsaved matches will be skipped.",
-  "findReplaceDialog.scopeEntireProject": "the entire project",
-  "findReplaceDialog.scopeCurrentScene": "the current scene",
   "findReplaceDialog.confirmReplaceAll": "Confirm replace all",
   "findReplaceDialog.retryLoading": "Retry loading",
   "findReplaceDialog.retrySavingDrafts": "Retry saving drafts",
@@ -48,6 +44,12 @@ const catalog: Catalog = {
   "findReplaceDialog.replacementUndone": "Replacement undone.",
   "findReplaceDialog.replacementSaved": "Replacement saved.",
   "findReplaceDialog.noChangesNeeded": "No changes needed.",
+  "findReplaceDialog.confirmReplaceProject.one": "Replace {count} match in the entire project?",
+  "findReplaceDialog.confirmReplaceProject.other": "Replace {count} matches in the entire project?",
+  "findReplaceDialog.confirmReplaceScene.one": "Replace {count} match in the current scene?",
+  "findReplaceDialog.confirmReplaceScene.other": "Replace {count} matches in the current scene?",
+  "findReplaceDialog.confirmSkipped.one": "{count} locked or unsaved match will be skipped.",
+  "findReplaceDialog.confirmSkipped.other": "{count} locked or unsaved matches will be skipped.",
 };
 
 export default catalog;

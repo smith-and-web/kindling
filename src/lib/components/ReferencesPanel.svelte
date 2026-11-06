@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { REFERENCE_FIELD_TYPES } from "../referenceTypes";
+  import { REFERENCE_FIELD_TYPES, referenceTypeText } from "../referenceTypes";
   import { invoke } from "@tauri-apps/api/core";
   import { onMount, untrack } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
@@ -548,6 +548,12 @@
     return type ? t(`references.referencesPanel.${REFERENCE_TYPE_KEYS[type]}`) : "";
   }
 
+  const addReferenceLabel = $derived(
+    activeTab
+      ? referenceTypeText("references.referencesPanel.add", activeTab)
+      : t("references.referencesPanel.addReference")
+  );
+
   function getReferencesForType(type: ReferenceTypeId) {
     return referencesByType[type] ?? [];
   }
@@ -933,16 +939,8 @@
           type="button"
           onclick={openCreateDialog}
           class="ka-button ka-button--ghost ka-icon-button"
-          aria-label={activeTab
-            ? t("references.referencesPanel.addReferenceOfType", {
-                type: referenceTypeName(activeTab),
-              })
-            : t("references.referencesPanel.addReference")}
-          title={activeTab
-            ? t("references.referencesPanel.addReferenceOfType", {
-                type: referenceTypeName(activeTab),
-              })
-            : t("references.referencesPanel.addReference")}
+          aria-label={addReferenceLabel}
+          title={addReferenceLabel}
           data-testid="add-reference-button"
           disabled={!activeTab}
         >
@@ -1081,27 +1079,11 @@
         </p>
       {:else if activeItems.length === 0}
         <div class="ka-empty od-stack refs-empty-state">
-          <h4>
-            {t("references.referencesPanel.emptyNoType", {
-              type: activeTab
-                ? referenceTypeName(activeTab).toLowerCase()
-                : t("references.referencesPanel.typeFallback"),
-            })}
-          </h4>
-          <p>
-            {t("references.referencesPanel.emptyHint", {
-              type: activeTab
-                ? referenceTypeName(activeTab).toLowerCase()
-                : t("references.referencesPanel.typeFallback"),
-            })}
-          </p>
+          <h4>{referenceTypeText("references.referencesPanel.empty", activeTab)}</h4>
+          <p>{referenceTypeText("references.referencesPanel.emptyHint", activeTab)}</p>
           <button type="button" class="ka-button" onclick={openCreateDialog}>
             <Plus class="w-5 h-5" aria-hidden="true" />
-            {t("references.referencesPanel.addReferenceOfType", {
-              type: activeTab
-                ? referenceTypeName(activeTab).toLowerCase()
-                : t("references.referencesPanel.typeFallbackSingular"),
-            })}
+            {addReferenceLabel}
           </button>
         </div>
       {:else}

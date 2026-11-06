@@ -321,6 +321,12 @@ const catalog: Catalog = {
     "Dieser Wiederherstellungspunkt wird entfernt. Das Projekt bleibt unverändert.",
   "snapshotsPanel.deleting": "Wird gelöscht…",
   "snapshotsPanel.delete": "Löschen",
+  // --- Revision status labels (stored values stay first_draft, editor_review, revised, final) ---
+  "revisionStatus.first_draft": "Erster Entwurf",
+  "revisionStatus.editor_review": "Lektorat",
+  "revisionStatus.revised": "Überarbeitet",
+  "revisionStatus.final": "Final",
+  "editorialWorkspace.localReviewRound": "Eigenes Lektorat",
 };
 
 export default catalog;

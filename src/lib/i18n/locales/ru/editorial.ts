@@ -320,6 +320,12 @@ const catalog: Catalog = {
   "snapshotsPanel.deleteBody": "Эта точка восстановления будет удалена. Проект не изменится.",
   "snapshotsPanel.deleting": "Удаление…",
   "snapshotsPanel.delete": "Удалить",
+  // --- Revision status labels (stored values stay first_draft, editor_review, revised, final) ---
+  "revisionStatus.first_draft": "Первый черновик",
+  "revisionStatus.editor_review": "Редактура",
+  "revisionStatus.revised": "Исправлено",
+  "revisionStatus.final": "Финальная версия",
+  "editorialWorkspace.localReviewRound": "Локальная рецензия",
 };
 
 export default catalog;

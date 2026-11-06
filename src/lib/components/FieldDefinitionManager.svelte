@@ -179,12 +179,29 @@
     const normalized = type === "multi_select" ? "multiselect" : type;
     return FIELD_TYPES.find((option) => option.value === normalized)?.label ?? type;
   }
+  // One key per entity type so each language can agree; an unknown type reads "Fields: {label}".
+  const KNOWN_ENTITIES = [
+    "character",
+    "location",
+    "scene",
+    "item",
+    "objective",
+    "organization",
+    "timeline",
+    "custom",
+  ];
+  const fieldsTitle = $derived(
+    t(
+      `references.fieldDefinitionManager.fieldsTitle.${KNOWN_ENTITIES.includes(entityType) ? entityType : "any"}`,
+      { label: entityLabel }
+    )
+  );
 </script>
 
 <section class="fields" aria-labelledby={`fields-${entityType}`}>
   <div class="fields-head">
     <h4 id={`fields-${entityType}`} class="ka-group-title fields-title">
-      {t("references.fieldDefinitionManager.fieldsTitle", { label: entityLabel })}
+      {fieldsTitle}
     </h4>
     <button
       type="button"

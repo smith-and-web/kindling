@@ -25,10 +25,6 @@ const catalog: Catalog = {
   "findReplaceDialog.openScene": "打开场景",
   "findReplaceDialog.noMoreMatches": "后面没有更多匹配。可用“下一处”或“上一处”继续查找。",
   "findReplaceDialog.noMatches": "没有找到匹配项。",
-  "findReplaceDialog.confirmReplace":
-    "在{scope}中替换 {count} 处匹配？另有 {skipped} 处匹配因锁定或未保存会被跳过。",
-  "findReplaceDialog.scopeEntireProject": "整个项目",
-  "findReplaceDialog.scopeCurrentScene": "当前场景",
   "findReplaceDialog.confirmReplaceAll": "确认全部替换",
   "findReplaceDialog.retryLoading": "重试加载",
   "findReplaceDialog.retrySavingDrafts": "重试保存草稿",
@@ -48,6 +44,9 @@ const catalog: Catalog = {
   "findReplaceDialog.replacementUndone": "已撤销替换。",
   "findReplaceDialog.replacementSaved": "替换已保存。",
   "findReplaceDialog.noChangesNeeded": "无需修改。",
+  "findReplaceDialog.confirmReplaceProject.other": "在整个项目中替换 {count} 处匹配？",
+  "findReplaceDialog.confirmReplaceScene.other": "在当前场景中替换 {count} 处匹配？",
+  "findReplaceDialog.confirmSkipped.other": "另有 {count} 处匹配因锁定或未保存会被跳过。",
 };
 
 export default catalog;

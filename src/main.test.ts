@@ -66,6 +66,13 @@ it("restores live visual preferences from an independent snapshot", async () => 
   expect(bridge.visualPreferences()).toEqual(original);
 });
 
+it("sets the document language to the interface locale", async () => {
+  document.documentElement.lang = "xx";
+  await import("./main");
+  // Tests always read English.
+  expect(document.documentElement.lang).toBe("en");
+});
+
 it("reports readiness only after the app's content hook and Svelte flush", async () => {
   let flushed!: () => void;
   tick.mockImplementation(() => new Promise<void>((resolve) => (flushed = resolve)));

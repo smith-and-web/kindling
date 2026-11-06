@@ -5,11 +5,13 @@
   import { History, Info, Loader2, Lock, Plus, RotateCcw, TriangleAlert } from "lucide-svelte";
   import { proseText } from "../utils/proseSearch";
   import { t, tn } from "../i18n";
+  import { formatDate } from "../i18n/format";
   import {
     activeDocuments,
     diffText,
     draftOf,
-    revisionStatuses,
+    REVISION_STATUSES,
+    revisionStatusLabel,
     type SceneReview,
     type ReviewData,
     type ReviewDraft,
@@ -60,7 +62,7 @@
   );
   const hasChanges = $derived(comparison.some((part) => part.kind !== "same"));
   function dateLabel(value: string) {
-    return new Date(value).toLocaleString(undefined, {
+    return formatDate(value, {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -211,7 +213,7 @@
           id="revision-status"
           value={review.data.status}
           onchange={(e) => setStatus(e.currentTarget.value)}
-          >{#each Object.entries(revisionStatuses) as [value, label]}<option {value}>{label}</option
+          >{#each REVISION_STATUSES as value}<option {value}>{revisionStatusLabel(value)}</option
             >{/each}</select
         >
       </fieldset>{/if}
@@ -444,8 +446,7 @@
             ></thead
           ><tbody
             >{#each overview as row}<tr
-                ><td>{row.chapter}</td><td>{row.title}</td><td
-                  >{revisionStatuses[row.status as keyof typeof revisionStatuses]}</td
+                ><td>{row.chapter}</td><td>{row.title}</td><td>{revisionStatusLabel(row.status)}</td
                 ><td>{row.drafts}</td></tr
               >{/each}</tbody
           >

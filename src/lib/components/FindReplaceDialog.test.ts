@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import FindReplaceDialog from "./FindReplaceDialog.svelte";
 import * as proseSearch from "../utils/proseSearch";
 import type { ProseDocument } from "../utils/proseSearch";
+import { setLocale, t } from "../i18n";
 
 const docs: ProseDocument[] = [
   {
@@ -200,7 +201,7 @@ describe("Find and Replace", () => {
     const { onApplied } = await open({ initialScope: "project" });
     expect((screen.getByText("Replace match") as HTMLButtonElement).disabled).toBe(true);
     await fireEvent.click(screen.getByText("Replace all"));
-    expect(screen.getByText(/Replace 1 matches in the entire project/)).toBeTruthy();
+    expect(screen.getByText(/Replace 1 match in the entire project/)).toBeTruthy();
     await fireEvent.click(screen.getByText("Confirm replace all"));
     await screen.findByText("Replacement saved.");
     expect(invoke).toHaveBeenLastCalledWith("replace_prose_batch", {
@@ -402,4 +403,42 @@ it("retries loading successfully after a transient failure without reopening", a
   await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Find")));
   expect(screen.queryByRole("alert")).toBeNull();
   expect(prepare).toHaveBeenCalledTimes(2);
+});
+
+describe("replace-all confirmation wording", () => {
+  afterEach(() => setLocale("en"));
+
+  async function confirmIn(locale: "ru" | "pt-BR", initialScope: "project" | "scene") {
+    setLocale(locale);
+    render(FindReplaceDialog, {
+      projectId: "project",
+      sceneId: "scene",
+      showReplace: true,
+      initialScope,
+      prepare: vi.fn().mockResolvedValue(undefined),
+      onApplied: vi.fn(),
+      onClose: vi.fn(),
+    });
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("get_search_documents", { projectId: "project" })
+    );
+    await fireEvent.input(screen.getByLabelText(t("find.findReplaceDialog.find")), {
+      target: { value: "Alice" },
+    });
+    await fireEvent.click(screen.getByText(t("find.findReplaceDialog.replaceAll")));
+    const notice = document.querySelector(".ka-notice--warning p");
+    return notice?.textContent?.replace(/\s+/g, " ").trim();
+  }
+
+  it("uses a whole sentence per scope with the count's plural form", async () => {
+    expect(await confirmIn("ru", "project")).toContain(
+      "Заменить 3 совпадения во всём проекте? 1 заблокированное или несохранённое совпадение будет пропущено."
+    );
+  });
+
+  it("words the scene scope and a zero skip count by CLDR (singular in Portuguese)", async () => {
+    expect(await confirmIn("pt-BR", "scene")).toBe(
+      "Substituir 2 correspondências na cena atual? 0 correspondência bloqueada ou não salva será ignorada."
+    );
+  });
 });

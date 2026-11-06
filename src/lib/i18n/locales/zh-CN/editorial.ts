@@ -291,6 +291,12 @@ const catalog: Catalog = {
   "snapshotsPanel.deleteBody": "此还原点将被删除。你的项目不会改变。",
   "snapshotsPanel.deleting": "正在删除…",
   "snapshotsPanel.delete": "删除",
+  // --- Revision status labels (stored values stay first_draft, editor_review, revised, final) ---
+  "revisionStatus.first_draft": "初稿",
+  "revisionStatus.editor_review": "编辑审阅",
+  "revisionStatus.revised": "已修订",
+  "revisionStatus.final": "定稿",
+  "editorialWorkspace.localReviewRound": "本地审阅",
 };
 
 export default catalog;
