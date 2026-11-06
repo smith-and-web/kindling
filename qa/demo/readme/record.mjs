@@ -29,12 +29,14 @@ const keepApp = process.argv.includes("--keep-app");
 const pngDir = join(repo, "qa/demo/readme/results");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Press splits each face into a Latin and a Rest file by unicode-range. The demo is
+// English, so the Latin file holds every glyph it sets.
 const FONT_FILES = {
-  "Inter|normal": "Inter-Variable.woff2",
-  "Inter|italic": "Inter-Variable-Italic.woff2",
-  "Fraunces|normal": "Fraunces-Variable.woff2",
-  "Newsreader|normal": "Newsreader-Variable.woff2",
-  "Newsreader|italic": "Newsreader-Variable-Italic.woff2",
+  "Inter|normal": "Inter-Latin.woff2",
+  "Inter|italic": "Inter-Italic-Latin.woff2",
+  "Fraunces|normal": "Fraunces-Latin.woff2",
+  "Newsreader|normal": "Newsreader-Latin.woff2",
+  "Newsreader|italic": "Newsreader-Italic-Latin.woff2",
 };
 
 function pyftsubset() {

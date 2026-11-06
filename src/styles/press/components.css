@@ -42,8 +42,11 @@ h1,h2,h3,h4 { font-family:var(--font-display); font-optical-sizing:auto; font-we
 .content-section h3 { font-size:var(--text-h3); font-weight:500; margin:24px 0 12px; }
 .content-section p { font-family:var(--font-body); font-size:var(--text-body); color:var(--color-text); line-height:var(--leading-relaxed); margin-bottom:16px; }
 .content-section p:last-child { margin-bottom:0; }
-.content-section a { color:var(--color-accent-text); text-decoration:none; }
-.content-section a:hover { text-decoration:underline; }
+/* Links in running text keep their underline: colour alone does not mark a
+   link for a reader who can't tell terracotta from the ink beside it (WCAG
+   1.4.1). Same offset as website.css; hover thickens rather than appears. */
+.content-section a { color:var(--color-accent-text); text-decoration:underline; text-underline-offset:4px; }
+.content-section a:hover { text-decoration-thickness:2px; }
 
 
 /* ===== Editorial composition =====
@@ -310,8 +313,8 @@ body::before {
   color: var(--color-text);
   line-height: var(--leading-relaxed);
 }
-.feature-solution a { color: var(--color-accent-text); text-decoration: none; }
-.feature-solution a:hover { text-decoration: underline; }
+.feature-solution a { color: var(--color-accent-text); text-decoration: underline; text-underline-offset: 4px; }
+.feature-solution a:hover { text-decoration-thickness: 2px; }
 
 /* Hairline list — de-boxed replacement for card grids. */
 .spotlight-list {
@@ -402,7 +405,11 @@ body::before {
 /* ---- CTA section ---- */
 .cta-section { padding:80px 24px; background:var(--color-surface-sunken); text-align:center; }
 .cta-section h2 { font-size:var(--text-h2); margin-bottom:12px; }
-.cta-section p { font-family:var(--font-body); font-size:var(--text-body); color:var(--color-text-muted); margin-bottom:24px; }
+/* The panel centres its text, but inside `.press-web` a paragraph is also capped
+   at 65ch with no margin, so the capped block sat on the panel's left padding
+   while the heading and action centred across the full width. Centre the
+   block as well as the text. */
+.cta-section p { font-family:var(--font-body); font-size:var(--text-body); color:var(--color-text-muted); margin:0 auto 24px; }
 
 /* ---- Buttons ---- */
 .download-buttons { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:16px; }

@@ -91,8 +91,8 @@
   --color-prose-code-bg:var(--sunken);
 
   /* ===== Typography ===== */
-  --font-display:'Fraunces',Georgia,'Times New Roman',serif;
-  --font-body:'Newsreader',Georgia,'Times New Roman',serif;
+  --font-display:'Fraunces',Georgia,'Times New Roman','Songti SC','Noto Serif CJK SC','Source Han Serif SC',SimSun,serif;
+  --font-body:'Newsreader',Georgia,'Times New Roman','Songti SC','Noto Serif CJK SC','Source Han Serif SC',SimSun,serif;
   --font-ui:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   --font-mono:'Monaco','Menlo','Consolas',monospace;
 

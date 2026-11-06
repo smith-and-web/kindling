@@ -40,7 +40,7 @@
    effect on a paired `ka-`/`od-` element. */
 .ka-notice{display:grid;padding:16px;border:1px solid var(--color-border);border-radius:var(--ka-radius-small);background:var(--color-info-wash);color:var(--color-info);gap:12px;font:var(--text-ui)/1.6 var(--font-ui)}.ka-notice p{color:var(--color-text)}.ka-notice--error{color:var(--color-error);background:var(--color-error-wash)}.ka-notice--success{color:var(--color-success);background:var(--color-success-wash)}.ka-notice--warning{color:var(--color-warning);background:var(--color-warning-wash)}
 .ka-dialog{position:fixed;inset:0;margin:auto;padding:0;width:min(600px,calc(100% - 32px));max-width:calc(100% - 32px);max-height:calc(100dvh - 48px);overflow:auto;background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-border);border-radius:var(--ka-radius);box-shadow:0 16px 48px var(--color-overlay-scrim)}.ka-dialog:not([open]){display:none}.ka-dialog-wide{width:min(960px,calc(100% - 32px))}.ka-dialog::backdrop{background:var(--color-overlay-scrim)}.ka-dialog-header{padding:16px 24px;border-bottom:1px solid var(--color-border)}.ka-dialog-header h3{font-size:var(--text-h3)}.ka-dialog-body{padding:24px}.ka-dialog-footer{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;padding:16px 24px;border-top:1px solid var(--color-border)}
-.ka-panel{min-width:0;border:1px solid var(--color-border);border-radius:var(--ka-radius);background:var(--color-surface)}.ka-panel>header{padding:16px;border-bottom:1px solid var(--color-border)}.ka-panel-body{padding:16px}.ka-panel h4{font-size:var(--text-h3)}
+.ka-panel{min-width:0;border:1px solid var(--color-border);border-radius:var(--ka-radius);background:var(--color-surface)}.ka-panel>header{padding:16px;border-bottom:1px solid var(--color-border)}.ka-panel-body{padding:16px}.ka-panel h4,.ka-panel>header h3{font-size:var(--text-h3)}
 .ka-beat{margin:0;border:0;background:var(--color-surface-sunken);border-radius:var(--ka-radius);color:var(--color-text);font:var(--text-ui)/1.5 var(--font-ui)}.ka-beat>summary{display:flex;align-items:center;gap:12px;min-height:52px;padding:12px 16px;list-style:none;cursor:pointer}.ka-beat>summary::-webkit-details-marker{display:none}.ka-beat-number{display:flex;align-items:center;justify-content:center;flex:none;min-width:28px;min-height:28px;padding:4px;border-radius:50%;background:var(--color-accent-text);color:var(--color-on-accent);font:500 var(--text-small)/1 var(--font-ui)}.ka-beat-body{padding:8px 16px 16px}/* A beat body's own note paragraphs read at --text-body-lg. A manuscript
    drafted inside the beat is not a note: `.ka-manuscript-prose` sets
    --text-body/--leading-relaxed on itself, but this rule named the `p`
@@ -143,9 +143,12 @@
    the application's scene header (12px 24px). The minimum height is a 44px
    control plus that padding and the hairline, so a text-only bar is exactly
    as tall as one holding an icon button and the three regions' header rules
-   meet in one line rather than stepping. */
+   meet in one line rather than stepping. A heading in the bar keeps one
+   appearance at h2, h3 or h4, so a specimen embedded in a page can take the
+   level its outline needs: the rule reproduces what `.press-app h4` gives. */
 .ka-workspace-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 16px;flex:none;min-height:calc(var(--ka-touch) + 25px);padding:12px 24px;border-bottom:1px solid var(--color-border);background:var(--color-surface);font:var(--text-ui)/1.5 var(--font-ui)}
 .ka-workspace-main>.ka-workspace-bar{background:var(--color-bg)}
+.ka-workspace-bar :is(h2,h3,h4){margin:0;font:550 var(--text-h3)/1.25 var(--font-display);letter-spacing:-.02em}
 .ka-workspace-body{flex:1 1 auto;min-height:0;overflow:auto;padding:16px}
 .ka-workspace-main>.ka-workspace-body{padding:24px}
 /* A bounded body scrolls, so it takes keyboard focus (`tabindex="0"`) and

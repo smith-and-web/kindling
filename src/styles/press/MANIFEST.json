@@ -1,27 +1,27 @@
 {
   "package": "@kindling/design-system",
-  "version": "0.13.1",
-  "commit": "e1dd0fccf2cb506467e2f3e28c6a86bd884de16a",
+  "version": "0.15.2",
+  "commit": "e07117aa8353f99d0ddd3e15b796666f7d353d31",
   "snapshot": "commit",
-  "note": "Taken from ../press at e1dd0fccf2cb506467e2f3e28c6a86bd884de16a with a clean working tree.",
-  "syncedAt": "2026-09-23T23:37:01Z",
+  "note": "Taken from ../press at e07117aa8353f99d0ddd3e15b796666f7d353d31 with a clean working tree.",
+  "syncedAt": "2026-11-06T22:40:47Z",
   "generator": "scripts/sync-design-system.sh -> scripts/check-design-system.mjs --write",
   "verify": "npm run check:design-system",
   "files": [
     {
       "path": "src/styles/press/application.css",
-      "bytes": 33906,
-      "sha256": "2392a9caabed977512a341210dbb1e9d8f454fb864d61dd08d9246b14fc0ddef"
+      "bytes": 34223,
+      "sha256": "88dfe6254eb3a0fbe239b501acf3f5aafb87e09b29f21b48608130001a99a6d5"
     },
     {
       "path": "src/styles/press/components.css",
-      "bytes": 33257,
-      "sha256": "c8527980578ad9e3a7f5609f9092ec4eff6d0e994484c6eb93fd46ac5f89b304"
+      "bytes": 33828,
+      "sha256": "d824df9515efb5631b1b2866bc9dadea10339ec8ff5a03f96f0fe5097eaeb9cf"
     },
     {
       "path": "src/styles/press/fonts.css",
-      "bytes": 1013,
-      "sha256": "a4d318003b802659145ba94cd6f846acf94fd37d6374865f6935ecdcb39a3441"
+      "bytes": 9023,
+      "sha256": "128ea3fa5ee6c393d1967d22780f55bef0b997aa0a2bc94898c9b046dae5c92e"
     },
     {
       "path": "src/styles/press/tailwind.css",
@@ -30,13 +30,13 @@
     },
     {
       "path": "src/styles/press/tokens.css",
-      "bytes": 9215,
-      "sha256": "5ee21db19225e63e294c1b2549704b3d096074a2c5459bb5683cf1cda4a58c11"
+      "bytes": 9337,
+      "sha256": "b164fa72c80cae29143964baa111c6336e57c6c63fc7c2fb2e4ab35cd6207fa0"
     },
     {
       "path": "src/styles/press/tokens.json",
-      "bytes": 12533,
-      "sha256": "31ba3f8c4c576853b4c7b9720c2529e97df20b83d3c2e61b06cd7d98496c73ab"
+      "bytes": 12777,
+      "sha256": "6815f74f22c73bcaee347cb460e7ef3a135d6855d025b222af5474a4610519e6"
     },
     {
       "path": "src/styles/press/svelte/Badge.svelte",
@@ -209,29 +209,54 @@
       "sha256": "e193ec028452fc6b473af1bf764cfa71c55317fc72179d00aa82a5d3da1d2d0e"
     },
     {
-      "path": "static/fonts/Fraunces-Variable.woff2",
-      "bytes": 205888,
-      "sha256": "da722bdda0bd373890add1433edef8596aa1c5fab39baaf15284ca52f6e3edbd"
+      "path": "static/fonts/Fraunces-Latin.woff2",
+      "bytes": 72044,
+      "sha256": "d90eb382d9f6cafdbf0b6cb1afded8d7d597c13e941c9ea6a1e7731f2af76c62"
     },
     {
-      "path": "static/fonts/Inter-Variable-Italic.woff2",
-      "bytes": 386108,
-      "sha256": "c7c5944376e0d1cf070d5bc17d0eac8f47f05b42a3d2fb94700a5cfb758b424e"
+      "path": "static/fonts/Fraunces-Rest.woff2",
+      "bytes": 48460,
+      "sha256": "8527caf420315250397cdc61a97eab89c9036f87493e1980b95c4cf36d820f34"
     },
     {
-      "path": "static/fonts/Inter-Variable.woff2",
-      "bytes": 350348,
-      "sha256": "42426531a64068352acf2295ca6efc4dca331a60cbecbae56101f623f2e6ed31"
+      "path": "static/fonts/Inter-Italic-Latin.woff2",
+      "bytes": 96028,
+      "sha256": "7aa834edcd68757f53677a00d5fd66541ce0d41a9784159b287725cf263843c4"
     },
     {
-      "path": "static/fonts/Newsreader-Variable-Italic.woff2",
-      "bytes": 239268,
-      "sha256": "0e23efb5db59cfe8eb3e8bc36580d45e1a5a18ee93306d0318fee022eb050ab6"
+      "path": "static/fonts/Inter-Italic-Rest.woff2",
+      "bytes": 230992,
+      "sha256": "fa2db3032f0c0fdaaa574b7bc8f4f8ca59678e372bcc60e57c3ec98dbc0ba988"
     },
     {
-      "path": "static/fonts/Newsreader-Variable.woff2",
-      "bytes": 215060,
-      "sha256": "d55bdae1b13430cbb23b9c1f76af762da5aa86993643fafa0f589c4043cc5809"
+      "path": "static/fonts/Inter-Latin.woff2",
+      "bytes": 88996,
+      "sha256": "a8ddc076a0126915795153fe52ab708a9a5fc43bc3fd0c07e43cf4d687efb67d"
+    },
+    {
+      "path": "static/fonts/Inter-Rest.woff2",
+      "bytes": 212712,
+      "sha256": "0357ebc1aab05e6f9d6ba938bfbd4c9ef8a583180570be541c9cabaf36391ed1"
+    },
+    {
+      "path": "static/fonts/Newsreader-Italic-Latin.woff2",
+      "bytes": 136652,
+      "sha256": "eda84f7338130a011dabbff0c4e0b675b1af9963fc56e769aa797df3d80b90d8"
+    },
+    {
+      "path": "static/fonts/Newsreader-Italic-Rest.woff2",
+      "bytes": 58732,
+      "sha256": "3159726faa1ebe145f948edfca5a6639da643e0adc26d4119cf5885274ad98b4"
+    },
+    {
+      "path": "static/fonts/Newsreader-Latin.woff2",
+      "bytes": 120596,
+      "sha256": "5e0f7970060a6a58af407e29b67fcb3e02fbe174f55b21fa9762ac0038680da0"
+    },
+    {
+      "path": "static/fonts/Newsreader-Rest.woff2",
+      "bytes": 54032,
+      "sha256": "fb8e346fa69640eff2aca2a72c1dfd1da5c18f9d15759b678e18e2e45ce12a0b"
     },
     {
       "path": "static/fonts/licenses/fraunces/EMBEDDED-NOTICE.txt",
@@ -325,8 +350,8 @@
     },
     {
       "path": "DESIGN_GUIDE.md",
-      "bytes": 17035,
-      "sha256": "f9e6ac95d921db91b6731bdd55e4a03be5c23b0597cff8487f638d6e939fa71e"
+      "bytes": 17643,
+      "sha256": "6e93e273091e6c2ab7f636d3c8869c88c4f8c3a6e13c39c6502f541298f6a919"
     }
   ]
 }
