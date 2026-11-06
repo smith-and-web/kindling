@@ -23,6 +23,7 @@
   import { currentProject } from "../stores/project.svelte";
   import { saveProseBefore } from "../utils/proseFlush";
   import { t } from "../i18n";
+  import { formatNumber } from "../i18n/format";
   import {
     compileWorkspaceDocument,
     exportFilename,
@@ -830,7 +831,7 @@
                 <div>
                   <dt>{t("export.exportWorkspace.categoryText")}</dt>
                   <dd class="ka-between">
-                    <span>{draft.font} · {draft.fontSize} pt</span><button
+                    <span>{draft.font} · {formatNumber(draft.fontSize)} pt</span><button
                       type="button"
                       class="ka-button ka-button--ghost"
                       aria-label={t("export.exportWorkspace.changeTextPage")}
@@ -1542,7 +1543,7 @@
                 : t("export.exportWorkspace.layoutApproximation")}</span
           ><span
             >{t("export.exportWorkspace.previewSummary", {
-              words: wordCount.toLocaleString(),
+              words: formatNumber(wordCount),
               scenes: countLabel(sceneCount, "scene"),
             })}</span
           >

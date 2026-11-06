@@ -12,6 +12,7 @@
   import type { ReviewItem } from "../utils/reviewItems";
   import { holdLinkClick } from "../utils/safeHtml";
   import { t } from "../i18n";
+  import { formatDate } from "../i18n/format";
   let {
     items,
     selected,
@@ -124,10 +125,7 @@
   }
   function shortDate(value?: string) {
     if (!value) return "";
-    const date = new Date(value);
-    return Number.isNaN(date.getTime())
-      ? ""
-      : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return formatDate(value, { month: "short", day: "numeric" });
   }
   // The passage the feedback is anchored to, quoted above the note it carries.
   function anchor(item: ReviewItem) {
@@ -359,7 +357,11 @@
                 {#each item.messages as note}<div class="message">
                     <span class="message-meta"
                       ><span class="message-author">{note.author}</span><time
-                        >{new Date(note.created_at).toLocaleDateString()}</time
+                        >{formatDate(note.created_at, {
+                          year: "numeric",
+                          month: "numeric",
+                          day: "numeric",
+                        })}</time
                       ></span
                     >
                     <p>{note.text}</p>

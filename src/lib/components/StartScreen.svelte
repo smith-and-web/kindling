@@ -16,6 +16,7 @@
   import type { Project } from "../types";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import { t } from "../i18n";
+  import { formatDate } from "../i18n/format";
 
   interface Props {
     recentProjects: Project[];
@@ -121,14 +122,13 @@
   }
 
   function modifiedDate(value: string) {
-    const date = new Date(value);
     return {
-      short: date.toLocaleDateString(undefined, {
+      short: formatDate(value, {
         day: "numeric",
         month: "short",
         year: "numeric",
       }),
-      long: date.toLocaleDateString(undefined, { dateStyle: "long" }),
+      long: formatDate(value, { dateStyle: "long" }),
     };
   }
 

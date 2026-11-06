@@ -74,6 +74,7 @@
   import { menuKeyboard } from "../utils/menuKeyboard";
   import { stepMoveOrder } from "../utils/outlineMove";
   import { t, tn } from "../i18n";
+  import { formatDecimal, formatNumber } from "../i18n/format";
 
   import type { ComponentType } from "svelte";
 
@@ -1512,7 +1513,7 @@
                 target: pageCountEstimate.target,
               })}
             >
-              {pageCountEstimate.pages.toFixed(1)} / {pageCountEstimate.target}
+              {formatDecimal(pageCountEstimate.pages)} / {formatNumber(pageCountEstimate.target)}
             </span>
           {/if}
         </div>
@@ -1750,7 +1751,7 @@
                         {#if writing.value?.chapter_words?.[chapter.id] !== undefined}
                           <small class="sb-row-trail"
                             >{t("sidebar.sidebar.wordsCount", {
-                              count: writing.value.chapter_words[chapter.id].toLocaleString(),
+                              count: formatNumber(writing.value.chapter_words[chapter.id]),
                             })}</small
                           >
                         {/if}
@@ -1859,7 +1860,7 @@
                                 {#if writing.value?.scene_words?.[scene.id] !== undefined}
                                   <small class="sb-row-trail"
                                     >{t("sidebar.sidebar.wordsCount", {
-                                      count: writing.value.scene_words[scene.id].toLocaleString(),
+                                      count: formatNumber(writing.value.scene_words[scene.id]),
                                     })}</small
                                   >
                                 {/if}
@@ -2158,7 +2159,7 @@
                                   {#if writing.value?.scene_words?.[scene.id] !== undefined}
                                     <small
                                       >{t("sidebar.sidebar.wordsCount", {
-                                        count: writing.value.scene_words[scene.id].toLocaleString(),
+                                        count: formatNumber(writing.value.scene_words[scene.id]),
                                       })}</small
                                     >
                                   {/if}

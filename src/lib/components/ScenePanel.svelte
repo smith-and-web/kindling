@@ -51,6 +51,7 @@
   import TagSelector from "./TagSelector.svelte";
   import Tooltip from "./Tooltip.svelte";
   import { t } from "../i18n";
+  import { formatDecimal } from "../i18n/format";
 
   let {
     onOpenEditorial,
@@ -906,7 +907,7 @@
             {#if isScreenplay && scenePageEstimate !== null}
               <span
                 >{t("editor.scenePanel.pageEstimate", {
-                  pages: scenePageEstimate.toFixed(1),
+                  pages: formatDecimal(scenePageEstimate),
                 })}</span
               >
             {/if}

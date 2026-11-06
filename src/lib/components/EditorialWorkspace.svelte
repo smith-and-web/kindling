@@ -63,6 +63,7 @@
     type FeedbackEntry,
   } from "../utils/editorial";
   import { t, tn } from "../i18n";
+  import { formatDate } from "../i18n/format";
 
   let {
     prepareWriting,
@@ -1561,7 +1562,7 @@
                       ><span class="round-text"
                         ><span class="round-title">{item.name}</span><time
                           datetime={item.created_at}
-                          >{new Date(item.created_at).toLocaleString(undefined, {
+                          >{formatDate(item.created_at, {
                             month: "short",
                             day: "numeric",
                             year: "numeric",

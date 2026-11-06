@@ -2,6 +2,7 @@
   import { currentProject } from "../stores/project.svelte";
   import { writing } from "../stores/writing.svelte";
   import { t } from "../i18n";
+  import { formatNumber } from "../i18n/format";
 
   let expanded = $state(false);
   const stats = $derived(
@@ -48,22 +49,22 @@
           <dl class="ka-stats statistics-figures">
             <div>
               <dt>{t("editor.writingStatusBar.totalWords")}</dt>
-              <dd>{stats.project_words.toLocaleString()}</dd>
+              <dd>{formatNumber(stats.project_words)}</dd>
             </div>
             <div>
               <dt>{t("editor.writingStatusBar.scenesWithProse")}</dt>
-              <dd>{scenesWithProse.toLocaleString()}</dd>
+              <dd>{formatNumber(scenesWithProse)}</dd>
             </div>
             <div>
               <dt>{t("editor.writingStatusBar.emptyScenes")}</dt>
               <dd>
-                {(sceneCounts.length - scenesWithProse).toLocaleString()}
+                {formatNumber(sceneCounts.length - scenesWithProse)}
               </dd>
             </div>
             <div>
               <dt>{t("editor.writingStatusBar.averageWordsPerScene")}</dt>
               <dd>
-                {averageWords.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                {formatNumber(averageWords, { maximumFractionDigits: 1 })}
               </dd>
             </div>
           </dl>
@@ -86,7 +87,7 @@
                       {chapter.title}
                     </th>
                     <td>
-                      {stats.chapter_words[chapter.id].toLocaleString()}
+                      {formatNumber(stats.chapter_words[chapter.id])}
                     </td>
                   </tr>
                 {/each}
@@ -100,22 +101,30 @@
       <div class="statusbar-row">
         <span
           >{t("editor.writingStatusBar.sceneWords", {
-            count: sceneId ? (stats.scene_words[sceneId]?.toLocaleString() ?? "—") : "—",
+            count: sceneId
+              ? stats.scene_words[sceneId] === undefined
+                ? "—"
+                : formatNumber(stats.scene_words[sceneId])
+              : "—",
           })}</span
         >
         <span class="statusbar-chapter"
           >{t("editor.writingStatusBar.chapterWords", {
-            count: chapterId ? (stats.chapter_words[chapterId]?.toLocaleString() ?? "—") : "—",
+            count: chapterId
+              ? stats.chapter_words[chapterId] === undefined
+                ? "—"
+                : formatNumber(stats.chapter_words[chapterId])
+              : "—",
           })}</span
         >
         <span class="statusbar-project"
           >{t("editor.writingStatusBar.projectWords", {
-            count: stats.project_words.toLocaleString(),
+            count: formatNumber(stats.project_words),
           })}</span
         >
         <span title={t("editor.writingStatusBar.sessionTooltip")}>
           {t("editor.writingStatusBar.sessionWords", {
-            count: stats.session_words.toLocaleString(),
+            count: formatNumber(stats.session_words),
           })}
         </span>
         <button

@@ -5,6 +5,7 @@
   import { History, Info, Loader2, Lock, Plus, RotateCcw, TriangleAlert } from "lucide-svelte";
   import { proseText } from "../utils/proseSearch";
   import { t, tn } from "../i18n";
+  import { formatDate } from "../i18n/format";
   import {
     activeDocuments,
     diffText,
@@ -60,7 +61,7 @@
   );
   const hasChanges = $derived(comparison.some((part) => part.kind !== "same"));
   function dateLabel(value: string) {
-    return new Date(value).toLocaleString(undefined, {
+    return formatDate(value, {
       month: "short",
       day: "numeric",
       year: "numeric",
