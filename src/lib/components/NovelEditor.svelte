@@ -185,17 +185,21 @@
   <!-- Toolbar -->
   {#if !readonly}
     <ProseToolbar {editor} revision={toolbarRevision}>
-      <!-- The slot is always mounted and keeps the width of "Saving…", so the indicator
-           appearing on each save never changes the toolbar's wrapping. -->
+      <!-- A failed save is a lasting state the writer has to read, so it takes room
+           in the row like any toolbar content. -->
+      {#if saveStatus === "error"}
+        <div class="save-status error" role="alert">
+          <span>{t("editor.novelEditor.saveError")}</span>
+        </div>
+      {/if}
+      <!-- The slot is always mounted and asks the row for no width: it fills whatever
+           space the buttons leave and the transient "Saving…" indicator is drawn over
+           it, so a save never changes how the toolbar wraps. -->
       <div class="save-slot" data-testid="save-slot">
         {#if saveStatus === "saving"}
           <div class="save-status saving" data-testid="save-indicator" role="status">
             <Loader2 class="w-4 h-4 animate-spin" aria-hidden="true" />
-            <span>{t("editor.novelEditor.saving")}</span>
-          </div>
-        {:else if saveStatus === "error"}
-          <div class="save-status error" role="alert">
-            <span>{t("editor.novelEditor.saveError")}</span>
+            <span class="save-label">{t("editor.novelEditor.saving")}</span>
           </div>
         {/if}
       </div>
@@ -229,14 +233,25 @@
     cursor: default;
   }
 
-  /* Reserves the indicator's footprint: spinner (16px) + gap + "Saving…" wide, one
-     small-text line high. The height matters when the toolbar wraps the slot onto its
-     own row, which would otherwise grow from empty to one line on every save. */
-  .save-slot {
-    display: flex;
+  /* The toolbar's trailing area takes no room of its own: no padding, and a negative
+     start margin that cancels the toolbar gap before it. It can then always share the
+     last row with the buttons, never opening a row of its own, and grows into whatever
+     that row has left. */
+  .novel-editor :global(.prose-toolbar .extra) {
+    flex: 1 1 0;
     justify-content: flex-end;
-    min-width: 5rem;
-    min-height: calc(var(--text-small) * 1.5);
+    margin-left: calc(-1 * var(--space-2xs));
+    padding-inline: 0;
+  }
+
+  /* No width of its own either (basis 0, min-width 0, absolutely positioned content),
+     so a save never changes how the toolbar wraps. */
+  .save-slot {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    align-self: stretch;
+    container-type: inline-size;
   }
 
   .save-status {
@@ -246,11 +261,44 @@
     font-size: var(--text-small);
   }
 
+  /* Drawn over the slot, one line tall, a toolbar gap clear of the last button. When
+     the row has no room for the label it wraps onto a clipped second line, leaving only
+     the spinner; the label stays in the status for assistive tech. */
   .save-status.saving {
+    position: absolute;
+    inset: 0;
+    height: calc(var(--text-small) * 1.5);
+    margin-block: auto;
+    padding-left: var(--space-2xs);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    overflow: hidden;
     color: var(--color-text-muted);
+    pointer-events: none;
   }
 
+  /* Every item is a full line tall, so a wrapped label starts exactly at the clip edge
+     and the spinner stays centred in the line it keeps. */
+  .save-status.saving > :global(*) {
+    height: 100%;
+  }
+
+  /* Too little room for even the spinner (1rem) after its gap: draw nothing rather than
+     a clipped icon, but keep the status in the accessibility tree. */
+  @container (width < 1.5rem) {
+    .save-status.saving {
+      clip-path: inset(50%);
+    }
+  }
+
+  .save-label {
+    white-space: nowrap;
+  }
+
+  /* In flow, so it starts where the trailing area's padding used to put it, on the
+     button row or at the start of a row of its own. */
   .save-status.error {
+    padding-inline: calc(2 * var(--space-2xs)) var(--space-2xs);
     color: var(--color-error);
   }
 
