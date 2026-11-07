@@ -221,6 +221,36 @@ pub const DE: MenuStrings = MenuStrings {
     quick_start: "Schnellstart",
 };
 
+pub const FR: MenuStrings = MenuStrings {
+    file: "Fichier",
+    new_project: "Nouveau projet",
+    editorial_open: "Ouvrir un fichier de relecture ou de retours\u{a0}…",
+    editorial_project: "Relecture éditoriale\u{a0}…",
+    import: "Importer",
+    import_longform: "Longform (index ou Vault\u{a0}…)",
+    import_novelwriter: "novelWriter (dossier de projet)",
+    export: "Exporter\u{a0}…",
+    close_project: "Fermer le projet",
+    settings: "Réglages\u{a0}…",
+    quit: "Quitter kindling",
+    edit: "Édition",
+    find: "Rechercher dans la scène\u{a0}…",
+    find_replace: "Rechercher et remplacer\u{a0}…",
+    find_project: "Rechercher et remplacer dans le projet\u{a0}…",
+    view: "Affichage",
+    toggle_sidebar: "Afficher/masquer la barre latérale",
+    toggle_references: "Afficher/masquer le volet des fiches",
+    sync: "Synchroniser depuis la source",
+    window: "Fenêtre",
+    minimize: "Réduire",
+    maximize: "Agrandir",
+    help: "Aide",
+    about: "À propos de kindling\u{a0}…",
+    send_feedback: "Envoyer des retours\u{a0}…",
+    command_palette: "Palette de commandes\u{a0}…",
+    quick_start: "Démarrage rapide",
+};
+
 /// Supported locales: the catalog directory name, the system language subtags it serves
 /// and its menu copy. Mirrors `LOCALES` in `src/lib/i18n/index.ts`;
 /// `src/lib/i18n/detection.json` holds the cases both test suites check.
@@ -501,6 +531,19 @@ mod tests {
             assert_ne!(
                 *label, en_labels[index],
                 "DE label {index} ({label:?}) is identical to the EN label"
+            );
+        }
+    }
+
+    #[test]
+    fn fr_const_is_complete_and_translated() {
+        let fr_labels = FR.labels();
+        let en_labels = EN.labels();
+        for (index, label) in fr_labels.iter().enumerate() {
+            assert!(!label.trim().is_empty(), "FR label {index} is empty");
+            assert_ne!(
+                *label, en_labels[index],
+                "FR label {index} ({label:?}) is identical to the EN label"
             );
         }
     }
