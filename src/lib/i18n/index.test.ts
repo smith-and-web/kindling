@@ -137,7 +137,7 @@ describe("locale registry", () => {
 
   it("follows the system language outside tests", () => {
     expect(initialLocale(env(dev), "zh-TW")).toBe("zh-CN");
-    expect(initialLocale(env(dev), "fr-FR")).toBe("en");
+    expect(initialLocale(env(dev), "fr-FR")).toBe("fr");
     expect(initialLocale(env(dev), undefined)).toBe("en");
   });
 

@@ -1,0 +1,277 @@
+import type { Catalog } from "../../types";
+
+/** Barre latérale, volet d'archive, suppression de partie, renommage, étiquettes et navigateur de modèles. */
+const catalog: Catalog = {
+  // --- Barre latérale : chrome, libellés et états ---
+  "sidebar.sidebarAria": "Barre latérale du plan de projet",
+  "sidebar.expandSidebar": "Développer la barre latérale",
+  "sidebar.collapseSidebar": "Réduire la barre latérale",
+  "sidebar.home": "Accueil",
+  "sidebar.allProjects": "Tous les projets",
+  "sidebar.homeAria": "Accueil — tous les projets",
+  "sidebar.homeTitle": "Retourner à l'accueil, tous les projets",
+  "sidebar.pageEstimate": "{words} mots · objectif : {target}",
+  "sidebar.syncFromSource": "Synchroniser depuis la source",
+  "sidebar.moreActions": "Plus d'actions",
+  "sidebar.projectActions": "Actions du projet",
+  "sidebar.exportMenu": "Exporter",
+  "sidebar.snapshots": "Instantanés",
+  "sidebar.archiveMenu": "Archive",
+  "sidebar.openingProject": "Ouverture du projet…",
+  "sidebar.openingProjectAria": "Ouverture du projet",
+  "sidebar.noChapters":
+    "Aucun chapitre pour l'instant. Ajoutez-en un ci-dessous pour commencer le plan.",
+  "sidebar.projectOutline": "Plan du projet",
+  "sidebar.dragToReorder": "Faire glisser pour réorganiser",
+  "sidebar.locked": "Verrouillée",
+  "sidebar.flexible": "Flexible",
+  "sidebar.undefinedStatus": "Non définie",
+  "sidebar.sceneMenu": "Menu de scène",
+  "sidebar.addSynopsis": "Ajouter un synopsis…",
+  "sidebar.undefinedChapterHelp":
+    "Ce chapitre est non défini. Ajoutez un synopsis et les scènes apparaîtront lorsque vous le promouvrez en Flexible ou Fixée.",
+  "sidebar.switchToFlexible": "Passer en Flexible",
+  "sidebar.defineFullStructure": "Définir la structure complète",
+  "sidebar.wordsCount": "{count} mots",
+  "sidebar.statusLine": "État : {status}",
+  "sidebar.all": "Tout",
+  "sidebar.statusDraft": "Brouillon",
+  "sidebar.statusRevised": "Révisée",
+  "sidebar.statusFinal": "Final",
+  "sidebar.typeNormal": "Normal",
+  "sidebar.typeNotes": "Notes",
+  "sidebar.typeTodo": "À faire",
+  "sidebar.typeUnused": "Non utilisée",
+  "sidebar.sceneTitlePlaceholder": "Titre de la scène…",
+  "sidebar.newSceneTitle": "Titre de la nouvelle scène",
+  "sidebar.newScene": "Nouvelle scène",
+  "sidebar.noScenes": "Aucune scène pour l'instant",
+  "sidebar.noScenesMatching": "Aucune scène ne correspond à ces filtres",
+
+  // --- Barre latérale : filtres de scènes ---
+  "sidebar.showScenes": "Afficher les scènes",
+  "sidebar.planned": "Planifiées",
+  "sidebar.next5": "5 suivantes",
+  "sidebar.showAllScenes": "Afficher toutes les scènes",
+  "sidebar.showOnlyPlanned": "Afficher uniquement les scènes planifiées",
+  "sidebar.showNext5Scenes": "Afficher les 5 prochaines scènes",
+  "sidebar.filterByTypeStatus": "Filtrer par type et état",
+  "sidebar.filterByTypeStatusOn": "Filtrer par type et état (filtres actifs)",
+  "sidebar.sceneFilters": "Filtres de scènes",
+  "sidebar.filters": "Filtres",
+  "sidebar.reset": "Réinitialiser",
+  "sidebar.sceneType": "Type de scène",
+  "sidebar.status": "État",
+  "sidebar.sceneStatusFilter": "Filtre d'état de scène",
+  "sidebar.savedFilters": "Filtres enregistrés",
+  "sidebar.deleteSavedFilter": "Supprimer le filtre enregistré {name}",
+  "sidebar.filterNamePlaceholder": "Nom du filtre…",
+  "sidebar.filterName": "Nom du filtre",
+  "sidebar.saveCurrentFilter": "Enregistrer le filtre actuel…",
+
+  // --- Barre latérale : création et boîtes de dialogue ---
+  "sidebar.moreOptions": "Plus d'options",
+  "sidebar.createMenu": "Créer",
+  "sidebar.settings": "Réglages",
+  "sidebar.deleteChapterTitle": "Supprimer le chapitre",
+  "sidebar.deleteSceneTitle": "Supprimer la scène",
+  "sidebar.renameSceneTitle": "Renommer la scène",
+
+  // --- Barre latérale : messages de suppression ---
+  "sidebar.deleteChapterMessage":
+    "Cela supprimera « {title} » avec {scenes} et {beats}.",
+  "sidebar.deleteSceneMessage": "Cela supprimera « {title} » avec {beats}.",
+  "sidebar.sceneCount.one": "{count} scène",
+  "sidebar.sceneCount.other": "{count} scènes",
+  "sidebar.beatCount.one": "{count} temps fort",
+  "sidebar.beatCount.other": "{count} temps forts",
+
+  // --- Barre latérale : échecs affichés comme notifications ---
+  "sidebar.failedSaveFilter": "Échec de l'enregistrement du filtre : {error}",
+  "sidebar.failedLoadChapters": "Échec du chargement des chapitres : {error}",
+  "sidebar.failedLoadScenes": "Échec du chargement des scènes : {error}",
+  "sidebar.failedLoadBeats": "Échec du chargement des temps forts : {error}",
+  "sidebar.failedCreateScene": "Échec de la création de la scène : {error}",
+  "sidebar.failedPrepareDelete":
+    "Échec de la préparation de la suppression : {error}",
+  "sidebar.failedDelete": "Échec de la suppression : {error}",
+  "sidebar.failedDeletePart": "Échec de la suppression de la partie : {error}",
+  "sidebar.failedReorder": "Échec de la réorganisation : {error}",
+  "sidebar.failedCheckSync":
+    "Échec de la vérification des modifications de synchronisation : {error}",
+  "sidebar.failedDuplicate": "Échec de la duplication : {error}",
+  "sidebar.failedConvert": "Échec de la conversion : {error}",
+  "sidebar.failedUpdatePlanning":
+    "Échec de la mise à jour de l'état de planification : {error}",
+  "sidebar.failedArchive": "Échec de l'archivage : {error}",
+  "sidebar.failedChangeLock": "Échec du changement de verrou : {error}",
+  "sidebar.failedDeleteSavedFilter":
+    "Échec de la suppression du filtre enregistré : {error}",
+  "sidebar.unknownError": "Erreur inconnue",
+
+  // --- Barre latérale : annonce de déplacement au clavier ---
+  "sidebar.movedAnnouncement":
+    "« {title} » déplacé {direction}, à la position {position} sur {total}.",
+  "sidebar.directionUp": "vers le haut",
+  "sidebar.directionDown": "vers le bas",
+
+  // --- Barre latérale : menu contextuel ---
+  "sidebar.rename": "Renommer",
+  "sidebar.planning": "Planification",
+  "sidebar.fixed": "Fixée",
+  "sidebar.duplicate": "Dupliquer",
+  "sidebar.moveUp": "Déplacer vers le haut",
+  "sidebar.moveDown": "Déplacer vers le bas",
+  "sidebar.unlock": "Déverrouiller",
+  "sidebar.lock": "Verrouiller",
+  "sidebar.delete": "Supprimer",
+
+  // --- ArchivePanel ---
+  "archivePanel.title": "Archive",
+  "archivePanel.loading": "Chargement des éléments archivés…",
+  "archivePanel.loadFailedHeading": "Impossible de charger l'archive",
+  "archivePanel.loadFailed": "Échec du chargement des éléments archivés",
+  "archivePanel.restoreFailedChapter": "Impossible de restaurer ce chapitre.",
+  "archivePanel.restoreFailedScene": "Impossible de restaurer cette scène.",
+  "archivePanel.deleteFailedChapter": "Impossible de supprimer ce chapitre.",
+  "archivePanel.deleteFailedScene": "Impossible de supprimer cette scène.",
+  "archivePanel.unknownChapter": "Chapitre inconnu",
+  "archivePanel.originChapter": "Chapitre",
+  "archivePanel.originScene": "Scène dans {chapter}",
+  "archivePanel.restoring": "Restauration…",
+  "archivePanel.restore": "Restaurer",
+  "archivePanel.delete": "Supprimer",
+  "archivePanel.permanentDeleteTitle": "Supprimer définitivement « {title} » ?",
+  "archivePanel.permanentDeleteMessage":
+    "Cela supprime définitivement {kind}. Cette action est irréversible.",
+  "archivePanel.kindChapter": "le chapitre",
+  "archivePanel.kindScene": "la scène",
+  "archivePanel.deleting": "Suppression…",
+  "archivePanel.deletePermanently": "Supprimer définitivement",
+  "archivePanel.noItems": "Aucun élément archivé",
+  "archivePanel.emptyHint": "Les chapitres et scènes archivés apparaîtront ici.",
+  "archivePanel.intro":
+    "Restaurer remet un élément à sa place. Supprimer l'enlève définitivement.",
+  "archivePanel.archivedChapters": "Chapitres archivés ({count})",
+  "archivePanel.archivedScenes": "Scènes archivées ({count})",
+
+  // --- PartDeleteDialog ---
+  "partDeleteDialog.lede.one":
+    "« {title} » contient {chapters}. Que souhaitez-vous faire ?",
+  "partDeleteDialog.lede.other":
+    "« {title} » contient {chapters}. Que souhaitez-vous faire ?",
+  "partDeleteDialog.deleteOnlyHint.one":
+    "Le {chapters} restera dans le projet.",
+  "partDeleteDialog.deleteOnlyHint.other":
+    "Les {chapters} resteront dans le projet.",
+
+  // --- RenameDialog ---
+  "renameDialog.name": "Nom",
+  "renameDialog.enterName": "Saisissez un nom…",
+  "renameDialog.nameCannotBeEmpty": "Le nom ne peut pas être vide",
+  "renameDialog.failed": "Échec du renommage",
+
+  // --- TagManager ---
+  "tagManager.tagsNestLevels": "Les étiquettes s'emboîtent jusqu'à trois niveaux.",
+  "tagManager.newTag": "Nouvelle étiquette",
+  "tagManager.loadingTags": "Chargement des étiquettes…",
+  "tagManager.noTags": "Aucune étiquette définie pour l'instant.",
+  "tagManager.editTag": "Modifier l'étiquette",
+  "tagManager.addChildTag": "Ajouter une étiquette enfant",
+  "tagManager.deleteTag": "Supprimer l'étiquette",
+  "tagManager.closeEditor": "Fermer l'éditeur d'étiquettes",
+  "tagManager.childTags": "{count} étiquettes enfants",
+  "tagManager.name": "Nom",
+  "tagManager.namePlaceholder": "ex. Flashback, Action, Romance…",
+  "tagManager.color": "Couleur",
+  "tagManager.noColor": "Aucune couleur",
+  "tagManager.add": "Ajouter",
+  "tagManager.colorRed": "Rouge",
+  "tagManager.colorOrange": "Orange",
+  "tagManager.colorYellow": "Jaune",
+  "tagManager.colorGreen": "Vert",
+  "tagManager.colorTeal": "Sarcelle",
+  "tagManager.colorBlue": "Bleu",
+  "tagManager.colorPurple": "Violet",
+  "tagManager.colorPink": "Rose",
+  "tagManager.colorSlate": "Ardoise",
+  "tagManager.colorCyan": "Cyan",
+
+  // --- TagSelector ---
+  "tagSelector.failedAdd": "Échec de l'ajout de l'étiquette : {error}",
+  "tagSelector.failedRemove": "Échec de la suppression de l'étiquette : {error}",
+  "tagSelector.failedCreate": "Échec de la création de l'étiquette : {error}",
+  "tagSelector.removeTagNamed": "Supprimer l'étiquette {name}",
+  "tagSelector.removeTag": "Supprimer l'étiquette",
+  "tagSelector.addTag": "Ajouter une étiquette",
+  "tagSelector.searchOrCreate": "Rechercher ou créer…",
+  "tagSelector.searchOrCreateTag": "Rechercher ou créer une étiquette",
+  "tagSelector.createNamed": "Créer « {name} »",
+  "tagSelector.noMoreTags": "Plus d'étiquettes disponibles",
+
+  // --- TemplateBrowser ---
+  "templateBrowser.failedLoad": "Échec du chargement des modèles : {error}",
+  "templateBrowser.title": "Modèles de structure narrative",
+  "templateBrowser.loading": "Chargement des modèles…",
+  "templateBrowser.loadingAria": "Chargement des modèles",
+  "templateBrowser.noTemplates": "Aucun modèle disponible",
+  "templateBrowser.noTemplatesHint":
+    "Vous pouvez toujours démarrer depuis une structure vierge et ajouter des chapitres vous-même.",
+  "templateBrowser.beatsCount": "{count} temps forts",
+  "templateBrowser.templateCount.one": "{count} modèle disponible",
+  "templateBrowser.templateCount.other": "{count} modèles disponibles",
+  "templateBrowser.useTemplate": "Utiliser ce modèle",
+  // --- Éléments de structure : une clé par type pour chaque langue ---
+  "structure.part.menu": "Menu de partie",
+  "structure.part.titlePlaceholder": "Titre de la partie…",
+  "structure.part.newTitle": "Titre de la nouvelle partie",
+  "structure.part.new": "Nouvelle partie",
+  "structure.part.failedCreate": "Échec de la création de la partie : {error}",
+  "structure.part.convertTo": "Convertir en partie",
+  "structure.part.deleteTitle": "Supprimer la partie",
+  "structure.part.deleteOnly": "Supprimer la partie uniquement",
+  "structure.part.deleteAll": "Supprimer la partie et tous les chapitres",
+  "structure.part.deleteAllHint.one":
+    "Cela supprime définitivement la partie et son {chapters}.",
+  "structure.part.deleteAllHint.other":
+    "Cela supprime définitivement la partie et ses {chapters}.",
+  "structure.act.menu": "Menu d'acte",
+  "structure.act.titlePlaceholder": "Titre de l'acte…",
+  "structure.act.newTitle": "Titre du nouvel acte",
+  "structure.act.new": "Nouvel acte",
+  "structure.act.failedCreate": "Échec de la création de l'acte : {error}",
+  "structure.act.convertTo": "Convertir en acte",
+  "structure.act.deleteTitle": "Supprimer l'acte",
+  "structure.act.deleteOnly": "Supprimer l'acte uniquement",
+  "structure.act.deleteAll": "Supprimer l'acte et toutes les séquences",
+  "structure.act.deleteAllHint.one":
+    "Cela supprime définitivement l'acte et son {chapters}.",
+  "structure.act.deleteAllHint.other":
+    "Cela supprime définitivement l'acte et ses {chapters}.",
+  "structure.chapter.menu": "Menu de chapitre",
+  "structure.chapter.synopsisPlaceholder": "Synopsis du chapitre…",
+  "structure.chapter.synopsisAria": "Synopsis du chapitre",
+  "structure.chapter.titlePlaceholder": "Titre du chapitre…",
+  "structure.chapter.newTitle": "Titre du nouveau chapitre",
+  "structure.chapter.new": "Nouveau chapitre",
+  "structure.chapter.rename": "Renommer le chapitre",
+  "structure.chapter.failedSaveSynopsis":
+    "Échec de l'enregistrement du synopsis du chapitre : {error}",
+  "structure.chapter.failedCreate":
+    "Échec de la création du chapitre : {error}",
+  "structure.chapter.convertTo": "Convertir en chapitre",
+  "structure.sequence.menu": "Menu de séquence",
+  "structure.sequence.synopsisPlaceholder": "Synopsis de la séquence…",
+  "structure.sequence.synopsisAria": "Synopsis de la séquence",
+  "structure.sequence.titlePlaceholder": "Titre de la séquence…",
+  "structure.sequence.newTitle": "Titre de la nouvelle séquence",
+  "structure.sequence.new": "Nouvelle séquence",
+  "structure.sequence.rename": "Renommer la séquence",
+  "structure.sequence.failedSaveSynopsis":
+    "Échec de l'enregistrement du synopsis de la séquence : {error}",
+  "structure.sequence.failedCreate":
+    "Échec de la création de la séquence : {error}",
+  "structure.sequence.convertTo": "Convertir en séquence",
+};
+
+export default catalog;

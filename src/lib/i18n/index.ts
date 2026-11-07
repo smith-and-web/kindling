@@ -23,6 +23,7 @@ export const LOCALES = {
   de: { languages: ["de"] },
   en: { languages: ["en"] },
   es: { languages: ["es"] },
+  fr: { languages: ["fr"] },
   "pt-BR": { languages: ["pt"] },
   ru: { languages: ["ru"] },
   "zh-CN": { languages: ["zh"] },

@@ -258,6 +258,7 @@ const LOCALES: &[(&str, &[&str], &MenuStrings)] = &[
     ("de", &["de"], &DE),
     ("en", &["en"], &EN),
     ("es", &["es"], &ES),
+    ("fr", &["fr"], &FR),
     ("pt-BR", &["pt"], &PT_BR),
     ("ru", &["ru"], &RU),
     ("zh-CN", &["zh"], &ZH_CN),

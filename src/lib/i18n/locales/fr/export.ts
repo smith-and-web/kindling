@@ -1,0 +1,595 @@
+import type { Catalog } from "../../types";
+
+/** Espace d'export, boîte de dialogue d'export classique et boîte de dialogue de succès d'export. */
+const catalog: Catalog = {
+  // Boîte de dialogue de succès d'export
+  "exportSuccessDialog.title": "Export terminé",
+  "exportSuccessDialog.close": "Fermer",
+  "exportSuccessDialog.successHeading": "Exporté avec succès :",
+  "exportSuccessDialog.chapters.one": "{count} chapitre",
+  "exportSuccessDialog.chapters.other": "{count} chapitres",
+  "exportSuccessDialog.scenes.one": "{count} scène",
+  "exportSuccessDialog.scenes.other": "{count} scènes",
+  "exportSuccessDialog.files.one": "{count} fichier créé",
+  "exportSuccessDialog.files.other": "{count} fichiers créés",
+  "exportSuccessDialog.savedTo": "Enregistré dans",
+  "exportSuccessDialog.openFolder": "Ouvrir le dossier",
+  "exportSuccessDialog.openFolderFailed": "Impossible d'ouvrir le dossier : {error}",
+
+  // Espace d'export : barre d'application et outils de profil
+  "exportWorkspace.title": "Espace d'export",
+  "exportWorkspace.backToExport": "Retour à l'export",
+  "exportWorkspace.closeWorkspace": "Fermer l'espace d'export",
+  "exportWorkspace.profileLabel": "Profil d'export",
+  "exportWorkspace.duplicateProfile": "Dupliquer le profil",
+  "exportWorkspace.outputFormat": "Format de sortie",
+  "exportWorkspace.formatDocx": "Manuscrit Word",
+  "exportWorkspace.formatEpub": "Livre numérique / copie lecteur",
+  "exportWorkspace.formatHtml": "Web / HTML",
+  "exportWorkspace.formatMarkdown": "Markdown",
+  "exportWorkspace.formatTxt": "Texte brut",
+  "exportWorkspace.formatLongform": "Longform / Obsidian",
+  "exportWorkspace.formatScrivener": "Scrivener",
+  "exportWorkspace.formatNovelwriter": "novelWriter",
+  "exportWorkspace.formatTreatment": "Synopsis",
+  "exportWorkspace.unsavedChanges": "Modifications non enregistrées",
+  "exportWorkspace.profileSaved": "Profil enregistré",
+  "exportWorkspace.profilesLocal": "Les profils restent sur cet appareil",
+  "exportWorkspace.workspaceView": "Vue de l'espace",
+  "exportWorkspace.settings": "Réglages",
+  "exportWorkspace.preview": "Aperçu",
+
+  // Espace d'export : recherche et navigation dans les réglages
+  "exportWorkspace.findSetting": "Trouver un réglage d'export",
+  "exportWorkspace.searchPlaceholder": "Trouver un réglage…",
+  "exportWorkspace.clearSearch": "Effacer la recherche de réglages",
+  "exportWorkspace.settingsFound": "{count} réglages trouvés",
+  "exportWorkspace.noSettingsMatch": "Aucun réglage ne correspond à « {query} »",
+  "exportWorkspace.searchHint": "Essayez « espacement », « en-tête » ou « HTML ».",
+  "exportWorkspace.exportSettings": "Réglages d'export",
+  "exportWorkspace.navNote":
+    "Personnalisez-le. Votre manuscrit reste exactement tel que vous l'avez rédigé.",
+  "exportWorkspace.categoryOverview": "Vue d'ensemble",
+  "exportWorkspace.categoryOverviewDesc": "Un point de départ familier",
+  "exportWorkspace.categoryContent": "Contenu",
+  "exportWorkspace.categoryContentDesc": "Choisissez ce qui est inclus",
+  "exportWorkspace.categoryHeadings": "Titres et séparations",
+  "exportWorkspace.categoryHeadingsDesc": "Donnez une structure à l'histoire",
+  "exportWorkspace.categoryText": "Texte et page",
+  "exportWorkspace.categoryTextDesc": "Définissez le rythme de lecture",
+  "exportWorkspace.categoryDetails": "Détails du livre",
+  "exportWorkspace.categoryDetailsDesc": "Titre, auteur et table des matières",
+  "exportWorkspace.categoryFiles": "Fichiers et format",
+  "exportWorkspace.categoryFilesDesc": "Préparez la remise",
+  "exportWorkspace.presetDocx": "Un format de soumission propre et familier",
+  "exportWorkspace.presetEpub": "Une copie confortable pour vos lecteurs",
+  "exportWorkspace.presetFallback": "Balisage propre pour votre prochaine destination",
+  "exportWorkspace.settingIncludedChapters": "Chapitres inclus",
+  "exportWorkspace.settingSceneTitles": "Titres et synopsis de scènes",
+  "exportWorkspace.settingBeatHeadings": "Titres de temps forts",
+  "exportWorkspace.settingChapterHeadings": "Titres de chapitres",
+  "exportWorkspace.settingSceneSeparator": "Séparateur de scènes",
+  "exportWorkspace.settingChapterBreaks": "Sauts de page entre chapitres",
+  "exportWorkspace.settingFont": "Police et taille",
+  "exportWorkspace.settingSpacing": "Interligne",
+  "exportWorkspace.settingIndent": "Espacement et retrait de paragraphe",
+  "exportWorkspace.settingMargin": "Papier et marges",
+  "exportWorkspace.settingTitle": "Page de titre et pseudonyme",
+  "exportWorkspace.settingHeader": "En-tête courant",
+  "exportWorkspace.settingContents": "Table des matières",
+  "exportWorkspace.settingHtml": "Structure et style HTML",
+  "exportWorkspace.settingFilename": "Modèle de nom de fichier",
+  "exportWorkspace.settingUnavailable": "« {label} » s'applique à un autre format de sortie.",
+  "exportWorkspace.unsupportedNovelwriter":
+    "L'export novelWriter ne prend en charge que les projets de roman.",
+
+  // Espace d'export : messages et titres de boîtes de dialogue
+  "exportWorkspace.draftNotRestored":
+    "Un brouillon incomplet n'a pas pu être restauré. Votre profil enregistré a été chargé.",
+  "exportWorkspace.profilesLoadFailed":
+    "Impossible de charger les profils enregistrés. Leurs données sont préservées. {error}",
+  "exportWorkspace.draftRetainFailed":
+    "Impossible de conserver le brouillon sur cet appareil : {error}",
+  "exportWorkspace.loadFailed": "Impossible de charger le manuscrit enregistré",
+  "exportWorkspace.loadFailedWithError":
+    "Impossible de charger le manuscrit enregistré : {error}",
+  "exportWorkspace.nameRequired": "Donnez d'abord un nom à ce profil.",
+  "exportWorkspace.storageBlockedSave":
+    "Le stockage des profils n'a pas pu être chargé ; l'enregistrement est désactivé pour le préserver.",
+  "exportWorkspace.profileSavedMessage": "« {name} » enregistré sur cet appareil.",
+  "exportWorkspace.saveFailed": "Impossible d'enregistrer le profil : {error}",
+  "exportWorkspace.copyCreated":
+    "Copie créée. Donnez-lui un nom pour votre prochaine routine d'écriture.",
+  "exportWorkspace.duplicateFailed": "Impossible de dupliquer le profil : {error}",
+  "exportWorkspace.parentFolderTitle": "Choisissez le dossier parent pour un nouvel export",
+  "exportWorkspace.saveDialogTitle": "Exporter {format} (choisissez un nouveau nom)",
+  "exportWorkspace.exportedExchange":
+    "{format} exporté. L'intégralité du projet a été utilisée.",
+  "exportWorkspace.exportedSelection":
+    "{format} exporté. L'intégralité de la sélection a été incluse.",
+  "exportWorkspace.coverDialogTitle": "Choisir une couverture de livre numérique",
+  "exportWorkspace.coverFilterName": "Image de couverture",
+  "exportWorkspace.coverChooseFailed":
+    "Impossible de choisir une image de couverture : {error}",
+  "exportWorkspace.revealFailed": "Impossible d'afficher l'export dans son dossier",
+  "exportWorkspace.revealFailedWithError":
+    "Impossible d'afficher l'export dans son dossier : {error}",
+
+  // Espace d'export : vue d'ensemble
+  "exportWorkspace.profileName": "Nom du profil",
+  "exportWorkspace.profileNameHelp":
+    "Nommez-le pour un destinataire ou une routine d'écriture.",
+  "exportWorkspace.startingPoint": "Un point de départ pour chaque remise",
+  "exportWorkspace.atAGlance": "En un coup d'œil",
+  "exportWorkspace.outputFact": "Sortie",
+  "exportWorkspace.change": "Modifier",
+  "exportWorkspace.changeContent": "Modifier le contenu",
+  "exportWorkspace.changeTextPage": "Modifier le texte et la page",
+  "exportWorkspace.changeHeadings": "Modifier les titres et séparations",
+  "exportWorkspace.changeOutput": "Modifier la sortie",
+  "exportWorkspace.blankLine": "Ligne vide",
+  "exportWorkspace.wholeProject": "Projet entier",
+  "exportWorkspace.overviewHelpExchange":
+    "Ce format utilise son exporteur dédié pour préserver la structure et les métadonnées du projet. Configurez la remise dans Fichiers et format.",
+  "exportWorkspace.overviewHelpApprox":
+    "Vos réglages sélectionnés sont appliqués au fichier exporté. L'aperçu à l'écran est une approximation de la pagination Word et des systèmes de lecture de livres numériques.",
+
+  // Espace d'export : contenu
+  "exportWorkspace.includeInExport": "Inclure dans cet export",
+  "exportWorkspace.scopeAll": "Manuscrit entier",
+  "exportWorkspace.scopeSelected": "Chapitres sélectionnés",
+  "exportWorkspace.contextNoticeChapter":
+    "Ouvert pour votre chapitre sélectionné. L'enregistrement de ce profil mémorisera cette sélection.",
+  "exportWorkspace.contextNoticeScene":
+    "Ouvert pour votre scène sélectionnée. L'enregistrement de ce profil mémorisera cette sélection.",
+  "exportWorkspace.onlySelectedScene": "Seule la scène sélectionnée est incluse.",
+  "exportWorkspace.includeRestOfChapter": "Inclure le reste de son chapitre",
+  "exportWorkspace.chapterSelection": "Sélection de chapitres",
+  "exportWorkspace.alongsideProse": "À côté du texte",
+  "exportWorkspace.sceneTitles": "Titres de scènes",
+  "exportWorkspace.sceneTitlesHelp": "Utilisez vos noms de scènes comme titres.",
+  "exportWorkspace.synopses": "Synopsis de scènes",
+  "exportWorkspace.synopsesHelp": "Ajoutez le résumé de la scène avant son texte.",
+  "exportWorkspace.beatHeadings": "Titres de temps forts",
+  "exportWorkspace.beatHeadingsHelp":
+    "Les plans de vue Page suivent le texte de la scène.",
+  "exportWorkspace.contentExclusions":
+    "Les chapitres et scènes archivés, les scènes non utilisées, les notes, les tâches et les commentaires éditoriaux sont exclus de l'export du manuscrit.",
+
+  // Espace d'export : titres
+  "exportWorkspace.chapterHeading": "Titre de chapitre",
+  "exportWorkspace.headingNumberTitle": "Numéro et titre",
+  "exportWorkspace.headingNumber": "Numéro uniquement",
+  "exportWorkspace.headingTitle": "Titre uniquement",
+  "exportWorkspace.headingNone": "Sans titre",
+  "exportWorkspace.headingExampleNumberTitle": "Chapitre 1 : La traversée",
+  "exportWorkspace.headingExampleNumber": "Chapitre 1",
+  "exportWorkspace.headingExampleTitle": "La traversée",
+  "exportWorkspace.headingExampleNone": "Le texte commence sans titre de chapitre",
+  "exportWorkspace.numberStyle": "Style de numérotation",
+  "exportWorkspace.startAt": "Commencer à",
+  "exportWorkspace.betweenScenes": "Entre les scènes",
+  "exportWorkspace.sceneBreakMarkers": "Marqueurs de séparation de scènes",
+  "exportWorkspace.separatorHelp":
+    "Un marqueur centré sépare les scènes à l'intérieur d'un chapitre.",
+  "exportWorkspace.includePartTitles": "Inclure les titres de parties",
+  "exportWorkspace.includePartTitlesHelp":
+    "Conservez les grandes articulations de votre histoire.",
+  "exportWorkspace.chapterBreaks": "Commencer les chapitres sur une nouvelle page",
+  "exportWorkspace.chapterBreaksHelp":
+    "Bordures en pointillés dans l'aperçu ; sauts de page lors de l'impression HTML.",
+
+  // Espace d'export : texte et page
+  "exportWorkspace.bodyFont": "Police du corps",
+  "exportWorkspace.sizePt": "Taille (pt)",
+  "exportWorkspace.lineSpacing": "Interligne",
+  "exportWorkspace.spacingSingle": "Simple",
+  "exportWorkspace.spacingOneHalf": "1,5 ligne",
+  "exportWorkspace.spacingComfortable": "Confortable · 1,6 ligne",
+  "exportWorkspace.spacingDouble": "Double",
+  "exportWorkspace.spacingTwoHalf": "2,5 lignes",
+  "exportWorkspace.firstLineIndent": "Retrait de première ligne (po)",
+  "exportWorkspace.paragraphSpacing": "Après les paragraphes (pt)",
+  "exportWorkspace.firstParagraphFlush": "Sans retrait après un titre ou une séparation de scène",
+  "exportWorkspace.moreTextOptions": "Plus d'options de texte",
+  "exportWorkspace.leftAligned": "Aligné à gauche",
+  "exportWorkspace.justified": "Justifié",
+  "exportWorkspace.bodyAlignment": "Alignement du corps",
+  "exportWorkspace.pageLayout": "Mise en page",
+  "exportWorkspace.paperSize": "Format de papier",
+  "exportWorkspace.marginsIn": "Marges (po)",
+  "exportWorkspace.wordLayoutHelp":
+    "La sortie Word utilise votre format de papier, vos marges, vos sauts de chapitre et votre en-tête répété. Cet aperçu dynamique ne reproduit pas la pagination Word ni les numéros de page.",
+  "exportWorkspace.reflowableHelp":
+    "La sortie redistribuable n'a pas de format de papier fixe. Un lecteur de livre numérique peut remplacer vos préférences de police et d'espacement.",
+  "exportWorkspace.htmlStylingOff":
+    "Le style HTML est désactivé. Activez le style pour voir ces réglages typographiques.",
+  "exportWorkspace.enableStyling": "Activer le style",
+
+  // Espace d'export : détails du livre
+  "exportWorkspace.bookTitle": "Titre du livre",
+  "exportWorkspace.authorPenName": "Auteur / pseudonyme",
+  "exportWorkspace.authorPlaceholder": "Votre nom de publication",
+  "exportWorkspace.includeTitleBlock": "Inclure un bloc de titre",
+  "exportWorkspace.includeTitlePage": "Inclure une page de titre",
+  "exportWorkspace.titlePageHint":
+    "Choisissez « Toute la sélection » dans l'aperçu pour la voir.",
+  "exportWorkspace.subtitle": "Sous-titre",
+  "exportWorkspace.optional": "(facultatif)",
+  "exportWorkspace.titlePageWordCount": "Nombre de mots sur la page de titre",
+  "exportWorkspace.wordCountRounded": "Arrondi au millier le plus proche",
+  "exportWorkspace.wordCountExact": "Nombre exact de mots du texte",
+  "exportWorkspace.wordCountOmit": "Omettre",
+  "exportWorkspace.runningHeader": "En-tête courant",
+  "exportWorkspace.headerAuthorTitle": "Auteur / titre",
+  "exportWorkspace.headerTitleOnly": "Titre uniquement",
+  "exportWorkspace.headerNone": "Aucun",
+  "exportWorkspace.runningHeaderHelp":
+    "Se répète dans Word, sans en-tête sur la page de titre. Affiché une fois dans cet aperçu.",
+  "exportWorkspace.tableOfContents": "Table des matières",
+  "exportWorkspace.contentsPlainHelp": "Liste les titres de chapitres de votre sélection.",
+  "exportWorkspace.contentsLinkHelp":
+    "Crée des liens vers les chapitres de votre sélection complète.",
+  "exportWorkspace.language": "Langue",
+  "exportWorkspace.documentLanguage": "Langue du document",
+  "exportWorkspace.langEnglish": "Anglais",
+  "exportWorkspace.langEnglishUK": "Anglais (Royaume-Uni)",
+  "exportWorkspace.langFrench": "Français",
+  "exportWorkspace.langGerman": "Allemand",
+  "exportWorkspace.langSpanish": "Espagnol",
+  "exportWorkspace.langPortuguese": "Portugais",
+  "exportWorkspace.ebookMetadata": "Métadonnées du livre numérique",
+  "exportWorkspace.description": "Description",
+  "exportWorkspace.coverImage": "Image de couverture",
+  "exportWorkspace.coverPlaceholder": "PNG ou JPEG facultatif",
+  "exportWorkspace.chooseCover": "Choisir la couverture",
+  "exportWorkspace.remove": "Supprimer",
+  "exportWorkspace.coverHelp":
+    "La couverture est intégrée dans l'EPUB ; elle n'est pas affichée dans l'aperçu du manuscrit.",
+
+  // Espace d'export : fichiers et format
+  "exportWorkspace.filenamePattern": "Modèle de nom de fichier",
+  "exportWorkspace.filenameTokens": "Jetons de nom de fichier",
+  "exportWorkspace.htmlStructure": "Structure HTML",
+  "exportWorkspace.htmlDocument": "Document HTML complet",
+  "exportWorkspace.htmlFragment": "Fragment de corps pour collage",
+  "exportWorkspace.htmlSavedNote": "Les deux sont enregistrés comme un seul fichier .html",
+  "exportWorkspace.htmlHeadingElement": "Élément de titre de chapitre",
+  "exportWorkspace.heading1Option": "Titre 1 · <h1>",
+  "exportWorkspace.heading2Option": "Titre 2 · <h2>",
+  "exportWorkspace.builtInStyling": "Inclure le style intégré",
+  "exportWorkspace.builtInStylingHelp": "Désactivez pour un balisage sémantique propre.",
+  "exportWorkspace.referenceNotes": "Notes de fiches",
+  "exportWorkspace.referenceNotesHelp":
+    "Inclure les personnages, les lieux et le matériel de référence.",
+  "exportWorkspace.beatComments": "Commentaires de temps forts",
+  "exportWorkspace.beatCommentsHelp":
+    "Conserver les invites du plan comme commentaires.",
+  "exportWorkspace.treatmentDetail": "Détail du synopsis",
+  "exportWorkspace.treatmentOnePage": "Une page · vue d'ensemble",
+  "exportWorkspace.treatmentFivePage": "Cinq pages · scènes clés",
+  "exportWorkspace.treatmentFull": "Complet · scènes et temps forts",
+  "exportWorkspace.treatmentDetailHelp":
+    "Les niveaux de détail guident le contenu ; le nombre de pages dépend du matériel.",
+  "exportWorkspace.treatmentFile": "Fichier de synopsis",
+  "exportWorkspace.treatmentDocx": "Document Word (.docx)",
+  "exportWorkspace.treatmentTxt": "Texte brut (.txt)",
+  "exportWorkspace.scrivenerHelp":
+    "Crée un nouveau projet .scriv. Pour mettre à jour un projet Scrivener existant avec correspondance de scènes et sauvegardes, utilisez Retour à l'export.",
+  "exportWorkspace.longformHelp":
+    "Crée un index Longform, des fichiers de scènes individuels et des notes de fiches. Les métadonnées de projet et d'aller-retour sont conservées.",
+  "exportWorkspace.fileWholeProject": "Projet entier · exporteur dédié",
+  "exportWorkspace.fileTypeFolder": "Dossier",
+  "exportWorkspace.destinationHelp":
+    "Choisissez une destination lors de l'export. Les fichiers et dossiers existants sont préservés ; utilisez un nouveau nom pour chaque export.",
+  "exportWorkspace.markdownHelp":
+    "Exporte un seul fichier de manuscrit avec titres, emphase, listes et citations en bloc. Pour un projet Obsidian avec des fichiers de scènes séparés et des notes de fiches, choisissez Longform / Obsidian.",
+
+  // Espace d'export : aperçu
+  "exportWorkspace.previewAria": "Aperçu du manuscrit",
+  "exportWorkspace.treatmentPreview":
+    "Construit un synopsis à partir du plan, des synopsis et des temps forts de l'ensemble du projet. Le style du texte du manuscrit ne s'applique pas.",
+  "exportWorkspace.exchangePreview":
+    "Transfère l'ensemble du projet en utilisant sa structure et ses métadonnées existantes. Les contrôles de mise en forme du manuscrit ne s'appliquent pas.",
+  "exportWorkspace.scrivenerPreview":
+    "Un nouveau paquet Scrivener avec chapitres, scènes et texte RTF.",
+  "exportWorkspace.longformPreview":
+    "Un index Longform, des fichiers Markdown de scènes et des dossiers de fiches.",
+  "exportWorkspace.novelwriterPreview":
+    "nwProject.nwx, documents de contenu et notes sélectionnées.",
+  "exportWorkspace.treatmentPreviewDetail":
+    "Utilise les réglages de titre de projet et d'auteur avec le niveau de détail sélectionné.",
+  "exportWorkspace.livePreview": "Aperçu en direct",
+  "exportWorkspace.liveBadge": "Direct",
+  "exportWorkspace.previewView": "Vue d'aperçu",
+  "exportWorkspace.previewRead": "Lire",
+  "exportWorkspace.previewHtml": "HTML",
+  "exportWorkspace.wholeSelectionSingleFile": "Toute la sélection · fichier unique",
+  "exportWorkspace.previewChapter": "Aperçu du chapitre",
+  "exportWorkspace.wholeSelection": "Toute la sélection",
+  "exportWorkspace.noChaptersSelected": "Aucun chapitre sélectionné",
+  "exportWorkspace.refreshManuscript": "Actualiser le manuscrit enregistré",
+  "exportWorkspace.loadingManuscript": "Collecte de votre manuscrit…",
+  "exportWorkspace.nothingSelected": "Rien de sélectionné pour l'instant",
+  "exportWorkspace.nothingSelectedHelp":
+    "Choisissez un chapitre avec des scènes de manuscrit pour le voir ici.",
+  "exportWorkspace.chooseContent": "Choisir le contenu",
+  "exportWorkspace.generatedTextAria": "Texte du manuscrit généré",
+  "exportWorkspace.generatedHtmlAria": "Source HTML générée",
+  "exportWorkspace.layoutPreviewTitle": "Aperçu de la mise en page d'export",
+  "exportWorkspace.htmlOutput": "Sortie HTML",
+  "exportWorkspace.textOutput": "Sortie texte",
+  "exportWorkspace.layoutApproximation": "Approximation de la mise en page",
+  "exportWorkspace.previewSummary": "{words} mots · {scenes}",
+  "exportWorkspace.missingSelection":
+    "Une partie de cette sélection enregistrée est manquante. Vérifiez le contenu avant d'enregistrer un aperçu.",
+  "exportWorkspace.showInFolder": "Afficher dans le dossier",
+  "exportWorkspace.footOriginSaved": "Manuscrit enregistré",
+  "exportWorkspace.footNote":
+    "Les profils et brouillons récupérés sont locaux à cet appareil.",
+  "exportWorkspace.revert": "Annuler les modifications",
+  "exportWorkspace.saveProfile": "Enregistrer le profil",
+  "exportWorkspace.exporting": "Exportation…",
+  "exportWorkspace.exportButton": "Exporter {format}",
+  "exportWorkspace.exportProjectButton": "Exporter le projet",
+
+  // Boîte de dialogue d'export classique : sélecteur de format
+  "classicExportDialog.dialogTitle": "Exporter {scopeTitle}",
+  "classicExportDialog.dialogSubtitle": "Choisissez un format et configurez ses options",
+  "classicExportDialog.close": "Fermer",
+  "classicExportDialog.countingWords": "Comptage des mots…",
+  "classicExportDialog.wordCount": "{count} mots",
+  "classicExportDialog.wordCountApprox": "~{count} mots",
+  "classicExportDialog.formatLegend": "Format",
+  "classicExportDialog.groupShare": "Partager un document",
+  "classicExportDialog.groupApps": "Continuer dans une autre application",
+  "classicExportDialog.formatNovelwriter": "novelWriter",
+  "classicExportDialog.formatWord": "Word",
+  "classicExportDialog.formatMarkdown": "Markdown",
+  "classicExportDialog.formatLongform": "Longform",
+  "classicExportDialog.formatEpub": "ePub",
+  "classicExportDialog.formatTreatment": "Synopsis",
+  "classicExportDialog.formatScrivener": "Scrivener",
+  "classicExportDialog.formatCustom": "Personnalisé",
+  "classicExportDialog.detailProjectFolder": "Dossier de projet",
+  "classicExportDialog.detailDocx": ".docx",
+  "classicExportDialog.detailMdFiles": "Fichiers .md",
+  "classicExportDialog.detailIndexScenes": "Index + scènes",
+  "classicExportDialog.detailEpub": ".epub",
+  "classicExportDialog.detailDocxTxt": ".docx / .txt",
+  "classicExportDialog.detailScriv": ".scriv",
+  "classicExportDialog.detailSavedProfiles": "Vos profils d'export enregistrés",
+  "classicExportDialog.profileLabel": "Profil d'export",
+  "classicExportDialog.profileNone": "Aucun",
+  "classicExportDialog.profileLoadFailed":
+    "Les profils enregistrés n'ont pas pu être chargés. Fermez et rouvrez Exporter pour réessayer.",
+  "classicExportDialog.profileRemembered":
+    "Ce projet mémorise votre profil choisi.",
+  "classicExportDialog.profileHint":
+    "Ou utilisez l'un de vos profils d'export enregistrés, configurés dans l'espace d'export.",
+
+  // Boîte de dialogue d'export classique : options Word
+  "classicExportDialog.docxLegend": "Structure du document",
+  "classicExportDialog.includeTitlePage": "Inclure la page de titre",
+  "classicExportDialog.pageBreaksBetweenChapters": "Sauts de page entre les chapitres",
+  "classicExportDialog.includeBeatMarkers": "Inclure les marqueurs de temps forts comme titres",
+  "classicExportDialog.includeSceneSynopses": "Inclure les synopsis de scènes",
+  "classicExportDialog.chapterHeading": "Titre de chapitre",
+  "classicExportDialog.appearsAs": "Apparaît comme : {example}",
+  "classicExportDialog.sceneBreak": "Séparation de scène",
+  "classicExportDialog.typographyLegend": "Typographie",
+  "classicExportDialog.font": "Police",
+  "classicExportDialog.lineSpacing": "Interligne",
+  "classicExportDialog.spacingSingle": "Simple",
+  "classicExportDialog.spacingOneAndHalf": "1,5 ligne",
+  "classicExportDialog.spacingDouble": "Double",
+  "classicExportDialog.saveLocation": "Emplacement d'enregistrement",
+  "classicExportDialog.noLocationChosen": "Aucun emplacement choisi",
+  "classicExportDialog.chooseSaveLocation": "Choisir l'emplacement d'enregistrement",
+  "classicExportDialog.choose": "Choisir…",
+  "classicExportDialog.headingNumberOnly": "Numéro uniquement",
+  "classicExportDialog.headingNumberAndTitle": "Numéro et titre",
+  "classicExportDialog.headingTitleOnly": "Titre uniquement",
+  "classicExportDialog.headingArabic": "Chiffre arabe",
+  "classicExportDialog.headingArabicAndTitle": "Chiffre arabe et titre",
+  "classicExportDialog.headingNone": "Sans titre de chapitre",
+  "classicExportDialog.sceneHash": "Dièse",
+  "classicExportDialog.sceneAsterisks": "Trois astérisques",
+  "classicExportDialog.sceneAsterism": "Astérisme",
+  "classicExportDialog.sceneBlankLine": "Ligne vide",
+
+  // Boîte de dialogue d'export classique : options Markdown et Longform
+  "classicExportDialog.optionsLegend": "Options",
+  "classicExportDialog.deleteExistingFolder": "Supprimer le dossier d'export existant",
+  "classicExportDialog.exportName": "Nom de l'export",
+  "classicExportDialog.exportFolderNamePlaceholder": "Saisissez le nom du dossier d'export…",
+  "classicExportDialog.folderLabel": "Dossier :",
+  "classicExportDialog.indexLabel": "Index :",
+  "classicExportDialog.destinationFolder": "Dossier de destination",
+  "classicExportDialog.selectFolderPlaceholder": "Sélectionnez un dossier…",
+  "classicExportDialog.browseForFolder": "Parcourir pour trouver un dossier",
+  "classicExportDialog.projectNamePlaceholder": "Saisissez le nom du projet…",
+
+  // Boîte de dialogue d'export classique : options de synopsis
+  "classicExportDialog.detailLevelLegend": "Niveau de détail",
+  "classicExportDialog.treatmentOnePage": "Une page",
+  "classicExportDialog.treatmentOnePageHelp":
+    "Titre, accroche et court synopsis par acte",
+  "classicExportDialog.treatmentFivePage": "Cinq pages",
+  "classicExportDialog.treatmentFivePageHelp":
+    "Résumés d'actes avec descriptions des scènes clés",
+  "classicExportDialog.treatmentFull": "Synopsis complet",
+  "classicExportDialog.treatmentFullHelp":
+    "Chaque synopsis de scène et description de temps fort",
+  "classicExportDialog.outputFormatLegend": "Format de sortie",
+
+  // Boîte de dialogue d'export classique : options novelWriter
+  "classicExportDialog.novelwriterHelp":
+    "Exporte un projet complet pour novelWriter 26.2 ou ultérieur. Choisissez un dossier vide.",
+  "classicExportDialog.includeBeatComments": "Inclure les commentaires de temps forts",
+  "classicExportDialog.beatCommentsHelp":
+    "La désactivation des commentaires de temps forts désactive la synchronisation au niveau des temps forts. Le texte en mode page se synchronise comme une scène entière.",
+  "classicExportDialog.includeReferenceNotes":
+    "Inclure les personnages, les lieux et les notes",
+  "classicExportDialog.emptyFolderPlaceholder": "Choisir un dossier vide",
+  "classicExportDialog.chooseNovelwriterFolder":
+    "Choisir le dossier de destination novelWriter",
+  "classicExportDialog.roundTrip": "Limitations de l'aller-retour",
+  "classicExportDialog.roundTripExport":
+    "L'export omet le soulignement, l'état de planification, le type de scène, les étiquettes, les notes de découverte, les instantanés et les champs personnalisés. L'état de la scène est limité à Brouillon, Révisée et Final.",
+  "classicExportDialog.roundTripImport":
+    "L'import aplatit les sections H4 et ne préserve pas les codes courts, les notes de bas de page, l'alignement, les codes de retrait, l'importance, le texte ignoré, les modèles, les racines de roman supplémentaires ni les références de PDV, focus, mention et histoire.",
+  "classicExportDialog.roundTripSync":
+    "La synchronisation couvre les chapitres, les scènes, les temps forts et le texte. Les notes, les liens de fiches et les métadonnées de projet ne sont pas synchronisés. Les connexions sources existantes sont préservées lors de l'export.",
+
+  // Boîte de dialogue d'export classique : options Scrivener
+  "classicExportDialog.exportModeLegend": "Mode d'export",
+  "classicExportDialog.createNew": "Créer",
+  "classicExportDialog.createNewHelp":
+    "Crée un nouveau projet .scriv depuis votre plan",
+  "classicExportDialog.updateExisting": "Mettre à jour",
+  "classicExportDialog.updateExistingHelp":
+    "Réécrit le texte dans un paquet .scriv existant",
+  "classicExportDialog.updateOptionsLegend": "Options de mise à jour",
+  "classicExportDialog.backupBeforeUpdating": "Sauvegarder avant la mise à jour",
+  "classicExportDialog.backupHelp":
+    "Crée une copie horodatée du paquet .scriv",
+  "classicExportDialog.includeUnmatched": "Inclure les scènes non correspondantes",
+  "classicExportDialog.includeUnmatchedHelp":
+    "Crée de nouveaux documents Scrivener pour les scènes sans correspondance",
+  "classicExportDialog.scrivenerExclusions":
+    "Les personnages, les lieux et les fiches de scènes ne sont pas inclus dans les exports Scrivener.",
+  "classicExportDialog.scrivenerSaveLocation": "Emplacement d'enregistrement",
+  "classicExportDialog.scrivenerSelectBundle": "Sélectionner le paquet .scriv",
+  "classicExportDialog.scrivenerSavePlaceholder": "Choisir où enregistrer…",
+  "classicExportDialog.scrivenerBundlePlaceholder":
+    "Sélectionner un dossier .scriv existant…",
+  "classicExportDialog.selectScrivBundle": "Sélectionner le paquet .scriv",
+
+  // Boîte de dialogue d'export classique : options EPUB
+  "classicExportDialog.metadataLegend": "Métadonnées",
+  "classicExportDialog.title": "Titre",
+  "classicExportDialog.titlePlaceholder": "Titre du livre",
+  "classicExportDialog.author": "Auteur",
+  "classicExportDialog.authorPlaceholder": "Nom de l'auteur",
+  "classicExportDialog.description": "Description",
+  "classicExportDialog.descriptionPlaceholder": "Court résumé ou accroche",
+  "classicExportDialog.language": "Langue",
+  "classicExportDialog.languageHelp": "Utilisez les codes ISO 639-1 (ex. fr, en).",
+  "classicExportDialog.contentLegend": "Contenu",
+  "classicExportDialog.stylingLegend": "Style",
+  "classicExportDialog.theme": "Thème",
+  "classicExportDialog.themeClassic": "Classique",
+  "classicExportDialog.themeModern": "Moderne",
+  "classicExportDialog.themeMinimal": "Minimal",
+  "classicExportDialog.coverLegend": "Couverture",
+  "classicExportDialog.includeCoverImage": "Inclure une image de couverture",
+  "classicExportDialog.coverImage": "Image de couverture",
+  "classicExportDialog.coverPlaceholder": "Sélectionner une image…",
+  "classicExportDialog.selectCoverImage": "Sélectionner l'image de couverture",
+
+  // Boîte de dialogue d'export classique : instantané, erreurs et pied de page
+  "classicExportDialog.createSnapshot": "Créer un instantané avant l'export",
+  "classicExportDialog.createSnapshotHelp":
+    "Enregistrez une sauvegarde de votre travail actuel",
+  "classicExportDialog.exportFailed": "Échec de l'export",
+  "classicExportDialog.customFooterHint":
+    "Ouvre l'espace d'export avec vos réglages enregistrés.",
+  "classicExportDialog.exporting": "Exportation…",
+  "classicExportDialog.openWorkspace": "Ouvrir l'espace",
+  "classicExportDialog.blockedProfileLoadFailed":
+    "Les profils d'export n'ont pas pu être chargés.",
+  "classicExportDialog.blockedChooseProfile": "Choisissez un profil d'export.",
+  "classicExportDialog.blockedNovelwriterScope":
+    "novelWriter exporte l'intégralité du projet.",
+  "classicExportDialog.blockedChooseCover":
+    "Choisissez une image de couverture ou désactivez la couverture.",
+  "classicExportDialog.blockedChooseFolder":
+    "Choisissez un dossier de destination avant d'exporter.",
+  "classicExportDialog.blockedChooseSaveLocation":
+    "Choisissez où enregistrer avant d'exporter.",
+  "classicExportDialog.actionDocx": "Exporter .docx",
+  "classicExportDialog.actionEpub": "Exporter .epub",
+  "classicExportDialog.actionMarkdown": "Exporter Markdown",
+  "classicExportDialog.actionLongform": "Exporter Longform",
+  "classicExportDialog.actionNovelwriter": "Exporter novelWriter",
+  "classicExportDialog.actionScrivener": "Exporter vers Scrivener",
+  "classicExportDialog.actionTxt": "Exporter .txt",
+  "classicExportDialog.actionExport": "Exporter",
+
+  // Boîte de dialogue d'export classique : titres et filtres de boîtes de dialogue natives
+  "classicExportDialog.selectDestinationTitle": "Sélectionner la destination d'export",
+  "classicExportDialog.saveDocxTitle": "Enregistrer le document Word",
+  "classicExportDialog.saveEpubTitle": "Enregistrer l'EPUB",
+  "classicExportDialog.selectCoverTitle": "Sélectionner l'image de couverture",
+  "classicExportDialog.saveTreatmentTitle": "Enregistrer le synopsis",
+  "classicExportDialog.novelwriterFolderTitle":
+    "Choisir un dossier de destination novelWriter vide",
+  "classicExportDialog.saveScrivenerTitle": "Enregistrer le projet Scrivener",
+  "classicExportDialog.selectScrivenerBundleTitle": "Sélectionner le paquet .scriv existant",
+  "classicExportDialog.filterWordDocument": "Document Word",
+  "classicExportDialog.filterEpub": "EPUB",
+  "classicExportDialog.filterImages": "Images",
+  "classicExportDialog.filterTextFile": "Fichier texte",
+  "classicExportDialog.filterScrivenerProject": "Projet Scrivener",
+
+  // Boîte de dialogue d'export classique : résumé du profil et messages
+  "classicExportDialog.profileRememberFailed":
+    "Impossible de mémoriser le profil sélectionné : {error}",
+  "classicExportDialog.noProjectSelected": "Aucun projet sélectionné",
+  "classicExportDialog.summaryOutput": "Sortie",
+  "classicExportDialog.summaryTextPage": "Texte & page",
+  "classicExportDialog.summaryHeadings": "Titres & séparations",
+  "classicExportDialog.summaryContent": "Contenu",
+  "classicExportDialog.summarySpacingSingle": "simple",
+  "classicExportDialog.summarySpacingDouble": "double",
+  "classicExportDialog.summaryRomanNote": "(romain)",
+  "classicExportDialog.summaryBreak": "séparation « {separator} »",
+  "classicExportDialog.summaryBlankLine": "ligne vide",
+  "classicExportDialog.summaryTitlePage": "page de titre",
+  "classicExportDialog.summaryContents": "table des matières",
+  "classicExportDialog.summarySynopses": "synopsis",
+  "classicExportDialog.summaryBeatHeadings": "titres de temps forts",
+  "classicExportDialog.summaryWholeManuscript": "Manuscrit entier",
+  "classicExportDialog.summarySelectedChapters": "Chapitres sélectionnés",
+  // --- Formats de sortie, profils de démarrage et texte du manuscrit ---
+  "format.docx": "Manuscrit de soumission",
+  "format.epub": "Livre numérique / copie lecteur",
+  "format.html": "Web / HTML",
+  "format.markdown": "Manuscrit Markdown",
+  "format.txt": "Manuscrit en texte brut",
+  "format.longform": "Longform / Obsidian",
+  "format.scrivener": "Projet Scrivener",
+  "format.novelwriter": "Projet novelWriter",
+  "format.treatment": "Synopsis narratif",
+  "starterProfile.submission": "Soumission à un agent",
+  "starterProfile.readers": "Groupe d'écriture",
+  "starterProfile.website": "Chapitres sur le site",
+  "manuscript.chapterNumber": "Chapitre {number}",
+  "manuscript.chapterNumberTitle": "{number} : {title}",
+  "manuscript.wordCount.one": "{count} mot",
+  "manuscript.wordCount.other": "{count} mots",
+  "manuscript.wordCountApprox.one": "{count} mot (approx.)",
+  "manuscript.wordCountApprox.other": "{count} mots (approx.)",
+  "manuscript.byline": "par {author}",
+  "manuscript.contents": "Sommaire",
+  "manuscript.untitled": "Manuscrit sans titre",
+  // --- Mots supplémentaires que la recherche de réglages d'export fait correspondre (minuscules, séparés par des espaces) ---
+  "searchTerms.scope": "sélection scène manuscrit portée",
+  "searchTerms.scene-titles": "notes résumé plan",
+  "searchTerms.beats": "plan invites",
+  "searchTerms.heading": "titre numéro romain numérotation",
+  "searchTerms.separator": "séparation marqueur dièse astérisques",
+  "searchTerms.chapter-breaks": "nouvelle page",
+  "searchTerms.font": "police times courier georgia",
+  "searchTerms.spacing": "double interligne simple",
+  "searchTerms.indent": "première ligne retrait",
+  "searchTerms.margin": "a4 lettre gouttière format page",
+  "searchTerms.title": "auteur identité sous-titre",
+  "searchTerms.header": "en-tête courant auteur titre",
+  "searchTerms.contents": "toc navigation",
+  "searchTerms.html-mode": "fragment document complet css web",
+  "searchTerms.filename": "date destination nom jetons",
+};
+
+export default catalog;
