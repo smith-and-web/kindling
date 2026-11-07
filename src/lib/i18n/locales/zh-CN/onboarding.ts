@@ -302,6 +302,8 @@ const catalog: Catalog = {
   "commandPalette.navigate": "移动选择",
   "commandPalette.run": "运行",
   "commandPalette.close": "关闭",
+  "commandPalette.enterKey": "Enter",
+  "commandPalette.escKey": "Esc",
 };
 
 export default catalog;

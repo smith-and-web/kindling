@@ -55,7 +55,7 @@
   } from "../types";
   import ScrivenerMatchDialog from "./ScrivenerMatchDialog.svelte";
   import { modalFocus, ownsEnterKey } from "../utils/modalFocus";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
   import { formatNumber } from "../i18n/format";
 
   const LAST_EXPORT_PATH_KEY = "kindling:lastExportPath";
@@ -420,9 +420,11 @@
   const formattedWordCount = $derived.by(() => {
     if (wordCount === null) return null;
     if (wordCount < 1000)
-      return t("export.classicExportDialog.wordCount", { count: formatNumber(wordCount) });
+      return tn("export.classicExportDialog.wordCount", wordCount, {
+        count: formatNumber(wordCount),
+      });
     const rounded = Math.round(wordCount / 1000) * 1000;
-    return t("export.classicExportDialog.wordCountApprox", {
+    return tn("export.classicExportDialog.wordCountApprox", rounded, {
       count: formatNumber(rounded),
     });
   });

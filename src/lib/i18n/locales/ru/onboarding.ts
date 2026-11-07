@@ -319,6 +319,8 @@ const catalog: Catalog = {
   "commandPalette.navigate": "для навигации",
   "commandPalette.run": "для запуска",
   "commandPalette.close": "для закрытия",
+  "commandPalette.enterKey": "Enter",
+  "commandPalette.escKey": "Esc",
 };
 
 export default catalog;

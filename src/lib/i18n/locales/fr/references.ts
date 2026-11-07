@@ -134,8 +134,11 @@ const catalog: Catalog = {
   "copyReferencesDialog.independentNote":
     "Il s'agit de copies indépendantes. Les modifications ne mettront pas à jour les autres projets. Les liens de scènes ne sont pas copiés.",
   "copyReferencesDialog.copiedTitle": "Fiches copiées",
-  "copyReferencesDialog.copiedMessage":
-    "Copié {copied} depuis {source} vers {destination}. Ignoré {skipped} doublons possibles.",
+  "copyReferencesDialog.copiedMessage.one": "{count} fiche copiée de {source} vers {destination}.",
+  "copyReferencesDialog.copiedMessage.other":
+    "{count} fiches copiées de {source} vers {destination}.",
+  "copyReferencesDialog.copiedSkipped.one": "{count} doublon possible ignoré.",
+  "copyReferencesDialog.copiedSkipped.other": "{count} doublons possibles ignorés.",
   "copyReferencesDialog.refreshing": "Actualisation des fiches…",
   "copyReferencesDialog.sourceProject": "Projet source",
   "copyReferencesDialog.chooseProject": "Choisir un projet",
@@ -164,7 +167,10 @@ const catalog: Catalog = {
   "copyReferencesDialog.skipNote":
     "Les correspondances utilisent la catégorie et le nom, pas le contenu. Les fiches renommées peuvent être copiées à nouveau.",
   "copyReferencesDialog.updatingPreview": "Mise à jour de l'aperçu…",
-  "copyReferencesDialog.previewStatus": "{copied} à copier · {skipped} doublons possibles ignorés",
+  "copyReferencesDialog.previewToCopy.one": "{count} à copier",
+  "copyReferencesDialog.previewToCopy.other": "{count} à copier",
+  "copyReferencesDialog.previewSkipped.one": "{count} doublon possible ignoré",
+  "copyReferencesDialog.previewSkipped.other": "{count} doublons possibles ignorés",
   "copyReferencesDialog.refreshReferences": "Actualiser les fiches",
   "copyReferencesDialog.refreshPreview": "Actualiser l'aperçu",
   "copyReferencesDialog.retryLoadingProjects": "Réessayer le chargement des projets",
@@ -258,7 +264,7 @@ const catalog: Catalog = {
   "syncDialog.conflictNote":
     "Un conflit a été modifié dans kindling et dans le fichier de plan, ou kindling ne peut pas déterminer quel côté a changé. Laissez-le décoché pour conserver la version kindling ; il ne sera plus proposé à moins que le fichier de plan ne le modifie. Tout ignorer les conflits.",
   "syncDialog.newItems": "Nouveaux éléments",
-  "syncDialog.selectedOf": "{selected} sur {total} sélectionné",
+  "syncDialog.selectedOf": "Sélection : {selected} sur {total}",
   "syncDialog.selectAllNewItems": "Sélectionner tous les nouveaux éléments",
   "syncDialog.selectAll": "Tout sélectionner",
   "syncDialog.deselectAllNewItems": "Désélectionner tous les nouveaux éléments",
@@ -420,8 +426,8 @@ const catalog: Catalog = {
   "copyReferencesDialog.selectVisibleOfType.custom": "Sélectionner les notes visibles",
   "copyReferencesDialog.selectAllOfType.any": "Sélectionner toutes les fiches",
   "copyReferencesDialog.selectVisibleOfType.any": "Sélectionner les fiches visibles",
-  "copyReferencesDialog.selectedAcross.one": "{count} sélectionné dans toutes les catégories",
-  "copyReferencesDialog.selectedAcross.other": "{count} sélectionnés dans toutes les catégories",
+  "copyReferencesDialog.selectedAcross.one": "{count} sélectionnée dans toutes les catégories",
+  "copyReferencesDialog.selectedAcross.other": "{count} sélectionnées dans toutes les catégories",
   "copyReferencesDialog.copyCount.one": "Copier {count} fiche",
   "copyReferencesDialog.copyCount.other": "Copier {count} fiches",
 };

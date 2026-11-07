@@ -8,6 +8,7 @@ import { currentProject } from "../stores/project.svelte";
 import { writing } from "../stores/writing.svelte";
 import { mockChapters, mockProject, mockScenes } from "../../dev/mock-data";
 import type { WritingStats } from "../types";
+import { setLocale } from "../i18n";
 
 const chapter = mockChapters[1];
 const emptyChapter = mockChapters[2];
@@ -36,6 +37,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   cleanup();
+  setLocale("en");
   writing.open(null);
   currentProject.setProject(null);
 });
@@ -166,4 +168,26 @@ it("announces a refresh error once with the sidebar mounted and keeps it visible
   await writing.refresh();
   await tick();
   expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("uses the singular for one word and a dash with the plural for an unknown scene", async () => {
+  vi.mocked(invoke).mockResolvedValue({ ...stats, project_words: 1, scene_words: {} });
+  await writing.refresh();
+  render(WritingStatusBar);
+  expect(screen.getByText("Scene: — words")).toBeTruthy();
+  expect(screen.getByText("Project: 1 word")).toBeTruthy();
+});
+
+it("agrees word counts in French and Russian", async () => {
+  vi.mocked(invoke).mockResolvedValue({ ...stats, project_words: 0, scene_words: {} });
+  await writing.refresh();
+  setLocale("fr");
+  const fr = render(WritingStatusBar);
+  const row = () => fr.container.querySelector(".statusbar-row")?.textContent ?? "";
+  expect(row()).toContain("Projet\u00a0: 0 mot");
+  expect(row()).toContain("Scène\u00a0: — mots");
+  fr.unmount();
+  setLocale("ru");
+  const ru = render(WritingStatusBar);
+  expect(ru.container.querySelector(".statusbar-row")?.textContent).toContain("Сцена: — слов");
 });

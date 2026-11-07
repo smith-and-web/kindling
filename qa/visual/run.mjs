@@ -209,7 +209,7 @@ export class Runner {
     const stats = await this.app.invoke("get_writing_stats", { projectId: this.project.id });
     await this.click('[aria-controls="writing-statistics-panel"]');
     await this.wait(
-      `document.querySelector('[aria-controls="writing-statistics-panel"]')?.closest('footer').textContent.includes(window.__qa.i18n.t("editor.writingStatusBar.projectWords", {count: (${stats.project_words}).toLocaleString()}))`
+      `document.querySelector('[aria-controls="writing-statistics-panel"]')?.closest('footer').textContent.includes(window.__qa.i18n.tn("editor.writingStatusBar.projectWords", ${stats.project_words}, {count: (${stats.project_words}).toLocaleString()}))`
     );
     await this.click('[aria-controls="writing-statistics-panel"]');
   }

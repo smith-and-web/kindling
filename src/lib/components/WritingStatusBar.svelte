@@ -1,10 +1,16 @@
 <script lang="ts">
   import { currentProject } from "../stores/project.svelte";
   import { writing } from "../stores/writing.svelte";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
   import { formatNumber } from "../i18n/format";
 
   let expanded = $state(false);
+
+  // An unknown count shows a dash. 5 picks the plural form in every catalog (Russian "many").
+  function wordCount(key: string, words: number | undefined): string {
+    if (words === undefined) return tn(key, 5, { count: "—" });
+    return tn(key, words, { count: formatNumber(words) });
+  }
   const stats = $derived(
     writing.value?.project_id === currentProject.value?.id ? writing.value : null
   );
@@ -100,32 +106,22 @@
       {/if}
       <div class="statusbar-row">
         <span
-          >{t("editor.writingStatusBar.sceneWords", {
-            count: sceneId
-              ? stats.scene_words[sceneId] === undefined
-                ? "—"
-                : formatNumber(stats.scene_words[sceneId])
-              : "—",
-          })}</span
+          >{wordCount(
+            "editor.writingStatusBar.sceneWords",
+            sceneId ? stats.scene_words[sceneId] : undefined
+          )}</span
         >
         <span class="statusbar-chapter"
-          >{t("editor.writingStatusBar.chapterWords", {
-            count: chapterId
-              ? stats.chapter_words[chapterId] === undefined
-                ? "—"
-                : formatNumber(stats.chapter_words[chapterId])
-              : "—",
-          })}</span
+          >{wordCount(
+            "editor.writingStatusBar.chapterWords",
+            chapterId ? stats.chapter_words[chapterId] : undefined
+          )}</span
         >
         <span class="statusbar-project"
-          >{t("editor.writingStatusBar.projectWords", {
-            count: formatNumber(stats.project_words),
-          })}</span
+          >{wordCount("editor.writingStatusBar.projectWords", stats.project_words)}</span
         >
         <span title={t("editor.writingStatusBar.sessionTooltip")}>
-          {t("editor.writingStatusBar.sessionWords", {
-            count: formatNumber(stats.session_words),
-          })}
+          {wordCount("editor.writingStatusBar.sessionWords", stats.session_words)}
         </span>
         <button
           type="button"

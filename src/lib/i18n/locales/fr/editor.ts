@@ -123,7 +123,8 @@ const catalog: Catalog = {
   "beatView.addBeat": "Ajouter un temps fort",
   "beatView.dragToReorder": "Faire glisser pour réorganiser",
   "beatView.beatTitleLabel": "Titre du temps fort",
-  "beatView.beatWords": "{count} mots",
+  "beatView.beatWords.one": "{count} mot",
+  "beatView.beatWords.other": "{count} mots",
   "beatView.beatMenu": "Menu du temps fort",
   "beatView.sceneLocked": "La scène est verrouillée",
   "beatView.prosePlaceholder": "Rédigez votre texte pour ce temps fort…",
@@ -197,21 +198,29 @@ const catalog: Catalog = {
   "writingStatusBar.chapterColumn": "Chapitre",
   "writingStatusBar.wordsColumn": "Mots",
   "writingStatusBar.noChapters": "Aucun chapitre pour l'instant.",
-  "writingStatusBar.sceneWords": "Scène : {count} mots",
-  "writingStatusBar.chapterWords": "Chapitre : {count} mots",
-  "writingStatusBar.projectWords": "Projet : {count} mots",
-  "writingStatusBar.sessionWords": "Session : {count} mots",
+  "writingStatusBar.sceneWords.one": "Scène : {count} mot",
+  "writingStatusBar.sceneWords.other": "Scène : {count} mots",
+  "writingStatusBar.chapterWords.one": "Chapitre : {count} mot",
+  "writingStatusBar.chapterWords.other": "Chapitre : {count} mots",
+  "writingStatusBar.projectWords.one": "Projet : {count} mot",
+  "writingStatusBar.projectWords.other": "Projet : {count} mots",
+  "writingStatusBar.sessionWords.one": "Session : {count} mot",
+  "writingStatusBar.sessionWords.other": "Session : {count} mots",
   "writingStatusBar.sessionTooltip":
     "Mots nets enregistrés depuis l'ouverture de l'application ou la réinitialisation de la session.",
 
   // WritingProgress
-  "writingProgress.projectWords": "{count} mots du projet",
+  "writingProgress.projectWords.one": "{count} mot du projet",
+  "writingProgress.projectWords.other": "{count} mots du projet",
   "writingProgress.todayTooltip":
     "Mots nets ajoutés via les modifications enregistrées aujourd'hui. Les suppressions réduisent ce total.",
-  "writingProgress.todayWithGoal": "Aujourd'hui : {today} / {goal} mots",
-  "writingProgress.todayWithoutGoal": "Aujourd'hui : {today} mots · objectif désactivé",
+  "writingProgress.todayWithGoal.one": "Aujourd'hui : {today} / {goal} mot",
+  "writingProgress.todayWithGoal.other": "Aujourd'hui : {today} / {goal} mots",
+  "writingProgress.todayWithoutGoal.one": "Aujourd'hui : {today} mot · objectif désactivé",
+  "writingProgress.todayWithoutGoal.other": "Aujourd'hui : {today} mots · objectif désactivé",
   "writingProgress.dailyGoal": "Objectif d'écriture quotidien",
-  "writingProgress.sessionWords": "Session : {count} mots",
+  "writingProgress.sessionWords.one": "Session : {count} mot",
+  "writingProgress.sessionWords.other": "Session : {count} mots",
   "writingProgress.sessionTooltip":
     "Mots nets enregistrés dans ce projet depuis l'ouverture de l'application ou la réinitialisation.",
   "writingProgress.resetSession": "Réinitialiser la session d'écriture",
@@ -230,7 +239,8 @@ const catalog: Catalog = {
 
   // PageView
   "pageView.title": "Texte de la scène",
-  "pageView.words": "{count} mots",
+  "pageView.words.one": "{count} mot",
+  "pageView.words.other": "{count} mots",
   "pageView.lockedPlaceholder": "La scène est verrouillée",
   "pageView.placeholder": "Rédigez le texte de votre scène ici…",
 

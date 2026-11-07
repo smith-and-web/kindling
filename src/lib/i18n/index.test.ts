@@ -189,6 +189,38 @@ describe("tn()", () => {
   });
 });
 
+describe("word counts", () => {
+  // Every word count is a plural key, so 1 is singular in English and 0 is singular in French.
+  it.each([
+    ["en", 1, "Scene: 1 word"],
+    ["en", 0, "Scene: 0 words"],
+    ["fr", 0, "Scène\u00a0: 0 mot"],
+    ["fr", 2, "Scène\u00a0: 2 mots"],
+    ["de", 1, "Szene: 1 Wort"],
+    ["ru", 1, "Сцена: 1 слово"],
+    ["ru", 3, "Сцена: 3 слова"],
+    ["ru", 5, "Сцена: 5 слов"],
+    ["zh-CN", 1, "场景：1 字"],
+  ] as [Locale, number, string][])("renders %s %i", (locale, count, text) => {
+    setLocale(locale);
+    expect(tn("editor.writingStatusBar.sceneWords", count)).toBe(text);
+  });
+
+  it("counts copied references and skipped duplicates separately", () => {
+    setLocale("fr");
+    expect(tn("references.copyReferencesDialog.previewSkipped", 0)).toBe(
+      "0 doublon possible ignoré"
+    );
+    expect(
+      tn("references.copyReferencesDialog.copiedMessage", 2, { source: "A", destination: "B" })
+    ).toBe("2 fiches copiées de A vers B.");
+    setLocale("ru");
+    expect(tn("references.copyReferencesDialog.copiedSkipped", 2)).toBe(
+      "Пропущено 2 возможных дубликата."
+    );
+  });
+});
+
 describe("countLabel()", () => {
   it("renders English and Chinese counted nouns", () => {
     expect(countLabel(3, "scene")).toBe("3 scenes");

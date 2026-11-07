@@ -135,8 +135,12 @@ const catalog: Catalog = {
   "copyReferencesDialog.independentNote":
     "Estas son copias independientes. Los cambios no actualizarán otros proyectos. Los enlaces de escenas no se copian.",
   "copyReferencesDialog.copiedTitle": "Referencias copiadas",
-  "copyReferencesDialog.copiedMessage":
-    "Se copiaron {copied} desde {source} a {destination}. Se omitieron {skipped} posibles duplicados.",
+  "copyReferencesDialog.copiedMessage.one":
+    "Se copió {count} referencia de {source} a {destination}.",
+  "copyReferencesDialog.copiedMessage.other":
+    "Se copiaron {count} referencias de {source} a {destination}.",
+  "copyReferencesDialog.copiedSkipped.one": "Se omitió {count} posible duplicado.",
+  "copyReferencesDialog.copiedSkipped.other": "Se omitieron {count} posibles duplicados.",
   "copyReferencesDialog.refreshing": "Actualizando referencias…",
   "copyReferencesDialog.sourceProject": "Proyecto origen",
   "copyReferencesDialog.chooseProject": "Elegir un proyecto",
@@ -165,8 +169,10 @@ const catalog: Catalog = {
   "copyReferencesDialog.skipNote":
     "Las coincidencias usan categoría y nombre, no contenido. Las referencias renombradas se pueden copiar nuevamente.",
   "copyReferencesDialog.updatingPreview": "Actualizando vista previa…",
-  "copyReferencesDialog.previewStatus":
-    "{copied} por copiar · {skipped} posibles duplicados omitidos",
+  "copyReferencesDialog.previewToCopy.one": "{count} por copiar",
+  "copyReferencesDialog.previewToCopy.other": "{count} por copiar",
+  "copyReferencesDialog.previewSkipped.one": "{count} posible duplicado omitido",
+  "copyReferencesDialog.previewSkipped.other": "{count} posibles duplicados omitidos",
   "copyReferencesDialog.refreshReferences": "Actualizar referencias",
   "copyReferencesDialog.refreshPreview": "Actualizar vista previa",
   "copyReferencesDialog.retryLoadingProjects": "Reintentar cargar proyectos",

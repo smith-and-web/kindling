@@ -131,8 +131,12 @@ const catalog: Catalog = {
   "copyReferencesDialog.independentNote":
     "These are independent copies. Changes won't update other projects. Scene links are not copied.",
   "copyReferencesDialog.copiedTitle": "References copied",
-  "copyReferencesDialog.copiedMessage":
-    "Copied {copied} from {source} to {destination}. Skipped {skipped} possible duplicates.",
+  "copyReferencesDialog.copiedMessage.one":
+    "Copied {count} reference from {source} to {destination}.",
+  "copyReferencesDialog.copiedMessage.other":
+    "Copied {count} references from {source} to {destination}.",
+  "copyReferencesDialog.copiedSkipped.one": "Skipped {count} possible duplicate.",
+  "copyReferencesDialog.copiedSkipped.other": "Skipped {count} possible duplicates.",
   "copyReferencesDialog.refreshing": "Refreshing references…",
   "copyReferencesDialog.sourceProject": "Source project",
   "copyReferencesDialog.chooseProject": "Choose a project",
@@ -161,7 +165,10 @@ const catalog: Catalog = {
   "copyReferencesDialog.skipNote":
     "Matches use category and name, not content. Renamed references may be copied again.",
   "copyReferencesDialog.updatingPreview": "Updating preview…",
-  "copyReferencesDialog.previewStatus": "{copied} to copy · {skipped} possible duplicates skipped",
+  "copyReferencesDialog.previewToCopy.one": "{count} to copy",
+  "copyReferencesDialog.previewToCopy.other": "{count} to copy",
+  "copyReferencesDialog.previewSkipped.one": "{count} possible duplicate skipped",
+  "copyReferencesDialog.previewSkipped.other": "{count} possible duplicates skipped",
   "copyReferencesDialog.refreshReferences": "Refresh references",
   "copyReferencesDialog.refreshPreview": "Refresh preview",
   "copyReferencesDialog.retryLoadingProjects": "Retry loading projects",

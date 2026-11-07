@@ -134,8 +134,12 @@ const catalog: Catalog = {
   "copyReferencesDialog.independentNote":
     "Estas são cópias independentes. As alterações não atualizarão outros projetos. Os links de cenas não são copiados.",
   "copyReferencesDialog.copiedTitle": "Referências copiadas",
-  "copyReferencesDialog.copiedMessage":
-    "Copiado {copied} de {source} para {destination}. Ignorados {skipped} possíveis duplicatas.",
+  "copyReferencesDialog.copiedMessage.one":
+    "{count} referência copiada de {source} para {destination}.",
+  "copyReferencesDialog.copiedMessage.other":
+    "{count} referências copiadas de {source} para {destination}.",
+  "copyReferencesDialog.copiedSkipped.one": "{count} possível duplicata ignorada.",
+  "copyReferencesDialog.copiedSkipped.other": "{count} possíveis duplicatas ignoradas.",
   "copyReferencesDialog.refreshing": "Atualizando referências…",
   "copyReferencesDialog.sourceProject": "Projeto de origem",
   "copyReferencesDialog.chooseProject": "Escolha um projeto",
@@ -164,8 +168,10 @@ const catalog: Catalog = {
   "copyReferencesDialog.skipNote":
     "As correspondências usam categoria e nome, não conteúdo. Referências renomeadas podem ser copiadas novamente.",
   "copyReferencesDialog.updatingPreview": "Atualizando pré-visualização…",
-  "copyReferencesDialog.previewStatus":
-    "{copied} para copiar · {skipped} possíveis duplicatas ignoradas",
+  "copyReferencesDialog.previewToCopy.one": "{count} para copiar",
+  "copyReferencesDialog.previewToCopy.other": "{count} para copiar",
+  "copyReferencesDialog.previewSkipped.one": "{count} possível duplicata ignorada",
+  "copyReferencesDialog.previewSkipped.other": "{count} possíveis duplicatas ignoradas",
   "copyReferencesDialog.refreshReferences": "Atualizar referências",
   "copyReferencesDialog.refreshPreview": "Atualizar pré-visualização",
   "copyReferencesDialog.retryLoadingProjects": "Tentar carregar projetos novamente",

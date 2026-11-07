@@ -135,8 +135,12 @@ const catalog: Catalog = {
   "copyReferencesDialog.independentNote":
     "Dies sind unabhängige Kopien. Änderungen aktualisieren keine anderen Projekte. Szenenverknüpfungen werden nicht kopiert.",
   "copyReferencesDialog.copiedTitle": "Referenzen kopiert",
-  "copyReferencesDialog.copiedMessage":
-    "{copied} von {source} nach {destination} kopiert. {skipped} mögliche Duplikate übersprungen.",
+  "copyReferencesDialog.copiedMessage.one":
+    "{count} Referenz von {source} nach {destination} kopiert.",
+  "copyReferencesDialog.copiedMessage.other":
+    "{count} Referenzen von {source} nach {destination} kopiert.",
+  "copyReferencesDialog.copiedSkipped.one": "{count} mögliches Duplikat übersprungen.",
+  "copyReferencesDialog.copiedSkipped.other": "{count} mögliche Duplikate übersprungen.",
   "copyReferencesDialog.refreshing": "Referenzen werden aktualisiert…",
   "copyReferencesDialog.sourceProject": "Quellprojekt",
   "copyReferencesDialog.chooseProject": "Projekt wählen",
@@ -165,8 +169,10 @@ const catalog: Catalog = {
   "copyReferencesDialog.skipNote":
     "Treffer verwenden Kategorie und Name, nicht Inhalt. Umbenannte Referenzen können erneut kopiert werden.",
   "copyReferencesDialog.updatingPreview": "Vorschau wird aktualisiert…",
-  "copyReferencesDialog.previewStatus":
-    "{copied} zu kopieren · {skipped} mögliche Duplikate übersprungen",
+  "copyReferencesDialog.previewToCopy.one": "{count} zu kopieren",
+  "copyReferencesDialog.previewToCopy.other": "{count} zu kopieren",
+  "copyReferencesDialog.previewSkipped.one": "{count} mögliches Duplikat übersprungen",
+  "copyReferencesDialog.previewSkipped.other": "{count} mögliche Duplikate übersprungen",
   "copyReferencesDialog.refreshReferences": "Referenzen aktualisieren",
   "copyReferencesDialog.refreshPreview": "Vorschau aktualisieren",
   "copyReferencesDialog.retryLoadingProjects": "Projekte erneut laden",

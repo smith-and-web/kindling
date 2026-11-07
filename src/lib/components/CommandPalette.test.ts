@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, render } from "@testing-library/svelte";
 import CommandPalette from "./CommandPalette.svelte";
+import { setLocale } from "../i18n";
 import KeyboardSettings from "./KeyboardSettings.svelte";
 import { shortcuts } from "../stores/shortcuts.svelte";
 import { defaultBindings } from "../utils/keyboardShortcuts";
@@ -70,4 +71,17 @@ it.each(["ArrowDown", "ArrowUp"])("recovers from an empty search after %s", asyn
   await fireEvent.input(input, { target: { value: "Settings" } });
   await fireEvent.keyDown(input, { key: "Enter" });
   expect(action).toHaveBeenCalledOnce();
+});
+
+it("names the Enter and Escape keys in the interface language", () => {
+  setLocale("fr");
+  try {
+    const palette = render(CommandPalette, { open: true, commands: [] });
+    const hints = palette.container.querySelector(".palette-hints")?.textContent ?? "";
+    expect(hints).toContain("Entrée");
+    expect(hints).toContain("Échap");
+    expect(hints).not.toMatch(/\bEnter\b|\bEsc\b/);
+  } finally {
+    setLocale("en");
+  }
 });

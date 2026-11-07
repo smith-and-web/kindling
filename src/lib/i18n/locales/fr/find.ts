@@ -41,7 +41,7 @@ const catalog: Catalog = {
   "findReplaceDialog.discardDrafts": "Supprimer les brouillons non enregistrés…",
   "findReplaceDialog.undoReplacement": "Annuler le remplacement",
   "findReplaceDialog.replaceAll": "Tout remplacer",
-  "findReplaceDialog.replaceMatch": "Remplacer l'occurrence",
+  "findReplaceDialog.replaceMatch": "Remplacer",
   "findReplaceDialog.replacementUndone": "Remplacement annulé.",
   "findReplaceDialog.replacementSaved": "Remplacement enregistré.",
   "findReplaceDialog.noChangesNeeded": "Aucune modification nécessaire.",

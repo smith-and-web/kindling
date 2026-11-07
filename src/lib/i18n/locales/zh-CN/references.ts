@@ -127,8 +127,8 @@ const catalog: Catalog = {
   "copyReferencesDialog.independentNote":
     "这些是独立的副本。修改不会更新其他项目，场景关联也不会复制。",
   "copyReferencesDialog.copiedTitle": "引用已复制",
-  "copyReferencesDialog.copiedMessage":
-    "已从{source}向{destination}复制{copied}。跳过{skipped}条疑似重复项。",
+  "copyReferencesDialog.copiedMessage.other": "已从{source}向{destination}复制 {count} 条引用。",
+  "copyReferencesDialog.copiedSkipped.other": "跳过 {count} 条疑似重复项。",
   "copyReferencesDialog.refreshing": "正在刷新引用…",
   "copyReferencesDialog.sourceProject": "源项目",
   "copyReferencesDialog.chooseProject": "选择项目",
@@ -153,7 +153,8 @@ const catalog: Catalog = {
   "copyReferencesDialog.enableCategories": "启用分类：{categories}",
   "copyReferencesDialog.skipNote": "匹配依据是分类和名称，而非内容。改过名的引用可能再次被复制。",
   "copyReferencesDialog.updatingPreview": "正在更新预览…",
-  "copyReferencesDialog.previewStatus": "待复制 {copied} 条 · 已跳过 {skipped} 条疑似重复",
+  "copyReferencesDialog.previewToCopy.other": "待复制 {count} 条",
+  "copyReferencesDialog.previewSkipped.other": "已跳过 {count} 条疑似重复",
   "copyReferencesDialog.refreshReferences": "刷新引用",
   "copyReferencesDialog.refreshPreview": "刷新预览",
   "copyReferencesDialog.retryLoadingProjects": "重试加载项目",

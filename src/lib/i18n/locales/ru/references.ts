@@ -132,8 +132,15 @@ const catalog: Catalog = {
   "copyReferencesDialog.independentNote":
     "Это независимые копии. Изменения не будут обновлять другие проекты. Привязки к сценам не копируются.",
   "copyReferencesDialog.copiedTitle": "Ссылки скопированы",
-  "copyReferencesDialog.copiedMessage":
-    "Скопировано {copied} из {source} в {destination}. Пропущено {skipped} возможных дубликатов.",
+  "copyReferencesDialog.copiedMessage.one":
+    "Скопирована {count} ссылка из {source} в {destination}.",
+  "copyReferencesDialog.copiedMessage.few":
+    "Скопировано {count} ссылки из {source} в {destination}.",
+  "copyReferencesDialog.copiedMessage.many":
+    "Скопировано {count} ссылок из {source} в {destination}.",
+  "copyReferencesDialog.copiedSkipped.one": "Пропущен {count} возможный дубликат.",
+  "copyReferencesDialog.copiedSkipped.few": "Пропущено {count} возможных дубликата.",
+  "copyReferencesDialog.copiedSkipped.many": "Пропущено {count} возможных дубликатов.",
   "copyReferencesDialog.refreshing": "Обновление ссылок…",
   "copyReferencesDialog.sourceProject": "Исходный проект",
   "copyReferencesDialog.chooseProject": "Выберите проект",
@@ -162,8 +169,12 @@ const catalog: Catalog = {
   "copyReferencesDialog.skipNote":
     "Совпадения используют категорию и имя, а не содержание. Переименованные ссылки могут быть скопированы повторно.",
   "copyReferencesDialog.updatingPreview": "Обновление предпросмотра…",
-  "copyReferencesDialog.previewStatus":
-    "{copied} для копирования · {skipped} возможных дубликатов пропущено",
+  "copyReferencesDialog.previewToCopy.one": "{count} для копирования",
+  "copyReferencesDialog.previewToCopy.few": "{count} для копирования",
+  "copyReferencesDialog.previewToCopy.many": "{count} для копирования",
+  "copyReferencesDialog.previewSkipped.one": "{count} возможный дубликат пропущен",
+  "copyReferencesDialog.previewSkipped.few": "{count} возможных дубликата пропущено",
+  "copyReferencesDialog.previewSkipped.many": "{count} возможных дубликатов пропущено",
   "copyReferencesDialog.refreshReferences": "Обновить ссылки",
   "copyReferencesDialog.refreshPreview": "Обновить предпросмотр",
   "copyReferencesDialog.retryLoadingProjects": "Повторить загрузку проектов",
