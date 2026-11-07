@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { countLabel } from "../utils/plural";
   import DialogHeader from "./DialogHeader.svelte";
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
@@ -254,12 +253,11 @@
         <div class="od-field od-fill">
           <strong>{t("references.copyReferencesDialog.copiedTitle")}</strong>
           <p>
-            {t("references.copyReferencesDialog.copiedMessage", {
-              copied: countLabel(result.copied, "reference"),
+            {tn("references.copyReferencesDialog.copiedMessage", result.copied, {
               source: source?.name ?? "",
               destination: destination.name,
-              skipped: result.skipped,
             })}
+            {tn("references.copyReferencesDialog.copiedSkipped", result.skipped)}
           </p>
         </div>
       </div>
@@ -452,10 +450,8 @@
           {#if loading}
             {t("references.copyReferencesDialog.updatingPreview")}
           {:else if preview}
-            {t("references.copyReferencesDialog.previewStatus", {
-              copied: preview.copied,
-              skipped: preview.skipped,
-            })}
+            {tn("references.copyReferencesDialog.previewToCopy", preview.copied)} ·
+            {tn("references.copyReferencesDialog.previewSkipped", preview.skipped)}
           {/if}
         </p>
       {/if}

@@ -46,17 +46,19 @@
   {@const stats = writing.value}
   <div class="progress" data-testid="writing-progress">
     <p>
-      {t("editor.writingProgress.projectWords", { count: formatNumber(stats.project_words) })}
+      {tn("editor.writingProgress.projectWords", stats.project_words, {
+        count: formatNumber(stats.project_words),
+      })}
     </p>
     <div class="ka-progress progress-goal">
       <p title={t("editor.writingProgress.todayTooltip")}>
         {#if stats.daily_goal > 0}
-          {t("editor.writingProgress.todayWithGoal", {
+          {tn("editor.writingProgress.todayWithGoal", stats.daily_goal, {
             today: formatNumber(stats.today_words),
             goal: formatNumber(stats.daily_goal),
           })}
         {:else}
-          {t("editor.writingProgress.todayWithoutGoal", {
+          {tn("editor.writingProgress.todayWithoutGoal", stats.today_words, {
             today: formatNumber(stats.today_words),
           })}
         {/if}
@@ -71,7 +73,7 @@
     </div>
     <div class="ka-between progress-session">
       <span title={t("editor.writingProgress.sessionTooltip")}
-        >{t("editor.writingProgress.sessionWords", {
+        >{tn("editor.writingProgress.sessionWords", stats.session_words, {
           count: formatNumber(stats.session_words),
         })}</span
       >

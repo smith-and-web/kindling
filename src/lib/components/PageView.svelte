@@ -1,6 +1,6 @@
 <script lang="ts">
   import NovelEditor from "./NovelEditor.svelte";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
 
   let {
     content,
@@ -24,7 +24,7 @@
 <section class="page-view" aria-labelledby="scene-prose-title">
   <div class="page-view-head">
     <h3 id="scene-prose-title">{t("editor.pageView.title")}</h3>
-    <span class="page-view-count">{t("editor.pageView.words", { count: wordCount })}</span>
+    <span class="page-view-count">{tn("editor.pageView.words", wordCount)}</span>
   </div>
   <div class="page-view-body">
     <NovelEditor

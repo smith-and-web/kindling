@@ -321,6 +321,8 @@ const catalog: Catalog = {
   "commandPalette.navigate": "para navegar",
   "commandPalette.run": "para ejecutar",
   "commandPalette.close": "para cerrar",
+  "commandPalette.enterKey": "Enter",
+  "commandPalette.escKey": "Esc",
 };
 
 export default catalog;

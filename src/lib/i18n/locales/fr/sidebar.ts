@@ -50,7 +50,7 @@ const catalog: Catalog = {
 
   // --- Barre latérale : filtres de scènes ---
   "sidebar.showScenes": "Afficher les scènes",
-  "sidebar.planned": "Planifiées",
+  "sidebar.planned": "Prévues",
   "sidebar.next5": "5 suivantes",
   "sidebar.showAllScenes": "Afficher toutes les scènes",
   "sidebar.showOnlyPlanned": "Afficher uniquement les scènes planifiées",

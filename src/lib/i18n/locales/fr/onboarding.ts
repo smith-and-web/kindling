@@ -12,7 +12,7 @@ const catalog: Catalog = {
   "startScreen.sampleProject": "Projet exemple",
   "startScreen.exploreKindling": "Explorer kindling d'abord",
   "startScreen.openReviewPackage": "Ouvrir un paquet de relecture",
-  "startScreen.openReviewPackageHint": "Ouvrir un fichier de relecture ou de retours",
+  "startScreen.openReviewPackageHint": "Ouvrir une relecture ou des retours",
   "startScreen.allProjects": "Tous les projets",
   "startScreen.recentProjects": "Projets récents",
   "startScreen.showRecent": "Afficher les récents",
@@ -324,6 +324,8 @@ const catalog: Catalog = {
   "commandPalette.navigate": "pour naviguer",
   "commandPalette.run": "pour exécuter",
   "commandPalette.close": "pour fermer",
+  "commandPalette.enterKey": "Entrée",
+  "commandPalette.escKey": "Échap",
 };
 
 export default catalog;

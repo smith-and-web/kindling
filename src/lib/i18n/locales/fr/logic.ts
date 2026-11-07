@@ -116,7 +116,7 @@ const catalog: Catalog = {
   "commandCategory.Editor": "Éditeur",
 
   // --- Libellés de commandes (miroir de shortcutDefinitions.json) ---
-  "command.editorial_open.label": "Ouvrir un fichier de relecture ou de retours",
+  "command.editorial_open.label": "Ouvrir une relecture ou des retours",
   "command.editorial_project.label": "Relecture éditoriale et paquets",
   "command.find.label": "Rechercher dans la scène",
   "command.find_replace.label": "Rechercher et remplacer",

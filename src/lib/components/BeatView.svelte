@@ -22,7 +22,7 @@
   import ContextMenu from "./ContextMenu.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import NovelEditor from "./NovelEditor.svelte";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
 
   let {
     beats,
@@ -718,7 +718,7 @@
                 <span class="beat-title" title={beat.content}>{beat.content}</span>
                 {#if prose}
                   <small class="beat-count"
-                    >{t("editor.beatView.beatWords", { count: getBeatWordCount(prose) })}</small
+                    >{tn("editor.beatView.beatWords", getBeatWordCount(prose))}</small
                   >
                 {/if}
               </button>

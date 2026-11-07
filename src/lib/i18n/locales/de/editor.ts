@@ -125,7 +125,8 @@ const catalog: Catalog = {
   "beatView.addBeat": "Beat hinzufügen",
   "beatView.dragToReorder": "Zum Neuanordnen ziehen",
   "beatView.beatTitleLabel": "Beat-Titel",
-  "beatView.beatWords": "{count} Wörter",
+  "beatView.beatWords.one": "{count} Wort",
+  "beatView.beatWords.other": "{count} Wörter",
   "beatView.beatMenu": "Beat-Menü",
   "beatView.sceneLocked": "Szene ist gesperrt",
   "beatView.prosePlaceholder": "Text für diesen Beat verfassen…",
@@ -199,21 +200,29 @@ const catalog: Catalog = {
   "writingStatusBar.chapterColumn": "Kapitel",
   "writingStatusBar.wordsColumn": "Wörter",
   "writingStatusBar.noChapters": "Noch keine Kapitel.",
-  "writingStatusBar.sceneWords": "Szene: {count} Wörter",
-  "writingStatusBar.chapterWords": "Kapitel: {count} Wörter",
-  "writingStatusBar.projectWords": "Projekt: {count} Wörter",
-  "writingStatusBar.sessionWords": "Sitzung: {count} Wörter",
+  "writingStatusBar.sceneWords.one": "Szene: {count} Wort",
+  "writingStatusBar.sceneWords.other": "Szene: {count} Wörter",
+  "writingStatusBar.chapterWords.one": "Kapitel: {count} Wort",
+  "writingStatusBar.chapterWords.other": "Kapitel: {count} Wörter",
+  "writingStatusBar.projectWords.one": "Projekt: {count} Wort",
+  "writingStatusBar.projectWords.other": "Projekt: {count} Wörter",
+  "writingStatusBar.sessionWords.one": "Sitzung: {count} Wort",
+  "writingStatusBar.sessionWords.other": "Sitzung: {count} Wörter",
   "writingStatusBar.sessionTooltip":
     "Netto gespeicherte Wörter seit dem Öffnen der App oder dem Zurücksetzen der Sitzung.",
 
   // WritingProgress
-  "writingProgress.projectWords": "{count} Projektwörter",
+  "writingProgress.projectWords.one": "{count} Projektwort",
+  "writingProgress.projectWords.other": "{count} Projektwörter",
   "writingProgress.todayTooltip":
     "Netto hinzugefügte Wörter durch gespeicherte Bearbeitungen heute. Löschungen verringern diese Summe.",
-  "writingProgress.todayWithGoal": "Heute: {today} / {goal} Wörter",
-  "writingProgress.todayWithoutGoal": "Heute: {today} Wörter · Ziel aus",
+  "writingProgress.todayWithGoal.one": "Heute: {today} / {goal} Wort",
+  "writingProgress.todayWithGoal.other": "Heute: {today} / {goal} Wörter",
+  "writingProgress.todayWithoutGoal.one": "Heute: {today} Wort · Ziel aus",
+  "writingProgress.todayWithoutGoal.other": "Heute: {today} Wörter · Ziel aus",
   "writingProgress.dailyGoal": "Tägliches Schreibziel",
-  "writingProgress.sessionWords": "Sitzung: {count} Wörter",
+  "writingProgress.sessionWords.one": "Sitzung: {count} Wort",
+  "writingProgress.sessionWords.other": "Sitzung: {count} Wörter",
   "writingProgress.sessionTooltip":
     "Netto gespeicherte Wörter in diesem Projekt seit dem Öffnen der App oder dem Zurücksetzen.",
   "writingProgress.resetSession": "Schreibsitzung zurücksetzen",
@@ -231,7 +240,8 @@ const catalog: Catalog = {
 
   // PageView
   "pageView.title": "Szenentext",
-  "pageView.words": "{count} Wörter",
+  "pageView.words.one": "{count} Wort",
+  "pageView.words.other": "{count} Wörter",
   "pageView.lockedPlaceholder": "Szene ist gesperrt",
   "pageView.placeholder": "Szenentext hier verfassen…",
 

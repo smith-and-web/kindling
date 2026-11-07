@@ -122,7 +122,8 @@ const catalog: Catalog = {
   "beatView.addBeat": "Añadir tiempo",
   "beatView.dragToReorder": "Arrastrar para reordenar",
   "beatView.beatTitleLabel": "Título del tiempo",
-  "beatView.beatWords": "{count} palabras",
+  "beatView.beatWords.one": "{count} palabra",
+  "beatView.beatWords.other": "{count} palabras",
   "beatView.beatMenu": "Menú del tiempo",
   "beatView.sceneLocked": "La escena está bloqueada",
   "beatView.prosePlaceholder": "Escribe la prosa para este tiempo…",
@@ -196,21 +197,29 @@ const catalog: Catalog = {
   "writingStatusBar.chapterColumn": "Capítulo",
   "writingStatusBar.wordsColumn": "Palabras",
   "writingStatusBar.noChapters": "Aún no hay capítulos.",
-  "writingStatusBar.sceneWords": "Escena: {count} palabras",
-  "writingStatusBar.chapterWords": "Capítulo: {count} palabras",
-  "writingStatusBar.projectWords": "Proyecto: {count} palabras",
-  "writingStatusBar.sessionWords": "Sesión: {count} palabras",
+  "writingStatusBar.sceneWords.one": "Escena: {count} palabra",
+  "writingStatusBar.sceneWords.other": "Escena: {count} palabras",
+  "writingStatusBar.chapterWords.one": "Capítulo: {count} palabra",
+  "writingStatusBar.chapterWords.other": "Capítulo: {count} palabras",
+  "writingStatusBar.projectWords.one": "Proyecto: {count} palabra",
+  "writingStatusBar.projectWords.other": "Proyecto: {count} palabras",
+  "writingStatusBar.sessionWords.one": "Sesión: {count} palabra",
+  "writingStatusBar.sessionWords.other": "Sesión: {count} palabras",
   "writingStatusBar.sessionTooltip":
     "Palabras netas guardadas desde que se abrió la aplicación o se restableció la sesión.",
 
   // WritingProgress
-  "writingProgress.projectWords": "{count} palabras en el proyecto",
+  "writingProgress.projectWords.one": "{count} palabra en el proyecto",
+  "writingProgress.projectWords.other": "{count} palabras en el proyecto",
   "writingProgress.todayTooltip":
     "Palabras netas añadidas a través de ediciones guardadas hoy. Las eliminaciones reducen este total.",
-  "writingProgress.todayWithGoal": "Hoy: {today} / {goal} palabras",
-  "writingProgress.todayWithoutGoal": "Hoy: {today} palabras · meta desactivada",
+  "writingProgress.todayWithGoal.one": "Hoy: {today} / {goal} palabra",
+  "writingProgress.todayWithGoal.other": "Hoy: {today} / {goal} palabras",
+  "writingProgress.todayWithoutGoal.one": "Hoy: {today} palabra · meta desactivada",
+  "writingProgress.todayWithoutGoal.other": "Hoy: {today} palabras · meta desactivada",
   "writingProgress.dailyGoal": "Meta diaria de escritura",
-  "writingProgress.sessionWords": "Sesión: {count} palabras",
+  "writingProgress.sessionWords.one": "Sesión: {count} palabra",
+  "writingProgress.sessionWords.other": "Sesión: {count} palabras",
   "writingProgress.sessionTooltip":
     "Palabras netas guardadas en este proyecto desde que se abrió la aplicación o se restableció.",
   "writingProgress.resetSession": "Restablecer sesión de escritura",
@@ -228,7 +237,8 @@ const catalog: Catalog = {
 
   // PageView
   "pageView.title": "Prosa de la escena",
-  "pageView.words": "{count} palabras",
+  "pageView.words.one": "{count} palabra",
+  "pageView.words.other": "{count} palabras",
   "pageView.lockedPlaceholder": "La escena está bloqueada",
   "pageView.placeholder": "Escribe aquí la prosa de tu escena…",
 

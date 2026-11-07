@@ -116,7 +116,8 @@ const catalog: Catalog = {
   "beatView.addBeat": "Add beat",
   "beatView.dragToReorder": "Drag to reorder",
   "beatView.beatTitleLabel": "Beat title",
-  "beatView.beatWords": "{count} words",
+  "beatView.beatWords.one": "{count} word",
+  "beatView.beatWords.other": "{count} words",
   "beatView.beatMenu": "Beat menu",
   "beatView.sceneLocked": "Scene is locked",
   "beatView.prosePlaceholder": "Write your prose for this beat…",
@@ -188,21 +189,29 @@ const catalog: Catalog = {
   "writingStatusBar.chapterColumn": "Chapter",
   "writingStatusBar.wordsColumn": "Words",
   "writingStatusBar.noChapters": "No chapters yet.",
-  "writingStatusBar.sceneWords": "Scene: {count} words",
-  "writingStatusBar.chapterWords": "Chapter: {count} words",
-  "writingStatusBar.projectWords": "Project: {count} words",
-  "writingStatusBar.sessionWords": "Session: {count} words",
+  "writingStatusBar.sceneWords.one": "Scene: {count} word",
+  "writingStatusBar.sceneWords.other": "Scene: {count} words",
+  "writingStatusBar.chapterWords.one": "Chapter: {count} word",
+  "writingStatusBar.chapterWords.other": "Chapter: {count} words",
+  "writingStatusBar.projectWords.one": "Project: {count} word",
+  "writingStatusBar.projectWords.other": "Project: {count} words",
+  "writingStatusBar.sessionWords.one": "Session: {count} word",
+  "writingStatusBar.sessionWords.other": "Session: {count} words",
   "writingStatusBar.sessionTooltip":
     "Net words saved since opening the app or resetting the session.",
 
   // WritingProgress
-  "writingProgress.projectWords": "{count} project words",
+  "writingProgress.projectWords.one": "{count} project word",
+  "writingProgress.projectWords.other": "{count} project words",
   "writingProgress.todayTooltip":
     "Net words added through saved edits today. Deletions reduce this total.",
-  "writingProgress.todayWithGoal": "Today: {today}\u00A0/ {goal} words",
-  "writingProgress.todayWithoutGoal": "Today: {today} words · goal off",
+  "writingProgress.todayWithGoal.one": "Today: {today} / {goal} word",
+  "writingProgress.todayWithGoal.other": "Today: {today} / {goal} words",
+  "writingProgress.todayWithoutGoal.one": "Today: {today} word · goal off",
+  "writingProgress.todayWithoutGoal.other": "Today: {today} words · goal off",
   "writingProgress.dailyGoal": "Daily writing goal",
-  "writingProgress.sessionWords": "Session: {count} words",
+  "writingProgress.sessionWords.one": "Session: {count} word",
+  "writingProgress.sessionWords.other": "Session: {count} words",
   "writingProgress.sessionTooltip":
     "Net words saved in this project since opening the app or resetting.",
   "writingProgress.resetSession": "Reset writing session",
@@ -220,7 +229,8 @@ const catalog: Catalog = {
 
   // PageView
   "pageView.title": "Scene prose",
-  "pageView.words": "{count} words",
+  "pageView.words.one": "{count} word",
+  "pageView.words.other": "{count} words",
   "pageView.lockedPlaceholder": "Scene is locked",
   "pageView.placeholder": "Write your scene prose here…",
 

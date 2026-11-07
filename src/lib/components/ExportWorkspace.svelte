@@ -22,7 +22,7 @@
   } from "lucide-svelte";
   import { currentProject } from "../stores/project.svelte";
   import { saveProseBefore } from "../utils/proseFlush";
-  import { getLocale, t } from "../i18n";
+  import { getLocale, t, tn } from "../i18n";
   import { formatNumber } from "../i18n/format";
   import {
     compileWorkspaceDocument,
@@ -1534,7 +1534,7 @@
                 ? t("export.exportWorkspace.textOutput")
                 : t("export.exportWorkspace.layoutApproximation")}</span
           ><span
-            >{t("export.exportWorkspace.previewSummary", {
+            >{tn("export.exportWorkspace.previewSummary", wordCount, {
               words: formatNumber(wordCount),
               scenes: countLabel(sceneCount, "scene"),
             })}</span

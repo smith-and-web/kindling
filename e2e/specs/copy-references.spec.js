@@ -54,7 +54,7 @@ describe("independent reference transfers", () => {
     expect((await invoke("get_scene_reference_state", {sceneId:scene.id}))[0].reference_id).toBe(copied.id);
     await $('[aria-label="Copy references from project…"]').click();
     await $('#copy-source').selectByAttribute("value", source.id);
-    await browser.waitUntil(async () => (await $('dialog').getText()).includes("1 possible duplicates skipped"));
+    await browser.waitUntil(async () => (await $('dialog').getText()).includes("1 possible duplicate skipped"));
     expect(await $('button=Copy 0 references').isEnabled()).toBe(false);
     await $('button=Cancel').click();
   });

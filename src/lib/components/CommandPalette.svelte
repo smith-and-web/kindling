@@ -177,8 +177,14 @@
 
     <p class="palette-hints">
       <span><kbd>↑</kbd> <kbd>↓</kbd> {t("onboarding.commandPalette.navigate")}</span>
-      <span><kbd>Enter</kbd> {t("onboarding.commandPalette.run")}</span>
-      <span><kbd>Esc</kbd> {t("onboarding.commandPalette.close")}</span>
+      <span
+        ><kbd>{t("onboarding.commandPalette.enterKey")}</kbd>
+        {t("onboarding.commandPalette.run")}</span
+      >
+      <span
+        ><kbd>{t("onboarding.commandPalette.escKey")}</kbd>
+        {t("onboarding.commandPalette.close")}</span
+      >
     </p>
   </dialog>
 {/if}
