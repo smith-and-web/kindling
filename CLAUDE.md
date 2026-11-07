@@ -210,8 +210,8 @@ blacksmith prds/<feature>.prd.md            # run a PRD (needs BLACKSMITH_ANTHRO
 ### Working under blacksmith (required for automated runs)
 
 Before completing **any** work unit, run the formatters with their tools — do **not**
-hand-format to match rustfmt/Prettier, and don't rely on the gate to format for you (it
-verifies; it can't format-and-commit your work):
+hand-format to match rustfmt/Prettier. Blacksmith's `auto_fix` stage also runs each
+layer's `fix_cmd` (in `blacksmith.toml`) on your commit as a backstop, but format anyway:
 
 - Rust changes: `cd src-tauri && cargo fmt --all`
 - Frontend changes: `npm run format`
@@ -219,4 +219,5 @@ verifies; it can't format-and-commit your work):
 Then run the relevant tests and linters before finishing: `cargo test --all-features` /
 `cargo clippy --all-targets --all-features -- -D warnings` for Rust, and `npm test` /
 `npm run check` / `npm run lint` for the frontend. CI checks formatting with `--check`
-and will reject unformatted code even though the blacksmith gate no longer does.
+and the pre-push hook rejects unformatted code, which surfaces only as
+`open_pr: push not observed`.
