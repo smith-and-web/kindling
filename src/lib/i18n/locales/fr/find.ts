@@ -18,7 +18,7 @@ const catalog: Catalog = {
   "findReplaceDialog.replace": "Remplacer",
   "findReplaceDialog.replaceWith": "Remplacer par",
   "findReplaceDialog.scopeHelp":
-    "Recherche dans le texte visible des scènes fixées. Les scènes flexibles, non définies et archivées sont exclues ; les scènes verrouillées sont consultables mais non remplaçables.",
+    "Recherche dans le texte visible des scènes fixées. Les scènes flexibles, non définies et archivées sont exclues ; les scènes verrouillées sont consultables mais non remplaçables.",
   "findReplaceDialog.position": "{current} sur {total}",
   "findReplaceDialog.locked": " · Verrouillée",
   "findReplaceDialog.unsavedDraft": " · Brouillon non enregistré",
@@ -35,7 +35,7 @@ const catalog: Catalog = {
   "findReplaceDialog.unsavedBeat": "Temps fort non enregistré {index}",
   "findReplaceDialog.draftText": "Texte du brouillon (sélectionnez pour copier)",
   "findReplaceDialog.discardQuestion":
-    "Supprimer ces brouillons non enregistrés ? Leurs modifications seront perdues. Copiez d'abord tout texte que vous souhaitez conserver.",
+    "Supprimer ces brouillons non enregistrés ? Leurs modifications seront perdues. Copiez d'abord tout texte que vous souhaitez conserver.",
   "findReplaceDialog.confirmDiscardDrafts": "Confirmer la suppression des brouillons",
   "findReplaceDialog.keepDrafts": "Conserver les brouillons",
   "findReplaceDialog.discardDrafts": "Supprimer les brouillons non enregistrés…",

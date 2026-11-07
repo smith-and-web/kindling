@@ -48,25 +48,21 @@ const catalog: Catalog = {
   "referencesPanel.deleteReference": "Supprimer la fiche",
   "referencesPanel.delete": "Supprimer",
   "referencesPanel.deleteConfirmTitle": "Supprimer la fiche ?",
-  "referencesPanel.deleteConfirmMessage": "Cela supprimera définitivement « {name} ».",
+  "referencesPanel.deleteConfirmMessage": "Cela supprimera définitivement « {name} ».",
   "referencesPanel.movedAnnouncement":
-    "« {name} » déplacé {direction}, à la position {position} sur {count}.",
+    "« {name} » déplacé {direction}, à la position {position} sur {count}.",
   "referencesPanel.moveDirectionUp": "vers le haut",
   "referencesPanel.moveDirectionDown": "vers le bas",
   "referencesPanel.copiedFieldsFailed": "Impossible de charger les champs copiés",
-  "referencesPanel.copiedFieldValuesFailed":
-    "Impossible de charger les valeurs des champs copiés",
+  "referencesPanel.copiedFieldValuesFailed": "Impossible de charger les valeurs des champs copiés",
   "referencesPanel.copiedTagAssignmentsFailed":
     "Impossible de charger les affectations d'étiquettes copiées",
-  "referencesPanel.loadSceneStateFailed":
-    "Échec du chargement de l'état des fiches de la scène",
+  "referencesPanel.loadSceneStateFailed": "Échec du chargement de l'état des fiches de la scène",
   "referencesPanel.saveSceneStateFailed":
     "Échec de l'enregistrement de l'état des fiches de la scène",
-  "referencesPanel.dismissSuggestionFailed":
-    "Échec de l'ignorance de la suggestion : {error}",
+  "referencesPanel.dismissSuggestionFailed": "Échec de l'ignorance de la suggestion : {error}",
   "referencesPanel.deleteReferenceFailed": "Échec de la suppression de la fiche : {error}",
-  "referencesPanel.detectReferencesFailed":
-    "Échec de la détection des fiches : {error}",
+  "referencesPanel.detectReferencesFailed": "Échec de la détection des fiches : {error}",
   "referencesPanel.typeCharacters": "Personnages",
   "referencesPanel.typeLocations": "Lieux",
   "referencesPanel.typeItems": "Objets",
@@ -105,13 +101,10 @@ const catalog: Catalog = {
     "Nous avons trouvé des fiches lors de l'import. Ajustez leur type maintenant, ou ignorez pour conserver notre meilleure estimation.",
   "referenceClassificationDialog.loadingReferences": "Chargement des fiches…",
   "referenceClassificationDialog.loadingReferencesLabel": "Chargement des fiches",
-  "referenceClassificationDialog.loadFailedHeading":
-    "Impossible de charger les fiches",
-  "referenceClassificationDialog.saveFailedHeading":
-    "Impossible d'enregistrer les types de fiches",
+  "referenceClassificationDialog.loadFailedHeading": "Impossible de charger les fiches",
+  "referenceClassificationDialog.saveFailedHeading": "Impossible d'enregistrer les types de fiches",
   "referenceClassificationDialog.emptyTitle": "Aucune fiche trouvée",
-  "referenceClassificationDialog.emptyMessage":
-    "Aucune fiche détectée pour ce projet.",
+  "referenceClassificationDialog.emptyMessage": "Aucune fiche détectée pour ce projet.",
   "referenceClassificationDialog.columnReference": "Fiche",
   "referenceClassificationDialog.columnType": "Type",
   "referenceClassificationDialog.typeForLabel": "Type pour {name}",
@@ -154,8 +147,7 @@ const catalog: Catalog = {
   "copyReferencesDialog.searchPlaceholder": "Rechercher par nom",
   "copyReferencesDialog.selectAll": "Sélectionner toutes les fiches",
   "copyReferencesDialog.clearSelection": "Désélectionner tout",
-  "copyReferencesDialog.noReferencesToCopy":
-    "Ce projet n'a aucune fiche à copier.",
+  "copyReferencesDialog.noReferencesToCopy": "Ce projet n'a aucune fiche à copier.",
   "copyReferencesDialog.possibleDuplicate": "Doublon possible : {name}",
   "copyReferencesDialog.duplicateChoiceLabel": "Choix pour le doublon de {name}",
   "copyReferencesDialog.skip": "Ignorer",
@@ -163,8 +155,7 @@ const catalog: Catalog = {
   "copyReferencesDialog.copyAs": "Copier sous : {name}",
   "copyReferencesDialog.noSearchMatches":
     "Aucune fiche ne correspond à votre recherche. Les sélections sont inchangées.",
-  "copyReferencesDialog.changesSummary":
-    "Ajouter {fields} champs et {tags} étiquettes",
+  "copyReferencesDialog.changesSummary": "Ajouter {fields} champs et {tags} étiquettes",
   "copyReferencesDialog.changesHint":
     "Les nouveaux champs sont également disponibles sur les fiches existantes dans leur catégorie. Les valeurs existantes restent inchangées.",
   "copyReferencesDialog.changeField": "Champ {type}",
@@ -173,8 +164,7 @@ const catalog: Catalog = {
   "copyReferencesDialog.skipNote":
     "Les correspondances utilisent la catégorie et le nom, pas le contenu. Les fiches renommées peuvent être copiées à nouveau.",
   "copyReferencesDialog.updatingPreview": "Mise à jour de l'aperçu…",
-  "copyReferencesDialog.previewStatus":
-    "{copied} à copier · {skipped} doublons possibles ignorés",
+  "copyReferencesDialog.previewStatus": "{copied} à copier · {skipped} doublons possibles ignorés",
   "copyReferencesDialog.refreshReferences": "Actualiser les fiches",
   "copyReferencesDialog.refreshPreview": "Actualiser l'aperçu",
   "copyReferencesDialog.retryLoadingProjects": "Réessayer le chargement des projets",
@@ -245,7 +235,7 @@ const catalog: Catalog = {
   "suggestionCard.typeOrganizations": "Organisations",
   "suggestionCard.typeTimelines": "Chronologies",
   "suggestionCard.typeCustom": "Personnalisé",
-  "suggestionCard.foundMatch": "{type} · trouvé « {match} »",
+  "suggestionCard.foundMatch": "{type} · trouvé « {match} »",
   "suggestionCard.linkToSceneLabel": "Lier {name} à la scène",
   "suggestionCard.linkToScene": "Lier à la scène",
   "suggestionCard.link": "Lier",
@@ -257,17 +247,16 @@ const catalog: Catalog = {
   "syncDialog.subtitle": "Vérifiez et sélectionnez les éléments à importer",
   "syncDialog.close": "Fermer",
   "syncDialog.allSynced": "Tout est synchronisé",
-  "syncDialog.allSyncedMessage":
-    "Votre projet correspond déjà au fichier de plan.",
+  "syncDialog.allSyncedMessage": "Votre projet correspond déjà au fichier de plan.",
   "syncDialog.intro":
-    "kindling a comparé votre projet avec le fichier de plan. Les nouveaux éléments sont sélectionnés ; les modifications des éléments existants sont optionnelles afin de ne pas écraser vos propres modifications.",
+    "kindling a comparé votre projet avec le fichier de plan. Les nouveaux éléments sont sélectionnés ; les modifications des éléments existants sont optionnelles afin de ne pas écraser vos propres modifications.",
   "syncDialog.summaryLabel": "Résumé des modifications",
   "syncDialog.addedCount": "{count} ajouté",
   "syncDialog.changedCount": "{count} modifié",
   "syncDialog.conflict.one": "{count} conflit",
   "syncDialog.conflict.other": "{count} conflits",
   "syncDialog.conflictNote":
-    "Un conflit a été modifié dans kindling et dans le fichier de plan, ou kindling ne peut pas déterminer quel côté a changé. Laissez-le décoché pour conserver la version kindling ; il ne sera plus proposé à moins que le fichier de plan ne le modifie. Tout ignorer les conflits.",
+    "Un conflit a été modifié dans kindling et dans le fichier de plan, ou kindling ne peut pas déterminer quel côté a changé. Laissez-le décoché pour conserver la version kindling ; il ne sera plus proposé à moins que le fichier de plan ne le modifie. Tout ignorer les conflits.",
   "syncDialog.newItems": "Nouveaux éléments",
   "syncDialog.selectedOf": "{selected} sur {total} sélectionné",
   "syncDialog.selectAllNewItems": "Sélectionner tous les nouveaux éléments",
@@ -289,8 +278,7 @@ const catalog: Catalog = {
   "syncDialog.fieldSynopsis": "Synopsis",
   "syncDialog.fieldContent": "Contenu",
   "syncDialog.fieldProse": "Texte",
-  "syncDialog.conflictTicked":
-    "Coché : la version entrante remplacera la version kindling.",
+  "syncDialog.conflictTicked": "Coché : la version entrante remplacera la version kindling.",
   "syncDialog.conflictUnticked":
     "Décoché : la version kindling est conservée. Cochez pour utiliser la version entrante à la place.",
   "syncDialog.proseNote":
@@ -416,30 +404,24 @@ const catalog: Catalog = {
   "fieldDefinitionManager.fieldsTitle.custom": "Champs de note",
   "fieldDefinitionManager.fieldsTitle.any": "Champs {label}",
   "copyReferencesDialog.selectAllOfType.characters": "Sélectionner tous les personnages",
-  "copyReferencesDialog.selectVisibleOfType.characters":
-    "Sélectionner les personnages visibles",
+  "copyReferencesDialog.selectVisibleOfType.characters": "Sélectionner les personnages visibles",
   "copyReferencesDialog.selectAllOfType.locations": "Sélectionner tous les lieux",
   "copyReferencesDialog.selectVisibleOfType.locations": "Sélectionner les lieux visibles",
   "copyReferencesDialog.selectAllOfType.items": "Sélectionner tous les objets",
   "copyReferencesDialog.selectVisibleOfType.items": "Sélectionner les objets visibles",
   "copyReferencesDialog.selectAllOfType.objectives": "Sélectionner tous les objectifs",
-  "copyReferencesDialog.selectVisibleOfType.objectives":
-    "Sélectionner les objectifs visibles",
-  "copyReferencesDialog.selectAllOfType.organizations":
-    "Sélectionner toutes les organisations",
+  "copyReferencesDialog.selectVisibleOfType.objectives": "Sélectionner les objectifs visibles",
+  "copyReferencesDialog.selectAllOfType.organizations": "Sélectionner toutes les organisations",
   "copyReferencesDialog.selectVisibleOfType.organizations":
     "Sélectionner les organisations visibles",
   "copyReferencesDialog.selectAllOfType.timelines": "Sélectionner toutes les chronologies",
-  "copyReferencesDialog.selectVisibleOfType.timelines":
-    "Sélectionner les chronologies visibles",
+  "copyReferencesDialog.selectVisibleOfType.timelines": "Sélectionner les chronologies visibles",
   "copyReferencesDialog.selectAllOfType.custom": "Sélectionner toutes les notes",
   "copyReferencesDialog.selectVisibleOfType.custom": "Sélectionner les notes visibles",
   "copyReferencesDialog.selectAllOfType.any": "Sélectionner toutes les fiches",
   "copyReferencesDialog.selectVisibleOfType.any": "Sélectionner les fiches visibles",
-  "copyReferencesDialog.selectedAcross.one":
-    "{count} sélectionné dans toutes les catégories",
-  "copyReferencesDialog.selectedAcross.other":
-    "{count} sélectionnés dans toutes les catégories",
+  "copyReferencesDialog.selectedAcross.one": "{count} sélectionné dans toutes les catégories",
+  "copyReferencesDialog.selectedAcross.other": "{count} sélectionnés dans toutes les catégories",
   "copyReferencesDialog.copyCount.one": "Copier {count} fiche",
   "copyReferencesDialog.copyCount.other": "Copier {count} fiches",
 };

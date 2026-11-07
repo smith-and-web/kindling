@@ -9,16 +9,13 @@ const catalog: Catalog = {
 
   // --- Store de raccourcis et vérifications de liaisons ---
   "shortcuts.loadFailed": "Impossible de charger les raccourcis clavier : {error}",
-  "shortcuts.updateFailed":
-    "Impossible de mettre à jour les raccourcis clavier natifs : {error}",
+  "shortcuts.updateFailed": "Impossible de mettre à jour les raccourcis clavier natifs : {error}",
   "shortcuts.reserved":
     "Ce raccourci est réservé à l'édition de texte standard ou aux contrôles de fenêtre.",
-  "shortcuts.conflict":
-    "Déjà utilisé par {label}. Effacez ou modifiez d'abord ce raccourci.",
+  "shortcuts.conflict": "Déjà utilisé par {label}. Effacez ou modifiez d'abord ce raccourci.",
 
   // --- Aides à l'import ---
-  "import.selectScrivenerFolder":
-    "Sélectionner le dossier de projet Scrivener (.scriv)",
+  "import.selectScrivenerFolder": "Sélectionner le dossier de projet Scrivener (.scriv)",
   "import.scrivenerFolderOnly":
     "Veuillez sélectionner un dossier dont le nom se termine par .scriv",
   "import.unknownType": "Type d'import inconnu : {type}",

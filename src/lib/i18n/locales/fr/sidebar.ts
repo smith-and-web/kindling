@@ -78,9 +78,8 @@ const catalog: Catalog = {
   "sidebar.renameSceneTitle": "Renommer la scène",
 
   // --- Barre latérale : messages de suppression ---
-  "sidebar.deleteChapterMessage":
-    "Cela supprimera « {title} » avec {scenes} et {beats}.",
-  "sidebar.deleteSceneMessage": "Cela supprimera « {title} » avec {beats}.",
+  "sidebar.deleteChapterMessage": "Cela supprimera « {title} » avec {scenes} et {beats}.",
+  "sidebar.deleteSceneMessage": "Cela supprimera « {title} » avec {beats}.",
   "sidebar.sceneCount.one": "{count} scène",
   "sidebar.sceneCount.other": "{count} scènes",
   "sidebar.beatCount.one": "{count} temps fort",
@@ -92,8 +91,7 @@ const catalog: Catalog = {
   "sidebar.failedLoadScenes": "Échec du chargement des scènes : {error}",
   "sidebar.failedLoadBeats": "Échec du chargement des temps forts : {error}",
   "sidebar.failedCreateScene": "Échec de la création de la scène : {error}",
-  "sidebar.failedPrepareDelete":
-    "Échec de la préparation de la suppression : {error}",
+  "sidebar.failedPrepareDelete": "Échec de la préparation de la suppression : {error}",
   "sidebar.failedDelete": "Échec de la suppression : {error}",
   "sidebar.failedDeletePart": "Échec de la suppression de la partie : {error}",
   "sidebar.failedReorder": "Échec de la réorganisation : {error}",
@@ -101,17 +99,15 @@ const catalog: Catalog = {
     "Échec de la vérification des modifications de synchronisation : {error}",
   "sidebar.failedDuplicate": "Échec de la duplication : {error}",
   "sidebar.failedConvert": "Échec de la conversion : {error}",
-  "sidebar.failedUpdatePlanning":
-    "Échec de la mise à jour de l'état de planification : {error}",
+  "sidebar.failedUpdatePlanning": "Échec de la mise à jour de l'état de planification : {error}",
   "sidebar.failedArchive": "Échec de l'archivage : {error}",
   "sidebar.failedChangeLock": "Échec du changement de verrou : {error}",
-  "sidebar.failedDeleteSavedFilter":
-    "Échec de la suppression du filtre enregistré : {error}",
+  "sidebar.failedDeleteSavedFilter": "Échec de la suppression du filtre enregistré : {error}",
   "sidebar.unknownError": "Erreur inconnue",
 
   // --- Barre latérale : annonce de déplacement au clavier ---
   "sidebar.movedAnnouncement":
-    "« {title} » déplacé {direction}, à la position {position} sur {total}.",
+    "« {title} » déplacé {direction}, à la position {position} sur {total}.",
   "sidebar.directionUp": "vers le haut",
   "sidebar.directionDown": "vers le bas",
 
@@ -141,7 +137,7 @@ const catalog: Catalog = {
   "archivePanel.restoring": "Restauration…",
   "archivePanel.restore": "Restaurer",
   "archivePanel.delete": "Supprimer",
-  "archivePanel.permanentDeleteTitle": "Supprimer définitivement « {title} » ?",
+  "archivePanel.permanentDeleteTitle": "Supprimer définitivement « {title} » ?",
   "archivePanel.permanentDeleteMessage":
     "Cela supprime définitivement {kind}. Cette action est irréversible.",
   "archivePanel.kindChapter": "le chapitre",
@@ -150,20 +146,15 @@ const catalog: Catalog = {
   "archivePanel.deletePermanently": "Supprimer définitivement",
   "archivePanel.noItems": "Aucun élément archivé",
   "archivePanel.emptyHint": "Les chapitres et scènes archivés apparaîtront ici.",
-  "archivePanel.intro":
-    "Restaurer remet un élément à sa place. Supprimer l'enlève définitivement.",
+  "archivePanel.intro": "Restaurer remet un élément à sa place. Supprimer l'enlève définitivement.",
   "archivePanel.archivedChapters": "Chapitres archivés ({count})",
   "archivePanel.archivedScenes": "Scènes archivées ({count})",
 
   // --- PartDeleteDialog ---
-  "partDeleteDialog.lede.one":
-    "« {title} » contient {chapters}. Que souhaitez-vous faire ?",
-  "partDeleteDialog.lede.other":
-    "« {title} » contient {chapters}. Que souhaitez-vous faire ?",
-  "partDeleteDialog.deleteOnlyHint.one":
-    "Le {chapters} restera dans le projet.",
-  "partDeleteDialog.deleteOnlyHint.other":
-    "Les {chapters} resteront dans le projet.",
+  "partDeleteDialog.lede.one": "« {title} » contient {chapters}. Que souhaitez-vous faire ?",
+  "partDeleteDialog.lede.other": "« {title} » contient {chapters}. Que souhaitez-vous faire ?",
+  "partDeleteDialog.deleteOnlyHint.one": "Le {chapters} restera dans le projet.",
+  "partDeleteDialog.deleteOnlyHint.other": "Les {chapters} resteront dans le projet.",
 
   // --- RenameDialog ---
   "renameDialog.name": "Nom",
@@ -206,7 +197,7 @@ const catalog: Catalog = {
   "tagSelector.addTag": "Ajouter une étiquette",
   "tagSelector.searchOrCreate": "Rechercher ou créer…",
   "tagSelector.searchOrCreateTag": "Rechercher ou créer une étiquette",
-  "tagSelector.createNamed": "Créer « {name} »",
+  "tagSelector.createNamed": "Créer « {name} »",
   "tagSelector.noMoreTags": "Plus d'étiquettes disponibles",
 
   // --- TemplateBrowser ---
@@ -231,10 +222,8 @@ const catalog: Catalog = {
   "structure.part.deleteTitle": "Supprimer la partie",
   "structure.part.deleteOnly": "Supprimer la partie uniquement",
   "structure.part.deleteAll": "Supprimer la partie et tous les chapitres",
-  "structure.part.deleteAllHint.one":
-    "Cela supprime définitivement la partie et son {chapters}.",
-  "structure.part.deleteAllHint.other":
-    "Cela supprime définitivement la partie et ses {chapters}.",
+  "structure.part.deleteAllHint.one": "Cela supprime définitivement la partie et son {chapters}.",
+  "structure.part.deleteAllHint.other": "Cela supprime définitivement la partie et ses {chapters}.",
   "structure.act.menu": "Menu d'acte",
   "structure.act.titlePlaceholder": "Titre de l'acte…",
   "structure.act.newTitle": "Titre du nouvel acte",
@@ -244,10 +233,8 @@ const catalog: Catalog = {
   "structure.act.deleteTitle": "Supprimer l'acte",
   "structure.act.deleteOnly": "Supprimer l'acte uniquement",
   "structure.act.deleteAll": "Supprimer l'acte et toutes les séquences",
-  "structure.act.deleteAllHint.one":
-    "Cela supprime définitivement l'acte et son {chapters}.",
-  "structure.act.deleteAllHint.other":
-    "Cela supprime définitivement l'acte et ses {chapters}.",
+  "structure.act.deleteAllHint.one": "Cela supprime définitivement l'acte et son {chapters}.",
+  "structure.act.deleteAllHint.other": "Cela supprime définitivement l'acte et ses {chapters}.",
   "structure.chapter.menu": "Menu de chapitre",
   "structure.chapter.synopsisPlaceholder": "Synopsis du chapitre…",
   "structure.chapter.synopsisAria": "Synopsis du chapitre",
@@ -257,8 +244,7 @@ const catalog: Catalog = {
   "structure.chapter.rename": "Renommer le chapitre",
   "structure.chapter.failedSaveSynopsis":
     "Échec de l'enregistrement du synopsis du chapitre : {error}",
-  "structure.chapter.failedCreate":
-    "Échec de la création du chapitre : {error}",
+  "structure.chapter.failedCreate": "Échec de la création du chapitre : {error}",
   "structure.chapter.convertTo": "Convertir en chapitre",
   "structure.sequence.menu": "Menu de séquence",
   "structure.sequence.synopsisPlaceholder": "Synopsis de la séquence…",
@@ -269,8 +255,7 @@ const catalog: Catalog = {
   "structure.sequence.rename": "Renommer la séquence",
   "structure.sequence.failedSaveSynopsis":
     "Échec de l'enregistrement du synopsis de la séquence : {error}",
-  "structure.sequence.failedCreate":
-    "Échec de la création de la séquence : {error}",
+  "structure.sequence.failedCreate": "Échec de la création de la séquence : {error}",
   "structure.sequence.convertTo": "Convertir en séquence",
 };
 

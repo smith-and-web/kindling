@@ -4,8 +4,7 @@ import type { Catalog } from "../../types";
 const catalog: Catalog = {
   // --- EditorialWorkspace : menu, état et erreurs ---
   "editorialWorkspace.menuDraftHistory": "Historique des brouillons",
-  "editorialWorkspace.menuStartSuggestions":
-    "Lancer les suggestions depuis le texte actuel",
+  "editorialWorkspace.menuStartSuggestions": "Lancer les suggestions depuis le texte actuel",
   "editorialWorkspace.menuReviewPackages": "Paquets de relecture et tours…",
   "editorialWorkspace.menuExportFeedback": "Exporter les retours",
   "editorialWorkspace.exportRecoveryCopy": "Exporter une copie de récupération",
@@ -23,8 +22,7 @@ const catalog: Catalog = {
   "editorialWorkspace.scenesLockedBulk":
     "Déverrouillez les scènes sélectionnées avant de statuer sur leurs suggestions.",
   "editorialWorkspace.selectOriginalScene": "Sélectionnez un passage dans la scène d'origine.",
-  "editorialWorkspace.conversationUnavailable":
-    "Cette conversation n'est plus disponible.",
+  "editorialWorkspace.conversationUnavailable": "Cette conversation n'est plus disponible.",
   "editorialWorkspace.generalFeedback": "Retours généraux",
   "editorialWorkspace.thisScene": "cette scène",
   "editorialWorkspace.modeBeatLower": "temps fort",
@@ -32,9 +30,8 @@ const catalog: Catalog = {
   "editorialWorkspace.modeBeat": "Temps forts",
   "editorialWorkspace.modePage": "Page",
   "editorialWorkspace.unavailableInactive":
-    "Enregistré sur le texte inactif {mode} dans « {scene} ». Revenez à l'écriture et passez cette scène en mode {target} pour agir sur ces retours.",
-  "editorialWorkspace.exportBlockedNoScenes":
-    "Ce projet n'a encore aucune scène à inclure.",
+    "Enregistré sur le texte inactif {mode} dans « {scene} ». Revenez à l'écriture et passez cette scène en mode {target} pour agir sur ces retours.",
+  "editorialWorkspace.exportBlockedNoScenes": "Ce projet n'a encore aucune scène à inclure.",
   "editorialWorkspace.exportBlockedNoName": "Nommez le tour de relecture avant de l'exporter.",
   "editorialWorkspace.exportBlockedNoChapters": "Choisissez au moins un chapitre.",
   "editorialWorkspace.defaultRoundName": "Passe éditoriale",
@@ -79,8 +76,7 @@ const catalog: Catalog = {
   "editorialWorkspace.reviewRoundRequired": "Saisissez un nom pour ce tour de relecture.",
   "editorialWorkspace.briefLabel": "Note pour votre éditeur",
   "editorialWorkspace.optional": "(facultatif)",
-  "editorialWorkspace.briefPlaceholder":
-    "Sur quoi souhaitez-vous que votre éditeur se concentre ?",
+  "editorialWorkspace.briefPlaceholder": "Sur quoi souhaitez-vous que votre éditeur se concentre ?",
   "editorialWorkspace.manuscriptToInclude": "Manuscrit à inclure",
   "editorialWorkspace.entireManuscript": "Manuscrit entier",
   "editorialWorkspace.selectedChapters": "Chapitres sélectionnés",
@@ -121,11 +117,9 @@ const catalog: Catalog = {
   // --- EditorialWorkspace : menu de relecture ---
   "editorialWorkspace.currentRoundAria": "Tour de relecture actuel",
   "editorialWorkspace.roundCaption": "Tour de relecture · {name}",
-  "editorialWorkspace.acceptRoundAria":
-    "Accepter les suggestions visibles dans ce tour",
+  "editorialWorkspace.acceptRoundAria": "Accepter les suggestions visibles dans ce tour",
   "editorialWorkspace.acceptVisible": "Accepter les suggestions visibles",
-  "editorialWorkspace.rejectRoundAria":
-    "Refuser les suggestions visibles dans ce tour",
+  "editorialWorkspace.rejectRoundAria": "Refuser les suggestions visibles dans ce tour",
   "editorialWorkspace.rejectVisible": "Refuser les suggestions visibles",
   "editorialWorkspace.activeSceneProse": "Texte de la scène active",
   "editorialWorkspace.acceptActiveAria":
@@ -194,8 +188,7 @@ const catalog: Catalog = {
   "reviewSidebar.done": "Terminé",
   "reviewSidebar.cancel": "Annuler",
   "reviewSidebar.comment": "Commentaire",
-  "reviewSidebar.commentPlaceholder":
-    "À quoi souhaitez-vous que l'auteur réfléchisse ?",
+  "reviewSidebar.commentPlaceholder": "À quoi souhaitez-vous que l'auteur réfléchisse ?",
   "reviewSidebar.saveComment": "Enregistrer le commentaire",
 
   // --- ReviewSidebar : cartes de retours ---
@@ -238,7 +231,8 @@ const catalog: Catalog = {
   "revisionsPanel.loading": "Chargement de l'historique…",
   "revisionsPanel.loadFailed": "Impossible de charger l'historique.",
   "revisionsPanel.retry": "Réessayer",
-  "revisionsPanel.lockedReadOnly": "Cette scène est verrouillée. L'historique est en lecture seule.",
+  "revisionsPanel.lockedReadOnly":
+    "Cette scène est verrouillée. L'historique est en lecture seule.",
   "revisionsPanel.savedDrafts": "Brouillons enregistrés",
   "revisionsPanel.draftName": "Nom du brouillon",
   "revisionsPanel.draftNamePlaceholder": "Passe post-éditeur",
@@ -253,15 +247,14 @@ const catalog: Catalog = {
   "revisionsPanel.draftOption": "Brouillon {number} · {name}",
   "revisionsPanel.restoreSelected": "Restaurer le brouillon sélectionné",
   "revisionsPanel.restoreConfirmAria": "Confirmer la restauration du brouillon",
-  "revisionsPanel.restoreConfirmTitle": "Restaurer « {name} » ?",
+  "revisionsPanel.restoreConfirmTitle": "Restaurer « {name} » ?",
   "revisionsPanel.restoreConfirmBody":
     "Le texte actuel sera conservé comme un autre brouillon. La structure des temps forts doit toujours correspondre.",
   "revisionsPanel.cancelRestore": "Annuler la restauration",
   "revisionsPanel.restoreAndPreserve": "Restaurer et conserver le texte actuel",
   "revisionsPanel.comparisonChanged":
-    "Le texte supprimé est marqué à gauche ; le texte ajouté est marqué à droite.",
-  "revisionsPanel.comparisonUnchanged":
-    "Aucune modification de texte entre ces versions.",
+    "Le texte supprimé est marqué à gauche ; le texte ajouté est marqué à droite.",
+  "revisionsPanel.comparisonUnchanged": "Aucune modification de texte entre ces versions.",
   "revisionsPanel.formattingNotCompared": "La mise en forme n'est pas comparée.",
   "revisionsPanel.savedDraft": "Brouillon enregistré",
   "revisionsPanel.comparisonVersionAria": "Version de comparaison",
@@ -303,12 +296,12 @@ const catalog: Catalog = {
   "snapshotsPanel.namePlaceholder": "ex. Avant la réécriture du deuxième acte",
   "snapshotsPanel.description": "Description",
   "snapshotsPanel.optional": "(facultatif)",
-  "snapshotsPanel.descriptionPlaceholder":
-    "Ce qui a changé, ou pourquoi vous enregistrez ce point",
+  "snapshotsPanel.descriptionPlaceholder": "Ce qui a changé, ou pourquoi vous enregistrez ce point",
   "snapshotsPanel.cancel": "Annuler",
   "snapshotsPanel.creating": "Création de l'instantané…",
   "snapshotsPanel.created": "Instantané créé",
-  "snapshotsPanel.createdBody": "« {name} » est maintenant le point de restauration le plus récent.",
+  "snapshotsPanel.createdBody":
+    "« {name} » est maintenant le point de restauration le plus récent.",
   "snapshotsPanel.loading": "Chargement des instantanés…",
   "snapshotsPanel.loadErrorTitle": "Impossible de charger les instantanés",
   "snapshotsPanel.emptyTitle": "Aucun instantané pour l'instant",
@@ -322,10 +315,9 @@ const catalog: Catalog = {
   "snapshotsPanel.restoreMode": "Mode de restauration",
   "snapshotsPanel.replaceProject": "Remplacer le projet actuel",
   "snapshotsPanel.replaceHelp":
-    "Écrase ce projet. Les scènes de l'instantané conservent leur historique ; les scènes qu'il ne contient pas sont supprimées avec le leur. Créez un instantané d'abord si vous souhaitez conserver l'état actuel.",
+    "Écrase ce projet. Les scènes de l'instantané conservent leur historique ; les scènes qu'il ne contient pas sont supprimées avec le leur. Créez un instantané d'abord si vous souhaitez conserver l'état actuel.",
   "snapshotsPanel.createNewProject": "Créer un nouveau projet",
-  "snapshotsPanel.createNewHelp":
-    "Crée une copie du projet depuis cet instantané.",
+  "snapshotsPanel.createNewHelp": "Crée une copie du projet depuis cet instantané.",
   "snapshotsPanel.newProjectName": "Nom du nouveau projet",
   "snapshotsPanel.newProjectNameHelp": "Saisissez un nom pour le nouveau projet.",
   "snapshotsPanel.restoring": "Restauration…",

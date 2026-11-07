@@ -17,7 +17,7 @@ const catalog: Catalog = {
   "startScreen.recentProjects": "Projets récents",
   "startScreen.showRecent": "Afficher les récents",
   "startScreen.viewAll": "Voir tout",
-  "startScreen.openFailedTitle": "Impossible d'ouvrir « {name} »",
+  "startScreen.openFailedTitle": "Impossible d'ouvrir « {name} »",
   "startScreen.opening": "Ouverture…",
   "startScreen.modifiedLabel": "Modifié le {date}",
   "startScreen.deleteNamed": "Supprimer {name}",
@@ -32,7 +32,7 @@ const catalog: Catalog = {
   "startScreen.importIndexOrVault": "Index ou coffre",
   "startScreen.importProjectFolder": "Dossier de projet",
   "startScreen.blankSource": "Vierge",
-  "startScreen.deleteTitle": "Supprimer « {name} » ?",
+  "startScreen.deleteTitle": "Supprimer « {name} » ?",
   "startScreen.deleteMessage":
     "Cela supprime définitivement le projet et tous ses chapitres, scènes, temps forts et instantanés. Cette action est irréversible.",
   "startScreen.importOpeningTitle": "Ouverture du projet exemple",
@@ -50,7 +50,7 @@ const catalog: Catalog = {
   tourReferencesTitle: "Fiches",
   tourReferencesSubtitle: "Le volet de droite",
   importTitle: "Importez votre plan",
-  readyToImport: "Prêt à importer « {name} »",
+  readyToImport: "Prêt à importer « {name} »",
   progressGettingStarted: "Premiers pas",
   progressImport: "Import",
   progressTour: "Visite",
@@ -73,8 +73,7 @@ const catalog: Catalog = {
   factCharacters: "Personnages",
   factLocations: "Lieux",
   outlineUnreadable: "Impossible de lire ce plan",
-  chooseFormatLede:
-    "Choisissez le format de votre plan. kindling le prévisualise avant l'import.",
+  chooseFormatLede: "Choisissez le format de votre plan. kindling le prévisualise avant l'import.",
   trySample: "Essayer le projet exemple",
   startFromScratch: "Démarrer un nouveau projet de zéro",
   skipAndImport: "Passer et commencer l'import",
@@ -150,8 +149,7 @@ const catalog: Catalog = {
   mockSortAZ: "Trier A–Z",
   mockHidePanel: "Masquer le volet",
   referencesPointCharacters: "Personnages",
-  referencesPointCharactersMiddle:
-    " montre qui apparaît dans la scène actuelle ; ",
+  referencesPointCharactersMiddle: " montre qui apparaît dans la scène actuelle ; ",
   referencesPointLocations: "Lieux",
   referencesPointLocationsRest: " montre où elle se déroule.",
   referencesPointAddPrefix: "Utilisez ",
@@ -181,8 +179,7 @@ const catalog: Catalog = {
   "quickStartDialog.sidebarHeading": "Barre latérale — chapitres et scènes",
   "quickStartDialog.sidebarLede":
     "La barre latérale gauche montre la structure de votre projet. Cliquez sur un chapitre pour développer ou réduire ses scènes. Cliquez sur une scène pour la charger dans l'éditeur.",
-  "quickStartDialog.sidebarChapters":
-    "Les chapitres regroupent les scènes connexes",
+  "quickStartDialog.sidebarChapters": "Les chapitres regroupent les scènes connexes",
   "quickStartDialog.sidebarScenes":
     "Les scènes sont vos unités d'écriture principales — chacune a un synopsis et des temps forts",
   "quickStartDialog.sidebarContextMenu":
@@ -194,15 +191,13 @@ const catalog: Catalog = {
   "quickStartDialog.beatsLabel": "Temps forts",
   "quickStartDialog.charactersLabel": "Personnages",
   "quickStartDialog.locationsLabel": "Lieux",
-  "quickStartDialog.synopsisBullet":
-    " — Bref aperçu de la scène (depuis votre plan)",
-  "quickStartDialog.beatsBullet":
-    " — Moments clés ; cliquez pour développer et rédiger",
+  "quickStartDialog.synopsisBullet": " — Bref aperçu de la scène (depuis votre plan)",
+  "quickStartDialog.beatsBullet": " — Moments clés ; cliquez pour développer et rédiger",
   "quickStartDialog.beatsContextMenu":
     "Clic droit sur les temps forts pour diviser, fusionner ou supprimer. Faites glisser pour réorganiser.",
   "quickStartDialog.discoveryNotesLabel": "Notes de découverte",
   "quickStartDialog.discoveryNotesRest":
-    " — Capturez les idées en écrivant ; promouvez-les en temps forts quand elles sont prêtes",
+    " — Capturez les idées en écrivant ; promouvez-les en temps forts quand elles sont prêtes",
   "quickStartDialog.referencesHeading": "Volet des fiches",
   "quickStartDialog.referencesLede":
     "Le volet droit affiche les personnages et lieux liés à la scène actuelle. Utilisez-le pour suivre qui apparaît où.",
@@ -264,8 +259,7 @@ const catalog: Catalog = {
   "importLongformDialog.lede":
     "Choisissez comment importer votre projet Longform. Utilisez le fichier index si vous avez déjà une note de projet Longform, ou sélectionnez un dossier de coffre pour détecter automatiquement le projet.",
   "importLongformDialog.indexTitle": "Choisir le fichier index Longform",
-  "importLongformDialog.indexHint":
-    "Sélectionnez la note index .md avec le frontmatter Longform",
+  "importLongformDialog.indexHint": "Sélectionnez la note index .md avec le frontmatter Longform",
   "importLongformDialog.vaultTitle": "Choisir le dossier du coffre Obsidian",
   "importLongformDialog.vaultHint": "Analyser le coffre pour trouver des projets Longform",
 
@@ -274,8 +268,7 @@ const catalog: Catalog = {
 
   // AboutDialog
   "aboutDialog.title": "À propos de kindling",
-  "aboutDialog.tagline":
-    "Lancez votre brouillon — faites le pont entre le plan et le texte.",
+  "aboutDialog.tagline": "Lancez votre brouillon — faites le pont entre le plan et le texte.",
   "aboutDialog.versionLabel": "Version",
   "aboutDialog.unknownVersion": "inconnue",
   "aboutDialog.sendFeedback": "Envoyer des retours",

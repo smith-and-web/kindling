@@ -103,19 +103,16 @@ const catalog: Catalog = {
   "scenePanel.planningUpdateError": "Échec de la mise à jour de l'état de planification",
   "scenePanel.renameSceneError": "Échec du renommage de la scène : {error}",
   "scenePanel.addNoteError": "Échec de l'ajout de la note de découverte : {error}",
-  "scenePanel.saveNoteError":
-    "Échec de l'enregistrement de la note de découverte : {error}",
+  "scenePanel.saveNoteError": "Échec de l'enregistrement de la note de découverte : {error}",
   "scenePanel.deleteNoteError": "Échec de la suppression de la note de découverte : {error}",
-  "scenePanel.promoteNoteError":
-    "Échec de la transformation de la note en temps fort : {error}",
+  "scenePanel.promoteNoteError": "Échec de la transformation de la note en temps fort : {error}",
   "scenePanel.modeSwitchUnsavedError":
     "Enregistrez, récupérez ou annulez le texte non enregistré dans Rechercher et remplacer avant de changer de mode d'édition.",
   "scenePanel.modeSwitchError": "Échec du changement de mode d'édition : {error}",
   "scenePanel.sceneChangedError":
     "Le projet ou la scène sélectionné a changé. Rouvrez Rechercher et remplacer.",
   "scenePanel.emptyTitle": "Sélectionnez une scène pour commencer à écrire",
-  "scenePanel.emptyBody":
-    "Choisissez une scène dans la barre latérale pour afficher son contenu.",
+  "scenePanel.emptyBody": "Choisissez une scène dans la barre latérale pour afficher son contenu.",
   "scenePanel.switchToBeatTitle": "Passer en vue Temps forts",
   "scenePanel.switchToBeatMessage":
     "Les modifications apportées dans la vue Page seront synchronisées avec les temps forts correspondants. Continuer ?",
@@ -161,9 +158,9 @@ const catalog: Catalog = {
     "Enregistrez les temps forts concernés ou récupérez leurs brouillons non enregistrés dans Rechercher et remplacer.",
   "beatView.reorderError": "Échec de la réorganisation des temps forts : {error}",
   "beatView.moveUpAnnouncement":
-    "Le temps fort « {title} » a été déplacé vers le haut, à la position {position} sur {total}.",
+    "Le temps fort « {title} » a été déplacé vers le haut, à la position {position} sur {total}.",
   "beatView.moveDownAnnouncement":
-    "Le temps fort « {title} » a été déplacé vers le bas, à la position {position} sur {total}.",
+    "Le temps fort « {title} » a été déplacé vers le bas, à la position {position} sur {total}.",
 
   // ProseToolbar
   "proseToolbar.label": "Mise en forme du texte",
@@ -195,7 +192,7 @@ const catalog: Catalog = {
   "writingStatusBar.emptyScenes": "Scènes vides",
   "writingStatusBar.averageWordsPerScene": "Moyenne de mots par scène",
   "writingStatusBar.savedProseNote":
-    "Texte enregistré uniquement. Le contenu archivé est exclu ; la moyenne inclut les scènes vides.",
+    "Texte enregistré uniquement. Le contenu archivé est exclu ; la moyenne inclut les scènes vides.",
   "writingStatusBar.wordsPerChapter": "Mots par chapitre",
   "writingStatusBar.chapterColumn": "Chapitre",
   "writingStatusBar.wordsColumn": "Mots",

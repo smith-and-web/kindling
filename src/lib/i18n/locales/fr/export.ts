@@ -44,8 +44,8 @@ const catalog: Catalog = {
   "exportWorkspace.searchPlaceholder": "Trouver un réglage…",
   "exportWorkspace.clearSearch": "Effacer la recherche de réglages",
   "exportWorkspace.settingsFound": "{count} réglages trouvés",
-  "exportWorkspace.noSettingsMatch": "Aucun réglage ne correspond à « {query} »",
-  "exportWorkspace.searchHint": "Essayez « espacement », « en-tête » ou « HTML ».",
+  "exportWorkspace.noSettingsMatch": "Aucun réglage ne correspond à « {query} »",
+  "exportWorkspace.searchHint": "Essayez « espacement », « en-tête » ou « HTML ».",
   "exportWorkspace.exportSettings": "Réglages d'export",
   "exportWorkspace.navNote":
     "Personnalisez-le. Votre manuscrit reste exactement tel que vous l'avez rédigé.",
@@ -79,7 +79,7 @@ const catalog: Catalog = {
   "exportWorkspace.settingContents": "Table des matières",
   "exportWorkspace.settingHtml": "Structure et style HTML",
   "exportWorkspace.settingFilename": "Modèle de nom de fichier",
-  "exportWorkspace.settingUnavailable": "« {label} » s'applique à un autre format de sortie.",
+  "exportWorkspace.settingUnavailable": "« {label} » s'applique à un autre format de sortie.",
   "exportWorkspace.unsupportedNovelwriter":
     "L'export novelWriter ne prend en charge que les projets de roman.",
 
@@ -91,34 +91,30 @@ const catalog: Catalog = {
   "exportWorkspace.draftRetainFailed":
     "Impossible de conserver le brouillon sur cet appareil : {error}",
   "exportWorkspace.loadFailed": "Impossible de charger le manuscrit enregistré",
-  "exportWorkspace.loadFailedWithError":
-    "Impossible de charger le manuscrit enregistré : {error}",
+  "exportWorkspace.loadFailedWithError": "Impossible de charger le manuscrit enregistré : {error}",
   "exportWorkspace.nameRequired": "Donnez d'abord un nom à ce profil.",
   "exportWorkspace.storageBlockedSave":
-    "Le stockage des profils n'a pas pu être chargé ; l'enregistrement est désactivé pour le préserver.",
-  "exportWorkspace.profileSavedMessage": "« {name} » enregistré sur cet appareil.",
+    "Le stockage des profils n'a pas pu être chargé ; l'enregistrement est désactivé pour le préserver.",
+  "exportWorkspace.profileSavedMessage": "« {name} » enregistré sur cet appareil.",
   "exportWorkspace.saveFailed": "Impossible d'enregistrer le profil : {error}",
   "exportWorkspace.copyCreated":
     "Copie créée. Donnez-lui un nom pour votre prochaine routine d'écriture.",
   "exportWorkspace.duplicateFailed": "Impossible de dupliquer le profil : {error}",
   "exportWorkspace.parentFolderTitle": "Choisissez le dossier parent pour un nouvel export",
   "exportWorkspace.saveDialogTitle": "Exporter {format} (choisissez un nouveau nom)",
-  "exportWorkspace.exportedExchange":
-    "{format} exporté. L'intégralité du projet a été utilisée.",
+  "exportWorkspace.exportedExchange": "{format} exporté. L'intégralité du projet a été utilisée.",
   "exportWorkspace.exportedSelection":
     "{format} exporté. L'intégralité de la sélection a été incluse.",
   "exportWorkspace.coverDialogTitle": "Choisir une couverture de livre numérique",
   "exportWorkspace.coverFilterName": "Image de couverture",
-  "exportWorkspace.coverChooseFailed":
-    "Impossible de choisir une image de couverture : {error}",
+  "exportWorkspace.coverChooseFailed": "Impossible de choisir une image de couverture : {error}",
   "exportWorkspace.revealFailed": "Impossible d'afficher l'export dans son dossier",
   "exportWorkspace.revealFailedWithError":
     "Impossible d'afficher l'export dans son dossier : {error}",
 
   // Espace d'export : vue d'ensemble
   "exportWorkspace.profileName": "Nom du profil",
-  "exportWorkspace.profileNameHelp":
-    "Nommez-le pour un destinataire ou une routine d'écriture.",
+  "exportWorkspace.profileNameHelp": "Nommez-le pour un destinataire ou une routine d'écriture.",
   "exportWorkspace.startingPoint": "Un point de départ pour chaque remise",
   "exportWorkspace.atAGlance": "En un coup d'œil",
   "exportWorkspace.outputFact": "Sortie",
@@ -151,8 +147,7 @@ const catalog: Catalog = {
   "exportWorkspace.synopses": "Synopsis de scènes",
   "exportWorkspace.synopsesHelp": "Ajoutez le résumé de la scène avant son texte.",
   "exportWorkspace.beatHeadings": "Titres de temps forts",
-  "exportWorkspace.beatHeadingsHelp":
-    "Les plans de vue Page suivent le texte de la scène.",
+  "exportWorkspace.beatHeadingsHelp": "Les plans de vue Page suivent le texte de la scène.",
   "exportWorkspace.contentExclusions":
     "Les chapitres et scènes archivés, les scènes non utilisées, les notes, les tâches et les commentaires éditoriaux sont exclus de l'export du manuscrit.",
 
@@ -173,11 +168,10 @@ const catalog: Catalog = {
   "exportWorkspace.separatorHelp":
     "Un marqueur centré sépare les scènes à l'intérieur d'un chapitre.",
   "exportWorkspace.includePartTitles": "Inclure les titres de parties",
-  "exportWorkspace.includePartTitlesHelp":
-    "Conservez les grandes articulations de votre histoire.",
+  "exportWorkspace.includePartTitlesHelp": "Conservez les grandes articulations de votre histoire.",
   "exportWorkspace.chapterBreaks": "Commencer les chapitres sur une nouvelle page",
   "exportWorkspace.chapterBreaksHelp":
-    "Bordures en pointillés dans l'aperçu ; sauts de page lors de l'impression HTML.",
+    "Bordures en pointillés dans l'aperçu ; sauts de page lors de l'impression HTML.",
 
   // Espace d'export : texte et page
   "exportWorkspace.bodyFont": "Police du corps",
@@ -212,8 +206,7 @@ const catalog: Catalog = {
   "exportWorkspace.authorPlaceholder": "Votre nom de publication",
   "exportWorkspace.includeTitleBlock": "Inclure un bloc de titre",
   "exportWorkspace.includeTitlePage": "Inclure une page de titre",
-  "exportWorkspace.titlePageHint":
-    "Choisissez « Toute la sélection » dans l'aperçu pour la voir.",
+  "exportWorkspace.titlePageHint": "Choisissez « Toute la sélection » dans l'aperçu pour la voir.",
   "exportWorkspace.subtitle": "Sous-titre",
   "exportWorkspace.optional": "(facultatif)",
   "exportWorkspace.titlePageWordCount": "Nombre de mots sur la page de titre",
@@ -245,7 +238,7 @@ const catalog: Catalog = {
   "exportWorkspace.chooseCover": "Choisir la couverture",
   "exportWorkspace.remove": "Supprimer",
   "exportWorkspace.coverHelp":
-    "La couverture est intégrée dans l'EPUB ; elle n'est pas affichée dans l'aperçu du manuscrit.",
+    "La couverture est intégrée dans l'EPUB ; elle n'est pas affichée dans l'aperçu du manuscrit.",
 
   // Espace d'export : fichiers et format
   "exportWorkspace.filenamePattern": "Modèle de nom de fichier",
@@ -263,14 +256,13 @@ const catalog: Catalog = {
   "exportWorkspace.referenceNotesHelp":
     "Inclure les personnages, les lieux et le matériel de référence.",
   "exportWorkspace.beatComments": "Commentaires de temps forts",
-  "exportWorkspace.beatCommentsHelp":
-    "Conserver les invites du plan comme commentaires.",
+  "exportWorkspace.beatCommentsHelp": "Conserver les invites du plan comme commentaires.",
   "exportWorkspace.treatmentDetail": "Détail du synopsis",
   "exportWorkspace.treatmentOnePage": "Une page · vue d'ensemble",
   "exportWorkspace.treatmentFivePage": "Cinq pages · scènes clés",
   "exportWorkspace.treatmentFull": "Complet · scènes et temps forts",
   "exportWorkspace.treatmentDetailHelp":
-    "Les niveaux de détail guident le contenu ; le nombre de pages dépend du matériel.",
+    "Les niveaux de détail guident le contenu ; le nombre de pages dépend du matériel.",
   "exportWorkspace.treatmentFile": "Fichier de synopsis",
   "exportWorkspace.treatmentDocx": "Document Word (.docx)",
   "exportWorkspace.treatmentTxt": "Texte brut (.txt)",
@@ -281,7 +273,7 @@ const catalog: Catalog = {
   "exportWorkspace.fileWholeProject": "Projet entier · exporteur dédié",
   "exportWorkspace.fileTypeFolder": "Dossier",
   "exportWorkspace.destinationHelp":
-    "Choisissez une destination lors de l'export. Les fichiers et dossiers existants sont préservés ; utilisez un nouveau nom pour chaque export.",
+    "Choisissez une destination lors de l'export. Les fichiers et dossiers existants sont préservés ; utilisez un nouveau nom pour chaque export.",
   "exportWorkspace.markdownHelp":
     "Exporte un seul fichier de manuscrit avec titres, emphase, listes et citations en bloc. Pour un projet Obsidian avec des fichiers de scènes séparés et des notes de fiches, choisissez Longform / Obsidian.",
 
@@ -325,8 +317,7 @@ const catalog: Catalog = {
     "Une partie de cette sélection enregistrée est manquante. Vérifiez le contenu avant d'enregistrer un aperçu.",
   "exportWorkspace.showInFolder": "Afficher dans le dossier",
   "exportWorkspace.footOriginSaved": "Manuscrit enregistré",
-  "exportWorkspace.footNote":
-    "Les profils et brouillons récupérés sont locaux à cet appareil.",
+  "exportWorkspace.footNote": "Les profils et brouillons récupérés sont locaux à cet appareil.",
   "exportWorkspace.revert": "Annuler les modifications",
   "exportWorkspace.saveProfile": "Enregistrer le profil",
   "exportWorkspace.exporting": "Exportation…",
@@ -363,8 +354,7 @@ const catalog: Catalog = {
   "classicExportDialog.profileNone": "Aucun",
   "classicExportDialog.profileLoadFailed":
     "Les profils enregistrés n'ont pas pu être chargés. Fermez et rouvrez Exporter pour réessayer.",
-  "classicExportDialog.profileRemembered":
-    "Ce projet mémorise votre profil choisi.",
+  "classicExportDialog.profileRemembered": "Ce projet mémorise votre profil choisi.",
   "classicExportDialog.profileHint":
     "Ou utilisez l'un de vos profils d'export enregistrés, configurés dans l'espace d'export.",
 
@@ -413,14 +403,11 @@ const catalog: Catalog = {
   // Boîte de dialogue d'export classique : options de synopsis
   "classicExportDialog.detailLevelLegend": "Niveau de détail",
   "classicExportDialog.treatmentOnePage": "Une page",
-  "classicExportDialog.treatmentOnePageHelp":
-    "Titre, accroche et court synopsis par acte",
+  "classicExportDialog.treatmentOnePageHelp": "Titre, accroche et court synopsis par acte",
   "classicExportDialog.treatmentFivePage": "Cinq pages",
-  "classicExportDialog.treatmentFivePageHelp":
-    "Résumés d'actes avec descriptions des scènes clés",
+  "classicExportDialog.treatmentFivePageHelp": "Résumés d'actes avec descriptions des scènes clés",
   "classicExportDialog.treatmentFull": "Synopsis complet",
-  "classicExportDialog.treatmentFullHelp":
-    "Chaque synopsis de scène et description de temps fort",
+  "classicExportDialog.treatmentFullHelp": "Chaque synopsis de scène et description de temps fort",
   "classicExportDialog.outputFormatLegend": "Format de sortie",
 
   // Boîte de dialogue d'export classique : options novelWriter
@@ -429,11 +416,9 @@ const catalog: Catalog = {
   "classicExportDialog.includeBeatComments": "Inclure les commentaires de temps forts",
   "classicExportDialog.beatCommentsHelp":
     "La désactivation des commentaires de temps forts désactive la synchronisation au niveau des temps forts. Le texte en mode page se synchronise comme une scène entière.",
-  "classicExportDialog.includeReferenceNotes":
-    "Inclure les personnages, les lieux et les notes",
+  "classicExportDialog.includeReferenceNotes": "Inclure les personnages, les lieux et les notes",
   "classicExportDialog.emptyFolderPlaceholder": "Choisir un dossier vide",
-  "classicExportDialog.chooseNovelwriterFolder":
-    "Choisir le dossier de destination novelWriter",
+  "classicExportDialog.chooseNovelwriterFolder": "Choisir le dossier de destination novelWriter",
   "classicExportDialog.roundTrip": "Limitations de l'aller-retour",
   "classicExportDialog.roundTripExport":
     "L'export omet le soulignement, l'état de planification, le type de scène, les étiquettes, les notes de découverte, les instantanés et les champs personnalisés. L'état de la scène est limité à Brouillon, Révisée et Final.",
@@ -445,15 +430,12 @@ const catalog: Catalog = {
   // Boîte de dialogue d'export classique : options Scrivener
   "classicExportDialog.exportModeLegend": "Mode d'export",
   "classicExportDialog.createNew": "Créer",
-  "classicExportDialog.createNewHelp":
-    "Crée un nouveau projet .scriv depuis votre plan",
+  "classicExportDialog.createNewHelp": "Crée un nouveau projet .scriv depuis votre plan",
   "classicExportDialog.updateExisting": "Mettre à jour",
-  "classicExportDialog.updateExistingHelp":
-    "Réécrit le texte dans un paquet .scriv existant",
+  "classicExportDialog.updateExistingHelp": "Réécrit le texte dans un paquet .scriv existant",
   "classicExportDialog.updateOptionsLegend": "Options de mise à jour",
   "classicExportDialog.backupBeforeUpdating": "Sauvegarder avant la mise à jour",
-  "classicExportDialog.backupHelp":
-    "Crée une copie horodatée du paquet .scriv",
+  "classicExportDialog.backupHelp": "Crée une copie horodatée du paquet .scriv",
   "classicExportDialog.includeUnmatched": "Inclure les scènes non correspondantes",
   "classicExportDialog.includeUnmatchedHelp":
     "Crée de nouveaux documents Scrivener pour les scènes sans correspondance",
@@ -462,8 +444,7 @@ const catalog: Catalog = {
   "classicExportDialog.scrivenerSaveLocation": "Emplacement d'enregistrement",
   "classicExportDialog.scrivenerSelectBundle": "Sélectionner le paquet .scriv",
   "classicExportDialog.scrivenerSavePlaceholder": "Choisir où enregistrer…",
-  "classicExportDialog.scrivenerBundlePlaceholder":
-    "Sélectionner un dossier .scriv existant…",
+  "classicExportDialog.scrivenerBundlePlaceholder": "Sélectionner un dossier .scriv existant…",
   "classicExportDialog.selectScrivBundle": "Sélectionner le paquet .scriv",
 
   // Boîte de dialogue d'export classique : options EPUB
@@ -490,24 +471,19 @@ const catalog: Catalog = {
 
   // Boîte de dialogue d'export classique : instantané, erreurs et pied de page
   "classicExportDialog.createSnapshot": "Créer un instantané avant l'export",
-  "classicExportDialog.createSnapshotHelp":
-    "Enregistrez une sauvegarde de votre travail actuel",
+  "classicExportDialog.createSnapshotHelp": "Enregistrez une sauvegarde de votre travail actuel",
   "classicExportDialog.exportFailed": "Échec de l'export",
-  "classicExportDialog.customFooterHint":
-    "Ouvre l'espace d'export avec vos réglages enregistrés.",
+  "classicExportDialog.customFooterHint": "Ouvre l'espace d'export avec vos réglages enregistrés.",
   "classicExportDialog.exporting": "Exportation…",
   "classicExportDialog.openWorkspace": "Ouvrir l'espace",
-  "classicExportDialog.blockedProfileLoadFailed":
-    "Les profils d'export n'ont pas pu être chargés.",
+  "classicExportDialog.blockedProfileLoadFailed": "Les profils d'export n'ont pas pu être chargés.",
   "classicExportDialog.blockedChooseProfile": "Choisissez un profil d'export.",
-  "classicExportDialog.blockedNovelwriterScope":
-    "novelWriter exporte l'intégralité du projet.",
+  "classicExportDialog.blockedNovelwriterScope": "novelWriter exporte l'intégralité du projet.",
   "classicExportDialog.blockedChooseCover":
     "Choisissez une image de couverture ou désactivez la couverture.",
   "classicExportDialog.blockedChooseFolder":
     "Choisissez un dossier de destination avant d'exporter.",
-  "classicExportDialog.blockedChooseSaveLocation":
-    "Choisissez où enregistrer avant d'exporter.",
+  "classicExportDialog.blockedChooseSaveLocation": "Choisissez où enregistrer avant d'exporter.",
   "classicExportDialog.actionDocx": "Exporter .docx",
   "classicExportDialog.actionEpub": "Exporter .epub",
   "classicExportDialog.actionMarkdown": "Exporter Markdown",
@@ -544,7 +520,7 @@ const catalog: Catalog = {
   "classicExportDialog.summarySpacingSingle": "simple",
   "classicExportDialog.summarySpacingDouble": "double",
   "classicExportDialog.summaryRomanNote": "(romain)",
-  "classicExportDialog.summaryBreak": "séparation « {separator} »",
+  "classicExportDialog.summaryBreak": "séparation « {separator} »",
   "classicExportDialog.summaryBlankLine": "ligne vide",
   "classicExportDialog.summaryTitlePage": "page de titre",
   "classicExportDialog.summaryContents": "table des matières",

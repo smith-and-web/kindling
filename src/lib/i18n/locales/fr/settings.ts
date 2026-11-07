@@ -26,8 +26,7 @@ const catalog: Catalog = {
   "dialog.retryLoadProjects": "Réessayer le chargement des projets",
   "dialog.noProjects": "Aucun projet disponible.",
   "dialog.projectLabel": "Projet",
-  "dialog.projectHelp":
-    "Réglages pour ce projet. Votre manuscrit ouvert reste en place.",
+  "dialog.projectHelp": "Réglages pour ce projet. Votre manuscrit ouvert reste en place.",
   "dialog.appliesToAll": "S'applique à tous les projets.",
   "dialog.noProjectsHelp":
     "Aucun projet pour l'instant. Créez ou importez un projet pour configurer ses réglages.",
@@ -41,7 +40,8 @@ const catalog: Catalog = {
   "appearance.themeDark": "Sombre",
   "appearance.themeLight": "Clair",
   "appearance.themeSystem": "Système",
-  "appearance.systemHelp": "« Système » suit le réglage d'apparence de votre système d'exploitation.",
+  "appearance.systemHelp":
+    "« Système » suit le réglage d'apparence de votre système d'exploitation.",
   "appearance.guidance": "Conseils",
   "appearance.showTips": "Afficher les conseils de guidage",
   "appearance.tipsHelp":
@@ -82,7 +82,7 @@ const catalog: Catalog = {
 
   // --- Raccourcis clavier ---
   "keyboard.lede":
-    "Choisissez un raccourci, puis appuyez sur une nouvelle combinaison de touches. Les modifications s'appliquent immédiatement à tous les projets. Échap annule l'enregistrement ; Tab passe au contrôle suivant.",
+    "Choisissez un raccourci, puis appuyez sur une nouvelle combinaison de touches. Les modifications s'appliquent immédiatement à tous les projets. Échap annule l'enregistrement ; Tab passe au contrôle suivant.",
   "keyboard.systemHelp":
     "L'édition de texte standard et les contrôles système (comme copier, coller, annuler, Tab et Échap) conservent leurs touches habituelles.",
   "keyboard.retryLoad": "Réessayer le chargement des raccourcis",
@@ -117,20 +117,17 @@ const catalog: Catalog = {
   "project.description": "Description du projet",
   "project.descriptionPlaceholder": "Court résumé ou notes sur ce projet",
   "project.dailyGoal": "Objectif d'écriture quotidien",
-  "project.loadDailyGoalFailed":
-    "Impossible de charger l'objectif quotidien : {error}",
+  "project.loadDailyGoalFailed": "Impossible de charger l'objectif quotidien : {error}",
   "project.dailyGoalHelp":
-    "Mots nets ajoutés par jour dans ce projet. Définissez 0 pour désactiver l'objectif. Les modifications s'appliquent aujourd'hui ; les jours de série précédents conservent leurs objectifs d'origine.",
+    "Mots nets ajoutés par jour dans ce projet. Définissez 0 pour désactiver l'objectif. Les modifications s'appliquent aujourd'hui ; les jours de série précédents conservent leurs objectifs d'origine.",
   "project.wordTarget": "Objectif de mots",
   "project.wordTargetPlaceholder": "ex. 80000",
   "project.referencesHelp":
     "Choisissez quels types de fiches apparaissent dans le volet des fiches de ce projet. La désactivation d'un type conserve ses entrées existantes.",
-  "project.enableRefTypes":
-    "Activez des types de fiches pour configurer des champs personnalisés.",
+  "project.enableRefTypes": "Activez des types de fiches pour configurer des champs personnalisés.",
   "project.saved": "Modifications du projet enregistrées.",
   "project.save": "Enregistrer les modifications du projet",
-  "project.wordTargetInvalid":
-    "L'objectif de mots doit être un nombre entier non négatif",
+  "project.wordTargetInvalid": "L'objectif de mots doit être un nombre entier non négatif",
   "project.dailyGoalInvalid":
     "L'objectif quotidien doit être un nombre entier compris entre 0 et 1 000 000",
   "project.disabledDraft":
