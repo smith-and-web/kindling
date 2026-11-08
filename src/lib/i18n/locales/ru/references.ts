@@ -4,7 +4,11 @@ import type { Catalog } from "../../types";
 const catalog: Catalog = {
   // References panel
   "referencesPanel.title": "Ссылки",
-  "referencesPanel.expandWithCount": "Развернуть панель ссылок, {count} ссылок",
+  "referencesPanel.expandWithCount.one": "Развернуть панель ссылок, {count} ссылка",
+  "referencesPanel.expandWithCount.few": "Развернуть панель ссылок, {count} ссылки",
+  "referencesPanel.expandWithCount.many": "Развернуть панель ссылок, {count} ссылок",
+  "referencesPanel.expandWithCount.other": "Развернуть панель ссылок, {count} ссылки",
+
   "referencesPanel.expandPanel": "Развернуть панель ссылок",
   "referencesPanel.resizePanel": "Изменить размер панели ссылок",
   "referencesPanel.copyFromProject": "Скопировать ссылки из проекта…",
@@ -138,9 +142,12 @@ const catalog: Catalog = {
     "Скопировано {count} ссылки из {source} в {destination}.",
   "copyReferencesDialog.copiedMessage.many":
     "Скопировано {count} ссылок из {source} в {destination}.",
+  "copyReferencesDialog.copiedMessage.other":
+    "Скопировано {count} ссылки из {source} в {destination}.",
   "copyReferencesDialog.copiedSkipped.one": "Пропущен {count} возможный дубликат.",
   "copyReferencesDialog.copiedSkipped.few": "Пропущено {count} возможных дубликата.",
   "copyReferencesDialog.copiedSkipped.many": "Пропущено {count} возможных дубликатов.",
+  "copyReferencesDialog.copiedSkipped.other": "Пропущено {count} возможных дубликата.",
   "copyReferencesDialog.refreshing": "Обновление ссылок…",
   "copyReferencesDialog.sourceProject": "Исходный проект",
   "copyReferencesDialog.chooseProject": "Выберите проект",
@@ -172,9 +179,11 @@ const catalog: Catalog = {
   "copyReferencesDialog.previewToCopy.one": "{count} для копирования",
   "copyReferencesDialog.previewToCopy.few": "{count} для копирования",
   "copyReferencesDialog.previewToCopy.many": "{count} для копирования",
+  "copyReferencesDialog.previewToCopy.other": "{count} для копирования",
   "copyReferencesDialog.previewSkipped.one": "{count} возможный дубликат пропущен",
   "copyReferencesDialog.previewSkipped.few": "{count} возможных дубликата пропущено",
   "copyReferencesDialog.previewSkipped.many": "{count} возможных дубликатов пропущено",
+  "copyReferencesDialog.previewSkipped.other": "{count} возможных дубликата пропущено",
   "copyReferencesDialog.refreshReferences": "Обновить ссылки",
   "copyReferencesDialog.refreshPreview": "Обновить предпросмотр",
   "copyReferencesDialog.retryLoadingProjects": "Повторить загрузку проектов",
@@ -266,6 +275,7 @@ const catalog: Catalog = {
   "syncDialog.conflict.one": "{count} конфликт",
   "syncDialog.conflict.few": "{count} конфликта",
   "syncDialog.conflict.many": "{count} конфликтов",
+  "syncDialog.conflict.other": "{count} конфликта",
   "syncDialog.conflictNote":
     "Конфликт — это изменение как в kindling, так и в файле плана, или kindling не может определить, какая сторона изменилась. Оставьте без отметки, чтобы сохранить версию kindling; она не будет предложена снова, если только файл плана её не изменит. «Все» пропускает конфликты.",
   "syncDialog.newItems": "Новые элементы",
@@ -305,17 +315,21 @@ const catalog: Catalog = {
   "syncDialog.selection.one": "{count} элемент выбран",
   "syncDialog.selection.few": "{count} элемента выбрано",
   "syncDialog.selection.many": "{count} элементов выбрано",
+  "syncDialog.selection.other": "{count} элемента выбрано",
   "syncDialog.kept.one": "{count} версия kindling сохранена",
   "syncDialog.kept.few": "{count} версии kindling сохранено",
   "syncDialog.kept.many": "{count} версий kindling сохранено",
+  "syncDialog.kept.other": "{count} версии kindling сохранено",
   "syncDialog.applying": "Применение…",
   "syncDialog.keepKindling.one": "Сохранить версию kindling",
   "syncDialog.keepKindling.few": "Сохранить версии kindling",
   "syncDialog.keepKindling.many": "Сохранить версии kindling",
+  "syncDialog.keepKindling.other": "Сохранить версии kindling",
   "syncDialog.applyChanges": "Применить изменения",
   "syncDialog.apply.one": "Применить {count} изменение",
   "syncDialog.apply.few": "Применить {count} изменения",
   "syncDialog.apply.many": "Применить {count} изменений",
+  "syncDialog.apply.other": "Применить {count} изменения",
   "syncDialog.cancel": "Отмена",
   "syncDialog.kindChapter": "Глава",
   "syncDialog.kindScene": "Сцена",
@@ -336,9 +350,11 @@ const catalog: Catalog = {
   "syncSummaryDialog.proseItemUpdated.one": "{count} элемент прозы обновлён",
   "syncSummaryDialog.proseItemUpdated.few": "{count} элемента прозы обновлено",
   "syncSummaryDialog.proseItemUpdated.many": "{count} элементов прозы обновлено",
+  "syncSummaryDialog.proseItemUpdated.other": "{count} элемента прозы обновлено",
   "syncSummaryDialog.proseItemPreserved.one": "{count} элемент прозы сохранён",
   "syncSummaryDialog.proseItemPreserved.few": "{count} элемента прозы сохранено",
   "syncSummaryDialog.proseItemPreserved.many": "{count} элементов прозы сохранено",
+  "syncSummaryDialog.proseItemPreserved.other": "{count} элемента прозы сохранено",
   "syncSummaryDialog.done": "Готово",
 
   // Scrivener match dialog
@@ -438,9 +454,11 @@ const catalog: Catalog = {
   "copyReferencesDialog.selectedAcross.one": "Выбрано во всех категориях: {count}",
   "copyReferencesDialog.selectedAcross.few": "Выбрано во всех категориях: {count}",
   "copyReferencesDialog.selectedAcross.many": "Выбрано во всех категориях: {count}",
+  "copyReferencesDialog.selectedAcross.other": "Выбрано во всех категориях: {count}",
   "copyReferencesDialog.copyCount.one": "Скопировать {count} ссылку",
   "copyReferencesDialog.copyCount.few": "Скопировать {count} ссылки",
   "copyReferencesDialog.copyCount.many": "Скопировать {count} ссылок",
+  "copyReferencesDialog.copyCount.other": "Скопировать {count} ссылки",
 };
 
 export default catalog;

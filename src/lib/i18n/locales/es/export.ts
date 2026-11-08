@@ -43,7 +43,9 @@ const catalog: Catalog = {
   "exportWorkspace.findSetting": "Buscar un ajuste de exportación",
   "exportWorkspace.searchPlaceholder": "Buscar un ajuste…",
   "exportWorkspace.clearSearch": "Borrar búsqueda de ajustes",
-  "exportWorkspace.settingsFound": "{count} ajustes encontrados",
+  "exportWorkspace.settingsFound.one": "{count} ajuste encontrado",
+  "exportWorkspace.settingsFound.other": "{count} ajustes encontrados",
+
   "exportWorkspace.noSettingsMatch": "Ningún ajuste coincide con “{query}”",
   "exportWorkspace.searchHint": "Prueba con “espaciado”, “encabezado” o “HTML”.",
   "exportWorkspace.exportSettings": "Ajustes de exportación",

@@ -707,7 +707,7 @@
       {#if query.trim()}
         {#if searchResults.length}
           <p class="xw-meta" role="status">
-            {t("export.exportWorkspace.settingsFound", { count: searchResults.length })}
+            {tn("export.exportWorkspace.settingsFound", searchResults.length)}
           </p>
           <ul class="xw-results">
             {#each searchResults as item (item.control)}<li>

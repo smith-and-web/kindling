@@ -141,7 +141,8 @@ const catalog: Catalog = {
   "editorialManuscript.suggestedManuscript": "含修改建议的稿件",
   "editorialManuscript.unlockBeforeSuggest": "解锁此场景后才能对其文本提出修改建议。",
   "editorialManuscript.movePassage": "要移动这段文字，请剪切后粘贴到目标位置。",
-  "editorialManuscript.marginMarker": "本段有{count}条批注或修改",
+  "editorialManuscript.marginMarker.other": "本段有{count}条批注或修改",
+
   "editorialManuscript.comment": "批注",
 
   // --- ReviewSidebar: tabs, filter and identity ---

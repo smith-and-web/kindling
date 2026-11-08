@@ -2,7 +2,7 @@
   import { shortcuts } from "../stores/shortcuts.svelte";
   import { KeyboardFormatting } from "../utils/keyboardFormatting";
   import { holdLinkClick } from "../utils/safeHtml";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
   import { onMount, tick } from "svelte";
   import ProseToolbar from "./ProseToolbar.svelte";
   import { MessageSquare } from "lucide-svelte";
@@ -427,9 +427,7 @@
             marker.type = "button";
             marker.contentEditable = "false";
             marker.textContent = String(annotations.length);
-            marker.title = t("editorial.editorialManuscript.marginMarker", {
-              count: annotations.length,
-            });
+            marker.title = tn("editorial.editorialManuscript.marginMarker", annotations.length);
             marker.setAttribute("aria-label", marker.title);
             marker.setAttribute("aria-pressed", String(annotations.some((c) => c.id === selected)));
             marker.onmousedown = (event) => event.preventDefault();

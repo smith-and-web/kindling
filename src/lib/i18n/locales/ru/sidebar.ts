@@ -31,7 +31,11 @@ const catalog: Catalog = {
     "Эта глава не определена. Добавьте краткое содержание, и сцены появятся, когда вы повысите её до Гибкой или Фиксированной.",
   "sidebar.switchToFlexible": "Переключить на Гибкую",
   "sidebar.defineFullStructure": "Определить полную структуру",
-  "sidebar.wordsCount": "{count} слов",
+  "sidebar.wordsCount.one": "{count} слово",
+  "sidebar.wordsCount.few": "{count} слова",
+  "sidebar.wordsCount.many": "{count} слов",
+  "sidebar.wordsCount.other": "{count} слова",
+
   "sidebar.statusLine": "Статус: {status}",
   "sidebar.all": "Все",
   "sidebar.statusDraft": "Черновик",
@@ -82,9 +86,11 @@ const catalog: Catalog = {
   "sidebar.sceneCount.one": "{count} сцена",
   "sidebar.sceneCount.few": "{count} сцены",
   "sidebar.sceneCount.many": "{count} сцен",
+  "sidebar.sceneCount.other": "{count} сцены",
   "sidebar.beatCount.one": "{count} бит",
   "sidebar.beatCount.few": "{count} бита",
   "sidebar.beatCount.many": "{count} битов",
+  "sidebar.beatCount.other": "{count} бита",
 
   // --- Sidebar: failures shown as toasts ---
   "sidebar.failedSaveFilter": "Не удалось сохранить фильтр: {error}",
@@ -154,9 +160,11 @@ const catalog: Catalog = {
   "partDeleteDialog.lede.one": "«{title}» содержит {chapters}. Что вы хотите сделать?",
   "partDeleteDialog.lede.few": "«{title}» содержит {chapters}. Что вы хотите сделать?",
   "partDeleteDialog.lede.many": "«{title}» содержит {chapters}. Что вы хотите сделать?",
+  "partDeleteDialog.lede.other": "«{title}» содержит {chapters}. Что вы хотите сделать?",
   "partDeleteDialog.deleteOnlyHint.one": "{chapters} останется в проекте.",
   "partDeleteDialog.deleteOnlyHint.few": "{chapters} останутся в проекте.",
   "partDeleteDialog.deleteOnlyHint.many": "{chapters} останутся в проекте.",
+  "partDeleteDialog.deleteOnlyHint.other": "{chapters} останутся в проекте.",
 
   // --- RenameDialog ---
   "renameDialog.name": "Имя",
@@ -173,7 +181,11 @@ const catalog: Catalog = {
   "tagManager.addChildTag": "Добавить дочерний тег",
   "tagManager.deleteTag": "Удалить тег",
   "tagManager.closeEditor": "Закрыть редактор тегов",
-  "tagManager.childTags": "{count} дочерних тегов",
+  "tagManager.childTags.one": "{count} дочерний тег",
+  "tagManager.childTags.few": "{count} дочерних тега",
+  "tagManager.childTags.many": "{count} дочерних тегов",
+  "tagManager.childTags.other": "{count} дочерних тега",
+
   "tagManager.name": "Имя",
   "tagManager.namePlaceholder": "напр. Флэшбэк, Экшн, Романтика…",
   "tagManager.color": "Цвет",
@@ -210,10 +222,15 @@ const catalog: Catalog = {
   "templateBrowser.noTemplates": "Шаблонов нет",
   "templateBrowser.noTemplatesHint":
     "Вы всё равно можете начать с пустой структуры и добавить главы самостоятельно.",
-  "templateBrowser.beatsCount": "{count} битов",
+  "templateBrowser.beatsCount.one": "{count} бит",
+  "templateBrowser.beatsCount.few": "{count} бита",
+  "templateBrowser.beatsCount.many": "{count} битов",
+  "templateBrowser.beatsCount.other": "{count} бита",
+
   "templateBrowser.templateCount.one": "{count} шаблон доступен",
   "templateBrowser.templateCount.few": "{count} шаблона доступно",
   "templateBrowser.templateCount.many": "{count} шаблонов доступно",
+  "templateBrowser.templateCount.other": "{count} шаблона доступно",
   "templateBrowser.useTemplate": "Использовать шаблон",
   // --- Structure items: one key per kind, so each language can agree in gender, number and case ---
   "structure.part.menu": "Меню части",
@@ -228,6 +245,7 @@ const catalog: Catalog = {
   "structure.part.deleteAllHint.one": "Часть и {chapters} в ней будут удалены безвозвратно.",
   "structure.part.deleteAllHint.few": "Часть и {chapters} в ней будут удалены безвозвратно.",
   "structure.part.deleteAllHint.many": "Часть и {chapters} в ней будут удалены безвозвратно.",
+  "structure.part.deleteAllHint.other": "Часть и {chapters} в ней будут удалены безвозвратно.",
   "structure.act.menu": "Меню акта",
   "structure.act.titlePlaceholder": "Название акта…",
   "structure.act.newTitle": "Название нового акта",
@@ -240,6 +258,7 @@ const catalog: Catalog = {
   "structure.act.deleteAllHint.one": "Акт и {chapters} в нём будут удалены безвозвратно.",
   "structure.act.deleteAllHint.few": "Акт и {chapters} в нём будут удалены безвозвратно.",
   "structure.act.deleteAllHint.many": "Акт и {chapters} в нём будут удалены безвозвратно.",
+  "structure.act.deleteAllHint.other": "Акт и {chapters} в нём будут удалены безвозвратно.",
   "structure.chapter.menu": "Меню главы",
   "structure.chapter.synopsisPlaceholder": "Краткое содержание главы…",
   "structure.chapter.synopsisAria": "Краткое содержание главы",

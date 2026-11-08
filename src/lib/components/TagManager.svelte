@@ -5,7 +5,7 @@
   import { Loader2, Pencil, Plus, Trash2, X, Check } from "lucide-svelte";
   import pressTokens from "../../styles/press/tokens.json";
   import type { Tag } from "../types";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
 
   let {
     projectId,
@@ -154,7 +154,7 @@
       ></span>
       <span class="ka-name">{tag.name}</span>
       {#if children.length > 0}
-        <span class="ka-badge" title={t("sidebar.tagManager.childTags", { count: children.length })}
+        <span class="ka-badge" title={tn("sidebar.tagManager.childTags", children.length)}
           >{children.length}</span
         >
       {/if}
