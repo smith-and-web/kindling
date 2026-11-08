@@ -48,15 +48,19 @@ const catalog: Catalog = {
   "findReplaceDialog.confirmReplaceProject.one": "Заменить {count} совпадение во всём проекте?",
   "findReplaceDialog.confirmReplaceProject.few": "Заменить {count} совпадения во всём проекте?",
   "findReplaceDialog.confirmReplaceProject.many": "Заменить {count} совпадений во всём проекте?",
+  "findReplaceDialog.confirmReplaceProject.other": "Заменить {count} совпадения во всём проекте?",
   "findReplaceDialog.confirmReplaceScene.one": "Заменить {count} совпадение в текущей сцене?",
   "findReplaceDialog.confirmReplaceScene.few": "Заменить {count} совпадения в текущей сцене?",
   "findReplaceDialog.confirmReplaceScene.many": "Заменить {count} совпадений в текущей сцене?",
+  "findReplaceDialog.confirmReplaceScene.other": "Заменить {count} совпадения в текущей сцене?",
   "findReplaceDialog.confirmSkipped.one":
     "{count} заблокированное или несохранённое совпадение будет пропущено.",
   "findReplaceDialog.confirmSkipped.few":
     "{count} заблокированных или несохранённых совпадения будут пропущены.",
   "findReplaceDialog.confirmSkipped.many":
     "{count} заблокированных или несохранённых совпадений будут пропущены.",
+  "findReplaceDialog.confirmSkipped.other":
+    "{count} заблокированных или несохранённых совпадения будут пропущены.",
 };
 
 export default catalog;

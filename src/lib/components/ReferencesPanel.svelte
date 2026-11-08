@@ -46,7 +46,7 @@
   import SuggestionCard from "./SuggestionCard.svelte";
   import TagSelector from "./TagSelector.svelte";
   import { safeProse } from "../utils/safeHtml";
-  import { t } from "../i18n";
+  import { t, tn } from "../i18n";
 
   let { contextSceneId, embedded = false }: { contextSceneId?: string | null; embedded?: boolean } =
     $props();
@@ -894,9 +894,10 @@
         type="button"
         onclick={toggleReferencesPanel}
         class="ka-button ka-button--ghost ka-icon-button"
-        aria-label={t("references.referencesPanel.expandWithCount", {
-          count: referenceTypeOptions.reduce((n, o) => n + getReferenceCount(o.id), 0),
-        })}
+        aria-label={tn(
+          "references.referencesPanel.expandWithCount",
+          referenceTypeOptions.reduce((n, o) => n + getReferenceCount(o.id), 0)
+        )}
         title={t("references.referencesPanel.expandPanel")}
       >
         <PanelRightOpen class="w-5 h-5" aria-hidden="true" />

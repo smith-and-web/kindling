@@ -4,7 +4,8 @@ import type { Catalog } from "../../types";
 const catalog: Catalog = {
   // References panel
   "referencesPanel.title": "引用",
-  "referencesPanel.expandWithCount": "展开引用面板，共 {count} 条引用",
+  "referencesPanel.expandWithCount.other": "展开引用面板，共 {count} 条引用",
+
   "referencesPanel.expandPanel": "展开引用面板",
   "referencesPanel.resizePanel": "调整引用面板宽度",
   "referencesPanel.copyFromProject": "从项目复制引用…",

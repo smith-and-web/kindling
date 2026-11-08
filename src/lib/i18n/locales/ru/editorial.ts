@@ -97,12 +97,15 @@ const catalog: Catalog = {
   "editorialWorkspace.sceneIncluded.one": "сцена включена",
   "editorialWorkspace.sceneIncluded.few": "сцены включено",
   "editorialWorkspace.sceneIncluded.many": "сцен включено",
+  "editorialWorkspace.sceneIncluded.other": "сцены включено",
   "editorialWorkspace.suggestion.one": "предложение",
   "editorialWorkspace.suggestion.few": "предложения",
   "editorialWorkspace.suggestion.many": "предложений",
+  "editorialWorkspace.suggestion.other": "предложения",
   "editorialWorkspace.comment.one": "комментарий",
   "editorialWorkspace.comment.few": "комментария",
   "editorialWorkspace.comment.many": "комментариев",
+  "editorialWorkspace.comment.other": "комментария",
   "editorialWorkspace.whatHappensNext": "Что происходит дальше",
   "editorialWorkspace.nextBody":
     "Читайте комментарии, отвечайте редактору и принимайте или отклоняйте предложения. Если вы переписали фрагмент, kindling поможет вам разместить отзыв перед применением правки.",
@@ -158,7 +161,11 @@ const catalog: Catalog = {
     "Разблокируйте эту сцену перед предложением изменений в её прозе.",
   "editorialManuscript.movePassage":
     "Чтобы переместить этот фрагмент, вырежьте и вставьте его в нужном месте.",
-  "editorialManuscript.marginMarker": "{count} комментариев или изменений в этом абзаце",
+  "editorialManuscript.marginMarker.one": "{count} комментарий или изменение в этом абзаце",
+  "editorialManuscript.marginMarker.few": "{count} комментария или изменения в этом абзаце",
+  "editorialManuscript.marginMarker.many": "{count} комментариев или изменений в этом абзаце",
+  "editorialManuscript.marginMarker.other": "{count} комментария или изменения в этом абзаце",
+
   "editorialManuscript.comment": "Комментарий",
 
   // --- ReviewSidebar: tabs, filter and identity ---
@@ -262,6 +269,8 @@ const catalog: Catalog = {
   "revisionsPanel.prunedRemoved.few":
     "{names} удалены, так как сохраняются только новейшие автоматические черновики.",
   "revisionsPanel.prunedRemoved.many":
+    "{names} удалены, так как сохраняются только новейшие автоматические черновики.",
+  "revisionsPanel.prunedRemoved.other":
     "{names} удалены, так как сохраняются только новейшие автоматические черновики.",
   "revisionsPanel.prunedJoin": " и ",
   "revisionsPanel.prunedComparing": "Теперь сравниваем {before} с {after}.",
