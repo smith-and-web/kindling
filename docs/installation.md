@@ -176,6 +176,26 @@ sudo apt install libfuse2
 sudo dnf install fuse
 ```
 
+### Linux: AppImage opens an empty window, or logs `EGL_BAD_PARAMETER`
+
+Versions up to 1.3.1 bundle an older `libwayland-client`, which on hosts with a
+current Mesa (25 or newer) shadows the system copy and stops WebKit from creating
+an EGL display. The window stays blank and stderr shows:
+
+```text
+Could not create default EGL display: EGL_BAD_PARAMETER. Aborting...
+```
+
+Either use the `.deb`/`.rpm` package for your distro (they link the system
+library), or run the AppImage with the host library preloaded:
+
+```bash
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libwayland-client.so.0 ./Kindling_*.AppImage
+```
+
+Releases built after this is fixed no longer bundle the library and need neither
+workaround.
+
 ### Linux: No application icon
 
 AppImages don't always integrate with desktop environments automatically. Use AppImageLauncher or create a `.desktop` file manually (see above).
