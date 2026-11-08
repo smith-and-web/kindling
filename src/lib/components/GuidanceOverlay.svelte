@@ -80,7 +80,7 @@
   const TARGETS: Record<"left" | "center" | "right", string> = {
     left: '[data-testid="sidebar"]',
     center: '[data-testid="scene-panel"]',
-    right: 'aside[aria-label="References"]',
+    right: '[data-testid="references-panel"]',
   };
   const GAP = 16;
 

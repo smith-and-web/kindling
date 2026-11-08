@@ -36,6 +36,21 @@ function mountSidebar(right = 304) {
   return sidebar;
 }
 
+/**
+ * The references panel as it renders in a translated interface: its `aria-label` is the
+ * localized `references.referencesPanel.title`, not the English word. The coach mark has to
+ * find it anyway — it must not address the panel by copy that the catalogs own.
+ */
+function mountReferencesPanel(ariaLabel: string, left = 1200) {
+  const panel = document.createElement("aside");
+  panel.dataset.testid = "references-panel";
+  panel.setAttribute("aria-label", ariaLabel);
+  panel.getBoundingClientRect = () =>
+    ({ top: 0, left, right: left + 320, bottom: 900, width: 320, height: 900 }) as DOMRect;
+  document.body.appendChild(panel);
+  return panel;
+}
+
 describe("GuidanceOverlay", () => {
   it("anchors the sidebar tip beside the sidebar", async () => {
     mountSidebar();
@@ -50,6 +65,16 @@ describe("GuidanceOverlay", () => {
     render(GuidanceOverlay);
     const tip = await screen.findByRole("dialog", { name: "Tip" });
     expect(tip.classList.contains("is-anchored")).toBe(false);
+  });
+
+  it("anchors the references tip beside a panel whose label is translated", async () => {
+    // Sidebar and scene panel are already seen, so the overlay advances to references.
+    ui.markTooltipSeen("sidebar");
+    ui.markTooltipSeen("scenePanel");
+    mountReferencesPanel("Ссылки"); // references.referencesPanel.title in ru
+    render(GuidanceOverlay);
+    const tip = await screen.findByRole("dialog", { name: "Tip" });
+    await waitFor(() => expect(tip.classList.contains("is-anchored")).toBe(true));
   });
 
   it("waits while a modal dialog is open, then shows", async () => {
