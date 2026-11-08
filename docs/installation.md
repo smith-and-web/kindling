@@ -190,7 +190,11 @@ Either use the `.deb`/`.rpm` package for your distro (they link the system
 library), or run the AppImage with the host library preloaded:
 
 ```bash
+# Debian/Ubuntu
 LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libwayland-client.so.0 ./Kindling_*.AppImage
+
+# Fedora/openSUSE
+LD_PRELOAD=/usr/lib64/libwayland-client.so.0 ./Kindling_*.AppImage
 ```
 
 Releases built after this is fixed no longer bundle the library and need neither
