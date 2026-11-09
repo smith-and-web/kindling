@@ -31,7 +31,8 @@ const catalog: Catalog = {
     "这一章尚未定义。添加梗概后，将其提升为“灵活”或“固定”时，场景就会显示。",
   "sidebar.switchToFlexible": "切换为灵活",
   "sidebar.defineFullStructure": "定义完整结构",
-  "sidebar.wordsCount": "{count} 字",
+  "sidebar.wordsCount.other": "{count} 字",
+
   "sidebar.statusLine": "状态：{status}",
   "sidebar.all": "全部",
   "sidebar.statusDraft": "草稿",
@@ -164,7 +165,8 @@ const catalog: Catalog = {
   "tagManager.addChildTag": "添加子标签",
   "tagManager.deleteTag": "删除标签",
   "tagManager.closeEditor": "关闭标签编辑器",
-  "tagManager.childTags": "{count} 个子标签",
+  "tagManager.childTags.other": "{count} 个子标签",
+
   "tagManager.name": "名称",
   "tagManager.namePlaceholder": "例如：闪回、动作、爱情…",
   "tagManager.color": "颜色",
@@ -200,7 +202,8 @@ const catalog: Catalog = {
   "templateBrowser.loadingAria": "正在加载模板",
   "templateBrowser.noTemplates": "没有可用的模板",
   "templateBrowser.noTemplatesHint": "你仍可从空白结构开始，自行添加章。",
-  "templateBrowser.beatsCount": "{count} 个节拍",
+  "templateBrowser.beatsCount.other": "{count} 个节拍",
+
   "templateBrowser.templateCount.other": "{count} 个可用模板",
   "templateBrowser.useTemplate": "使用模板",
   // --- Structure items: one key per kind, so each language can agree in gender, number and case ---

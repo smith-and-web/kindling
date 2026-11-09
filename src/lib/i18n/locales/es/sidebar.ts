@@ -31,7 +31,9 @@ const catalog: Catalog = {
     "Este capítulo está indefinido. Añade una sinopsis; las escenas aparecerán cuando lo cambies a Flexible o Fijo.",
   "sidebar.switchToFlexible": "Cambiar a Flexible",
   "sidebar.defineFullStructure": "Definir la estructura completa",
-  "sidebar.wordsCount": "{count} palabras",
+  "sidebar.wordsCount.one": "{count} palabra",
+  "sidebar.wordsCount.other": "{count} palabras",
+
   "sidebar.statusLine": "Estado: {status}",
   "sidebar.all": "Todas",
   "sidebar.statusDraft": "Borrador",
@@ -170,7 +172,9 @@ const catalog: Catalog = {
   "tagManager.addChildTag": "Añadir etiqueta hija",
   "tagManager.deleteTag": "Eliminar etiqueta",
   "tagManager.closeEditor": "Cerrar el editor de etiquetas",
-  "tagManager.childTags": "{count} etiquetas hijas",
+  "tagManager.childTags.one": "{count} etiqueta hija",
+  "tagManager.childTags.other": "{count} etiquetas hijas",
+
   "tagManager.name": "Nombre",
   "tagManager.namePlaceholder": "p. ej. Flashback, Acción, Romance…",
   "tagManager.color": "Color",
@@ -207,7 +211,9 @@ const catalog: Catalog = {
   "templateBrowser.noTemplates": "No hay plantillas disponibles",
   "templateBrowser.noTemplatesHint":
     "Aún puedes empezar desde una estructura en blanco y añadir los capítulos por tu cuenta.",
-  "templateBrowser.beatsCount": "{count} tiempos",
+  "templateBrowser.beatsCount.one": "{count} tiempo",
+  "templateBrowser.beatsCount.other": "{count} tiempos",
+
   "templateBrowser.templateCount.one": "{count} plantilla disponible",
   "templateBrowser.templateCount.other": "{count} plantillas disponibles",
   "templateBrowser.useTemplate": "Usar plantilla",

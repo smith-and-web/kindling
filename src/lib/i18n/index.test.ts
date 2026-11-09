@@ -221,6 +221,35 @@ describe("word counts", () => {
   });
 });
 
+describe("counted phrases", () => {
+  // A frame that carries a noun must go through tn(): a fixed t() form reads wrong as soon as
+  // the count is 1 in English, and in Russian also for 2-4 and for 5 and up.
+  const cases: [Locale, number, string, string][] = [
+    ["en", 1, "sidebar.sidebar.wordsCount", "1 word"],
+    ["en", 3, "sidebar.sidebar.wordsCount", "3 words"],
+    ["ru", 1, "sidebar.sidebar.wordsCount", "1 слово"],
+    ["ru", 3, "sidebar.sidebar.wordsCount", "3 слова"],
+    ["ru", 5, "sidebar.sidebar.wordsCount", "5 слов"],
+    ["ru", 21, "sidebar.sidebar.wordsCount", "21 слово"],
+    ["ru", 2, "sidebar.tagManager.childTags", "2 дочерних тега"],
+    ["ru", 3, "sidebar.templateBrowser.beatsCount", "3 бита"],
+    ["ru", 1, "references.referencesPanel.expandWithCount", "Развернуть панель ссылок, 1 ссылка"],
+    [
+      "ru",
+      1,
+      "editorial.editorialManuscript.marginMarker",
+      "1 комментарий или изменение в этом абзаце",
+    ],
+    ["ru", 3, "export.exportWorkspace.settingsFound", "3 настройки найдены"],
+    ["ru", 5, "export.exportWorkspace.settingsFound", "5 настроек найдено"],
+  ];
+
+  it.each(cases)("%s agrees %s with %i", (locale, count, key, text) => {
+    setLocale(locale);
+    expect(tn(key, count)).toBe(text);
+  });
+});
+
 describe("countLabel()", () => {
   it("renders English and Chinese counted nouns", () => {
     expect(countLabel(3, "scene")).toBe("3 scenes");
@@ -273,6 +302,18 @@ describe("catalogs", () => {
   it.each(locales)("%s has every plural category its rules select", (locale) => {
     for (const group of Object.keys(en)) {
       expect(pluralProblems(en[group], discovered[locale][group], locale), group).toEqual([]);
+    }
+  });
+
+  // tn() falls back to `.other` before English, so a locale without it shows English copy for
+  // the counts its rules put outside one/few/many (fractions, and 0 in some languages).
+  it.each(locales)("%s defines .other for every plural base", (locale) => {
+    for (const group of Object.keys(en)) {
+      for (const key of Object.keys(en[group])) {
+        const base = pluralBase(key);
+        if (base)
+          expect(`${base}.other` in discovered[locale][group], `${group}: ${base}`).toBe(true);
+      }
     }
   });
 

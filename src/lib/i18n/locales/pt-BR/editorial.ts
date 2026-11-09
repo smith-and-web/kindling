@@ -154,7 +154,9 @@ const catalog: Catalog = {
   "editorialManuscript.unlockBeforeSuggest":
     "Desbloqueie esta cena antes de sugerir alterações em sua prosa.",
   "editorialManuscript.movePassage": "Para mover esta passagem, corte e cole-a no destino.",
-  "editorialManuscript.marginMarker": "{count} comentários ou alterações neste parágrafo",
+  "editorialManuscript.marginMarker.one": "{count} comentário ou alteração neste parágrafo",
+  "editorialManuscript.marginMarker.other": "{count} comentários ou alterações neste parágrafo",
+
   "editorialManuscript.comment": "Comentário",
 
   // --- ReviewSidebar: tabs, filter and identity ---

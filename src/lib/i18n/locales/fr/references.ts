@@ -4,7 +4,9 @@ import type { Catalog } from "../../types";
 const catalog: Catalog = {
   // Volet des fiches
   "referencesPanel.title": "Fiches",
-  "referencesPanel.expandWithCount": "Développer le volet des fiches, {count} fiches",
+  "referencesPanel.expandWithCount.one": "Développer le volet des fiches, {count} fiche",
+  "referencesPanel.expandWithCount.other": "Développer le volet des fiches, {count} fiches",
+
   "referencesPanel.expandPanel": "Développer le volet des fiches",
   "referencesPanel.resizePanel": "Redimensionner le volet des fiches",
   "referencesPanel.copyFromProject": "Copier les fiches depuis un projet…",

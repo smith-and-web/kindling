@@ -32,7 +32,9 @@ const catalog: Catalog = {
     "Dieses Kapitel ist undefiniert. Eine Zusammenfassung hinzufügen; Szenen erscheinen, wenn es zu Flexibel oder Fest hochgestuft wird.",
   "sidebar.switchToFlexible": "Zu Flexibel wechseln",
   "sidebar.defineFullStructure": "Vollständige Struktur festlegen",
-  "sidebar.wordsCount": "{count} Wörter",
+  "sidebar.wordsCount.one": "{count} Wort",
+  "sidebar.wordsCount.other": "{count} Wörter",
+
   "sidebar.statusLine": "Status: {status}",
   "sidebar.all": "Alle",
   "sidebar.statusDraft": "Entwurf",
@@ -171,7 +173,9 @@ const catalog: Catalog = {
   "tagManager.addChildTag": "Unter-Tag hinzufügen",
   "tagManager.deleteTag": "Tag löschen",
   "tagManager.closeEditor": "Tag-Editor schließen",
-  "tagManager.childTags": "{count} Unter-Tags",
+  "tagManager.childTags.one": "{count} Unter-Tag",
+  "tagManager.childTags.other": "{count} Unter-Tags",
+
   "tagManager.name": "Name",
   "tagManager.namePlaceholder": "z. B. Rückblende, Aktion, Romanze…",
   "tagManager.color": "Farbe",
@@ -208,7 +212,9 @@ const catalog: Catalog = {
   "templateBrowser.noTemplates": "Keine Vorlagen verfügbar",
   "templateBrowser.noTemplatesHint":
     "Sie können dennoch mit einer leeren Struktur beginnen und Kapitel selbst hinzufügen.",
-  "templateBrowser.beatsCount": "{count} Beats",
+  "templateBrowser.beatsCount.one": "{count} Beat",
+  "templateBrowser.beatsCount.other": "{count} Beats",
+
   "templateBrowser.templateCount.one": "{count} Vorlage verfügbar",
   "templateBrowser.templateCount.other": "{count} Vorlagen verfügbar",
   "templateBrowser.useTemplate": "Vorlage verwenden",

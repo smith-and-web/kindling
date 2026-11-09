@@ -158,7 +158,9 @@ const catalog: Catalog = {
     "Szene entsperren, bevor Änderungen am Text vorgeschlagen werden.",
   "editorialManuscript.movePassage":
     "Zum Verschieben dieser Passage ausschneiden und am Ziel einfügen.",
-  "editorialManuscript.marginMarker": "{count} Kommentare oder Änderungen in diesem Absatz",
+  "editorialManuscript.marginMarker.one": "{count} Kommentar oder Änderung in diesem Absatz",
+  "editorialManuscript.marginMarker.other": "{count} Kommentare oder Änderungen in diesem Absatz",
+
   "editorialManuscript.comment": "Kommentar",
 
   // --- ReviewSidebar: tabs, filter and identity ---

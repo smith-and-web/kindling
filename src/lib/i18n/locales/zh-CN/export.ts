@@ -40,7 +40,8 @@ const catalog: Catalog = {
   "exportWorkspace.findSetting": "查找导出设置",
   "exportWorkspace.searchPlaceholder": "查找设置…",
   "exportWorkspace.clearSearch": "清除设置搜索",
-  "exportWorkspace.settingsFound": "找到 {count} 项设置",
+  "exportWorkspace.settingsFound.other": "找到 {count} 项设置",
+
   "exportWorkspace.noSettingsMatch": "没有与“{query}”匹配的设置",
   "exportWorkspace.searchHint": "试试“行距”“页眉”或“HTML”。",
   "exportWorkspace.exportSettings": "导出设置",

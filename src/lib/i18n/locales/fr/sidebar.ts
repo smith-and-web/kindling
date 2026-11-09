@@ -32,7 +32,9 @@ const catalog: Catalog = {
     "Ce chapitre est non défini. Ajoutez un synopsis et les scènes apparaîtront lorsque vous le promouvrez en Flexible ou Fixée.",
   "sidebar.switchToFlexible": "Passer en Flexible",
   "sidebar.defineFullStructure": "Définir la structure complète",
-  "sidebar.wordsCount": "{count} mots",
+  "sidebar.wordsCount.one": "{count} mot",
+  "sidebar.wordsCount.other": "{count} mots",
+
   "sidebar.statusLine": "État : {status}",
   "sidebar.all": "Tout",
   "sidebar.statusDraft": "Brouillon",
@@ -171,7 +173,9 @@ const catalog: Catalog = {
   "tagManager.addChildTag": "Ajouter une étiquette enfant",
   "tagManager.deleteTag": "Supprimer l'étiquette",
   "tagManager.closeEditor": "Fermer l'éditeur d'étiquettes",
-  "tagManager.childTags": "{count} étiquettes enfants",
+  "tagManager.childTags.one": "{count} étiquette enfant",
+  "tagManager.childTags.other": "{count} étiquettes enfants",
+
   "tagManager.name": "Nom",
   "tagManager.namePlaceholder": "ex. Flashback, Action, Romance…",
   "tagManager.color": "Couleur",
@@ -208,7 +212,9 @@ const catalog: Catalog = {
   "templateBrowser.noTemplates": "Aucun modèle disponible",
   "templateBrowser.noTemplatesHint":
     "Vous pouvez toujours démarrer depuis une structure vierge et ajouter des chapitres vous-même.",
-  "templateBrowser.beatsCount": "{count} temps forts",
+  "templateBrowser.beatsCount.one": "{count} temps fort",
+  "templateBrowser.beatsCount.other": "{count} temps forts",
+
   "templateBrowser.templateCount.one": "{count} modèle disponible",
   "templateBrowser.templateCount.other": "{count} modèles disponibles",
   "templateBrowser.useTemplate": "Utiliser ce modèle",
