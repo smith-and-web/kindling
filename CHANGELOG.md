@@ -20,6 +20,7 @@ This changelog is automatically generated from [Conventional Commits](https://ww
 * **editorial:** Manuscript actions grey out while a review action is still working, instead of appearing to do nothing
 * **ui:** the tip pointing at the References panel sits beside the panel in every language ([#452](https://github.com/smith-and-web/kindling/issues/452))
 * **ui:** Chinese headings and prose use a serif font
+* **security:** the SQLite engine that stores your projects is updated to 3.54, which fixes a security flaw in the previous version; existing projects open as before ([#457](https://github.com/smith-and-web/kindling/issues/457))
 * **security:** updated the certificate-checking libraries used for update checks and feedback
 
 ## [1.3.1](https://github.com/smith-and-web/kindling/compare/v1.3.0...v1.3.1) (2026-10-19)
