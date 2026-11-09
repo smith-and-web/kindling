@@ -881,6 +881,7 @@
 </script>
 
 <aside
+  data-testid="references-panel"
   class="refs"
   class:is-collapsed={collapsed}
   class:is-embedded={embedded}
