@@ -76,7 +76,7 @@
     onCustomize: () => void;
   } = $props();
 
-  const exportFormats = [
+  const exportFormats = $derived([
     {
       id: "novelwriter",
       label: t("export.classicExportDialog.formatNovelwriter"),
@@ -125,7 +125,7 @@
       detail: t("export.classicExportDialog.detailSavedProfiles"),
       icon: Settings2,
     },
-  ] as const;
+  ] as const);
 
   // Formats grouped by what the writer is doing with the export.
   const showNovelWriter = $derived(
@@ -168,12 +168,12 @@
     rememberCustomProfile();
   }
 
-  const HEADING_LABELS: Record<ExportProfile["chapterHeading"], string> = {
+  const HEADING_LABELS: Record<ExportProfile["chapterHeading"], string> = $derived({
     number_title: t("export.classicExportDialog.headingNumberAndTitle"),
     number: t("export.classicExportDialog.headingNumberOnly"),
     title: t("export.classicExportDialog.headingTitleOnly"),
     none: t("export.classicExportDialog.headingNone"),
-  };
+  });
 
   /** What the profile will produce, in the terms the workspace uses. */
   function profileSummary(p: ExportProfile): [string, string][] {
@@ -292,36 +292,37 @@
   let loadingWordCount = $state(false);
 
   // Chapter heading style options for the dropdown
-  const chapterHeadingStyles: { value: ChapterHeadingStyle; label: string; example: string }[] = [
-    {
-      value: "number_only",
-      label: t("export.classicExportDialog.headingNumberOnly"),
-      example: "CHAPTER ONE",
-    },
-    {
-      value: "number_and_title",
-      label: t("export.classicExportDialog.headingNumberAndTitle"),
-      example: "CHAPTER ONE: THE BEGINNING",
-    },
-    {
-      value: "title_only",
-      label: t("export.classicExportDialog.headingTitleOnly"),
-      example: "THE BEGINNING",
-    },
-    {
-      value: "number_arabic",
-      label: t("export.classicExportDialog.headingArabic"),
-      example: "CHAPTER 1",
-    },
-    {
-      value: "number_arabic_and_title",
-      label: t("export.classicExportDialog.headingArabicAndTitle"),
-      example: "CHAPTER 1: THE BEGINNING",
-    },
-  ];
+  const chapterHeadingStyles: { value: ChapterHeadingStyle; label: string; example: string }[] =
+    $derived([
+      {
+        value: "number_only",
+        label: t("export.classicExportDialog.headingNumberOnly"),
+        example: "CHAPTER ONE",
+      },
+      {
+        value: "number_and_title",
+        label: t("export.classicExportDialog.headingNumberAndTitle"),
+        example: "CHAPTER ONE: THE BEGINNING",
+      },
+      {
+        value: "title_only",
+        label: t("export.classicExportDialog.headingTitleOnly"),
+        example: "THE BEGINNING",
+      },
+      {
+        value: "number_arabic",
+        label: t("export.classicExportDialog.headingArabic"),
+        example: "CHAPTER 1",
+      },
+      {
+        value: "number_arabic_and_title",
+        label: t("export.classicExportDialog.headingArabicAndTitle"),
+        example: "CHAPTER 1: THE BEGINNING",
+      },
+    ]);
 
   // Scene break style options
-  const sceneBreakStyles: { value: SceneBreakStyle; label: string; example: string }[] = [
+  const sceneBreakStyles: { value: SceneBreakStyle; label: string; example: string }[] = $derived([
     { value: "hash", label: t("export.classicExportDialog.sceneHash"), example: "#" },
     {
       value: "asterisks",
@@ -334,7 +335,7 @@
       label: t("export.classicExportDialog.sceneBlankLine"),
       example: "(blank)",
     },
-  ];
+  ]);
 
   // Font family options
   const fontFamilies: { value: FontFamily; label: string }[] = [
@@ -343,17 +344,17 @@
   ];
 
   // Line spacing options
-  const lineSpacingOptions: { value: LineSpacingOption; label: string }[] = [
+  const lineSpacingOptions: { value: LineSpacingOption; label: string }[] = $derived([
     { value: "single", label: t("export.classicExportDialog.spacingSingle") },
     { value: "one_and_half", label: t("export.classicExportDialog.spacingOneAndHalf") },
     { value: "double", label: t("export.classicExportDialog.spacingDouble") },
-  ];
+  ]);
 
-  const epubThemeOptions: { value: EpubTheme; label: string }[] = [
+  const epubThemeOptions: { value: EpubTheme; label: string }[] = $derived([
     { value: "classic", label: t("export.classicExportDialog.themeClassic") },
     { value: "modern", label: t("export.classicExportDialog.themeModern") },
     { value: "minimal", label: t("export.classicExportDialog.themeMinimal") },
-  ];
+  ]);
 
   // Initialize export name from project name
   $effect(() => {

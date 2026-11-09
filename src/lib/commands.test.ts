@@ -1,8 +1,20 @@
 import { formatShortcut } from "./utils/keyboardShortcuts";
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
+import { setLocale } from "./i18n";
 import { COMMAND_DEFS, fuzzyMatch, fuzzyScore } from "./commands";
 
 describe("COMMAND_DEFS", () => {
+  afterEach(() => setLocale("en"));
+
+  it("follows an in-app language switch", () => {
+    const settings = COMMAND_DEFS.find((c) => c.id === "settings")!;
+    const english = [settings.label, settings.category];
+    setLocale("fr");
+    expect([settings.label, settings.category]).not.toEqual(english);
+    setLocale("en");
+    expect([settings.label, settings.category]).toEqual(english);
+  });
+
   it("has unique ids", () => {
     const ids = COMMAND_DEFS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);

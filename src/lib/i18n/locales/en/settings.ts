@@ -39,6 +39,10 @@ const catalog: Catalog = {
   "appearance.themeLight": "Light",
   "appearance.themeSystem": "System",
   "appearance.systemHelp": "“System” follows your operating system’s appearance setting.",
+  "appearance.language": "Language",
+  "appearance.languageSystem": "System default",
+  "appearance.languageHelp":
+    "“System default” follows your operating system’s language. Menus switch too.",
   "appearance.guidance": "Guidance",
   "appearance.showTips": "Show guidance tips",
   "appearance.tipsHelp":

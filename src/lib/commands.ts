@@ -29,8 +29,13 @@ export const COMMAND_DEFS: CommandDef[] = definitions
   .filter((def) => def.category !== "Editor")
   .map((def) => ({
     ...def,
-    label: t(`logic.command.${def.id}.label`),
-    category: t(`logic.commandCategory.${def.category}`) as CommandCategory,
+    // Getters, so the palette follows an in-app language switch.
+    get label() {
+      return t(`logic.command.${def.id}.label`);
+    },
+    get category() {
+      return t(`logic.commandCategory.${def.category}`) as CommandCategory;
+    },
     shortcut: formatShortcut(def.binding),
   }));
 

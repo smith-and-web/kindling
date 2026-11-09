@@ -184,24 +184,24 @@
   let sceneTagIds = $state<string[]>([]);
   let allProjectTags = $state<Tag[]>([]);
 
-  const sceneTypeOptions: { value: SceneType; label: string }[] = [
+  const sceneTypeOptions: { value: SceneType; label: string }[] = $derived([
     { value: "normal", label: t("editor.scenePanel.sceneTypeNormal") },
     { value: "notes", label: t("editor.scenePanel.sceneTypeNotes") },
     { value: "todo", label: t("editor.scenePanel.sceneTypeTodo") },
     { value: "unused", label: t("editor.scenePanel.sceneTypeUnused") },
-  ];
+  ]);
 
-  const sceneStatusOptions: { value: SceneStatus; label: string }[] = [
+  const sceneStatusOptions: { value: SceneStatus; label: string }[] = $derived([
     { value: "draft", label: t("editor.scenePanel.sceneStatusDraft") },
     { value: "revised", label: t("editor.scenePanel.sceneStatusRevised") },
     { value: "final", label: t("editor.scenePanel.sceneStatusFinal") },
-  ];
+  ]);
 
-  const planningStatusOptions: { value: PlanningStatus; label: string }[] = [
+  const planningStatusOptions: { value: PlanningStatus; label: string }[] = $derived([
     { value: "fixed", label: t("editor.scenePanel.planningFixed") },
     { value: "flexible", label: t("editor.scenePanel.planningFlexible") },
     { value: "undefined", label: t("editor.scenePanel.planningUndefined") },
-  ];
+  ]);
 
   const sceneReferenceOptions = REFERENCE_TYPE_OPTIONS;
 

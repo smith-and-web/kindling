@@ -108,7 +108,7 @@
   }
 
   // The importer id reads as plain metadata, spelled as each tool spells itself.
-  const SOURCE_LABELS: Record<string, string> = {
+  const SOURCE_LABELS: Record<string, string> = $derived({
     blank: t("onboarding.startScreen.blankSource"),
     markdown: "Markdown",
     plottr: "Plottr",
@@ -116,7 +116,7 @@
     longform: "Longform",
     scrivener: "Scrivener",
     novelwriter: "novelWriter",
-  };
+  });
   function sourceLabel(sourceType: string) {
     return SOURCE_LABELS[sourceType.toLowerCase()] ?? sourceType;
   }

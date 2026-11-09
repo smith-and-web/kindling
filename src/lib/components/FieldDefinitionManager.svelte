@@ -32,7 +32,7 @@
   });
   onDestroy(() => onState?.({ dirty: false, busy: false }));
 
-  const FIELD_TYPES: { value: FieldType; label: string }[] = [
+  const FIELD_TYPES: { value: FieldType; label: string }[] = $derived([
     { value: "text", label: t("references.fieldDefinitionManager.fieldTypeText") },
     { value: "number", label: t("references.fieldDefinitionManager.fieldTypeNumber") },
     { value: "date", label: t("references.fieldDefinitionManager.fieldTypeDate") },
@@ -40,7 +40,7 @@
     { value: "multiselect", label: t("references.fieldDefinitionManager.fieldTypeMultiselect") },
     { value: "checkbox", label: t("references.fieldDefinitionManager.fieldTypeCheckbox") },
     { value: "url", label: t("references.fieldDefinitionManager.fieldTypeUrl") },
-  ];
+  ]);
 
   async function loadDefinitions() {
     loading = true;

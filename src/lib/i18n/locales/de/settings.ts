@@ -42,6 +42,10 @@ const catalog: Catalog = {
   "appearance.themeLight": "Hell",
   "appearance.themeSystem": "System",
   "appearance.systemHelp": "„System“ folgt der Darstellungseinstellung Ihres Betriebssystems.",
+  "appearance.language": "Sprache",
+  "appearance.languageSystem": "Systemstandard",
+  "appearance.languageHelp":
+    "„Systemstandard“ folgt der Sprache Ihres Betriebssystems. Die Menüs wechseln mit.",
   "appearance.guidance": "Hinweise",
   "appearance.showTips": "Hinweistipps anzeigen",
   "appearance.tipsHelp":

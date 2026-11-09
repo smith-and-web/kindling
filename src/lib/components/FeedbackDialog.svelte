@@ -23,11 +23,11 @@
   const MAX_SUMMARY_LEN = 120;
   const MAX_MESSAGE_LEN = 2000;
 
-  const FEEDBACK_TYPES: { value: FeedbackType; label: string }[] = [
+  const FEEDBACK_TYPES: { value: FeedbackType; label: string }[] = $derived([
     { value: "bug", label: t("onboarding.feedbackDialog.typeBug") },
     { value: "feature", label: t("onboarding.feedbackDialog.typeFeature") },
     { value: "rating", label: t("onboarding.feedbackDialog.typeRating") },
-  ];
+  ]);
 
   let feedbackType = $state<FeedbackType>("bug");
   let summary = $state("");

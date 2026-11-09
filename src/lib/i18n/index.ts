@@ -8,7 +8,8 @@
  * The English catalog mirrors the original wording exactly, which keeps unit tests (they run
  * with `import.meta.env.MODE === "test"`, i.e. English) and the source of truth in sync.
  */
-import type { Catalog, Locale, LocaleEntry } from "./types";
+import { createSubscriber } from "svelte/reactivity";
+import type { Catalog, LanguagePreference, Locale, LocaleEntry } from "./types";
 
 /**
  * Supported interface locales, keyed by their catalog directory under `locales/`.
@@ -30,6 +31,39 @@ export const LOCALES = {
 } as const satisfies Record<string, LocaleEntry>;
 
 export const FALLBACK_LOCALE: Locale = "en";
+
+/**
+ * Each locale named in its own language, for the Settings language picker. A writer looking
+ * for their language should recognise it whatever the interface currently reads.
+ */
+export const LANGUAGE_NAMES: Record<Locale, string> = {
+  en: "English",
+  "zh-CN": "简体中文",
+  es: "Español",
+  "pt-BR": "Português (Brasil)",
+  ru: "Русский",
+  de: "Deutsch",
+  fr: "Français",
+};
+
+/** localStorage key for the writer's interface-language choice, next to `kindling:theme`. */
+export const LANGUAGE_STORAGE_KEY = "kindling:language";
+
+export const isLocale = (value: unknown): value is Locale =>
+  typeof value === "string" && Object.prototype.hasOwnProperty.call(LOCALES, value);
+
+/** The stored language choice, or `"system"` when none (or an unknown one) is stored. */
+export function storedLanguagePreference(
+  storage: Pick<Storage, "getItem"> | undefined
+): LanguagePreference {
+  let stored: string | null = null;
+  try {
+    stored = storage?.getItem(LANGUAGE_STORAGE_KEY) ?? null;
+  } catch {
+    // Storage can be unavailable; the system language still applies.
+  }
+  return isLocale(stored) ? stored : "system";
+}
 
 type CatalogModule = { default: Catalog };
 
@@ -66,32 +100,67 @@ export function resolveLocale(tag: string | undefined | null): Locale {
 }
 
 /**
- * The locale at startup. Tests always read English. Otherwise a dev-server
- * `VITE_KINDLING_LOCALE` (set directly or through `KINDLING_LOCALE`, see `vite.config.ts`)
- * wins over the system language, so visual QA can screenshot every locale on one machine.
+ * The locale a language choice reads. A chosen language always wins. Under "system", a
+ * dev-server `VITE_KINDLING_LOCALE` (set directly or through `KINDLING_LOCALE`, see
+ * `vite.config.ts`) stands in for the system language, so visual QA can screenshot every
+ * locale on one machine. Keep `pick_locale` in `src-tauri/src/menu.rs` in step.
  */
-export function initialLocale(env: ImportMetaEnv, systemTag: string | undefined): Locale {
-  if (env.MODE === "test" || env.VITEST) return FALLBACK_LOCALE;
+export function localeFor(
+  preference: LanguagePreference,
+  env: ImportMetaEnv,
+  systemTag: string | undefined
+): Locale {
+  if (preference !== "system") return preference;
   const override = env.DEV ? env.VITE_KINDLING_LOCALE : undefined;
   return resolveLocale(override || systemTag);
 }
 
-/**
- * Resolved once at module load. Module-level copy (command labels, reference types, import
- * formats) is translated when it is imported, so a future in-app language switch has to
- * re-render those rather than only calling `setLocale()`.
- */
+/** The locale at startup. Tests always start in English, whatever is stored. */
+export function initialLocale(
+  env: ImportMetaEnv,
+  systemTag: string | undefined,
+  preference: LanguagePreference = "system"
+): Locale {
+  if (env.MODE === "test" || env.VITEST) return FALLBACK_LOCALE;
+  return localeFor(preference, env, systemTag);
+}
+
+/** The system language tag the webview reports, if any. */
+export const systemLanguageTag = (): string | undefined =>
+  typeof navigator === "undefined" ? undefined : navigator.language;
+
 const DEFAULT_LOCALE: Locale = initialLocale(
   import.meta.env,
-  typeof navigator === "undefined" ? undefined : navigator.language
+  systemLanguageTag(),
+  storedLanguagePreference(typeof localStorage === "undefined" ? undefined : localStorage)
 );
 
 let currentLocale: Locale = DEFAULT_LOCALE;
+let localeChanged: (() => void) | undefined;
 
-export const getLocale = (): Locale => currentLocale;
+/**
+ * Reading the locale inside a template, `$derived` or `$effect` subscribes to it, so every
+ * `t()` / `tn()` call on screen re-renders when `setLocale()` switches language. Copy that
+ * must follow a switch is therefore read lazily (a getter or a render-time call), never
+ * captured into a constant at module load.
+ */
+const subscribe = createSubscriber((update) => {
+  localeChanged = update;
+  return () => (localeChanged = undefined);
+});
 
+export function getLocale(): Locale {
+  subscribe();
+  return currentLocale;
+}
+
+/** Switch the interface language. Everything reading the locale reactively re-renders. */
 export function setLocale(locale: Locale): void {
+  if (locale === currentLocale) return;
   currentLocale = locale;
+  // Native controls and assistive tech follow the document language.
+  if (typeof document !== "undefined") document.documentElement.lang = locale;
+  localeChanged?.();
 }
 
 function interpolate(text: string, params?: Record<string, string | number>): string {
@@ -107,7 +176,7 @@ function interpolate(text: string, params?: Record<string, string | number>): st
  * Falls back to English, then to the key itself so a missing entry stays visible but harmless.
  */
 export function t(key: string, params?: Record<string, string | number>): string {
-  return interpolate(catalogFor(currentLocale)[key] ?? EN[key] ?? key, params);
+  return interpolate(catalogFor(getLocale())[key] ?? EN[key] ?? key, params);
 }
 
 const pluralRules = new Map<Locale, Intl.PluralRules>();
@@ -126,9 +195,10 @@ export function pluralCategory(locale: Locale, count: number): Intl.LDMLPluralRu
  * `.other`, then to English, then to the key.
  */
 export function tn(key: string, count: number, params?: Record<string, string | number>): string {
-  const catalog = catalogFor(currentLocale);
+  const locale = getLocale();
+  const catalog = catalogFor(locale);
   const text =
-    catalog[`${key}.${pluralCategory(currentLocale, count)}`] ??
+    catalog[`${key}.${pluralCategory(locale, count)}`] ??
     catalog[`${key}.other`] ??
     EN[`${key}.${pluralCategory(FALLBACK_LOCALE, count)}`] ??
     EN[`${key}.other`] ??

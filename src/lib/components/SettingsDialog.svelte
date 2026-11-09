@@ -13,7 +13,7 @@
   import { t } from "../i18n";
 
   let { onClose }: { onClose: () => void } = $props();
-  const groups = [
+  const groups = $derived([
     {
       id: "kindling",
       label: "kindling",
@@ -49,7 +49,7 @@
         },
       ],
     },
-  ];
+  ]);
   let area = $state("appearance");
   let pane = $state<HTMLElement | null>(null);
 

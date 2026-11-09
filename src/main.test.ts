@@ -73,6 +73,18 @@ it("sets the document language to the interface locale", async () => {
   expect(document.documentElement.lang).toBe("en");
 });
 
+it("brings the native menu in step with the stored interface language", async () => {
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => (key === "kindling:language" ? "de" : null),
+  });
+  try {
+    await import("./main");
+    expect(invoke).toHaveBeenCalledWith("set_interface_language", { locale: "de" });
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
 it("reports readiness only after the app's content hook and Svelte flush", async () => {
   let flushed!: () => void;
   tick.mockImplementation(() => new Promise<void>((resolve) => (flushed = resolve)));

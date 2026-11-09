@@ -22,15 +22,7 @@ pub struct ShortcutState {
 }
 
 fn path(app: &AppHandle) -> Result<PathBuf, String> {
-    // Match the isolated project data directory in debug QA runs.
-    #[cfg(debug_assertions)]
-    if let Ok(dir) = std::env::var("KINDLING_DATA_DIR") {
-        if !dir.trim().is_empty() {
-            fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-            return Ok(PathBuf::from(dir).join("shortcuts.json"));
-        }
-    }
-    Ok(crate::commands::get_settings_path(app)?.with_file_name("shortcuts.json"))
+    crate::commands::preference_file_path(app, "shortcuts.json")
 }
 
 fn validate(bindings: &Bindings) -> Result<(), String> {
@@ -111,6 +103,14 @@ fn apply(app: &AppHandle, bindings: &Bindings, suspended: bool) -> Result<(), St
     let empty = Bindings::new();
     crate::menu::create_menu(app, if suspended { &empty } else { bindings })
         .map_err(|e| e.to_string())
+}
+
+/// Rebuild the native menu with the current bindings, for example after the interface
+/// language changes. Respects a suspension in progress.
+pub fn refresh_menu(app: &AppHandle) -> Result<(), String> {
+    let state = app.state::<ShortcutState>();
+    let suspended = state.suspended.lock().map_err(|e| e.to_string())?;
+    apply(app, &load(app).unwrap_or_else(|_| defaults()), *suspended)
 }
 
 pub fn initialize(app: &AppHandle) -> Result<(), String> {

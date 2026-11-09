@@ -150,19 +150,19 @@
     return groups;
   });
 
-  const sceneStatusOptions: { value: SceneStatus | "all"; label: string }[] = [
+  const sceneStatusOptions: { value: SceneStatus | "all"; label: string }[] = $derived([
     { value: "all", label: t("sidebar.sidebar.all") },
     { value: "draft", label: t("sidebar.sidebar.statusDraft") },
     { value: "revised", label: t("sidebar.sidebar.statusRevised") },
     { value: "final", label: t("sidebar.sidebar.statusFinal") },
-  ];
+  ]);
 
-  const sceneTypeLabels: Record<SceneType, string> = {
+  const sceneTypeLabels: Record<SceneType, string> = $derived({
     normal: t("sidebar.sidebar.typeNormal"),
     notes: t("sidebar.sidebar.typeNotes"),
     todo: t("sidebar.sidebar.typeTodo"),
     unused: t("sidebar.sidebar.typeUnused"),
-  };
+  });
 
   const sceneTypeFilterOptions: {
     type: SceneType;
@@ -174,11 +174,11 @@
     { type: "unused", label: t("sidebar.sidebar.typeUnused"), icon: EyeOff },
   ];
 
-  const sceneStatusLabels: Record<SceneStatus, string> = {
+  const sceneStatusLabels: Record<SceneStatus, string> = $derived({
     draft: t("sidebar.sidebar.statusDraft"),
     revised: t("sidebar.sidebar.statusRevised"),
     final: t("sidebar.sidebar.statusFinal"),
-  };
+  });
 
   let showNotesScenes = $state(true);
   let showTodoScenes = $state(true);

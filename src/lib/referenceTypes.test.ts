@@ -9,6 +9,14 @@ import {
 } from "./referenceTypes";
 
 describe("referenceTypes", () => {
+  it("reads labels in the current interface language", () => {
+    const english = REFERENCE_TYPE_OPTIONS.map((option) => option.label);
+    setLocale("ru");
+    expect(REFERENCE_TYPE_OPTIONS.map((option) => option.label)).not.toEqual(english);
+    setLocale("en");
+    expect(REFERENCE_TYPE_OPTIONS.map((option) => option.label)).toEqual(english);
+  });
+
   it("builds default types from options", () => {
     const expectedDefaults = REFERENCE_TYPE_OPTIONS.filter((option) => option.isDefault).map(
       (option) => option.id

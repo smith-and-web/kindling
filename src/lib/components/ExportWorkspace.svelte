@@ -78,7 +78,7 @@
   const contextOverride = $derived(contextSelection !== null);
   let dialog: HTMLDialogElement;
 
-  const allCategories = [
+  const allCategories = $derived([
     {
       id: "overview",
       label: t("export.exportWorkspace.categoryOverview"),
@@ -109,12 +109,12 @@
       label: t("export.exportWorkspace.categoryFiles"),
       description: t("export.exportWorkspace.categoryFilesDesc"),
     },
-  ];
-  const presetDescriptions: Record<string, string> = {
+  ]);
+  const presetDescriptions: Record<string, string> = $derived({
     docx: t("export.exportWorkspace.presetDocx"),
     epub: t("export.exportWorkspace.presetEpub"),
-  };
-  const settingsIndex = [
+  });
+  const settingsIndex = $derived([
     {
       label: t("export.exportWorkspace.settingIncludedChapters"),
       section: "content",
@@ -190,7 +190,7 @@
       section: "files",
       control: "filename",
     },
-  ];
+  ]);
   /**
    * Search matches the setting's translated label and its catalog keywords, both lowered with the
    * interface locale's rules, so "seitenumbruch" or "интервал" find settings as "new page" does.
@@ -578,7 +578,7 @@
   // Reveal rather than open: the opener capability grants reveal-in-folder
   // (the classic export's success dialog uses it too) but not open-path, so
   // openPath was always refused at runtime.
-  const revealFailed = t("export.exportWorkspace.revealFailed");
+  const revealFailed = $derived(t("export.exportWorkspace.revealFailed"));
   async function openSaved() {
     try {
       await revealItemInDir(savedPath);
