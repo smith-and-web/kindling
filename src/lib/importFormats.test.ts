@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setLocale, t } from "./i18n";
 import {
   IMPORT_COMMANDS,
   IMPORT_FORMATS,
@@ -26,5 +27,15 @@ describe("import format registry", () => {
     expect(isImportType("missing")).toBe(false);
     expect(importTypeForCommand("delete_project")).toBeUndefined();
     expect(supportsSync("Blank")).toBe(false);
+  });
+
+  afterEach(() => setLocale("en"));
+
+  it("reads every label in the current interface language", () => {
+    setLocale("de");
+    for (const [type, config] of Object.entries(IMPORT_FORMATS)) {
+      expect(config.label, type).toBe(t(`logic.importFormat.${type}`));
+    }
+    expect(IMPORT_FORMATS.plottr.label).not.toBe("");
   });
 });

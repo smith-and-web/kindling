@@ -16,7 +16,9 @@ export interface ReferenceTypeOption {
 export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
   {
     id: "characters",
-    label: t("logic.referenceType.characters"),
+    get label() {
+      return t("logic.referenceType.characters");
+    },
     singular: "character",
     icon: User,
     accentClass: "text-press-tag-orange",
@@ -25,7 +27,9 @@ export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
   },
   {
     id: "locations",
-    label: t("logic.referenceType.locations"),
+    get label() {
+      return t("logic.referenceType.locations");
+    },
     singular: "location",
     icon: MapPin,
     accentClass: "text-press-tag-yellow",
@@ -34,7 +38,9 @@ export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
   },
   {
     id: "items",
-    label: t("logic.referenceType.items"),
+    get label() {
+      return t("logic.referenceType.items");
+    },
     singular: "item",
     icon: Package,
     accentClass: "text-press-tag-green",
@@ -43,7 +49,9 @@ export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
   },
   {
     id: "objectives",
-    label: t("logic.referenceType.objectives"),
+    get label() {
+      return t("logic.referenceType.objectives");
+    },
     singular: "objective",
     icon: Target,
     accentClass: "text-press-tag-blue",
@@ -52,7 +60,9 @@ export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
   },
   {
     id: "organizations",
-    label: t("logic.referenceType.organizations"),
+    get label() {
+      return t("logic.referenceType.organizations");
+    },
     singular: "organization",
     icon: Building2,
     accentClass: "text-press-tag-purple",
@@ -61,7 +71,9 @@ export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
   },
   {
     id: "timelines",
-    label: t("logic.referenceType.timelines"),
+    get label() {
+      return t("logic.referenceType.timelines");
+    },
     singular: "timeline",
     icon: Target,
     accentClass: "text-press-tag-blue",
@@ -70,7 +82,9 @@ export const REFERENCE_TYPE_OPTIONS: ReferenceTypeOption[] = [
   },
   {
     id: "custom",
-    label: t("logic.referenceType.custom"),
+    get label() {
+      return t("logic.referenceType.custom");
+    },
     singular: "note",
     icon: Package,
     accentClass: "text-press-tag-green",

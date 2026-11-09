@@ -42,6 +42,10 @@ const catalog: Catalog = {
   "appearance.themeSystem": "Системная",
   "appearance.systemHelp":
     "«Системная» соответствует настройке оформления вашей операционной системы.",
+  "appearance.language": "Язык",
+  "appearance.languageSystem": "Как в системе",
+  "appearance.languageHelp":
+    "«Как в системе» использует язык вашей операционной системы. Меню тоже переключится.",
   "appearance.guidance": "Подсказки",
   "appearance.showTips": "Показывать подсказки",
   "appearance.tipsHelp":

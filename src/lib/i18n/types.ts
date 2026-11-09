@@ -10,3 +10,6 @@ export interface LocaleEntry {
 
 /** A supported interface locale, named after its catalog directory under `locales/`. */
 export type Locale = keyof typeof LOCALES;
+
+/** The writer's interface-language choice: a specific locale, or follow the system. */
+export type LanguagePreference = Locale | "system";

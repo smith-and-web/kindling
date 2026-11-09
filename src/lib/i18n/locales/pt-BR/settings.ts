@@ -42,6 +42,10 @@ const catalog: Catalog = {
   "appearance.themeSystem": "Sistema",
   "appearance.systemHelp":
     "“Sistema” segue a configuração de aparência do seu sistema operacional.",
+  "appearance.language": "Idioma",
+  "appearance.languageSystem": "Padrão do sistema",
+  "appearance.languageHelp":
+    "“Padrão do sistema” usa o idioma do seu sistema operacional. Os menus também mudam.",
   "appearance.guidance": "Orientação",
   "appearance.showTips": "Mostrar dicas de orientação",
   "appearance.tipsHelp":

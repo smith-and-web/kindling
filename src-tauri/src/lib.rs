@@ -23,6 +23,7 @@ pub mod commands;
 pub mod db;
 pub mod detect;
 mod editorial_files;
+mod language;
 pub mod menu;
 pub mod models;
 pub mod parsers;
@@ -352,6 +353,7 @@ pub fn run() {
             shortcuts::get_keyboard_shortcuts,
             shortcuts::set_keyboard_shortcuts,
             shortcuts::suspend_keyboard_shortcuts,
+            language::set_interface_language,
             // App settings commands
             commands::get_app_settings,
             commands::update_app_settings,

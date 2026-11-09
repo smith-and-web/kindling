@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  LANGUAGE_NAMES,
+  LANGUAGE_STORAGE_KEY,
   LOCALES,
   getLocale,
   initialLocale,
+  isLocale,
+  localeFor,
+  storedLanguagePreference,
   mergeCatalogs,
   pluralCategory,
   resolveLocale,
@@ -150,6 +155,55 @@ describe("locale registry", () => {
   it("ignores the override in production builds", () => {
     const build = { MODE: "production", DEV: false, VITE_KINDLING_LOCALE: "zh-CN" };
     expect(initialLocale(env(build), "en-US")).toBe("en");
+  });
+
+  it("starts in the language chosen in Settings, over the override and system", () => {
+    expect(initialLocale(env(dev), "en-US", "ru")).toBe("ru");
+    expect(initialLocale(env({ ...dev, VITE_KINDLING_LOCALE: "zh-CN" }), "en-US", "fr")).toBe("fr");
+    expect(initialLocale(env(dev), "de-DE", "system")).toBe("de");
+    // Tests still start in English.
+    expect(initialLocale(env({ MODE: "test" }), "en-US", "ru")).toBe("en");
+  });
+
+  it("resolves a choice even under test, for in-app switching", () => {
+    expect(localeFor("pt-BR", env({ MODE: "test" }), "en-US")).toBe("pt-BR");
+    expect(localeFor("system", env(dev), "es-MX")).toBe("es");
+    expect(localeFor("system", env({ ...dev, VITE_KINDLING_LOCALE: "de" }), "es-MX")).toBe("de");
+  });
+});
+
+describe("language preference", () => {
+  const storage = (value: string | null) => ({ getItem: () => value });
+
+  it("reads a stored locale and treats anything else as the system language", () => {
+    expect(storedLanguagePreference(storage("zh-CN"))).toBe("zh-CN");
+    expect(storedLanguagePreference(storage("zh"))).toBe("system");
+    expect(storedLanguagePreference(storage("toString"))).toBe("system");
+    expect(storedLanguagePreference(storage(null))).toBe("system");
+    expect(storedLanguagePreference(undefined)).toBe("system");
+    const broken = {
+      getItem: () => {
+        throw new Error("denied");
+      },
+    };
+    expect(storedLanguagePreference(broken)).toBe("system");
+    expect(LANGUAGE_STORAGE_KEY).toBe("kindling:language");
+  });
+
+  it("names every locale in its own language", () => {
+    expect(Object.keys(LANGUAGE_NAMES).sort()).toEqual(Object.keys(LOCALES).sort());
+    expect(LANGUAGE_NAMES).toMatchObject({
+      en: "English",
+      "zh-CN": "简体中文",
+      es: "Español",
+      "pt-BR": "Português (Brasil)",
+      ru: "Русский",
+      de: "Deutsch",
+      fr: "Français",
+    });
+    expect(isLocale("fr")).toBe(true);
+    expect(isLocale("system")).toBe(false);
+    expect(isLocale(3)).toBe(false);
   });
 });
 

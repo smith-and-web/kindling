@@ -42,7 +42,7 @@
     "import",
   ];
 
-  const STEP_HEADINGS: Record<OnboardingStep, { title: string; subtitle?: string }> = {
+  const STEP_HEADINGS: Record<OnboardingStep, { title: string; subtitle?: string }> = $derived({
     welcome: { title: t("onboarding.welcomeTitle") },
     "tour-sidebar": {
       title: t("onboarding.tourSidebarTitle"),
@@ -57,7 +57,7 @@
       subtitle: t("onboarding.tourReferencesSubtitle"),
     },
     import: { title: t("onboarding.importTitle") },
-  };
+  });
 
   const IMPORTS: { label: string; hint: string; run: () => void }[] = [
     { label: "Plottr", hint: ".pltr", run: () => void startGuidedImport("plottr") },

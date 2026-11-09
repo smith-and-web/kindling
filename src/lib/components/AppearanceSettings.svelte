@@ -1,11 +1,27 @@
 <script lang="ts">
+  import { Select } from "$press/svelte";
   import { ui } from "../stores/ui.svelte";
-  import { t } from "../i18n";
+  import { LANGUAGE_NAMES, LOCALES, isLocale, t } from "../i18n";
+  import type { Locale } from "../i18n/types";
+  import { getLanguagePreference, setLanguagePreference } from "../utils/language";
 
   let { onStartTour }: { onStartTour?: () => void } = $props();
 
   // Each tip shows once; this brings them back without switching tips off and on.
   let tipsReset = $state(false);
+
+  // Languages are listed by their own names, so a writer finds theirs whatever the
+  // interface reads; only "System default" is translated.
+  let language = $state<string>(getLanguagePreference());
+  const languageOptions = $derived([
+    { value: "system", label: t("settings.appearance.languageSystem") },
+    ...(Object.keys(LOCALES) as Locale[])
+      .sort((a, b) => (a === "en" ? -1 : b === "en" ? 1 : 0))
+      .map((locale) => ({ value: locale, label: LANGUAGE_NAMES[locale] })),
+  ]);
+  function chooseLanguage(value: string) {
+    void setLanguagePreference(isLocale(value) ? value : "system");
+  }
   function showTipsAgain() {
     ui.resetGuidanceTooltips();
     tipsReset = true;
@@ -42,6 +58,16 @@
       </div>
       <p class="ka-help">{t("settings.appearance.systemHelp")}</p>
     </fieldset>
+  </div>
+
+  <div class="ka-group" data-testid="language-setting">
+    <Select
+      label={t("settings.appearance.language")}
+      options={languageOptions}
+      helper={t("settings.appearance.languageHelp")}
+      bind:value={language}
+      onChange={chooseLanguage}
+    />
   </div>
 
   <div class="ka-group">

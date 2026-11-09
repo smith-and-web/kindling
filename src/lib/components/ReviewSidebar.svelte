@@ -100,12 +100,12 @@
     tab = tabs[next];
     container?.querySelector<HTMLElement>(`#review-tab-${tabs[next]}`)?.focus();
   }
-  const stateLabels: Record<string, string> = {
+  const stateLabels: Record<string, string> = $derived({
     resolved: t("editorial.reviewSidebar.stateResolved"),
     accepted: t("editorial.reviewSidebar.stateAccepted"),
     rejected: t("editorial.reviewSidebar.stateRejected"),
     withdrawn: t("editorial.reviewSidebar.stateWithdrawn"),
-  };
+  });
   // The badge text carries the meaning; tone only reinforces it.
   function badge(item: ReviewItem) {
     if (item.unavailable)

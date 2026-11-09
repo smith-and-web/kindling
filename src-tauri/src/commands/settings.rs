@@ -23,6 +23,20 @@ pub fn get_settings_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
     Ok(app_data_dir.join("settings.json"))
 }
 
+/// A small app-wide preference file beside `settings.json` (`shortcuts.json`,
+/// `interface-language.json`). Debug QA runs that isolate project data with
+/// `KINDLING_DATA_DIR` keep these preferences there too.
+pub fn preference_file_path(app_handle: &AppHandle, file_name: &str) -> Result<PathBuf, String> {
+    #[cfg(debug_assertions)]
+    if let Ok(dir) = std::env::var("KINDLING_DATA_DIR") {
+        if !dir.trim().is_empty() {
+            fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+            return Ok(PathBuf::from(dir).join(file_name));
+        }
+    }
+    Ok(get_settings_path(app_handle)?.with_file_name(file_name))
+}
+
 /// Load app settings from the settings file (internal helper)
 pub fn load_app_settings(app_handle: &AppHandle) -> Result<AppSettings, String> {
     let settings_path = get_settings_path(app_handle)?;

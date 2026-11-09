@@ -46,10 +46,12 @@
     timelines: "typeTimelines",
     custom: "typeCustom",
   };
-  const typeOptions = REFERENCE_TYPE_OPTIONS.map((option) => ({
-    id: option.id,
-    label: t(`references.referenceClassificationDialog.${TYPE_LABEL_KEYS[option.id]}`),
-  }));
+  const typeOptions = $derived.by(() =>
+    REFERENCE_TYPE_OPTIONS.map((option) => ({
+      id: option.id,
+      label: t(`references.referenceClassificationDialog.${TYPE_LABEL_KEYS[option.id]}`),
+    }))
+  );
 
   /** Returns true when references are empty and the dialog should auto-close. */
   async function loadReferences(): Promise<boolean> {

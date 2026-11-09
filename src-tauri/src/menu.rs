@@ -283,9 +283,26 @@ pub fn resolve_locale(tag: &str) -> &'static str {
         .map_or(FALLBACK_LOCALE, |(locale, _, _)| locale)
 }
 
-/// `KINDLING_LOCALE` wins over the system language, so QA can check every locale on one
-/// machine. It also reaches the webview through `vite.config.ts` under `npm run tauri dev`.
-fn pick_locale(override_tag: Option<String>, system_tag: Option<String>) -> &'static str {
+/// The supported locale named exactly by `tag` (`fr`, `pt-BR`), if any.
+pub fn supported_locale(tag: &str) -> Option<&'static str> {
+    LOCALES
+        .iter()
+        .find(|(locale, _, _)| *locale == tag)
+        .map(|(locale, _, _)| *locale)
+}
+
+/// A language the writer chose in Settings always wins. Otherwise `KINDLING_LOCALE` stands in
+/// for the system language, so QA can check every locale on one machine; it also reaches the
+/// webview through `vite.config.ts` under `npm run tauri dev`. Mirrors `localeFor()` in
+/// `src/lib/i18n/index.ts`.
+fn pick_locale(
+    chosen: Option<&'static str>,
+    override_tag: Option<String>,
+    system_tag: Option<String>,
+) -> &'static str {
+    if let Some(locale) = chosen {
+        return locale;
+    }
     let tag = override_tag
         .filter(|tag| !tag.trim().is_empty())
         .or(system_tag)
@@ -293,9 +310,10 @@ fn pick_locale(override_tag: Option<String>, system_tag: Option<String>) -> &'st
     resolve_locale(&tag)
 }
 
-/// Native menu copy follows the system language, like the webview interface does.
-fn menu_locale() -> &'static str {
+/// Native menu copy follows the interface language: the writer's choice, else the system's.
+fn menu_locale(app: &AppHandle<Wry>) -> &'static str {
     pick_locale(
+        crate::language::chosen(app),
         std::env::var("KINDLING_LOCALE").ok(),
         tauri_plugin_os::locale(),
     )
@@ -311,7 +329,7 @@ pub fn menu_strings(locale: &str) -> &'static MenuStrings {
 /// Build a fresh menu: muda 0.17 on macOS does not clear the native key
 /// equivalent when set_accelerator(None) is called on an existing item.
 pub fn create_menu(app: &AppHandle<Wry>, bindings: &BTreeMap<String, String>) -> tauri::Result<()> {
-    let l = menu_strings(menu_locale());
+    let l = menu_strings(menu_locale(app));
     let command = |id: &str, label: &str| {
         let mut item = MenuItemBuilder::new(label).id(id);
         if let Some(binding) = bindings.get(id).filter(|value| !value.is_empty()) {
@@ -623,11 +641,27 @@ mod tests {
     #[test]
     fn kindling_locale_overrides_the_system_language() {
         let some = |tag: &str| Some(tag.to_string());
-        assert_eq!(pick_locale(some("zh-CN"), some("en-US")), "zh-CN");
-        assert_eq!(pick_locale(some("en"), some("zh-Hans-CN")), "en");
-        assert_eq!(pick_locale(some(" "), some("zh-TW")), "zh-CN");
-        assert_eq!(pick_locale(None, some("zh-TW")), "zh-CN");
-        assert_eq!(pick_locale(None, None), "en");
+        assert_eq!(pick_locale(None, some("zh-CN"), some("en-US")), "zh-CN");
+        assert_eq!(pick_locale(None, some("en"), some("zh-Hans-CN")), "en");
+        assert_eq!(pick_locale(None, some(" "), some("zh-TW")), "zh-CN");
+        assert_eq!(pick_locale(None, None, some("zh-TW")), "zh-CN");
+        assert_eq!(pick_locale(None, None, None), "en");
+    }
+
+    #[test]
+    fn a_chosen_language_wins_over_override_and_system() {
+        let some = |tag: &str| Some(tag.to_string());
+        assert_eq!(pick_locale(Some("fr"), some("zh-CN"), some("en-US")), "fr");
+        assert_eq!(pick_locale(Some("en"), None, some("ru-RU")), "en");
+    }
+
+    #[test]
+    fn only_exact_supported_locales_can_be_chosen() {
+        assert_eq!(supported_locale("pt-BR"), Some("pt-BR"));
+        assert_eq!(supported_locale("zh-CN"), Some("zh-CN"));
+        assert_eq!(supported_locale("pt"), None);
+        assert_eq!(supported_locale("system"), None);
+        assert_eq!(supported_locale(""), None);
     }
 
     #[test]
