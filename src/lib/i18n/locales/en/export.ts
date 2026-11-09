@@ -43,7 +43,9 @@ const catalog: Catalog = {
   "exportWorkspace.findSetting": "Find an export setting",
   "exportWorkspace.searchPlaceholder": "Find a setting…",
   "exportWorkspace.clearSearch": "Clear settings search",
-  "exportWorkspace.settingsFound": "{count} settings found",
+  "exportWorkspace.settingsFound.one": "{count} setting found",
+  "exportWorkspace.settingsFound.other": "{count} settings found",
+
   "exportWorkspace.noSettingsMatch": "No settings match “{query}”",
   "exportWorkspace.searchHint": "Try “spacing,” “header,” or “HTML.”",
   "exportWorkspace.exportSettings": "Export settings",

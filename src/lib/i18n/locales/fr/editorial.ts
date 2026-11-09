@@ -161,7 +161,10 @@ const catalog: Catalog = {
     "Déverrouillez cette scène avant de suggérer des modifications à son texte.",
   "editorialManuscript.movePassage":
     "Pour déplacer ce passage, coupez-le et collez-le à la destination.",
-  "editorialManuscript.marginMarker": "{count} commentaires ou modifications dans ce paragraphe",
+  "editorialManuscript.marginMarker.one": "{count} commentaire ou modification dans ce paragraphe",
+  "editorialManuscript.marginMarker.other":
+    "{count} commentaires ou modifications dans ce paragraphe",
+
   "editorialManuscript.comment": "Commentaire",
 
   // --- ReviewSidebar : onglets, filtre et identité ---

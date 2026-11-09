@@ -284,6 +284,7 @@ const catalog: Catalog = {
   "feedbackDialog.star.one": "{count} звезда",
   "feedbackDialog.star.few": "{count} звезды",
   "feedbackDialog.star.many": "{count} звёзд",
+  "feedbackDialog.star.other": "{count} звезды",
   "feedbackDialog.ratingOfFive": "{rating} из 5",
   "feedbackDialog.summaryLabel": "Краткое описание",
   "feedbackDialog.optional": "(необязательно)",

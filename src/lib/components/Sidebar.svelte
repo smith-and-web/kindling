@@ -1737,9 +1737,13 @@
                         >
                         {#if writing.value?.chapter_words?.[chapter.id] !== undefined}
                           <small class="sb-row-trail"
-                            >{t("sidebar.sidebar.wordsCount", {
-                              count: formatNumber(writing.value.chapter_words[chapter.id]),
-                            })}</small
+                            >{tn(
+                              "sidebar.sidebar.wordsCount",
+                              writing.value.chapter_words[chapter.id],
+                              {
+                                count: formatNumber(writing.value.chapter_words[chapter.id]),
+                              }
+                            )}</small
                           >
                         {/if}
                       </button>
@@ -1842,9 +1846,13 @@
                                 <span class="sb-row-title" title={scene.title}>{scene.title}</span>
                                 {#if writing.value?.scene_words?.[scene.id] !== undefined}
                                   <small class="sb-row-trail"
-                                    >{t("sidebar.sidebar.wordsCount", {
-                                      count: formatNumber(writing.value.scene_words[scene.id]),
-                                    })}</small
+                                    >{tn(
+                                      "sidebar.sidebar.wordsCount",
+                                      writing.value.scene_words[scene.id],
+                                      {
+                                        count: formatNumber(writing.value.scene_words[scene.id]),
+                                      }
+                                    )}</small
                                   >
                                 {/if}
                               </button>
@@ -2141,9 +2149,13 @@
                                 <span class="sb-row-trail">
                                   {#if writing.value?.scene_words?.[scene.id] !== undefined}
                                     <small
-                                      >{t("sidebar.sidebar.wordsCount", {
-                                        count: formatNumber(writing.value.scene_words[scene.id]),
-                                      })}</small
+                                      >{tn(
+                                        "sidebar.sidebar.wordsCount",
+                                        writing.value.scene_words[scene.id],
+                                        {
+                                          count: formatNumber(writing.value.scene_words[scene.id]),
+                                        }
+                                      )}</small
                                     >
                                   {/if}
                                   {#if sceneType !== "normal"}

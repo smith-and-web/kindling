@@ -125,9 +125,10 @@
                 <span class="template-text">
                   <span class="template-name">{template.name}</span>
                   <small>
-                    {t("sidebar.templateBrowser.beatsCount", {
-                      count: totalBeats(template),
-                    })}{#if template.source}
+                    {tn(
+                      "sidebar.templateBrowser.beatsCount",
+                      totalBeats(template)
+                    )}{#if template.source}
                       · {template.source}{/if}
                   </small>
                   {#if template.description}

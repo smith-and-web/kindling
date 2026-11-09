@@ -4,7 +4,9 @@ import type { Catalog } from "../../types";
 const catalog: Catalog = {
   // References panel
   "referencesPanel.title": "Referências",
-  "referencesPanel.expandWithCount": "Expandir painel de referências, {count} referências",
+  "referencesPanel.expandWithCount.one": "Expandir painel de referências, {count} referência",
+  "referencesPanel.expandWithCount.other": "Expandir painel de referências, {count} referências",
+
   "referencesPanel.expandPanel": "Expandir painel de referências",
   "referencesPanel.resizePanel": "Redimensionar painel de referências",
   "referencesPanel.copyFromProject": "Copiar referências do projeto…",

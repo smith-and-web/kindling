@@ -31,7 +31,9 @@ const catalog: Catalog = {
     "This chapter is undefined. Add a synopsis and scenes will appear when you promote it to Flexible or Fixed.",
   "sidebar.switchToFlexible": "Switch to Flexible",
   "sidebar.defineFullStructure": "Define full structure",
-  "sidebar.wordsCount": "{count} words",
+  "sidebar.wordsCount.one": "{count} word",
+  "sidebar.wordsCount.other": "{count} words",
+
   "sidebar.statusLine": "Status: {status}",
   "sidebar.all": "All",
   "sidebar.statusDraft": "Draft",
@@ -168,7 +170,9 @@ const catalog: Catalog = {
   "tagManager.addChildTag": "Add child tag",
   "tagManager.deleteTag": "Delete tag",
   "tagManager.closeEditor": "Close tag editor",
-  "tagManager.childTags": "{count} child tags",
+  "tagManager.childTags.one": "{count} child tag",
+  "tagManager.childTags.other": "{count} child tags",
+
   "tagManager.name": "Name",
   "tagManager.namePlaceholder": "e.g. Flashback, Action, Romance…",
   "tagManager.color": "Color",
@@ -205,7 +209,9 @@ const catalog: Catalog = {
   "templateBrowser.noTemplates": "No templates available",
   "templateBrowser.noTemplatesHint":
     "You can still start from a blank structure and add chapters yourself.",
-  "templateBrowser.beatsCount": "{count} beats",
+  "templateBrowser.beatsCount.one": "{count} beat",
+  "templateBrowser.beatsCount.other": "{count} beats",
+
   "templateBrowser.templateCount.one": "{count} template available",
   "templateBrowser.templateCount.other": "{count} templates available",
   "templateBrowser.useTemplate": "Use template",
