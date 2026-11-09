@@ -538,12 +538,15 @@ export const suites = [
       await r.wait(el("#export-spacing"));
       await r.fill("#export-font", "Georgia");
       await r.fill("#export-spacing", "1.5");
-      // The preview frame loads its new document asynchronously.
-      await r.wait(`${el('iframe[title="Export layout preview"]')}?.dataset.ready === "true"`);
+      // The preview document is rebuilt asynchronously after each control change, so
+      // `data-ready` can report an intermediate document (Georgia, old spacing). Wait for
+      // the one carrying both changes before the frame's load counts.
+      const typographyPreview = `(() => { const f = ${el('iframe[title="Export layout preview"]')}; return !!f && f.dataset.ready === "true" && f.srcdoc.includes('Georgia') && f.srcdoc.includes('line-height:1.5;'); })()`;
+      await r.wait(typographyPreview);
       await r.shot(
         "19-02-export-typography",
         "Typography and page controls sit beside a responsive layout approximation.",
-        `${el('iframe[title="Export layout preview"]')}.srcdoc.includes('Georgia')`
+        typographyPreview
       );
       await r.text("Save profile");
       await r.click('[aria-label="Close export workspace"]');
