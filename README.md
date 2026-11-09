@@ -46,6 +46,11 @@
 
 <p align="center"><sub>A vector recording of the real app, captured through its local socket with <code>npm run demo:readme</code>.</sub></p>
 
+## New in v1.4
+
+- **kindling speaks your language.** The interface is available in English, Simplified Chinese, Spanish, Brazilian Portuguese, Russian, German and French, including the menus, dates, numbers and counts. It follows your system language by default; choose another in **Settings → Appearance → Language**, and the whole app switches without a restart. [Help translate kindling →](#help-translate-kindling)
+- **Fixes** for the Linux AppImage on newer Mesa drivers, the export preview, editor toolbar jumps while saving, and wording across every language. See the [release notes](https://github.com/smith-and-web/kindling/releases) for the full list.
+
 ## New in v1.3
 
 - **A new look.** The whole app is rebuilt on [Press](#press-design-system), kindling's design system. It has paper-first light and dark themes, Inter controls, Fraunces headings and a Newsreader manuscript. In dark mode the manuscript stays on light paper.
@@ -141,6 +146,7 @@ Each release includes `checksums.sha256`. See [Installation](docs/installation.m
 | -------------------------- | -------------------------------------------------------------------------------------- |
 | **Light, dark and system** | Press chrome in both themes; the manuscript stays light paper                          |
 | **Keyboard shortcuts**     | Rebind any command and see the changes immediately in menus and hints                  |
+| **Seven languages**        | English, 简体中文, Español, Português (Brasil), Русский, Deutsch and Français          |
 | **Local-first**            | One SQLite database on your machine                                                    |
 | **Upgrade backups**        | A copy of your library is saved before each version upgrade; the newest three are kept |
 | **Cross-platform**         | macOS, Windows and Linux                                                               |
@@ -401,7 +407,8 @@ Track progress on the [project board](https://github.com/users/smith-and-web/pro
 | **v1.1 – Plantser Support** | ✅ Complete | Rolling Outline Mode, blank projects, beat management, discovery notes, command palette, guided onboarding, auto-updater                                |
 | **v1.2 – Features**         | ✅ Complete | Scrivener import/export, screenplay support, light theme, custom fields, tags, templates, auto-detection, EPUB, treatments                              |
 | **v1.3 – Revise & Review**  | ✅ Complete | Press redesign, editorial review and review packages, scene revisions, find and replace, writing goals, export workspace, novelWriter, custom shortcuts |
-| **v1.3.1 – Follow-ups**     | 📋 Planned  | Import and export fidelity fixes deferred from the [v1.3 triage](docs/release-triage-v1.3.md)                                                           |
+| **v1.3.1 – Follow-ups**     | ✅ Complete | Import and export fidelity fixes deferred from the [v1.3 triage](docs/release-triage-v1.3.md)                                                           |
+| **v1.4 – Languages**        | ✅ Complete | Interface in seven languages with a language setting, localization and Linux fixes                                                                      |
 
 See the [milestones](https://github.com/smith-and-web/kindling/milestones) for detailed breakdowns.
 
@@ -415,6 +422,24 @@ Contributions are welcome! Please read the [Contributing Guide](CONTRIBUTING.md)
 - 🔥 [Discord](https://discord.gg/g7bkj4kY8w): chat with other writers and contributors
 
 Looking for a place to start? Check out issues labeled [`good first issue`](https://github.com/smith-and-web/kindling/labels/good%20first%20issue).
+
+### Help translate kindling
+
+kindling's interface is translated, and native speakers are warmly welcome to make it better. Most of the current translations have not yet been read end to end by a native speaker, so even small corrections help: an awkward phrase, a term writers in your language would never use, or a label that gets cut off.
+
+| Language           | Code    | Catalog                                       |
+| ------------------ | ------- | --------------------------------------------- |
+| English (source)   | `en`    | [`locales/en`](src/lib/i18n/locales/en)       |
+| 简体中文           | `zh-CN` | [`locales/zh-CN`](src/lib/i18n/locales/zh-CN) |
+| Español            | `es`    | [`locales/es`](src/lib/i18n/locales/es)       |
+| Português (Brasil) | `pt-BR` | [`locales/pt-BR`](src/lib/i18n/locales/pt-BR) |
+| Русский            | `ru`    | [`locales/ru`](src/lib/i18n/locales/ru)       |
+| Deutsch            | `de`    | [`locales/de`](src/lib/i18n/locales/de)       |
+| Français           | `fr`    | [`locales/fr`](src/lib/i18n/locales/fr)       |
+
+- **Improve a language:** the catalogs are plain TypeScript files of `key: "text"` pairs, grouped by part of the app. Edit the text and open a pull request, keeping every `{placeholder}` intact. The [interface glossary](docs/i18n-glossary.md) records how each language renders core terms like _beat_, _scene_ and _reference_, so changes there keep the whole app consistent.
+- **Not comfortable with pull requests?** [Open an issue](https://github.com/smith-and-web/kindling/issues/new?template=bug_report.yml) or post in [Discussions](https://github.com/smith-and-web/kindling/discussions) with a screenshot and the wording you'd suggest.
+- **Add a new language:** follow the steps in [Internationalization](docs/ARCHITECTURE.md#internationalization-srclibi18n). Start by adding a column to the glossary, then copy the English catalog.
 
 ## Support
 
