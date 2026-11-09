@@ -21,7 +21,7 @@ on:
       - "src-tauri/*.plist"
       - ".github/workflows/release.yml"
       - ".github/workflows/release-build.yml"
-      - "scripts/*-appimage-perms.sh"
+      - "scripts/*-appimage-*.sh"
   schedule:
     # Weekly, so drift in runners or toolchains shows up between releases.
     - cron: "0 3 * * 0"
@@ -100,14 +100,16 @@ jobs:
         shell: bash
         run: npx tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}' ${{ matrix.args }}
 
-      # Same repack and gate release.yml's appimage job runs (tauri-apps/tauri#16155).
-      - name: Fix and check AppImage permissions (Linux)
+      # Same repack and gates release.yml's appimage job runs (tauri-apps/tauri#16155,
+      # bundled libwayland-client).
+      - name: Fix and check AppImage bundle (Linux)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get install -y squashfs-tools
           for f in src-tauri/target/release/bundle/appimage/*.AppImage; do
-            scripts/fix-appimage-perms.sh "$f"
+            scripts/repack-appimage.sh "$f"
             scripts/check-appimage-perms.sh "$f"
+            scripts/check-appimage-wayland.sh "$f"
           done
 
       - name: List bundles
