@@ -305,6 +305,27 @@ it("mounts an unstyled HTML preview on manuscript paper and ink, in either theme
   }
 });
 
+it("gives each preview document its own frame, so only that frame's load marks it ready", async () => {
+  await mount();
+  const frame = () => screen.getByTitle("Export layout preview") as HTMLIFrameElement;
+  const first = frame();
+  await fireEvent.load(first);
+  expect(first.dataset.ready).toBe("true");
+
+  await fireEvent.click(screen.getByRole("button", { name: /Text & page/ }));
+  await fireEvent.change(screen.getByLabelText("Line spacing"), { target: { value: "1.5" } });
+  const second = frame();
+  // A changed srcdoc on a live frame can leave WebKit showing the old document, and the old
+  // load would then report the new document as ready. The new document gets a new frame.
+  expect(second).not.toBe(first);
+  expect(first.isConnected).toBe(false);
+  expect(second.srcdoc).toContain("line-height:1.5;");
+  expect(first.srcdoc).not.toContain("line-height:1.5;");
+  // Ready describes the frame on screen: its own load, with a srcdoc that never changes.
+  await fireEvent.load(second);
+  expect(second.dataset.ready).toBe("true");
+});
+
 it.each([
   ["chapter", "Für Ihr ausgewähltes Kapitel geöffnet."],
   ["scene", "Für Ihre ausgewählte Szene geöffnet."],
