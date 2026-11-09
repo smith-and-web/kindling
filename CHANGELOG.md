@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 This changelog is automatically generated from [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [1.4.0](https://github.com/smith-and-web/kindling/compare/v1.3.1...v1.4.0) (2026-11-09)
+
+### Features
+
+* **localization:** kindling now speaks your language. The interface, including the menus, dates, numbers and counts, is available in English, Simplified Chinese, Spanish, Brazilian Portuguese, Russian, German and French. It follows your system language by default, and you can choose a different one in **Settings → Appearance → Language**, which switches the whole app, menus included, without a restart ([#420](https://github.com/smith-and-web/kindling/issues/420), [#424](https://github.com/smith-and-web/kindling/issues/424), [#432](https://github.com/smith-and-web/kindling/issues/432), [#434](https://github.com/smith-and-web/kindling/issues/434), [#435](https://github.com/smith-and-web/kindling/issues/435), [#443](https://github.com/smith-and-web/kindling/issues/443), [#455](https://github.com/smith-and-web/kindling/issues/455))
+
+### Bug Fixes
+
+* **localization:** counts such as words, scenes and beats agree with their number in every language, labels, dates and numbers that were still in English are translated, and phrases built from pieces read as whole sentences ([#440](https://github.com/smith-and-web/kindling/issues/440), [#441](https://github.com/smith-and-web/kindling/issues/441), [#445](https://github.com/smith-and-web/kindling/issues/445), [#449](https://github.com/smith-and-web/kindling/issues/449))
+* **linux:** the AppImage no longer opens a blank window on systems with newer Mesa graphics drivers ([#447](https://github.com/smith-and-web/kindling/issues/447)). This should also fix the blank window in [#252](https://github.com/smith-and-web/kindling/issues/252), which we could not confirm on the affected hardware: if you saw it, please try 1.4.0 and tell us on that issue
+* **linux:** the AppImage launches when it is run from a sandbox or another tool that mounts it directly
+* **export:** the live preview stays in step with your settings, so it no longer shows an earlier font or line spacing after you change them
+* **editor:** saving no longer makes the beat toolbar or the scene panel jump, and the page and beat views lose the empty row under their toolbar ([#425](https://github.com/smith-and-web/kindling/issues/425), [#427](https://github.com/smith-and-web/kindling/issues/427))
+* **editorial:** Manuscript actions grey out while a review action is still working, instead of appearing to do nothing
+* **ui:** the tip pointing at the References panel sits beside the panel in every language ([#452](https://github.com/smith-and-web/kindling/issues/452))
+* **ui:** Chinese headings and prose use a serif font
+* **security:** the SQLite engine that stores your projects is updated to 3.54, which fixes a security flaw in the previous version; existing projects open as before ([#457](https://github.com/smith-and-web/kindling/issues/457))
+* **security:** updated the certificate-checking libraries used for update checks and feedback
+
 ## [1.3.1](https://github.com/smith-and-web/kindling/compare/v1.3.0...v1.3.1) (2026-10-19)
 
 ### Bug Fixes
