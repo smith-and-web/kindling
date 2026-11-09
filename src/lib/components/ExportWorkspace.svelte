@@ -1518,13 +1518,18 @@
                 ? t("export.exportWorkspace.generatedTextAria")
                 : t("export.exportWorkspace.generatedHtmlAria")}
               value={sourceText}
-            ></textarea>{:else}<iframe
-              title={t("export.exportWorkspace.layoutPreviewTitle")}
-              sandbox=""
-              srcdoc={previewDocument}
-              data-ready={previewLoaded === previewDocument}
-              onload={(event) => (previewLoaded = event.currentTarget.getAttribute("srcdoc") ?? "")}
-            ></iframe>{/if}
+            ></textarea>{:else}
+            <!-- A fresh frame per document: WebKit can keep showing the superseded document
+                 when srcdoc changes during a load, and that load would then mark the new one
+                 ready. Keyed, each frame's srcdoc never changes, so data-ready is truthful. -->
+            {#key previewDocument}<iframe
+                title={t("export.exportWorkspace.layoutPreviewTitle")}
+                sandbox=""
+                srcdoc={previewDocument}
+                data-ready={previewLoaded === previewDocument}
+                onload={(event) =>
+                  (previewLoaded = event.currentTarget.getAttribute("srcdoc") ?? "")}
+              ></iframe>{/key}{/if}
         </div>
         <footer class="xw-preview-foot">
           <span
