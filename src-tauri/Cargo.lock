@@ -2330,7 +2330,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_norway",
- "sha1 0.10.6",
+ "sha1",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
@@ -4253,17 +4253,6 @@ checksum = "d52aa42f8fdf0fed91e5ce7f23d8138441002fa31dca008acf47e6fd4721f741"
 dependencies = [
  "nodrop",
  "stable_deref_trait",
-]
-
-[[package]]
-name = "sha1"
-version = "0.10.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3bf829a2d51ab4a5ddf1352d8470c140cadc8301b2ae1789db023f01cedd6ba"
-dependencies = [
- "cfg-if",
- "cpufeatures 0.2.17",
- "digest 0.10.7",
 ]
 
 [[package]]
@@ -6823,7 +6812,7 @@ dependencies = [
  "nix 0.31.3",
  "pbkdf2",
  "ppmd-rust",
- "sha1 0.11.0",
+ "sha1",
  "time",
  "typed-path",
  "zeroize",
