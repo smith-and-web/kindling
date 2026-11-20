@@ -3,6 +3,8 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { backgroundQA, installBackgroundFrames } from "./lib/qaMode";
 
+const PAINT_TIMEOUT_MS = 500;
+
 installBackgroundFrames();
 
 function paintOpportunity(): Promise<void> {
@@ -27,11 +29,18 @@ async function loadingPaint() {
     await new Promise<void>((resolve) => {
       const observer = new PerformanceObserver((entries) => {
         if (entries.getEntries().some((entry) => entry.name === "first-contentful-paint")) {
-          observer.disconnect();
-          resolve();
+          finish();
         }
       });
       observer.observe({ type: "paint", buffered: true });
+      // Some webviews may never deliver a contentful paint entry.
+      const timeout = window.setTimeout(finish, PAINT_TIMEOUT_MS);
+
+      function finish() {
+        window.clearTimeout(timeout);
+        observer.disconnect();
+        resolve();
+      }
     });
   } else {
     // Without Paint Timing, let initial layout request its fonts,

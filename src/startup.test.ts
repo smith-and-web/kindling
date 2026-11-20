@@ -54,6 +54,7 @@ beforeEach(() => {
   vi.doMock("./main", () => mocks.loadMain());
 });
 afterEach(() => {
+  vi.useRealTimers();
   document.body.innerHTML = "";
   if (originalFonts) Object.defineProperty(document, "fonts", originalFonts);
   else Reflect.deleteProperty(document, "fonts");
@@ -152,7 +153,7 @@ it("offers retry when the application module fails instead of spinning forever",
   expect(document.getElementById("app")?.hasAttribute("inert")).toBe(true);
 });
 
-it("waits for reported contentful paint when the browser supports paint timing", async () => {
+function mockPaintTiming() {
   let report!: (entries: { getEntries: () => { name: string }[] }) => void;
   const observe = vi.fn();
   const disconnect = vi.fn();
@@ -167,15 +168,47 @@ it("waits for reported contentful paint when the browser supports paint timing",
       disconnect = disconnect;
     }
   );
+  return {
+    observe,
+    disconnect,
+    report: (name: string) => report({ getEntries: () => [{ name }] }),
+  };
+}
+
+it("waits for reported contentful paint when the browser supports paint timing", async () => {
+  const { observe, disconnect, report } = mockPaintTiming();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   const { startup } = await import("./startup");
-  await vi.waitFor(() => expect(observe).toHaveBeenCalledWith({ type: "paint", buffered: true }));
+  expect(observe).toHaveBeenCalledWith({ type: "paint", buffered: true });
   expect(mocks.loadMain).not.toHaveBeenCalled();
-  report({ getEntries: () => [{ name: "first-paint" }] });
+  report("first-paint");
   await Promise.resolve();
   expect(mocks.loadMain).not.toHaveBeenCalled();
-  report({ getEntries: () => [{ name: "first-contentful-paint" }] });
+  report("first-contentful-paint");
   await vi.waitFor(() => expect(mocks.loadMain).toHaveBeenCalledOnce());
+  await vi.advanceTimersByTimeAsync(500);
   expect(disconnect).toHaveBeenCalledOnce();
+  content.resolve();
+  fonts.resolve();
+  await vi.waitFor(() => expect(frames).toHaveLength(1));
+  frame();
+  frame();
+  await startup;
+  expect(mocks.focus).toHaveBeenCalledOnce();
+});
+
+it("starts after 500 ms when paint timing never reports contentful paint", async () => {
+  const { disconnect, report } = mockPaintTiming();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const { startup } = await import("./startup");
+  report("first-paint");
+
+  await vi.advanceTimersByTimeAsync(499);
+  expect(mocks.loadMain).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
+  expect(disconnect).toHaveBeenCalledOnce();
+  await vi.waitFor(() => expect(mocks.loadMain).toHaveBeenCalledOnce());
+
   content.resolve();
   fonts.resolve();
   await vi.waitFor(() => expect(frames).toHaveLength(1));
