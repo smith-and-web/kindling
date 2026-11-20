@@ -20,7 +20,7 @@ services:
       TAURI_BUNDLER_DISABLE_APPIMAGE: "1"
     command: >
       sh -c "npm ci &&
-             npm run tauri build -- --no-bundle &&
+             npm run tauri build -- --no-bundle -- --no-default-features &&
              npm ci --prefix e2e --include=dev &&
              (Xvfb :99 -screen 0 1920x1080x24 &) &&
              sleep 2 &&
