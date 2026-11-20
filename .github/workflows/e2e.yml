@@ -90,7 +90,8 @@ jobs:
         run: npm ci
 
       - name: Build Tauri app (release, no bundle)
-        run: npm run tauri build -- --no-bundle
+        # Match release builds, which exclude the development MCP plugin.
+        run: npm run tauri build -- --no-bundle -- --no-default-features
         env:
           TAURI_SIGNING_PRIVATE_KEY: ""
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
